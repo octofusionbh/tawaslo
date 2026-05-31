@@ -610,7 +610,7 @@ function SocialAccountsPage() {
   };
 
   const connectMeta = () => {
-    const redirectUri = `${window.location.origin}/api/meta-callback`;
+    const redirectUri = `https://tawaslo.com/api/meta-callback`;
     const scope = [
       "pages_show_list",
       "pages_read_engagement",
