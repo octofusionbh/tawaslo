@@ -577,19 +577,29 @@ function SocialAccountsPage() {
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [realClientId, setRealClientId] = useState(null);
+
+  // Resolve real Supabase UUID for the selected client
+  useEffect(() => {
+    if (!selClient?.name) return;
+    setRealClientId(null);
+    supabase.from('clients').select('id').eq('name', selClient.name).single()
+      .then(({ data }) => { if (data) setRealClientId(data.id); });
+  }, [selClient]);
 
   // Load connected accounts from Supabase
   useEffect(() => {
-    if (!selClient?.id) return;
+    if (!realClientId) return;
     loadAccounts();
-  }, [selClient]);
+  }, [realClientId]);
 
   const loadAccounts = async () => {
+    if (!realClientId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('client_id', selClient.id);
+      .eq('client_id', realClientId);
     if (!error && data) setAccounts(data);
     setLoading(false);
   };
@@ -602,7 +612,7 @@ function SocialAccountsPage() {
       "business_management",
       "public_profile",
     ].join(",");
-    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${selClient.id}`;
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
     setConnecting(true);
 
@@ -635,7 +645,7 @@ function SocialAccountsPage() {
           let saveErrors = [];
           for (const acc of data.accounts) {
             const { error: upsertErr } = await supabase.from('social_accounts').upsert({
-              client_id: selClient.id,
+              client_id: realClientId,
               platform: acc.platform,
               account_id: acc.account_id,
               account_name: acc.account_name,
