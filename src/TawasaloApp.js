@@ -403,6 +403,37 @@ function AgencyDashboard() {
   const th = useTheme();
   const [caption, setCaption] = useState("");
   const [selPl, setSelPl] = useState(["ig","fb"]);
+
+  // AI caption state
+  const [showAI, setShowAI]       = useState(false);
+  const [aiTopic, setAiTopic]     = useState("");
+  const [aiTone, setAiTone]       = useState("engaging and professional");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError]     = useState("");
+  const [aiResult, setAiResult]   = useState(null); // {english, arabic}
+
+  const generateCaption = async () => {
+    if (!aiTopic.trim()) return;
+    setAiLoading(true); setAiError(""); setAiResult(null);
+    try {
+      const res = await fetch('/api/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: aiTopic,
+          platform: selPl[0] || 'ig',
+          tone: aiTone,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      setAiResult(data);
+    } catch (e) {
+      setAiError(e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
   return (
     <div>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
@@ -484,9 +515,42 @@ function AgencyDashboard() {
             </div>
             <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption..." rows={4}
               style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"9px 11px",color:th.text,fontSize:12,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:10}}/>
-            <button style={{width:"100%",padding:"8px",borderRadius:8,background:th.accent2Soft,border:`1px solid ${th.accent2}30`,color:th.accent2,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              <Sparkles size={12}/>Generate with AI
+
+            {/* AI Caption Generator */}
+            <button onClick={()=>{setShowAI(!showAI);setAiResult(null);setAiError("");}} style={{width:"100%",padding:"8px",borderRadius:8,background:th.accent2Soft,border:`1px solid ${th.accent2}30`,color:th.accent2,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:showAI?8:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <Sparkles size={12}/>{showAI?"Hide AI Generator":"Generate with AI"}
             </button>
+
+            {showAI&&(
+              <div style={{background:th.card2,border:`1px solid ${th.accent2}30`,borderRadius:10,padding:12,marginBottom:10}}>
+                <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Describe your post topic</div>
+                <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} placeholder="e.g. New summer collection launch for a fashion brand"
+                  style={{width:"100%",background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",color:th.text,fontSize:11,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}/>
+                <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Tone</div>
+                <select value={aiTone} onChange={e=>setAiTone(e.target.value)}
+                  style={{width:"100%",background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"7px 10px",color:th.text,fontSize:11,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}>
+                  <option>engaging and professional</option>
+                  <option>fun and casual</option>
+                  <option>luxury and premium</option>
+                  <option>urgent and promotional</option>
+                  <option>informative and educational</option>
+                </select>
+                <button onClick={generateCaption} disabled={aiLoading||!aiTopic.trim()} style={{width:"100%",padding:"8px",borderRadius:7,background:th.gradient,border:"none",color:"#fff",fontSize:11,fontWeight:700,cursor:aiLoading?"not-allowed":"pointer",opacity:aiLoading||!aiTopic.trim()?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                  <Sparkles size={11}/>{aiLoading?"Generating…":"Generate"}
+                </button>
+                {aiError&&<div style={{marginTop:8,fontSize:10,color:th.danger,background:th.dangerSoft,borderRadius:6,padding:"6px 9px"}}>{aiError}</div>}
+                {aiResult&&(
+                  <div style={{marginTop:10}}>
+                    <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>English</div>
+                    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",fontSize:11,lineHeight:1.6,marginBottom:8}}>{aiResult.english}</div>
+                    <button onClick={()=>setCaption(aiResult.english)} style={{width:"100%",padding:"5px",borderRadius:6,background:th.accentSoft,border:`1px solid ${th.accent}30`,color:th.accent,fontSize:10,fontWeight:600,cursor:"pointer",marginBottom:10}}>Use English Caption</button>
+                    <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Arabic / عربي</div>
+                    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",fontSize:12,lineHeight:1.8,direction:"rtl",textAlign:"right",marginBottom:8}}>{aiResult.arabic}</div>
+                    <button onClick={()=>setCaption(aiResult.arabic)} style={{width:"100%",padding:"5px",borderRadius:6,background:th.accentSoft,border:`1px solid ${th.accent}30`,color:th.accent,fontSize:10,fontWeight:600,cursor:"pointer"}}>Use Arabic Caption</button>
+                  </div>
+                )}
+              </div>
+            )}
             <button style={{width:"100%",padding:"10px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 14px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:7}}>
               <Calendar size={13}/>Schedule Post
             </button>
