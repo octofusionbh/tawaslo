@@ -1003,12 +1003,17 @@ export default function TawasloApp() {
   // Restore session on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) setIsAuthed(true);
+      if (session?.user) {
+        setIsAuthed(true);
+        // Ensure Octo Fusion client exists in DB
+        ensureOctoFusionClient(session.user.id);
+      }
       setAuthReady(true);
     });
     // Listen for auth changes (e.g. email confirmation callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthed(!!session?.user);
+      if (session?.user) ensureOctoFusionClient(session.user.id);
     });
     return () => subscription.unsubscribe();
   }, []);
