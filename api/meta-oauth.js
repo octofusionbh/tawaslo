@@ -47,14 +47,18 @@ export default async function handler(req, res) {
 
         // Check for linked Instagram Business account
         const igRes = await fetch(
-          `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account&access_token=${page.access_token}`
+          `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account,connected_instagram_account&access_token=${page.access_token}`
         );
         const igData = await igRes.json();
+        console.log(`Page ${page.name} IG data:`, JSON.stringify(igData));
+
+        const igAccount = igData.instagram_business_account || igData.connected_instagram_account;
+        if (igAccount) { igData.instagram_business_account = igAccount; }
 
         if (igData.instagram_business_account) {
           const igId = igData.instagram_business_account.id;
           const igInfoRes = await fetch(
-            `https://graph.facebook.com/v19.0/${igId}?fields=id,name,username,profile_picture_url,followers_count&access_token=${page.access_token}`
+            `https://graph.facebook.com/v19.0/${igId}?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${page.access_token}`
           );
           const igInfo = await igInfoRes.json();
 
@@ -71,7 +75,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ accounts, longToken });
+    return res.status(200).json({ accounts, longToken, debug: { pageCount: pagesData.data?.length, pages: pagesData.data?.map(p => ({ id: p.id, name: p.name })) } });
   } catch (err) {
     return res.status(500).json({ error: 'OAuth failed', details: err.message });
   }
