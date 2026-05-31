@@ -166,6 +166,7 @@ function Sidebar() {
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
     ]},
     {section:"Account", items:[
+      {key:"social",     Icon:Link,           label:"Social Accounts", badge:null},
       {key:"agencyteam", Icon:Users,          label:"Team",      badge:null},
       {key:"billing",    Icon:CreditCard,     label:"Billing",   badge:null},
       {key:"agencysets", Icon:Settings,       label:"Settings",  badge:null},
@@ -569,6 +570,213 @@ function AgencyDashboard() {
   );
 }
 
+function SocialAccountsPage() {
+  const { selClient } = useApp();
+  const th = useTheme();
+  const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  // Load connected accounts from Supabase
+  useEffect(() => {
+    if (!selClient?.id) return;
+    loadAccounts();
+  }, [selClient]);
+
+  const loadAccounts = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('social_accounts')
+      .select('*')
+      .eq('client_id', selClient.id);
+    if (!error && data) setAccounts(data);
+    setLoading(false);
+  };
+
+  const connectMeta = () => {
+    const redirectUri = `${window.location.origin}/api/meta-callback`;
+    const scope = [
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_posts",
+      "instagram_basic",
+      "instagram_content_publish",
+      "instagram_manage_insights",
+      "ads_management",
+      "business_management",
+      "read_insights",
+    ].join(",");
+    const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${selClient.id}`;
+    const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
+    setConnecting(true);
+
+    // Listen for the callback
+    const interval = setInterval(async () => {
+      try {
+        if (popup.closed) {
+          clearInterval(interval);
+          setConnecting(false);
+          loadAccounts();
+          return;
+        }
+        const popupUrl = popup.location.href;
+        if (popupUrl.includes("code=")) {
+          const url = new URL(popupUrl);
+          const code = url.searchParams.get("code");
+          popup.close();
+          clearInterval(interval);
+
+          // Exchange code for tokens
+          const res = await fetch('/api/meta-oauth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+
+          // Save each account to Supabase
+          for (const acc of data.accounts) {
+            await supabase.from('social_accounts').upsert({
+              client_id: selClient.id,
+              platform: acc.platform,
+              account_id: acc.account_id,
+              account_name: acc.account_name,
+              username: acc.username || null,
+              access_token: acc.access_token,
+              picture: acc.picture || null,
+              followers_count: acc.followers_count || 0,
+              is_active: true,
+            }, { onConflict: 'client_id,account_id' });
+          }
+
+          setSuccess(`Connected ${data.accounts.length} account(s) successfully!`);
+          setConnecting(false);
+          loadAccounts();
+        }
+      } catch (e) {
+        // Popup still navigating — keep waiting
+      }
+    }, 1000);
+  };
+
+  const disconnectAccount = async (accountId) => {
+    await supabase.from('social_accounts').delete().eq('id', accountId);
+    setAccounts(prev => prev.filter(a => a.id !== accountId));
+  };
+
+  const platformInfo = {
+    ig: { name: "Instagram", color: "#E1306C", bg: "rgba(225,48,108,0.1)", Icon: FaInstagram },
+    fb: { name: "Facebook",  color: "#1877F2", bg: "rgba(24,119,242,0.1)", Icon: FaFacebook  },
+  };
+
+  return (
+    <div style={{ padding: "28px 32px", maxWidth: 860 }}>
+      <div style={{ marginBottom: 28 }}>
+        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>Social Accounts</h2>
+        <p style={{ margin: "6px 0 0", fontSize: 13, color: th.text2 }}>
+          Connect Instagram and Facebook accounts for {selClient?.name}
+        </p>
+      </div>
+
+      {error && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.dangerSoft, color: th.danger, fontSize: 13, marginBottom: 16 }}>{error}</div>}
+      {success && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.successSoft, color: th.success, fontSize: 13, marginBottom: 16 }}>{success}</div>}
+
+      {/* Connect Button */}
+      <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 24, marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(225,48,108,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FaInstagram style={{ color: "#E1306C", fontSize: 20 }} />
+              </div>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(24,119,242,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FaFacebook style={{ color: "#1877F2", fontSize: 20 }} />
+              </div>
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Instagram & Facebook</div>
+              <div style={{ fontSize: 12, color: th.text2, marginTop: 3 }}>Log in with Facebook to connect pages and Instagram business accounts</div>
+            </div>
+          </div>
+          <button
+            onClick={connectMeta}
+            disabled={connecting}
+            style={{ padding: "11px 22px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}
+          >
+            <Link size={14} />{connecting ? "Connecting…" : "Connect via Facebook"}
+          </button>
+        </div>
+      </div>
+
+      {/* Connected Accounts */}
+      <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${th.border}`, fontWeight: 700, fontSize: 13 }}>
+          Connected Accounts {accounts.length > 0 && <span style={{ fontWeight: 400, color: th.text2 }}>({accounts.length})</span>}
+        </div>
+        {loading ? (
+          <div style={{ padding: 32, textAlign: "center", color: th.text2, fontSize: 13 }}>Loading…</div>
+        ) : accounts.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <Link size={32} color={th.text3} style={{ marginBottom: 12 }} />
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No accounts connected</div>
+            <div style={{ fontSize: 12, color: th.text2 }}>Click "Connect via Facebook" above to get started</div>
+          </div>
+        ) : (
+          accounts.map((acc, i) => {
+            const info = platformInfo[acc.platform] || { name: acc.platform, color: th.accent, bg: th.accentSoft, Icon: Globe };
+            const PIcon = info.Icon;
+            return (
+              <div key={acc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i < accounts.length - 1 ? `1px solid ${th.border}` : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ position: "relative" }}>
+                    {acc.picture ? (
+                      <img src={acc.picture} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
+                    ) : (
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: info.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <PIcon style={{ color: info.color, fontSize: 20 }} />
+                      </div>
+                    )}
+                    <div style={{ position: "absolute", bottom: -3, right: -3, width: 16, height: 16, borderRadius: "50%", background: info.bg, border: `2px solid ${th.card}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <PIcon style={{ color: info.color, fontSize: 8 }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{acc.account_name}</div>
+                    <div style={{ fontSize: 11, color: th.text2 }}>
+                      {acc.username ? `@${acc.username} · ` : ""}{info.name}
+                      {acc.followers_count > 0 && ` · ${acc.followers_count.toLocaleString()} followers`}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ padding: "3px 10px", borderRadius: 20, background: th.successSoft, color: th.success, fontSize: 11, fontWeight: 700 }}>
+                    ● Active
+                  </div>
+                  <button
+                    onClick={() => disconnectAccount(acc.id)}
+                    style={{ padding: "6px 12px", borderRadius: 8, background: th.dangerSoft, border: "none", color: th.danger, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Info box */}
+      <div style={{ marginTop: 20, padding: "14px 18px", borderRadius: 10, background: th.accentSoft, border: `1px solid ${th.border}`, fontSize: 12, color: th.text2, lineHeight: 1.6 }}>
+        <strong style={{ color: th.accent }}>Note:</strong> Instagram accounts must be Business or Creator accounts connected to a Facebook Page. Personal Instagram accounts cannot be connected via the API.
+      </div>
+    </div>
+  );
+}
+
 function Placeholder({ icon:Icon, title, description }) {
   const { setPage } = useApp();
   const th = useTheme();
@@ -802,6 +1010,7 @@ export default function TawasloApp() {
       return <Placeholder icon={Settings} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is coming soon."/>;
     }
     if (page==="dashboard") return <AgencyDashboard/>;
+    if (page==="social") return <SocialAccountsPage/>;
     const icons = {
       publisher:Calendar, streams:Radio, inbox:Inbox, listening:Activity,
       campaigns:Megaphone, aistudio:Wand2, media:Image,
