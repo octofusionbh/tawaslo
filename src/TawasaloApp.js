@@ -632,8 +632,9 @@ function SocialAccountsPage() {
           if (!res.ok) throw new Error(data.error);
 
           // Save each account to Supabase
+          let saveErrors = [];
           for (const acc of data.accounts) {
-            await supabase.from('social_accounts').upsert({
+            const { error: upsertErr } = await supabase.from('social_accounts').upsert({
               client_id: selClient.id,
               platform: acc.platform,
               account_id: acc.account_id,
@@ -644,6 +645,13 @@ function SocialAccountsPage() {
               followers_count: acc.followers_count || 0,
               is_active: true,
             }, { onConflict: 'client_id,account_id' });
+            if (upsertErr) saveErrors.push(upsertErr.message);
+          }
+
+          if (saveErrors.length > 0) {
+            setError(`Save failed: ${saveErrors.join('; ')}`);
+            setConnecting(false);
+            return;
           }
 
           setSuccess(`Connected ${data.accounts.length} account(s) successfully!`);
