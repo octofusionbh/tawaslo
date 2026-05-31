@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { supabase, signIn, signUp, signOut, createProfile, resetPassword } from './supabase';
+import { supabase, signIn, signUp, signOut, createProfile, resetPassword, ensureOctoFusionClient } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
