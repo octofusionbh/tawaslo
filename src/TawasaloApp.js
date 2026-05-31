@@ -1,4 +1,5 @@
-import { useState, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
+import { supabase, signIn, signUp, signOut, createProfile, resetPassword } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -284,7 +285,7 @@ function Sidebar() {
           <button onClick={()=>setLang(l=>l==="en"?"ar":"en")} style={{flex:1,padding:"5px",borderRadius:7,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
             <Languages size={10}/>{lang==="en"?"عربي":"EN"}
           </button>
-          <button onClick={()=>setIsAuthed(false)} style={{flex:1,padding:"5px",borderRadius:7,background:th.dangerSoft,border:`1px solid ${th.danger}30`,color:th.danger,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
+          <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{flex:1,padding:"5px",borderRadius:7,background:th.dangerSoft,border:`1px solid ${th.danger}30`,color:th.danger,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
             <LogOut size={10}/>Out
           </button>
         </div>
@@ -523,11 +524,42 @@ function Placeholder({ icon:Icon, title, description }) {
 
 function AuthPage() {
   const { authPage, setAuthPage, setIsAuthed } = useApp();
-  const [showPw, setShowPw] = useState(false);
-  const [email, setEmail]   = useState("");
-  const [pw, setPw]         = useState("");
-  const [name, setName]     = useState("");
+  const [showPw,  setShowPw]  = useState(false);
+  const [email,   setEmail]   = useState("");
+  const [pw,      setPw]      = useState("");
+  const [name,    setName]    = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [success, setSuccess] = useState("");
   const th = DARK;
+
+  const handleSignIn = async () => {
+    setError(""); setLoading(true);
+    const { data, error: err } = await signIn(email, pw);
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    if (data?.user) setIsAuthed(true);
+  };
+
+  const handleSignUp = async () => {
+    setError(""); setLoading(true);
+    const { data, error: err } = await signUp(email, pw, name);
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    if (data?.user) {
+      await createProfile(data.user.id, name, email);
+      setSuccess("Account created! Check your email to confirm, then sign in.");
+      setAuthPage("login");
+    }
+  };
+
+  const handleReset = async () => {
+    setError(""); setLoading(true);
+    const { error: err } = await resetPassword(email);
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setSuccess("Reset link sent — check your email.");
+  };
 
   const inp = (placeholder, value, onChange, type="text") => (
     <div style={{display:"flex",alignItems:"center",gap:10,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"11px 14px",marginBottom:12}}>
@@ -592,26 +624,38 @@ function AuthPage() {
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40,overflowY:"auto"}}>
         <div style={{width:"100%",maxWidth:400}}>
+          {/* Error / Success banners */}
+          {error&&(
+            <div style={{background:th.dangerSoft,border:`1px solid ${th.danger}40`,borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:th.danger}}>
+              {error}
+            </div>
+          )}
+          {success&&(
+            <div style={{background:th.successSoft,border:`1px solid ${th.success}40`,borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:th.success}}>
+              {success}
+            </div>
+          )}
+
           {authPage==="login"&&(
             <>
               <div style={{marginBottom:28}}>
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Welcome back</h1>
                 <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawaslo workspace</p>
               </div>
-              {inp("Email address",email,e=>setEmail(e.target.value),"email")}
-              {inp("Password",pw,e=>setPw(e.target.value),"password")}
+              {inp("Email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
+              {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
                 <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2,cursor:"pointer"}}>
                   <input type="checkbox" style={{accentColor:th.accent}}/>Remember me
                 </label>
-                <button onClick={()=>setAuthPage("forgot")} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>Forgot password?</button>
+                <button onClick={()=>{setAuthPage("forgot");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>Forgot password?</button>
               </div>
-              <button onClick={()=>setIsAuthed(true)} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
-                Sign in <ChevronRight size={15}/>
+              <button onClick={handleSignIn} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
+                {loading?"Signing in…":"Sign in"} {!loading&&<ChevronRight size={15}/>}
               </button>
               <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
                 Don't have an account?{" "}
-                <button onClick={()=>setAuthPage("register")} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign up free</button>
+                <button onClick={()=>{setAuthPage("register");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign up free</button>
               </div>
             </>
           )}
@@ -621,15 +665,15 @@ function AuthPage() {
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Create your account</h1>
                 <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>14-day free trial · No credit card required</p>
               </div>
-              {inp("Full name",name,e=>setName(e.target.value),"text")}
-              {inp("Work email",email,e=>setEmail(e.target.value),"email")}
-              {inp("Password",pw,e=>setPw(e.target.value),"password")}
-              <button onClick={()=>setIsAuthed(true)} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
-                Create account <ChevronRight size={15}/>
+              {inp("Full name",name,e=>{setName(e.target.value);setError("");},"text")}
+              {inp("Work email",email,e=>{setEmail(e.target.value);setError("");},"email")}
+              {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
+              <button onClick={handleSignUp} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                {loading?"Creating account…":"Create account"} {!loading&&<ChevronRight size={15}/>}
               </button>
               <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
                 Already have an account?{" "}
-                <button onClick={()=>setAuthPage("login")} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign in</button>
+                <button onClick={()=>{setAuthPage("login");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign in</button>
               </div>
             </>
           )}
@@ -639,11 +683,11 @@ function AuthPage() {
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Reset password</h1>
                 <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>We'll send a reset link to your email</p>
               </div>
-              {inp("Your email address",email,e=>setEmail(e.target.value),"email")}
-              <button style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
-                Send reset link <ChevronRight size={15}/>
+              {inp("Your email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
+              <button onClick={handleReset} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                {loading?"Sending…":"Send reset link"} {!loading&&<ChevronRight size={15}/>}
               </button>
-              <button onClick={()=>setAuthPage("login")} style={{width:"100%",padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <button onClick={()=>{setAuthPage("login");setError("");setSuccess("");}} style={{width:"100%",padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
                 <ArrowLeft size={13}/>Back to sign in
               </button>
             </>
@@ -662,6 +706,20 @@ export default function TawasloApp() {
   const [mode,      setMode]      = useState("owner");
   const [page,      setPage]      = useState("overview");
   const [selClient, setSelClient] = useState(CLIENTS[0]);
+  const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
+
+  // Restore session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setIsAuthed(true);
+      setAuthReady(true);
+    });
+    // Listen for auth changes (e.g. email confirmation callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session?.user);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   const th = dark ? DARK : LIGHT;
 
@@ -689,6 +747,9 @@ export default function TawasloApp() {
     const Icon = icons[page]||Settings;
     return <Placeholder icon={Icon} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This page is being connected. Full version ready — linking it now."/>;
   };
+
+  // Don't render anything until we've checked the session
+  if (!authReady) return null;
 
   if (!isAuthed) {
     return (

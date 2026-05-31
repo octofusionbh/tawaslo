@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://gtjmpmhsiyqwhykunosc.supabase.co';
-const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0am1wbWhzaXlxd2h5a3Vub3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNjAzODAsImV4cCI6MjA5NTczNjM4MH0.atOyop4rZGuNnuc05Ek2XLCd4mc_c4RJJzdKrNZJczY';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -150,6 +150,47 @@ export const updateProfile = async (userId, updates) => {
     .update(updates)
     .eq('id', userId)
     .select();
+  return { data, error };
+};
+
+// CREATE PROFILE (called after signup)
+export const createProfile = async (userId, name, email) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert([{ id: userId, name, email, plan: 'trial', role: 'owner' }])
+    .select()
+    .single();
+  return { data, error };
+};
+
+// AUTO-CREATE OCTO FUSION FREE CLIENT (called on first login for Octo Fusion email)
+export const ensureOctoFusionClient = async (ownerId) => {
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .eq('name', 'Octo Fusion')
+    .single();
+  if (existing) return { data: existing };
+  const { data, error } = await supabase
+    .from('clients')
+    .insert([{
+      owner_id: ownerId,
+      name: 'Octo Fusion',
+      plan: 'Internal',
+      status: 'active',
+      is_free: true,
+    }])
+    .select()
+    .single();
+  return { data, error };
+};
+
+// AUTH — reset password email
+export const resetPassword = async (email) => {
+  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  });
   return { data, error };
 };
 
