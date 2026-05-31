@@ -568,6 +568,242 @@ function AgencyDashboard() {
   );
 }
 
+function PublisherPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccounts, setSelectedAccounts] = useState([]);
+  const [caption, setCaption] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [scheduleType, setScheduleType] = useState("now"); // "now" or "schedule"
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [results, setResults] = useState([]); // [{account, success, error}]
+  const [realClientId, setRealClientId] = useState(null);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+      .then(({ data }) => { if (data) setAccounts(data); });
+  }, [realClientId]);
+
+  const toggleAccount = (id) => {
+    setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  };
+
+  const generateCaption = async () => {
+    if (!aiTopic.trim()) return;
+    setGeneratingAI(true);
+    try {
+      const res = await fetch('/api/generate-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: aiTopic, brand: selClient?.name }),
+      });
+      const data = await res.json();
+      if (data.caption) setCaption(data.caption);
+    } catch (e) { console.error(e); }
+    setGeneratingAI(false);
+  };
+
+  const handlePost = async () => {
+    if (!caption.trim()) return;
+    if (selectedAccounts.length === 0) return;
+    setPosting(true);
+    setResults([]);
+
+    const postResults = [];
+    for (const accId of selectedAccounts) {
+      const acc = accounts.find(a => a.id === accId);
+      if (!acc) continue;
+
+      if (scheduleType === "schedule" && scheduleDate && scheduleTime) {
+        // Save to posts table for scheduling
+        const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+        const { error } = await supabase.from('posts').insert([{
+          client_id: realClientId,
+          platform: acc.platform,
+          account_id: acc.account_id,
+          caption,
+          image_url: imageUrl || null,
+          status: 'scheduled',
+          scheduled_at: scheduledAt,
+        }]);
+        postResults.push({ account: acc.account_name, success: !error, error: error?.message });
+      } else {
+        // Post now
+        const res = await fetch('/api/meta-publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: acc.platform,
+            accountId: acc.account_id,
+            accessToken: acc.access_token,
+            caption,
+            imageUrl: imageUrl || null,
+          }),
+        });
+        const data = await res.json();
+        postResults.push({ account: acc.account_name, success: data.success, error: data.error });
+      }
+    }
+
+    setResults(postResults);
+    setPosting(false);
+    if (postResults.every(r => r.success)) {
+      setCaption(""); setImageUrl(""); setSelectedAccounts([]);
+    }
+  };
+
+  const platformInfo = { ig: { name:"Instagram", color:"#E1306C", Icon:FaInstagram }, fb: { name:"Facebook", color:"#1877F2", Icon:FaFacebook } };
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:900, display:"grid", gridTemplateColumns:"1fr 340px", gap:24, alignItems:"start" }}>
+      {/* Left: Composer */}
+      <div>
+        <div style={{ marginBottom:24 }}>
+          <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Create Post</h2>
+          <p style={{ margin:"6px 0 0", fontSize:13, color:th.text2 }}>Publish or schedule content for {selClient?.name}</p>
+        </div>
+
+        {/* Account selector */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Post to</div>
+          {accounts.length === 0 ? (
+            <div style={{ fontSize:13, color:th.text2 }}>No connected accounts. <span style={{ color:th.accent, cursor:"pointer" }}>Connect accounts first.</span></div>
+          ) : (
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
+              {accounts.map(acc => {
+                const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe };
+                const selected = selectedAccounts.includes(acc.id);
+                return (
+                  <div key={acc.id} onClick={() => toggleAccount(acc.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", borderRadius:20, border:`2px solid ${selected ? info.color : th.border}`, background:selected ? `${info.color}18` : th.card2, cursor:"pointer", transition:"all 0.15s" }}>
+                    <info.Icon style={{ color:info.color, fontSize:14 }}/>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:700, color:selected ? info.color : th.text }}>{acc.account_name}</div>
+                      <div style={{ fontSize:10, color:th.text2 }}>{info.name}</div>
+                    </div>
+                    {selected && <CheckCircle size={14} color={info.color}/>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* AI Caption */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>AI Caption Generator</div>
+          <div style={{ display:"flex", gap:8 }}>
+            <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generateCaption()} placeholder="Describe your post topic..." style={{ flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
+            <button onClick={generateCaption} disabled={generatingAI||!aiTopic.trim()} style={{ padding:"10px 16px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", opacity:generatingAI?0.7:1 }}>
+              <Sparkles size={13}/>{generatingAI?"Generating…":"Generate"}
+            </button>
+          </div>
+        </div>
+
+        {/* Caption */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Caption</div>
+          <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption here..." rows={5} style={{ width:"100%", padding:"12px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.6 }}/>
+          <div style={{ fontSize:11, color:th.text3, marginTop:6, textAlign:"right" }}>{caption.length} characters</div>
+        </div>
+
+        {/* Image URL */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Image URL <span style={{ fontWeight:400, color:th.text3 }}>(optional)</span></div>
+          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" style={{ width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box" }}/>
+          <div style={{ fontSize:11, color:th.text3, marginTop:6 }}>Instagram requires an image. Facebook can post text-only.</div>
+        </div>
+
+        {/* Schedule */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:20 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>When to Post</div>
+          <div style={{ display:"flex", gap:8, marginBottom:scheduleType==="schedule"?14:0 }}>
+            {["now","schedule"].map(t => (
+              <button key={t} onClick={()=>setScheduleType(t)} style={{ padding:"8px 16px", borderRadius:8, border:`2px solid ${scheduleType===t?th.accent:th.border}`, background:scheduleType===t?th.accentSoft:th.card2, color:scheduleType===t?th.accent:th.text2, fontSize:12, fontWeight:700, cursor:"pointer" }}>
+                {t==="now"?"Post Now":"Schedule"}
+              </button>
+            ))}
+          </div>
+          {scheduleType==="schedule" && (
+            <div style={{ display:"flex", gap:10, marginTop:12 }}>
+              <input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ flex:1, padding:"9px 12px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
+              <input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ flex:1, padding:"9px 12px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
+            </div>
+          )}
+        </div>
+
+        {/* Results */}
+        {results.length > 0 && (
+          <div style={{ marginBottom:16 }}>
+            {results.map((r, i) => (
+              <div key={i} style={{ padding:"10px 14px", borderRadius:8, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:13, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+                {r.success ? <CheckCircle size={14}/> : <XCircle size={14}/>}
+                <span><b>{r.account}</b>: {r.success ? (scheduleType==="schedule"?"Scheduled!":"Posted!") : r.error}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Post button */}
+        <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ width:"100%", padding:"14px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+          {posting ? "Posting…" : scheduleType==="schedule" ? <><Clock size={16}/>Schedule Post</> : <><Send size={16}/>Publish Now</>}
+        </button>
+      </div>
+
+      {/* Right: Preview */}
+      <div style={{ position:"sticky", top:24 }}>
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden" }}>
+          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:12, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:0.5 }}>Preview</div>
+          <div style={{ padding:18 }}>
+            {/* Mock post preview */}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+              <div style={{ width:36, height:36, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, color:"#fff", fontWeight:700 }}>
+                {selClient?.name?.[0] || "T"}
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700 }}>{selClient?.name || "Your Brand"}</div>
+                <div style={{ fontSize:11, color:th.text2 }}>Just now</div>
+              </div>
+            </div>
+            {imageUrl && (
+              <img src={imageUrl} alt="preview" style={{ width:"100%", borderRadius:10, marginBottom:10, maxHeight:200, objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
+            )}
+            <div style={{ fontSize:13, color:th.text, lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+              {caption || <span style={{ color:th.text3 }}>Your caption will appear here…</span>}
+            </div>
+          </div>
+        </div>
+
+        {selectedAccounts.length > 0 && (
+          <div style={{ marginTop:12, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:th.text2, marginBottom:8 }}>POSTING TO</div>
+            {selectedAccounts.map(id => {
+              const acc = accounts.find(a => a.id === id);
+              if (!acc) return null;
+              const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe };
+              return <div key={id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, fontSize:12 }}>
+                <info.Icon style={{ color:info.color, fontSize:13 }}/> {acc.account_name}
+              </div>;
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SocialAccountsPage() {
   const { selClient } = useApp();
   const th = useTheme();
@@ -1036,6 +1272,7 @@ export default function TawasloApp() {
     }
     if (page==="dashboard") return <AgencyDashboard/>;
     if (page==="social") return <SocialAccountsPage/>;
+    if (page==="publisher") return <PublisherPage/>;
     const icons = {
       publisher:Calendar, streams:Radio, inbox:Inbox, listening:Activity,
       campaigns:Megaphone, aistudio:Wand2, media:Image,
