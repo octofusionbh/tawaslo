@@ -583,8 +583,12 @@ function SocialAccountsPage() {
   useEffect(() => {
     if (!selClient?.name) return;
     setRealClientId(null);
-    supabase.from('clients').select('id').eq('name', selClient.name).single()
-      .then(({ data }) => { if (data) setRealClientId(data.id); });
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data, error }) => {
+        if (data && data.length > 0) setRealClientId(data[0].id);
+        else if (error) console.error('Client lookup error:', error);
+        else console.warn('No client found for name:', selClient.name);
+      });
   }, [selClient]);
 
   // Load connected accounts from Supabase
