@@ -7,6 +7,18 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Light placeholder text for dark mode inputs */
+textarea::placeholder,
+input::placeholder {
+  color: rgba(200, 215, 235, 0.4);
+}
+
+/* Fix select dropdowns in dark mode */
+select option {
+  background: #101828;
+  color: #E8EFF8;
+}
+
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;

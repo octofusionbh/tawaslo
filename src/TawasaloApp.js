@@ -200,11 +200,9 @@ function Sidebar() {
       boxShadow:th.shadow, zIndex:30, overflow:"hidden",
     }}>
       <div style={{padding:"20px 18px 14px",display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:38,height:38,borderRadius:11,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 4px 14px rgba(79,110,247,0.45)`,flexShrink:0}}>
-          <Link size={17} color="#fff" strokeWidth={2.5}/>
-        </div>
+        <img src="/logo.png" alt="Tawasalo" style={{width:38,height:38,borderRadius:11,objectFit:"contain",flexShrink:0}}/>
         <div>
-          <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
+          <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawasalo</div>
           <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>Social Intelligence</div>
         </div>
       </div>
@@ -602,12 +600,8 @@ function SocialAccountsPage() {
       "pages_show_list",
       "pages_read_engagement",
       "pages_manage_posts",
-      "instagram_basic",
-      "instagram_content_publish",
-      "instagram_manage_insights",
-      "ads_management",
       "business_management",
-      "read_insights",
+      "public_profile",
     ].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${selClient.id}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
@@ -911,8 +905,12 @@ function AuthPage() {
           {authPage==="login"&&(
             <>
               <div style={{marginBottom:28}}>
+                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+                  <img src="/logo.png" alt="Tawasalo" style={{width:44,height:44,borderRadius:12,objectFit:"contain"}}/>
+                  <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawasalo</div>
+                </div>
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Welcome back</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawaslo workspace</p>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawasalo workspace</p>
               </div>
               {inp("Email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
               {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
