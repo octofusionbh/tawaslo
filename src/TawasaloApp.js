@@ -590,16 +590,17 @@ function SocialAccountsPage() {
   // Load connected accounts from Supabase
   useEffect(() => {
     if (!realClientId) return;
-    loadAccounts();
+    loadAccounts(realClientId);
   }, [realClientId]);
 
-  const loadAccounts = async () => {
-    if (!realClientId) return;
+  const loadAccounts = async (clientId) => {
+    const cid = clientId || realClientId;
+    if (!cid) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('social_accounts')
       .select('*')
-      .eq('client_id', realClientId);
+      .eq('client_id', cid);
     if (!error && data) setAccounts(data);
     setLoading(false);
   };
@@ -622,7 +623,7 @@ function SocialAccountsPage() {
         if (popup.closed) {
           clearInterval(interval);
           setConnecting(false);
-          loadAccounts();
+          loadAccounts(realClientId);
           return;
         }
         const popupUrl = popup.location.href;
@@ -666,7 +667,7 @@ function SocialAccountsPage() {
 
           setSuccess(`Connected ${data.accounts.length} account(s) successfully!`);
           setConnecting(false);
-          loadAccounts();
+          loadAccounts(realClientId);
         }
       } catch (e) {
         // Popup still navigating — keep waiting
