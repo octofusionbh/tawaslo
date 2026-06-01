@@ -833,6 +833,19 @@ function SocialAccountsPage() {
     loadAccounts(realClientId);
   }, [realClientId]);
 
+  // Handle Instagram OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const igCode = params.get('ig_code');
+    const igError = params.get('ig_error');
+    if (igError) {
+      setError('Instagram connection failed: ' + igError);
+      window.history.replaceState({}, '', '/social');
+    } else if (igCode && realClientId) {
+      handleInstagramCallback(igCode);
+    }
+  }, [realClientId]);
+
   const loadAccounts = async (clientId) => {
     const cid = clientId || realClientId;
     if (!cid) return;
@@ -849,58 +862,46 @@ function SocialAccountsPage() {
     const redirectUri = `https://tawasalo.com/api/instagram-callback`;
     const IG_APP_ID = '3569589083219608';
     const scope = 'instagram_business_basic,instagram_business_content_publish';
+    // Store current page so callback can return here
+    sessionStorage.setItem('ig_redirect_client', realClientId);
     const authUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
-    const popup = window.open(authUrl, "ig_oauth", "width=600,height=700,scrollbars=yes");
+    window.location.href = authUrl;
+  };
+
+  const handleInstagramCallback = async (code) => {
+    const redirectUri = `https://tawasalo.com/api/instagram-callback`;
+    const clientId = sessionStorage.getItem('ig_redirect_client') || realClientId;
+    sessionStorage.removeItem('ig_redirect_client');
     setConnecting(true);
-
-    const handleMessage = async (event) => {
-      if (event.data?.type === 'ig_oauth_error') {
-        window.removeEventListener('message', handleMessage);
-        setError('Instagram connection failed: ' + event.data.error);
-        setConnecting(false);
-        return;
-      }
-      if (event.data?.type === 'ig_oauth_code') {
-        window.removeEventListener('message', handleMessage);
-        const code = event.data.code;
-        try {
-          const res = await fetch('/api/instagram-oauth', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, redirectUri }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error);
-          const acc = data.account;
-          const { error: upsertErr } = await supabase.from('social_accounts').upsert({
-            client_id: realClientId,
-            platform: acc.platform,
-            account_id: acc.account_id,
-            account_name: acc.account_name,
-            username: acc.username || null,
-            access_token: acc.access_token,
-            picture: acc.picture || null,
-            followers_count: acc.followers_count || 0,
-            is_active: true,
-          }, { onConflict: 'client_id,account_id' });
-          if (upsertErr) throw new Error(upsertErr.message);
-          setSuccess(`Instagram @${acc.username} connected!`);
-          loadAccounts(realClientId);
-        } catch (err) {
-          setError('Instagram save failed: ' + err.message);
-        }
-        setConnecting(false);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        window.removeEventListener('message', handleMessage);
-        setConnecting(false);
-      }
-    }, 1000);
+    try {
+      const res = await fetch('/api/instagram-oauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirectUri }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const acc = data.account;
+      const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+        client_id: clientId,
+        platform: acc.platform,
+        account_id: acc.account_id,
+        account_name: acc.account_name,
+        username: acc.username || null,
+        access_token: acc.access_token,
+        picture: acc.picture || null,
+        followers_count: acc.followers_count || 0,
+        is_active: true,
+      }, { onConflict: 'client_id,account_id' });
+      if (upsertErr) throw new Error(upsertErr.message);
+      setSuccess(`Instagram @${acc.username} connected!`);
+      loadAccounts(clientId);
+    } catch (err) {
+      setError('Instagram save failed: ' + err.message);
+    }
+    setConnecting(false);
+    // Clean URL
+    window.history.replaceState({}, '', '/social');
   };
 
   const connectMeta = () => {
