@@ -52,8 +52,10 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
     const data = await response.json();
     const text = data.content[0].text.trim();
 
-    // Parse JSON from response
-    const parsed = JSON.parse(text);
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return res.status(200).json({ english: text, arabic: '' });
+    const parsed = JSON.parse(jsonMatch[0]);
     return res.status(200).json(parsed);
 
   } catch (err) {
