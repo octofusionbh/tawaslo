@@ -45,27 +45,48 @@ export default async function handler(req, res) {
           picture: page.picture?.data?.url || null,
         });
 
-        // Check for linked Instagram Business account
+        // Check for linked Instagram Business account — try multiple fields/endpoints
+        let igId = null;
+
+        // Method 1: instagram_business_account field
         const igRes = await fetch(
           `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account,connected_instagram_account&access_token=${page.access_token}`
         );
         const igData = await igRes.json();
-        console.log(`Page ${page.name} IG data:`, JSON.stringify(igData));
+        console.log(`Page ${page.name} method1:`, JSON.stringify(igData));
+        igId = igData.instagram_business_account?.id || igData.connected_instagram_account?.id || null;
 
-        const igAccount = igData.instagram_business_account || igData.connected_instagram_account;
-        if (igAccount) { igData.instagram_business_account = igAccount; }
+        // Method 2: /page/instagram_accounts endpoint
+        if (!igId) {
+          const igAccRes = await fetch(
+            `https://graph.facebook.com/v19.0/${page.id}/instagram_accounts?access_token=${page.access_token}`
+          );
+          const igAccData = await igAccRes.json();
+          console.log(`Page ${page.name} method2:`, JSON.stringify(igAccData));
+          if (igAccData.data && igAccData.data.length > 0) igId = igAccData.data[0].id;
+        }
 
-        if (igData.instagram_business_account) {
-          const igId = igData.instagram_business_account.id;
+        // Method 3: via business/instagram_accounts using long user token
+        if (!igId) {
+          const bizIgRes = await fetch(
+            `https://graph.facebook.com/v19.0/me/instagram_accounts?access_token=${longToken}`
+          );
+          const bizIgData = await bizIgRes.json();
+          console.log(`User IG accounts method3:`, JSON.stringify(bizIgData));
+          if (bizIgData.data && bizIgData.data.length > 0) igId = bizIgData.data[0].id;
+        }
+
+        if (igId) {
           const igInfoRes = await fetch(
-            `https://graph.facebook.com/v19.0/${igId}?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${page.access_token}`
+            `https://graph.facebook.com/v19.0/${igId}?fields=id,name,username,profile_picture_url,followers_count&access_token=${page.access_token}`
           );
           const igInfo = await igInfoRes.json();
+          console.log(`IG info for ${igId}:`, JSON.stringify(igInfo));
 
           accounts.push({
             platform: 'ig',
             account_id: igId,
-            account_name: igInfo.name || igInfo.username,
+            account_name: igInfo.name || igInfo.username || 'Instagram',
             username: igInfo.username,
             access_token: page.access_token,
             picture: igInfo.profile_picture_url || null,
