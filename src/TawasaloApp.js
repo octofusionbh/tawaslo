@@ -859,7 +859,7 @@ function SocialAccountsPage() {
   };
 
   const connectInstagram = () => {
-    const redirectUri = `https://tawasalo.com/api/instagram-callback`;
+    const redirectUri = `https://tawaslo.com/api/instagram-callback`;
     const IG_APP_ID = '3569589083219608';
     const scope = 'instagram_business_basic,instagram_business_content_publish';
     // Store current page so callback can return here
@@ -869,7 +869,7 @@ function SocialAccountsPage() {
   };
 
   const handleInstagramCallback = async (code) => {
-    const redirectUri = `https://tawasalo.com/api/instagram-callback`;
+    const redirectUri = `https://tawaslo.com/api/instagram-callback`;
     const clientId = sessionStorage.getItem('ig_redirect_client') || realClientId;
     sessionStorage.removeItem('ig_redirect_client');
     setConnecting(true);
