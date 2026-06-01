@@ -611,7 +611,7 @@ function PublisherPage() {
         body: JSON.stringify({ topic: aiTopic, brand: selClient?.name }),
       });
       const data = await res.json();
-      if (data.caption) setCaption(data.caption);
+      if (data.english) setCaption(data.english + (data.arabic ? '\n\n' + data.arabic : ''));
     } catch (e) { console.error(e); }
     setGeneratingAI(false);
   };
