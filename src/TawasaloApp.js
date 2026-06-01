@@ -852,8 +852,6 @@ function SocialAccountsPage() {
       "pages_read_engagement",
       "business_management",
       "public_profile",
-      "instagram_basic",
-      "instagram_content_publish",
     ].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
@@ -882,6 +880,7 @@ function SocialAccountsPage() {
             body: JSON.stringify({ code, redirectUri }),
           });
           const data = await res.json();
+          console.log('META OAUTH RESPONSE:', JSON.stringify(data, null, 2));
           if (!res.ok) throw new Error(data.error);
 
           // Save each account to Supabase
