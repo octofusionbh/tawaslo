@@ -845,6 +845,64 @@ function SocialAccountsPage() {
     setLoading(false);
   };
 
+  const connectInstagram = () => {
+    const redirectUri = `https://tawasalo.com/api/instagram-callback`;
+    const IG_APP_ID = '3569589083219608';
+    const scope = 'instagram_business_basic,instagram_business_content_publish';
+    const authUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
+    const popup = window.open(authUrl, "ig_oauth", "width=600,height=700,scrollbars=yes");
+    setConnecting(true);
+
+    const handleMessage = async (event) => {
+      if (event.data?.type === 'ig_oauth_error') {
+        window.removeEventListener('message', handleMessage);
+        setError('Instagram connection failed: ' + event.data.error);
+        setConnecting(false);
+        return;
+      }
+      if (event.data?.type === 'ig_oauth_code') {
+        window.removeEventListener('message', handleMessage);
+        const code = event.data.code;
+        try {
+          const res = await fetch('/api/instagram-oauth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, redirectUri }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error);
+          const acc = data.account;
+          const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+            client_id: realClientId,
+            platform: acc.platform,
+            account_id: acc.account_id,
+            account_name: acc.account_name,
+            username: acc.username || null,
+            access_token: acc.access_token,
+            picture: acc.picture || null,
+            followers_count: acc.followers_count || 0,
+            is_active: true,
+          }, { onConflict: 'client_id,account_id' });
+          if (upsertErr) throw new Error(upsertErr.message);
+          setSuccess(`Instagram @${acc.username} connected!`);
+          loadAccounts(realClientId);
+        } catch (err) {
+          setError('Instagram save failed: ' + err.message);
+        }
+        setConnecting(false);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        window.removeEventListener('message', handleMessage);
+        setConnecting(false);
+      }
+    }, 1000);
+  };
+
   const connectMeta = () => {
     const redirectUri = `https://tawaslo.com/api/meta-callback`;
     const scope = [
@@ -938,30 +996,43 @@ function SocialAccountsPage() {
       {error && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.dangerSoft, color: th.danger, fontSize: 13, marginBottom: 16 }}>{error}</div>}
       {success && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.successSoft, color: th.success, fontSize: 13, marginBottom: 16 }}>{success}</div>}
 
-      {/* Connect Button */}
-      <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 24, marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(225,48,108,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <FaInstagram style={{ color: "#E1306C", fontSize: 20 }} />
-              </div>
+      {/* Connect Buttons */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
+        {/* Facebook */}
+        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(24,119,242,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <FaFacebook style={{ color: "#1877F2", fontSize: 20 }} />
               </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Facebook Pages</div>
+                <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>Connect your Facebook pages</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Instagram & Facebook</div>
-              <div style={{ fontSize: 12, color: th.text2, marginTop: 3 }}>Log in with Facebook to connect pages and Instagram business accounts</div>
-            </div>
+            <button onClick={connectMeta} disabled={connecting}
+              style={{ padding: "10px 20px", borderRadius: 10, background: "#1877F2", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8 }}>
+              <Link size={14} />{connecting ? "Connecting…" : "Connect via Facebook"}
+            </button>
           </div>
-          <button
-            onClick={connectMeta}
-            disabled={connecting}
-            style={{ padding: "11px 22px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8, whiteSpace: "nowrap" }}
-          >
-            <Link size={14} />{connecting ? "Connecting…" : "Connect via Facebook"}
-          </button>
+        </div>
+        {/* Instagram */}
+        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(225,48,108,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FaInstagram style={{ color: "#E1306C", fontSize: 20 }} />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Instagram Business</div>
+                <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>Connect Instagram business or creator accounts</div>
+              </div>
+            </div>
+            <button onClick={connectInstagram} disabled={connecting}
+              style={{ padding: "10px 20px", borderRadius: 10, background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8 }}>
+              <Link size={14} />{connecting ? "Connecting…" : "Connect via Instagram"}
+            </button>
+          </div>
         </div>
       </div>
 
