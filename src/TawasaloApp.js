@@ -1480,9 +1480,8 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Logo = () => (
-    <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}>
-      <svg width="26" height="26" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#4F6EF7"/><stop offset="100%" stopColor="#7C3AED"/></linearGradient></defs><path d="M60 50 C30 50 10 70 10 100 C10 130 30 150 60 150 L90 150 L90 120 L60 120 C47 120 40 112 40 100 C40 88 47 80 60 80 L90 80 L90 50 Z" fill="url(#lg1)"/><path d="M140 50 C170 50 190 70 190 100 C190 130 170 150 140 150 L110 150 L110 120 L140 120 C153 120 160 112 160 100 C160 88 153 80 140 80 L110 80 L110 50 Z" fill="url(#lg1)"/><rect x="80" y="85" width="40" height="30" rx="6" fill="url(#lg1)"/></svg>
-      <span style={{fontSize:18,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span>
+    <div style={{cursor:"pointer"}} onClick={()=>setLandingPage('home')}>
+      <img src="/logo1.png" alt="Tawaslo" style={{height:36,objectFit:"contain"}}/>
     </div>
   );
 
@@ -1505,7 +1504,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const Footer = () => (
     <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"24px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <Logo/>
+      <img src="/logo1.png" alt="Tawaslo" style={{height:30,objectFit:"contain",cursor:"pointer"}} onClick={()=>setLandingPage('home')}/>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",gap:20}}>
         {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>l==='Contact'&&setLandingPage('contact')} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
@@ -1605,9 +1604,11 @@ function LandingPage({ onGetStarted, onLogin }) {
           <div><div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>PUBLISHING</div><h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish to Instagram & Facebook instantly</h3><p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Write once, publish everywhere. Schedule posts for the best time. Preview exactly how your post will look before publishing.</p></div>
           <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
             <div style={{fontSize:11,color:"#7A8BA8",marginBottom:8}}>POST TO</div>
-            <div style={{display:"flex",gap:8,marginBottom:12}}>
-              <div style={{padding:"6px 12px",borderRadius:20,background:"#E1306C18",border:"1px solid #E1306C",fontSize:11,fontWeight:700,color:"#E1306C"}}>📸 Instagram</div>
-              <div style={{padding:"6px 12px",borderRadius:20,background:"#1877F218",border:"1px solid #1877F2",fontSize:11,fontWeight:700,color:"#1877F2"}}>📘 Facebook</div>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#E1306C18",border:"1px solid #E1306C",fontSize:11,fontWeight:700,color:"#E1306C",display:"flex",alignItems:"center",gap:5}}><FaInstagram/> Instagram</div>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#1877F218",border:"1px solid #1877F2",fontSize:11,fontWeight:700,color:"#1877F2",display:"flex",alignItems:"center",gap:5}}><FaFacebook/> Facebook</div>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#FF005018",border:"1px solid #FF0050",fontSize:11,fontWeight:700,color:"#FF0050",display:"flex",alignItems:"center",gap:5}}><FaTiktok/> TikTok</div>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#0A66C218",border:"1px solid #0A66C2",fontSize:11,fontWeight:700,color:"#0A66C2",display:"flex",alignItems:"center",gap:5}}><FaLinkedin/> LinkedIn</div>
             </div>
             <div style={{background:"#0C1120",borderRadius:8,padding:10,fontSize:12,color:"#7A8BA8"}}>We're excited to share something amazing! 🚀 #brand #growth</div>
           </div>
@@ -1618,7 +1619,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             <div style={{fontSize:12,color:"#E8EFF8",lineHeight:1.7,marginBottom:8}}>We're excited to share something special! 🚀 #Innovation #Excellence</div>
             <div style={{borderTop:"1px solid #1C2D45",paddingTop:8,fontSize:12,color:"#E8EFF8",lineHeight:1.7,direction:"rtl",textAlign:"right"}}>يسعدنا مشاركة شيء مميز معكم! 🚀 #ابتكار #تميز</div>
           </div>
-          <div><div style={{fontSize:11,fontWeight:700,color:"#7C3AED",marginBottom:10,letterSpacing:1}}>AI CAPTIONS</div><h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Write in Arabic & English — simultaneously</h3><p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Our AI generates bilingual captions tailored to your brand voice, platform, and tone. Hashtags and emojis included.</p></div>
+          <div><div style={{fontSize:11,fontWeight:700,color:"#7C3AED",marginBottom:10,letterSpacing:1}}>AI CAPTIONS</div><h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Write in Arabic & English — Simultaneously</h3><p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Our AI generates bilingual captions tailored to your brand voice, platform, and tone. Hashtags and emojis included.</p></div>
         </div>
         <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28}}>
           <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:10,letterSpacing:1}}>ANALYTICS & REPORTS</div>
