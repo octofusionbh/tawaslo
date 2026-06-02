@@ -1569,7 +1569,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 30px",borderRadius:10,background:"transparent",border:"1px solid #1C2D45",color:"#7A8BA8",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
         </div>
         <div style={{display:"flex",gap:48,justifyContent:"center",flexWrap:"wrap"}}>
-          {[["Arabic","+ English AI captions"],["All-in-one","Publish, inbox, analytics"],["Multi-brand","Agency-ready platform"]].map(([v,l])=>(
+          {[["English + Arabic","AI caption generator"],["All-in-one","Publish, inbox, analytics"],["Multi-brand","Agency-ready platform"]].map(([v,l])=>(
             <div key={v} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:12,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
           ))}
         </div>
