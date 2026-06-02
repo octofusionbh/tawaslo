@@ -40,6 +40,22 @@ export default async function handler(req, res) {
       console.log('IG container response:', JSON.stringify(container));
       if (container.error) return res.status(400).json({ error: container.error.message });
 
+      // Step 1.5: Poll until container status is FINISHED (max 30s)
+      if (!videoUrl) {
+        // Images are usually ready quickly, just wait 3s
+        await new Promise(r => setTimeout(r, 3000));
+      } else {
+        // Videos can take longer — poll up to 10 times with 3s intervals
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 3000));
+          const statusRes = await fetch(`${igBase}/${container.id}?fields=status_code&access_token=${accessToken}`);
+          const statusData = await statusRes.json();
+          console.log('IG container status:', JSON.stringify(statusData));
+          if (statusData.status_code === 'FINISHED') break;
+          if (statusData.status_code === 'ERROR') return res.status(400).json({ error: 'Instagram media processing failed' });
+        }
+      }
+
       // Step 2: Publish the container
       const publishRes = await fetch(`${igBase}/${accountId}/media_publish`, {
         method: 'POST',
