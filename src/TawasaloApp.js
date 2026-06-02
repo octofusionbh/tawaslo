@@ -1481,7 +1481,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const Logo = () => (
     <div style={{cursor:"pointer"}} onClick={()=>setLandingPage('home')}>
-      <img src="/logo.png" alt="Tawaslo" style={{height:48,objectFit:"contain"}}/>
+      <img src="/logo1.png" alt="Tawaslo" style={{height:48,objectFit:"contain",mixBlendMode:"screen"}}/>
     </div>
   );
 
@@ -1504,7 +1504,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const Footer = () => (
     <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"24px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <img src="/logo.png" alt="Tawaslo" style={{height:30,objectFit:"contain",cursor:"pointer"}} onClick={()=>setLandingPage('home')}/>
+      <img src="/logo1.png" alt="Tawaslo" style={{height:36,objectFit:"contain",cursor:"pointer",mixBlendMode:"screen"}} onClick={()=>setLandingPage('home')}/>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",gap:20}}>
         {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>l==='Contact'&&setLandingPage('contact')} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
