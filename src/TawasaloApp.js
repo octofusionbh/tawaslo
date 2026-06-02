@@ -1476,12 +1476,12 @@ function LandingPage({ onGetStarted, onLogin }) {
   const p = prices[billing];
 
   const navLink = (id, label) => (
-    <span onClick={()=>setLandingPage(id)} style={{color:landingPage===id?"#E8EFF8":"#7A8BA8", fontSize:13, fontWeight:600, cursor:"pointer", borderBottom:landingPage===id?"2px solid #4F6EF7":"2px solid transparent", paddingBottom:2}}>{label}</span>
+    <span onClick={()=>setLandingPage(id)} style={{color:landingPage===id?"#E8EFF8":"#7A8BA8", fontSize:14, fontWeight:600, cursor:"pointer", borderBottom:landingPage===id?"2px solid #4F6EF7":"2px solid transparent", paddingBottom:2}}>{label}</span>
   );
 
   const Logo = () => (
     <div style={{cursor:"pointer"}} onClick={()=>setLandingPage('home')}>
-      <img src="/logo1.png" alt="Tawaslo" style={{height:36,objectFit:"contain"}}/>
+      <img src="/logo.png" alt="Tawaslo" style={{height:48,objectFit:"contain"}}/>
     </div>
   );
 
@@ -1504,7 +1504,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const Footer = () => (
     <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"24px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <img src="/logo1.png" alt="Tawaslo" style={{height:30,objectFit:"contain",cursor:"pointer"}} onClick={()=>setLandingPage('home')}/>
+      <img src="/logo.png" alt="Tawaslo" style={{height:30,objectFit:"contain",cursor:"pointer"}} onClick={()=>setLandingPage('home')}/>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",gap:20}}>
         {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>l==='Contact'&&setLandingPage('contact')} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
