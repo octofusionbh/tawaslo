@@ -86,7 +86,7 @@ export default async function handler(req, res) {
           accounts.push({
             platform: 'ig',
             account_id: igId,
-            account_name: igInfo.name || igInfo.username || 'Instagram',
+            account_name: igInfo.username || igInfo.name || `ig_${igId}`,
             username: igInfo.username,
             access_token: page.access_token,
             picture: igInfo.profile_picture_url || null,

@@ -982,8 +982,11 @@ function SocialAccountsPage() {
     const scope = [
       "pages_show_list",
       "pages_read_engagement",
+      "pages_manage_posts",
       "business_management",
       "public_profile",
+      "instagram_basic",
+      "instagram_content_publish",
     ].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
@@ -1581,7 +1584,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:30,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",gap:20}}>
-        {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>l==='Contact'&&setLandingPage('contact')} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
+        {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>setLandingPage(l.toLowerCase())} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
       </div>
     </div>
   );
@@ -1883,6 +1886,95 @@ function LandingPage({ onGetStarted, onLogin }) {
     </div>
   );
 
+  const sectionStyle = { fontSize:13, color:"#A8B9CE", lineHeight:1.75, marginBottom:12 };
+  const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#4F6EF7", marginBottom:8, marginTop:0 };
+  const dividerStyle = { border:"none", borderTop:"1px solid #1C2D45", margin:"24px 0" };
+  const ulStyle = { fontSize:13, color:"#A8B9CE", lineHeight:1.75, marginBottom:12, paddingLeft:18 };
+
+  const PrivacyPage = () => (
+    <div style={{padding:"60px 32px", maxWidth:720, margin:"0 auto"}}>
+      <div style={{display:"inline-block",fontSize:11,background:"rgba(79,110,247,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
+      <h1 style={{fontSize:32,fontWeight:900,margin:"0 0 6px"}}>Privacy policy</h1>
+      <p style={{fontSize:12,color:"#7A8BA8",marginBottom:32}}>Last updated: June 2026</p>
+
+      <p style={sectionTitleStyle}>1. Information we collect</p>
+      <p style={sectionStyle}>We collect information you provide when you create an account, connect social accounts, or contact us — including your name, email address, and OAuth access tokens for connected platforms.</p>
+      <p style={sectionStyle}>When you publish content through Tawaslo, we process your media files and captions to deliver them to the relevant platform via their respective APIs.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>2. Social platform data we access</p>
+      <p style={sectionStyle}>Tawaslo is designed for professional and business use. Due to platform API restrictions, only business-type accounts can be connected and managed. Depending on which platforms you connect, we may access the following data on your behalf:</p>
+      <ul style={ulStyle}>
+        <li style={{marginBottom:10}}><strong style={{color:"#E8EFF8"}}>Facebook</strong> — page name, page ID, profile picture, follower count, and the ability to publish posts and media to your page. <span style={{fontSize:11,color:"#7A8BA8"}}>Requires a Facebook Page. Personal profiles cannot be connected via the API.</span></li>
+        <li style={{marginBottom:10}}><strong style={{color:"#E8EFF8"}}>Instagram</strong> — username, profile picture, follower count, and the ability to publish posts, reels, and stories via the Meta Graph API. <span style={{fontSize:11,color:"#7A8BA8"}}>Requires an Instagram Business or Creator account linked to a Facebook Page. Personal accounts cannot be connected.</span></li>
+        <li style={{marginBottom:10}}><strong style={{color:"#E8EFF8"}}>TikTok</strong> <span style={{fontSize:10,background:"rgba(79,210,150,0.15)",color:"#4FD296",borderRadius:10,padding:"2px 8px",marginLeft:6}}>coming soon</span> — account username, display name, and the ability to upload and publish videos via the TikTok Content Posting API. <span style={{fontSize:11,color:"#7A8BA8"}}>Requires a TikTok Business account. Personal accounts are not supported.</span></li>
+        <li style={{marginBottom:10}}><strong style={{color:"#E8EFF8"}}>LinkedIn</strong> <span style={{fontSize:10,background:"rgba(79,210,150,0.15)",color:"#4FD296",borderRadius:10,padding:"2px 8px",marginLeft:6}}>coming soon</span> — organization name and the ability to create posts via the LinkedIn Marketing API. <span style={{fontSize:11,color:"#7A8BA8"}}>Requires a LinkedIn Company or Organization page. Personal profiles are not supported.</span></li>
+      </ul>
+      <p style={sectionStyle}>We only request the minimum permissions required to deliver the service. We never read your followers' private data or direct messages.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>3. How we use your information</p>
+      <ul style={ulStyle}>
+        {["To authenticate you and manage your account","To publish content to your connected social accounts on your behalf","To store your media files securely via Supabase Storage","To generate AI captions via Anthropic's API on your request","To provide analytics and reporting on your published content","To improve and maintain the platform"].map(i=><li key={i}>{i}</li>)}
+      </ul>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>4. Access token storage & retention</p>
+      <p style={sectionStyle}>OAuth access tokens are stored securely in our database and are used solely to perform actions you explicitly request. Long-lived tokens (e.g. Meta 60-day tokens) are stored for the duration of your connection. Tokens are permanently deleted when you disconnect an account or delete your Tawaslo account.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>5. Third-party services</p>
+      <p style={sectionStyle}>Tawaslo integrates with Meta (Facebook & Instagram), TikTok, LinkedIn, Supabase, and Anthropic. Each service operates under its own privacy policy. We do not sell your data to any third party.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>6. Data deletion</p>
+      <p style={sectionStyle}>You may request deletion of your account and all associated data at any time by emailing <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span>. We will process your request within 30 days.</p>
+      <p style={sectionStyle}>For Facebook/Instagram users: in compliance with Meta's Platform Terms, you may also use our Data Deletion Request endpoint. Upon receiving a deletion request, we remove all stored tokens, media, and account data linked to your Facebook user ID.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>7. Contact</p>
+      <p style={sectionStyle}>Questions about this policy? Email us at <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span></p>
+    </div>
+  );
+
+  const TermsPage = () => (
+    <div style={{padding:"60px 32px", maxWidth:720, margin:"0 auto"}}>
+      <div style={{display:"inline-block",fontSize:11,background:"rgba(79,110,247,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
+      <h1 style={{fontSize:32,fontWeight:900,margin:"0 0 6px"}}>Terms of service</h1>
+      <p style={{fontSize:12,color:"#7A8BA8",marginBottom:32}}>Last updated: June 2026</p>
+
+      <p style={sectionTitleStyle}>1. Acceptance of terms</p>
+      <p style={sectionStyle}>By accessing or using Tawaslo, you agree to these Terms of Service. If you do not agree, please do not use the platform.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>2. Use of the platform</p>
+      <p style={sectionStyle}>Tawaslo is a social media management tool for scheduling and publishing content to business social accounts on Facebook, Instagram, TikTok, and LinkedIn. You are responsible for all content you publish through the platform and must comply with each platform's terms of service and community standards.</p>
+      <p style={sectionStyle}>Due to API restrictions, only business-type accounts may be connected: Facebook Pages, Instagram Business or Creator accounts, TikTok Business accounts, and LinkedIn Company pages. Personal accounts are not supported.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>3. Account responsibilities</p>
+      <ul style={ulStyle}>
+        {["You must provide accurate information when creating an account","You are responsible for keeping your credentials secure","You may not use the platform for spam, harassment, or illegal activity","You may not use the platform to violate any platform's terms or policies"].map(i=><li key={i}>{i}</li>)}
+      </ul>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>4. Intellectual property</p>
+      <p style={sectionStyle}>You retain ownership of all content you upload. By using Tawaslo, you grant us a limited license to process and transmit your content solely to provide the service.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>5. Limitation of liability</p>
+      <p style={sectionStyle}>Tawaslo is provided "as is." We are not liable for any loss of data, missed posts, or platform downtime. Our liability is limited to the amount paid for the service in the prior 30 days.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>6. Termination</p>
+      <p style={sectionStyle}>We reserve the right to suspend or terminate accounts that violate these terms. You may cancel your account at any time by contacting us at <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span>.</p>
+      <hr style={dividerStyle}/>
+
+      <p style={sectionTitleStyle}>7. Contact</p>
+      <p style={sectionStyle}>Questions? Email us at <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span></p>
+    </div>
+  );
+
   return (
     <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",minHeight:"100vh"}}>
       <Nav/>
@@ -1891,6 +1983,8 @@ function LandingPage({ onGetStarted, onLogin }) {
       {landingPage==='pricing'&&<PricingPage/>}
       {landingPage==='about'&&<AboutPage/>}
       {landingPage==='contact'&&<ContactPage/>}
+      {landingPage==='privacy'&&<PrivacyPage/>}
+      {landingPage==='terms'&&<TermsPage/>}
       <Footer/>
     </div>
   );
