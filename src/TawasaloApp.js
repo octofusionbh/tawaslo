@@ -909,7 +909,6 @@ function SocialAccountsPage() {
     const scope = [
       "pages_show_list",
       "pages_read_engagement",
-      "pages_manage_posts",
       "business_management",
       "public_profile",
     ].join(",");
@@ -1116,6 +1115,356 @@ function Placeholder({ icon:Icon, title, description }) {
       <button onClick={()=>setPage("dashboard")} style={{padding:"10px 20px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 14px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",gap:7}}>
         <LayoutDashboard size={14}/>Go to Dashboard
       </button>
+    </div>
+  );
+}
+
+function AnalyticsPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [realClientId, setRealClientId] = useState(null);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+      .then(({ data }) => { if (data) setAccounts(data); setLoading(false); });
+  }, [realClientId]);
+
+  const totalFollowers = accounts.reduce((s, a) => s + (a.followers_count || 0), 0);
+  const igAccounts = accounts.filter(a => a.platform === 'ig');
+  const fbAccounts = accounts.filter(a => a.platform === 'fb');
+
+  const statCard = (label, value, sub, color) => (
+    <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+      <div style={{fontSize:12, color:th.text2, fontWeight:600, marginBottom:8}}>{label}</div>
+      <div style={{fontSize:28, fontWeight:900, color: color || th.text}}>{value}</div>
+      {sub && <div style={{fontSize:11, color:th.text2, marginTop:4}}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:1100}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Analytics</h2>
+        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Performance overview for {selClient?.name}</p>
+      </div>
+      {loading ? <div style={{color:th.text2}}>Loading...</div> : (
+        <>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
+            {statCard("Total Followers", totalFollowers.toLocaleString(), `Across ${accounts.length} accounts`, th.accent)}
+            {statCard("Connected Accounts", accounts.length, `${igAccounts.length} Instagram · ${fbAccounts.length} Facebook`, th.success)}
+            {statCard("Instagram Followers", igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), "Instagram Business", "#E1306C")}
+            {statCard("Facebook Pages", fbAccounts.length, "Connected pages", "#1877F2")}
+          </div>
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
+            <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Connected Accounts</div>
+            {accounts.length === 0 ? <div style={{color:th.text2, fontSize:13}}>No accounts connected yet.</div> : (
+              <div style={{display:"flex", flexDirection:"column", gap:12}}>
+                {accounts.map(acc => {
+                  const color = acc.platform === 'ig' ? "#E1306C" : "#1877F2";
+                  const Icon = acc.platform === 'ig' ? FaInstagram : FaFacebook;
+                  return (
+                    <div key={acc.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", background:th.card2, borderRadius:10, border:`1px solid ${th.border}`}}>
+                      <div style={{display:"flex", alignItems:"center", gap:12}}>
+                        {acc.picture ? <img src={acc.picture} alt="" style={{width:36, height:36, borderRadius:"50%", objectFit:"cover"}}/> : <div style={{width:36, height:36, borderRadius:"50%", background:th.border, display:"flex", alignItems:"center", justifyContent:"center"}}><Icon style={{color, fontSize:16}}/></div>}
+                        <div>
+                          <div style={{fontSize:13, fontWeight:700}}>{acc.account_name}</div>
+                          <div style={{fontSize:11, color:th.text2}}>{acc.platform === 'ig' ? 'Instagram' : 'Facebook'}{acc.username ? ` · @${acc.username}` : ''}</div>
+                        </div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:18, fontWeight:800, color}}>{(acc.followers_count||0).toLocaleString()}</div>
+                        <div style={{fontSize:11, color:th.text2}}>followers</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+            <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>Note</div>
+            <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Detailed post analytics (impressions, reach, engagement rate) will be available after Meta App Review approval.</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReportsPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [accounts, setAccounts] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+      .then(({ data }) => { if (data) setAccounts(data); });
+  }, [realClientId]);
+
+  const now = new Date();
+  const month = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:900}}>
+      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Reports</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Monthly summary for {selClient?.name}</p>
+        </div>
+        <button style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+          <Download size={14}/> Export PDF
+        </button>
+      </div>
+      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24, marginBottom:16}}>
+        <div style={{fontSize:14, fontWeight:700, marginBottom:4}}>{month} Report</div>
+        <div style={{fontSize:12, color:th.text2, marginBottom:20}}>Social media performance summary</div>
+        <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16}}>
+          {[["Connected Accounts", accounts.length, th.accent],["Total Followers", accounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), th.success],["Platforms", [...new Set(accounts.map(a=>a.platform))].length, th.warning]].map(([label,val,color])=>(
+            <div key={label} style={{background:th.card2, borderRadius:10, padding:16, textAlign:"center"}}>
+              <div style={{fontSize:24, fontWeight:900, color}}>{val}</div>
+              <div style={{fontSize:11, color:th.text2, marginTop:4}}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+        <div style={{fontSize:13, fontWeight:700, marginBottom:12}}>Account Breakdown</div>
+        {accounts.length === 0 ? <div style={{fontSize:13, color:th.text2}}>No accounts connected.</div> : accounts.map(acc => (
+          <div key={acc.id} style={{display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:`1px solid ${th.border}`}}>
+            <div style={{fontSize:13}}>{acc.account_name}</div>
+            <div style={{fontSize:13, fontWeight:700, color:acc.platform==='ig'?"#E1306C":"#1877F2"}}>{(acc.followers_count||0).toLocaleString()} followers</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InboxPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const messages = [
+    { id:1, from:"Ahmed Al-Mansoori", platform:"ig", text:"Love your latest post! Can you share more about this?", time:"2h ago", read:false },
+    { id:2, from:"Sara Mohammed", platform:"fb", text:"What are your working hours?", time:"4h ago", read:false },
+    { id:3, from:"Khalid Hassan", platform:"ig", text:"Great content, keep it up! 🔥", time:"6h ago", read:true },
+    { id:4, from:"Fatima Al-Ali", platform:"fb", text:"I'd like to know more about your services.", time:"1d ago", read:true },
+    { id:5, from:"Omar Abdullah", platform:"ig", text:"Do you ship to Bahrain?", time:"1d ago", read:true },
+    { id:6, from:"Noura Al-Rashid", platform:"fb", text:"Amazing work! Following for more.", time:"2d ago", read:true },
+    { id:7, from:"Yousuf Al-Qahtani", platform:"ig", text:"Can I get a price list?", time:"2d ago", read:true },
+  ];
+  const [selected, setSelected] = useState(messages[0]);
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:1100}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Inbox</h2>
+        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Messages from {selClient?.name}</p>
+      </div>
+      <div style={{display:"grid", gridTemplateColumns:"320px 1fr", gap:16, height:500}}>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"auto"}}>
+          {messages.map(msg => {
+            const color = msg.platform === 'ig' ? "#E1306C" : "#1877F2";
+            return (
+              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"14px 16px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:selected?.id===msg.id?th.accentSoft:"transparent"}}>
+                <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}>
+                  <div style={{fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
+                    {!msg.read && <div style={{width:6, height:6, borderRadius:"50%", background:th.accent}}/>}
+                    {msg.from}
+                  </div>
+                  <div style={{fontSize:10, color:th.text2}}>{msg.time}</div>
+                </div>
+                <div style={{fontSize:11, color:th.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{msg.text}</div>
+                <div style={{marginTop:4}}><span style={{fontSize:9, fontWeight:700, color, background:`${color}18`, padding:"2px 6px", borderRadius:4}}>{msg.platform==='ig'?'Instagram':'Facebook'}</span></div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, display:"flex", flexDirection:"column"}}>
+          {selected && (
+            <>
+              <div style={{fontSize:14, fontWeight:700, marginBottom:4}}>{selected.from}</div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:20}}>{selected.platform==='ig'?'Instagram':'Facebook'} · {selected.time}</div>
+              <div style={{background:th.card2, borderRadius:10, padding:16, fontSize:13, flex:1, marginBottom:16}}>{selected.text}</div>
+              <div style={{display:"flex", gap:8}}>
+                <input placeholder="Type a reply..." style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
+                <button style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Send</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeamPage() {
+  const { dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const team = [
+    { name:"Abdulla Al-Nahas", email:"theoctopus.bh@gmail.com", role:"Owner", joined:"Jan 2025", avatar:"A" },
+    { name:"Agency Manager", email:"manager@octofusion.bh", role:"Admin", joined:"Mar 2025", avatar:"M" },
+  ];
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:800}}>
+      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Team</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Manage your team members</p>
+        </div>
+        <button onClick={()=>setShowInvite(!showInvite)} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+          <UserPlus size={14}/> Invite Member
+        </button>
+      </div>
+      {showInvite && (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:12}}>Invite Team Member</div>
+          <div style={{display:"flex", gap:8}}>
+            <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Email address" style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
+            <select style={{padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}>
+              <option>Admin</option><option>Editor</option><option>Viewer</option>
+            </select>
+            <button onClick={()=>{alert("Invite sent to "+inviteEmail); setInviteEmail(""); setShowInvite(false);}} style={{padding:"10px 20px", borderRadius:8, background:th.accent, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Send</button>
+          </div>
+        </div>
+      )}
+      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden"}}>
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"12px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11, fontWeight:700, color:th.text2, textTransform:"uppercase"}}>
+          <div>Member</div><div>Email</div><div>Role</div><div>Joined</div><div></div>
+        </div>
+        {team.map((m,i) => (
+          <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"14px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none", alignItems:"center"}}>
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <div style={{width:32, height:32, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff"}}>{m.avatar}</div>
+              <div style={{fontSize:13, fontWeight:600}}>{m.name}</div>
+            </div>
+            <div style={{fontSize:12, color:th.text2}}>{m.email}</div>
+            <div><span style={{fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:m.role==="Owner"?`${th.accent}20`:th.card2, color:m.role==="Owner"?th.accent:th.text2}}>{m.role}</span></div>
+            <div style={{fontSize:12, color:th.text2}}>{m.joined}</div>
+            <div>{m.role!=="Owner"&&<button style={{fontSize:11, color:th.danger, background:"none", border:"none", cursor:"pointer"}}>Remove</button>}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BillingPage() {
+  const { dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const plans = [
+    { name:"Starter", price:"49", accounts:3, users:1, posts:30, current:true },
+    { name:"Professional", price:"99", accounts:10, users:5, posts:100, current:false },
+    { name:"Agency", price:"199", accounts:999, users:20, posts:999, current:false },
+  ];
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:900}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Billing</h2>
+        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Manage your subscription</p>
+      </div>
+      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <div style={{fontSize:13, fontWeight:700}}>Current Plan: <span style={{color:th.accent}}>Starter</span></div>
+          <div style={{fontSize:12, color:th.text2, marginTop:4}}>Next billing date: July 1, 2026</div>
+        </div>
+        <div style={{fontSize:24, fontWeight:900, color:th.accent}}>49 BHD<span style={{fontSize:12, fontWeight:400, color:th.text2}}>/mo</span></div>
+      </div>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16}}>
+        {plans.map(plan => (
+          <div key={plan.name} style={{background:th.card, border:`2px solid ${plan.current?th.accent:th.border}`, borderRadius:14, padding:24, position:"relative"}}>
+            {plan.current && <div style={{position:"absolute", top:12, right:12, fontSize:10, fontWeight:700, background:th.accent, color:"#fff", padding:"3px 8px", borderRadius:10}}>CURRENT</div>}
+            <div style={{fontSize:16, fontWeight:800, marginBottom:8}}>{plan.name}</div>
+            <div style={{fontSize:28, fontWeight:900, color:plan.current?th.accent:th.text, marginBottom:16}}>{plan.price} <span style={{fontSize:13, fontWeight:400, color:th.text2}}>BHD/mo</span></div>
+            <div style={{fontSize:12, color:th.text2, lineHeight:2}}>
+              <div>✓ {plan.accounts===999?"Unlimited":plan.accounts} social accounts</div>
+              <div>✓ {plan.users} team member{plan.users>1?"s":""}</div>
+              <div>✓ {plan.posts===999?"Unlimited":plan.posts} posts/month</div>
+              <div>✓ AI caption generator</div>
+              <div>✓ Analytics dashboard</div>
+            </div>
+            {!plan.current && <button style={{width:"100%", marginTop:16, padding:"10px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Upgrade</button>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  const { dark, setDark, lang, setLang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [saved, setSaved] = useState(false);
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:700}}>
+      <div style={{marginBottom:24}}>
+        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Settings</h2>
+        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Account and app preferences</p>
+      </div>
+      <div style={{display:"flex", flexDirection:"column", gap:16}}>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Appearance</div>
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:13}}>Dark Mode</div>
+              <div style={{fontSize:11, color:th.text2}}>Toggle between dark and light theme</div>
+            </div>
+            <button onClick={()=>setDark(!dark)} style={{width:44, height:24, borderRadius:12, background:dark?th.accent:th.border, border:"none", cursor:"pointer", position:"relative"}}>
+              <div style={{position:"absolute", top:3, left:dark?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left 0.2s"}}/>
+            </button>
+          </div>
+        </div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Language</div>
+          <div style={{display:"flex", gap:8}}>
+            {["en","ar"].map(l => (
+              <button key={l} onClick={()=>setLang(l)} style={{padding:"8px 20px", borderRadius:8, border:`2px solid ${lang===l?th.accent:th.border}`, background:lang===l?th.accentSoft:"transparent", color:lang===l?th.accent:th.text2, fontSize:13, fontWeight:600, cursor:"pointer"}}>
+                {l==="en"?"English":"العربية"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Agency Info</div>
+          <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            {[["Agency Name","Octo Fusion"],["Contact Email","theoctopus.bh@gmail.com"],["Website","tawaslo.com"]].map(([label,val]) => (
+              <div key={label}>
+                <div style={{fontSize:11, color:th.text2, marginBottom:4}}>{label}</div>
+                <input defaultValue={val} style={{width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box"}}/>
+              </div>
+            ))}
+          </div>
+          <button onClick={()=>{setSaved(true); setTimeout(()=>setSaved(false),2000);}} style={{marginTop:16, padding:"10px 24px", borderRadius:8, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>
+            {saved?"✓ Saved!":"Save Changes"}
+          </button>
+        </div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:4}}>Danger Zone</div>
+          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>These actions cannot be undone.</div>
+          <button style={{padding:"8px 16px", borderRadius:8, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>Delete Account</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1347,11 +1696,15 @@ export default function TawasloApp() {
     if (page==="dashboard") return <AgencyDashboard/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
+    if (page==="analytics") return <AnalyticsPage/>;
+    if (page==="reports") return <ReportsPage/>;
+    if (page==="inbox") return <InboxPage/>;
+    if (page==="agencyteam") return <TeamPage/>;
+    if (page==="billing") return <BillingPage/>;
+    if (page==="agencysets") return <SettingsPage/>;
     const icons = {
-      publisher:Calendar, streams:Radio, inbox:Inbox, listening:Activity,
+      streams:Radio, listening:Activity,
       campaigns:Megaphone, aistudio:Wand2, media:Image,
-      analytics:BarChart2, reports:PieChart,
-      agencyteam:Users, billing:CreditCard, agencysets:Settings,
     };
     const Icon = icons[page]||Settings;
     return <Placeholder icon={Icon} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This page is being connected. Full version ready — linking it now."/>;

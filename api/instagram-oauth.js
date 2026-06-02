@@ -39,7 +39,7 @@ export default async function handler(req, res) {
 
     // 3. Get Instagram account info
     const infoRes = await fetch(
-      `https://graph.instagram.com/v19.0/${igUserId}?fields=id,name,username,profile_picture_url,followers_count&access_token=${longToken}`
+      `https://graph.instagram.com/v21.0/${igUserId}?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${longToken}`
     );
     const igInfo = await infoRes.json();
     console.log('IG info:', JSON.stringify(igInfo));
