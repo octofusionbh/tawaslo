@@ -13,9 +13,14 @@ export default async function handler(req, res) {
       const mediaType = videoUrl ? 'VIDEO' : imageUrl ? 'IMAGE' : 'TEXT';
 
       if (mediaType === 'TEXT') {
-        // Instagram doesn't support text-only posts via API
         return res.status(400).json({ error: 'Instagram requires an image or video' });
       }
+
+      // Use graph.instagram.com for IGAA tokens (Instagram-only OAuth)
+      // Use graph.facebook.com for EAA tokens (Meta/Facebook OAuth)
+      const igBase = accessToken.startsWith('IGAA') || accessToken.startsWith('IGQ')
+        ? 'https://graph.instagram.com/v21.0'
+        : 'https://graph.facebook.com/v19.0';
 
       // Step 1: Create media container
       const containerBody = {
@@ -26,21 +31,23 @@ export default async function handler(req, res) {
       if (videoUrl) { containerBody.video_url = videoUrl; containerBody.media_type = 'REELS'; }
       if (altText) containerBody.alt_text = altText;
 
-      const containerRes = await fetch(`https://graph.facebook.com/v19.0/${accountId}/media`, {
+      const containerRes = await fetch(`${igBase}/${accountId}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(containerBody),
       });
       const container = await containerRes.json();
+      console.log('IG container response:', JSON.stringify(container));
       if (container.error) return res.status(400).json({ error: container.error.message });
 
       // Step 2: Publish the container
-      const publishRes = await fetch(`https://graph.facebook.com/v19.0/${accountId}/media_publish`, {
+      const publishRes = await fetch(`${igBase}/${accountId}/media_publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ creation_id: container.id, access_token: accessToken }),
       });
       const published = await publishRes.json();
+      console.log('IG publish response:', JSON.stringify(published));
       if (published.error) return res.status(400).json({ error: published.error.message });
 
       return res.status(200).json({ success: true, postId: published.id, platform: 'ig' });
