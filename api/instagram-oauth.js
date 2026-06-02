@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
     const account = {
       platform: 'ig',
-      account_id: String(igUserId),
+      account_id: String(igInfo.id || igUserId),
       account_name: resolvedUsername || resolvedName || `ig_${igUserId}`,
       username: resolvedUsername,
       access_token: longToken,
