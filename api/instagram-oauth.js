@@ -39,16 +39,32 @@ export default async function handler(req, res) {
 
     // 3. Get Instagram account info
     const infoRes = await fetch(
-      `https://graph.instagram.com/v21.0/${igUserId}?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${longToken}`
+      `https://graph.instagram.com/v21.0/me?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${longToken}`
     );
     const igInfo = await infoRes.json();
     console.log('IG info:', JSON.stringify(igInfo));
 
+    if (igInfo.error) {
+      console.error('IG info error:', igInfo.error);
+      // Try fetching just the basics with the user ID as fallback
+      const fallbackRes = await fetch(
+        `https://graph.instagram.com/${igUserId}?fields=id,username,name&access_token=${longToken}`
+      );
+      const fallbackData = await fallbackRes.json();
+      console.log('IG fallback info:', JSON.stringify(fallbackData));
+      if (!fallbackData.error) {
+        Object.assign(igInfo, fallbackData);
+      }
+    }
+
+    const resolvedUsername = igInfo.username || null;
+    const resolvedName = igInfo.name || resolvedUsername || null;
+
     const account = {
       platform: 'ig',
       account_id: String(igUserId),
-      account_name: igInfo.username || igInfo.name || 'Instagram',
-      username: igInfo.username,
+      account_name: resolvedUsername || resolvedName || `ig_${igUserId}`,
+      username: resolvedUsername,
       access_token: longToken,
       picture: igInfo.profile_picture_url || null,
       followers_count: igInfo.followers_count || 0,

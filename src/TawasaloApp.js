@@ -582,6 +582,7 @@ function PublisherPage() {
   const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
   const [mediaWarning, setMediaWarning] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [scheduleType, setScheduleType] = useState("now");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
@@ -633,12 +634,13 @@ function PublisherPage() {
     if (sizeMB > 100) { setMediaWarning('File exceeds 100MB limit. Please compress before uploading.'); return; }
     if (isImage) setMediaPreview(URL.createObjectURL(file));
     else setMediaPreview(null);
-    // Upload to Supabase Storage
     setUploading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const uid = user?.id || 'anonymous';
       const ext = file.name.split('.').pop();
-      const path = `posts/${Date.now()}.${ext}`;
-      const { data, error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+      const path = `${uid}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
       setImageUrl(urlData.publicUrl);
@@ -756,8 +758,13 @@ function PublisherPage() {
         {/* Media Upload */}
         <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
           <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Media <span style={{ fontWeight:400, color:th.text3 }}>(optional)</span></div>
-          <label style={{ display:"block", border:`2px dashed ${th.border}`, borderRadius:10, padding:24, textAlign:"center", cursor:"pointer" }}>
-            <input type="file" accept="image/*,video/*" style={{ display:"none" }} onChange={e=>handleFileSelect(e.target.files[0])}/>
+          <div
+            onClick={()=>document.getElementById('media-file-input').click()}
+            onDragOver={e=>{e.preventDefault();setDragOver(true);}}
+            onDragLeave={()=>setDragOver(false)}
+            onDrop={e=>{e.preventDefault();setDragOver(false);handleFileSelect(e.dataTransfer.files[0]);}}
+            style={{ border:`2px dashed ${dragOver?th.accent:th.border}`, borderRadius:10, padding:24, textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent", transition:"all 0.2s" }}>
+            <input type="file" id="media-file-input" accept="image/*,video/*" style={{ display:"none" }} onChange={e=>handleFileSelect(e.target.files[0])}/>
             {mediaPreview ? (
               <img src={mediaPreview} alt="preview" style={{ maxHeight:160, borderRadius:8, objectFit:"cover", maxWidth:"100%" }}/>
             ) : mediaType === 'video' ? (
@@ -765,7 +772,7 @@ function PublisherPage() {
             ) : (
               <div><div style={{ fontSize:28, marginBottom:6 }}>📎</div><div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Drag & drop or click to upload</div><div style={{ fontSize:11, color:th.text2 }}>Images (JPG, PNG) or Videos (MP4) · Max 100MB</div></div>
             )}
-          </label>
+          </div>
           {uploading && <div style={{ fontSize:12, color:th.accent, marginTop:8, textAlign:"center" }}>⬆️ Uploading...</div>}
           {imageUrl && !uploading && <div style={{ fontSize:11, color:th.success, marginTop:8 }}>✓ {mediaType === 'video' ? 'Reel' : 'Image'} uploaded successfully</div>}
           {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>⚠️ {mediaWarning}</div>}
