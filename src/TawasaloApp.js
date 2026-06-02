@@ -200,9 +200,9 @@ function Sidebar() {
       boxShadow:th.shadow, zIndex:30, overflow:"hidden",
     }}>
       <div style={{padding:"20px 18px 14px",display:"flex",alignItems:"center",gap:10}}>
-        <img src="/logo.png" alt="Tawasalo" style={{width:38,height:38,borderRadius:11,objectFit:"contain",flexShrink:0}}/>
+        <img src="/logo.png" alt="Tawaslo" style={{width:38,height:38,borderRadius:11,objectFit:"contain",flexShrink:0}}/>
         <div>
-          <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawasalo</div>
+          <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
           <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>Social Intelligence</div>
         </div>
       </div>
@@ -1395,7 +1395,7 @@ function BillingPage() {
           <div key={plan.name} style={{background:th.card, border:`2px solid ${plan.current?th.accent:th.border}`, borderRadius:14, padding:24, position:"relative"}}>
             {plan.current && <div style={{position:"absolute", top:12, right:12, fontSize:10, fontWeight:700, background:th.accent, color:"#fff", padding:"3px 8px", borderRadius:10}}>CURRENT</div>}
             <div style={{fontSize:16, fontWeight:800, marginBottom:8}}>{plan.name}</div>
-            <div style={{fontSize:28, fontWeight:900, color:plan.current?th.accent:th.text, marginBottom:16}}>{plan.price} <span style={{fontSize:13, fontWeight:400, color:th.text2}}>BHD/mo</span></div>
+            <div style={{fontSize:28, fontWeight:900, color:plan.current?th.accent:th.text, marginBottom:16}}>{plan.price} <span style={{fontSize:13, fontWeight:400, color:th.text2}}>USD/mo</span></div>
             <div style={{fontSize:12, color:th.text2, lineHeight:2}}>
               <div>✓ {plan.accounts===999?"Unlimited":plan.accounts} social accounts</div>
               <div>✓ {plan.users} team member{plan.users>1?"s":""}</div>
@@ -1465,6 +1465,260 @@ function SettingsPage() {
           <button style={{padding:"8px 16px", borderRadius:8, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>Delete Account</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LandingPage({ onGetStarted, onLogin }) {
+  const [landingPage, setLandingPage] = useState('home');
+  const [billing, setBilling] = useState('monthly');
+  const prices = { monthly:{starter:49,pro:99,agency:199}, yearly:{starter:39,pro:79,agency:159} };
+  const p = prices[billing];
+
+  const navLink = (id, label) => (
+    <span onClick={()=>setLandingPage(id)} style={{color:landingPage===id?"#E8EFF8":"#7A8BA8", fontSize:13, fontWeight:600, cursor:"pointer", borderBottom:landingPage===id?"2px solid #4F6EF7":"2px solid transparent", paddingBottom:2}}>{label}</span>
+  );
+
+  const Logo = () => (
+    <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}>
+      <svg width="26" height="26" viewBox="0 0 200 200" fill="none"><defs><linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#4F6EF7"/><stop offset="100%" stopColor="#7C3AED"/></linearGradient></defs><path d="M60 50 C30 50 10 70 10 100 C10 130 30 150 60 150 L90 150 L90 120 L60 120 C47 120 40 112 40 100 C40 88 47 80 60 80 L90 80 L90 50 Z" fill="url(#lg1)"/><path d="M140 50 C170 50 190 70 190 100 C190 130 170 150 140 150 L110 150 L110 120 L140 120 C153 120 160 112 160 100 C160 88 153 80 140 80 L110 80 L110 50 Z" fill="url(#lg1)"/><rect x="80" y="85" width="40" height="30" rx="6" fill="url(#lg1)"/></svg>
+      <span style={{fontSize:18,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span>
+    </div>
+  );
+
+  const Nav = () => (
+    <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #1C2D45",padding:"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
+      <Logo/>
+      <div style={{display:"flex",alignItems:"center",gap:28}}>
+        {navLink('home','Home')}
+        {navLink('features','Features')}
+        {navLink('pricing','Pricing')}
+        {navLink('about','About')}
+        {navLink('contact','Contact')}
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
+        <button onClick={onGetStarted} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+      </div>
+    </nav>
+  );
+
+  const Footer = () => (
+    <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"24px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
+      <Logo/>
+      <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
+      <div style={{display:"flex",gap:20}}>
+        {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>l==='Contact'&&setLandingPage('contact')} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
+      </div>
+    </div>
+  );
+
+  const grad = {background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
+  const card = {background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:22};
+
+  const PlanCard = ({name,desc,price,features,popular,extra=[]}) => (
+    <div style={{background:"#101828",border:`2px solid ${popular?"#4F6EF7":"#1C2D45"}`,borderRadius:16,padding:24,position:"relative"}}>
+      {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
+      <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
+      <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
+      <div style={{marginBottom:8}}><span style={{fontSize:34,fontWeight:900,color:popular?"#4F6EF7":"#E8EFF8"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
+      {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[name.toLowerCase().replace('professional','pro')]-price)*12}/year</div>}
+      <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
+      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#4F6EF7,#7C3AED)":"transparent",border:popular?"none":"1px solid #1C2D45",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
+    </div>
+  );
+
+  const features = [
+    { icon:"📅", title:"Smart Publisher", desc:"Schedule and publish posts to Instagram and Facebook from one place. AI writes your captions in English and Arabic." },
+    { icon:"📊", title:"Analytics Dashboard", desc:"Track followers, engagement, and growth across all your connected social accounts in real time." },
+    { icon:"📥", title:"Unified Inbox", desc:"Manage all your messages and comments from Instagram and Facebook in a single inbox." },
+    { icon:"🤖", title:"AI Caption Generator", desc:"Generate bilingual captions (English + Arabic) tailored for GCC audiences in seconds." },
+    { icon:"👥", title:"Multi-Client Management", desc:"Manage multiple brands and clients from one agency dashboard. Each client gets their own workspace." },
+    { icon:"📈", title:"Reports", desc:"Get monthly performance reports for each client with follower counts, post history, and platform breakdowns." },
+  ];
+
+  const plans = [
+    { name:"Starter", price:"49", desc:"Perfect for small businesses", accounts:3, users:1, posts:30 },
+    { name:"Professional", price:"99", desc:"For growing brands", accounts:10, users:5, posts:100, popular:true },
+    { name:"Agency", price:"199", desc:"For agencies managing multiple clients", accounts:999, users:20, posts:999 },
+  ];
+
+  const s = {
+    nav: { position:"fixed", top:0, left:0, right:0, zIndex:100, padding:"0 40px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", background: scrolled ? "rgba(7,9,15,0.95)" : "transparent", backdropFilter: scrolled ? "blur(12px)" : "none", borderBottom: scrolled ? "1px solid #1C2D45" : "none", transition:"all 0.3s" },
+    logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
+    hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#07090F", position:"relative", overflow:"hidden" },
+    heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
+    badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(79,110,247,0.1)", border:"1px solid rgba(79,110,247,0.3)", color:"#4F6EF7", fontSize:12, fontWeight:700, marginBottom:24 },
+    h1: { fontSize:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
+    sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
+    btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },
+    btnSecondary: { padding:"14px 32px", borderRadius:12, background:"transparent", border:"1px solid #1C2D45", color:"#7A8BA8", fontSize:15, fontWeight:600, cursor:"pointer" },
+    section: { padding:"80px 40px", maxWidth:1100, margin:"0 auto" },
+    sectionTitle: { fontSize:36, fontWeight:900, color:"#E8EFF8", textAlign:"center", marginBottom:12, letterSpacing:-0.5 },
+    sectionSub: { fontSize:16, color:"#7A8BA8", textAlign:"center", marginBottom:56 },
+  };
+
+  const HomePage = () => (
+    <div>
+      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F", padding:"88px 32px 72px", textAlign:"center"}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(79,110,247,0.1)",border:"1px solid rgba(79,110,247,0.3)",color:"#4F6EF7",fontSize:11,fontWeight:700,marginBottom:24}}>✦ Social media management, reimagined</div>
+        <h1 style={{fontSize:52,fontWeight:900,lineHeight:1.1,marginBottom:20,letterSpacing:-1.5,maxWidth:760,margin:"0 auto 20px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
+        <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 36px",lineHeight:1.75}}>Tawaslo is the social media management platform for agencies and brands worldwide. Publish, schedule, analyze, and grow — with full Arabic and English support.</p>
+        <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:56,flexWrap:"wrap"}}>
+          <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free trial →</button>
+          <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 30px",borderRadius:10,background:"transparent",border:"1px solid #1C2D45",color:"#7A8BA8",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
+        </div>
+        <div style={{display:"flex",gap:48,justifyContent:"center",flexWrap:"wrap"}}>
+          {[["Arabic","+ English AI captions"],["All-in-one","Publish, inbox, analytics"],["Multi-brand","Agency-ready platform"]].map(([v,l])=>(
+            <div key={v} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:12,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
+          ))}
+        </div>
+      </div>
+      <div style={{background:"#0C1120",padding:"72px 32px"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Everything your brand needs</h2>
+          <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:40}}>Built for agencies and brands managing social media at scale.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+            {[["📅","Smart Publisher","Schedule and publish to Instagram & Facebook. AI captions in Arabic and English."],["🤖","AI Captions","Generate bilingual captions instantly. Hashtags, emojis, and tone — all customizable."],["📊","Analytics","Track followers, engagement, and growth across all platforms in real time."],["📥","Unified Inbox","All your DMs and comments from Instagram and Facebook in one place."],["👥","Multi-Client","Manage multiple brands under one agency workspace with team roles."],["📈","Reports","Monthly performance reports per client. Export-ready for presentations."]].map(([icon,title,desc])=>(
+              <div key={title} style={card}><div style={{fontSize:22,marginBottom:10}}>{icon}</div><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
+            ))}
+          </div>
+          <div style={{textAlign:"center",marginTop:32}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
+        </div>
+      </div>
+      <div style={{padding:"72px 32px",textAlign:"center",background:"#07090F",borderTop:"1px solid #1C2D45"}}>
+        <h2 style={{fontSize:30,fontWeight:900,marginBottom:12}}>Ready to grow your brand?</h2>
+        <p style={{color:"#7A8BA8",fontSize:14,marginBottom:28}}>Join brands worldwide using Tawaslo to manage their social media.</p>
+        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free — no credit card needed</button>
+      </div>
+    </div>
+  );
+
+  const FeaturesPage = () => (
+    <div style={{padding:"60px 32px",maxWidth:1000,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:48}}>
+        <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Everything you need to<br/><span style={grad}>manage social media at scale</span></h1>
+        <p style={{color:"#7A8BA8",fontSize:14,maxWidth:500,margin:"0 auto"}}>From publishing to analytics to inbox management — Tawaslo has it all.</p>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:20}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div><div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>PUBLISHING</div><h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish to Instagram & Facebook instantly</h3><p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Write once, publish everywhere. Schedule posts for the best time. Preview exactly how your post will look before publishing.</p></div>
+          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+            <div style={{fontSize:11,color:"#7A8BA8",marginBottom:8}}>POST TO</div>
+            <div style={{display:"flex",gap:8,marginBottom:12}}>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#E1306C18",border:"1px solid #E1306C",fontSize:11,fontWeight:700,color:"#E1306C"}}>📸 Instagram</div>
+              <div style={{padding:"6px 12px",borderRadius:20,background:"#1877F218",border:"1px solid #1877F2",fontSize:11,fontWeight:700,color:"#1877F2"}}>📘 Facebook</div>
+            </div>
+            <div style={{background:"#0C1120",borderRadius:8,padding:10,fontSize:12,color:"#7A8BA8"}}>We're excited to share something amazing! 🚀 #brand #growth</div>
+          </div>
+        </div>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+            <div style={{fontSize:11,color:"#7A8BA8",marginBottom:8}}>AI CAPTION</div>
+            <div style={{fontSize:12,color:"#E8EFF8",lineHeight:1.7,marginBottom:8}}>We're excited to share something special! 🚀 #Innovation #Excellence</div>
+            <div style={{borderTop:"1px solid #1C2D45",paddingTop:8,fontSize:12,color:"#E8EFF8",lineHeight:1.7,direction:"rtl",textAlign:"right"}}>يسعدنا مشاركة شيء مميز معكم! 🚀 #ابتكار #تميز</div>
+          </div>
+          <div><div style={{fontSize:11,fontWeight:700,color:"#7C3AED",marginBottom:10,letterSpacing:1}}>AI CAPTIONS</div><h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Write in Arabic & English — simultaneously</h3><p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Our AI generates bilingual captions tailored to your brand voice, platform, and tone. Hashtags and emojis included.</p></div>
+        </div>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28}}>
+          <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:10,letterSpacing:1}}>ANALYTICS & REPORTS</div>
+          <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Real data. Real insights.</h3>
+          <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:20}}>Track followers, engagement, and growth across Instagram and Facebook. Monthly reports ready for clients.</p>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+            {[["12.4K","Total Followers","#4F6EF7"],["3","Connected Accounts","#10B981"],["8.2K","Instagram","#E1306C"],["2","Facebook Pages","#1877F2"]].map(([v,l,c])=>(
+              <div key={l} style={{background:"#101828",borderRadius:10,padding:14,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const PricingPage = () => (
+    <div style={{padding:"60px 32px",maxWidth:1000,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:36}}>
+        <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Simple, transparent pricing</h1>
+        <p style={{color:"#7A8BA8",fontSize:14,marginBottom:24}}>No hidden fees. Cancel anytime.</p>
+        <div style={{display:"inline-flex",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:10,padding:4}}>
+          {['monthly','yearly'].map(b=>(
+            <button key={b} onClick={()=>setBilling(b)} style={{padding:"7px 20px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:billing===b?"linear-gradient(135deg,#4F6EF7,#7C3AED)":"transparent",color:billing===b?"#fff":"#7A8BA8"}}>
+              {b==='monthly'?'Monthly':'Yearly '}{b==='yearly'&&<span style={{fontSize:10,color:billing==='yearly'?"#fff":"#10B981",fontWeight:700}}>save 20%</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:48}}>
+        <PlanCard name="Starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
+        <PlanCard name="Professional" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
+        <PlanCard name="Agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
+      </div>
+      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #1C2D45"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
+        {[["","Starter","Professional","Agency",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
+          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
+            <div>{feat}</div>
+            {!isHead&&<><div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div></>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const AboutPage = () => (
+    <div style={{padding:"60px 32px",maxWidth:860,margin:"0 auto"}}>
+      <h1 style={{fontSize:38,fontWeight:900,marginBottom:20,lineHeight:1.2}}>Social media management,<br/><span style={grad}>reimagined for every brand.</span></h1>
+      <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:20}}>Tawaslo is a global social media management platform built for agencies and brands who want to do more — publish smarter, analyze better, and grow faster. Whether you're managing one brand or fifty, Tawaslo brings everything into one clean workspace.</p>
+      <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:40}}>But we didn't stop there. We noticed something every other platform ignored: <strong style={{color:"#E8EFF8"}}>400 million people speak Arabic</strong> — and not a single major social media tool was truly built for them. So we built Tawaslo with Arabic as a first-class citizen. Full Arabic dashboard, AI captions in Arabic, right-to-left support. Not a plugin. Not a translation. Built in from day one.</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:40}}>
+        {[["400M+","Arabic speakers worldwide"],["5th","Most spoken language globally"],["22","Countries speak Arabic"],["$1T+","MENA digital economy by 2030"]].map(([v,l])=>(
+          <div key={l} style={card}><div style={{fontSize:22,fontWeight:900,...grad,textAlign:"center"}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5,textAlign:"center"}}>{l}</div></div>
+        ))}
+      </div>
+      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,marginBottom:28}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",letterSpacing:1,marginBottom:16}}>WHAT MAKES US DIFFERENT</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          {[["🌍","Truly global platform","Works for any brand anywhere in the world. No geographic limits."],["🇸🇦","Native Arabic support","Full Arabic dashboard and AI captions. RTL interface. Built in, not bolted on."],["🏢","Agency-ready","Manage dozens of clients and brands from one clean workspace."],["💰","Priced fairly","Fraction of the cost of Hootsuite or Sprout Social. No per-user nonsense."]].map(([icon,title,desc])=>(
+            <div key={title} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+              <div style={{fontSize:20,marginTop:2}}>{icon}</div>
+              <div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{desc}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+        {[["2026","Founded"],["Bahrain","Headquarters"],["Global","Vision"]].map(([v,l])=>(
+          <div key={l} style={{...card,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5}}>{l}</div></div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const ContactPage = () => (
+    <div style={{padding:"60px 32px",maxWidth:600,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:40}}>
+        <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Get in touch</h1>
+        <p style={{color:"#7A8BA8",fontSize:14}}>Have questions? We'd love to hear from you.</p>
+      </div>
+      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"flex",flexDirection:"column",gap:16}}>
+        {[["Name","text","Your name"],["Email","email","your@email.com"],["Company","text","Your company (optional)"]].map(([label,type,ph])=>(
+          <div key={label}><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>{label}</div><input type={type} placeholder={ph} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #1C2D45",background:"#101828",color:"#E8EFF8",fontSize:13,outline:"none"}}/></div>
+        ))}
+        <div><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>Message</div><textarea placeholder="How can we help?" style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #1C2D45",background:"#101828",color:"#E8EFF8",fontSize:13,outline:"none",resize:"vertical",height:120}}/></div>
+        <button style={{padding:13,borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Send message</button>
+      </div>
+      <div style={{marginTop:24,textAlign:"center",fontSize:13,color:"#7A8BA8"}}>Or email us: <span style={{color:"#4F6EF7"}}>hello@tawaslo.com</span></div>
+    </div>
+  );
+
+  return (
+    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",minHeight:"100vh"}}>
+      <Nav/>
+      {landingPage==='home'&&<HomePage/>}
+      {landingPage==='features'&&<FeaturesPage/>}
+      {landingPage==='pricing'&&<PricingPage/>}
+      {landingPage==='about'&&<AboutPage/>}
+      {landingPage==='contact'&&<ContactPage/>}
+      <Footer/>
     </div>
   );
 }
@@ -1587,11 +1841,11 @@ function AuthPage() {
             <>
               <div style={{marginBottom:28}}>
                 <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
-                  <img src="/logo.png" alt="Tawasalo" style={{width:44,height:44,borderRadius:12,objectFit:"contain"}}/>
-                  <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawasalo</div>
+                  <img src="/logo.png" alt="Tawaslo" style={{width:44,height:44,borderRadius:12,objectFit:"contain"}}/>
+                  <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawaslo</div>
                 </div>
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Welcome back</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawasalo workspace</p>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawaslo workspace</p>
               </div>
               {inp("Email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
               {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
@@ -1652,6 +1906,7 @@ function AuthPage() {
 export default function TawasloApp() {
   const [dark,      setDark]      = useState(true);
   const [lang,      setLang]      = useState("en");
+  const [showLanding, setShowLanding] = useState(true);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
   const [mode,      setMode]      = useState("owner");
@@ -1712,6 +1967,14 @@ export default function TawasloApp() {
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
+
+  if (showLanding && !isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <LandingPage onGetStarted={()=>setShowLanding(false)} onLogin={()=>setShowLanding(false)}/>
+      </AppCtx.Provider>
+    );
+  }
 
   if (!isAuthed) {
     return (
