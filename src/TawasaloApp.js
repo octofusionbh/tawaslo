@@ -576,13 +576,19 @@ function PublisherPage() {
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [caption, setCaption] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [scheduleType, setScheduleType] = useState("now"); // "now" or "schedule"
+  const [altText, setAltText] = useState("");
+  const [mediaFile, setMediaFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState(null);
+  const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
+  const [mediaWarning, setMediaWarning] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [scheduleType, setScheduleType] = useState("now");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [posting, setPosting] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
-  const [results, setResults] = useState([]); // [{account, success, error}]
+  const [results, setResults] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
 
   useEffect(() => {
@@ -614,6 +620,32 @@ function PublisherPage() {
       if (data.english) setCaption(data.english + (data.arabic ? '\n\n' + data.arabic : ''));
     } catch (e) { console.error(e); }
     setGeneratingAI(false);
+  };
+
+  const handleFileSelect = async (file) => {
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
+    const sizeMB = file.size / 1024 / 1024;
+    setMediaFile(file);
+    setMediaType(isVideo ? 'video' : 'image');
+    setMediaWarning('');
+    if (sizeMB > 100) { setMediaWarning('File exceeds 100MB limit. Please compress before uploading.'); return; }
+    if (isImage) setMediaPreview(URL.createObjectURL(file));
+    else setMediaPreview(null);
+    // Upload to Supabase Storage
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `posts/${Date.now()}.${ext}`;
+      const { data, error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+      setImageUrl(urlData.publicUrl);
+    } catch (err) {
+      setMediaWarning('Upload failed: ' + err.message);
+    }
+    setUploading(false);
   };
 
   const handlePost = async () => {
@@ -651,6 +683,8 @@ function PublisherPage() {
             accessToken: acc.access_token,
             caption,
             imageUrl: imageUrl || null,
+            videoUrl: mediaType === 'video' ? imageUrl : null,
+            altText: altText || null,
           }),
         });
         const data = await res.json();
@@ -661,7 +695,7 @@ function PublisherPage() {
     setResults(postResults);
     setPosting(false);
     if (postResults.every(r => r.success)) {
-      setCaption(""); setImageUrl(""); setSelectedAccounts([]);
+      setCaption(""); setImageUrl(""); setSelectedAccounts([]); setAltText(""); setMediaFile(null); setMediaPreview(null); setMediaType(null);
     }
   };
 
@@ -719,11 +753,43 @@ function PublisherPage() {
           <div style={{ fontSize:11, color:th.text3, marginTop:6, textAlign:"right" }}>{caption.length} characters</div>
         </div>
 
-        {/* Image URL */}
+        {/* Media Upload */}
         <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Image URL <span style={{ fontWeight:400, color:th.text3 }}>(optional)</span></div>
-          <input value={imageUrl} onChange={e=>setImageUrl(e.target.value)} placeholder="https://example.com/image.jpg" style={{ width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box" }}/>
-          <div style={{ fontSize:11, color:th.text3, marginTop:6 }}>Instagram requires an image. Facebook can post text-only.</div>
+          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Media <span style={{ fontWeight:400, color:th.text3 }}>(optional)</span></div>
+          <label style={{ display:"block", border:`2px dashed ${th.border}`, borderRadius:10, padding:24, textAlign:"center", cursor:"pointer" }}>
+            <input type="file" accept="image/*,video/*" style={{ display:"none" }} onChange={e=>handleFileSelect(e.target.files[0])}/>
+            {mediaPreview ? (
+              <img src={mediaPreview} alt="preview" style={{ maxHeight:160, borderRadius:8, objectFit:"cover", maxWidth:"100%" }}/>
+            ) : mediaType === 'video' ? (
+              <div><div style={{ fontSize:28, marginBottom:6 }}>🎬</div><div style={{ fontSize:12, fontWeight:700 }}>Reel detected</div><div style={{ fontSize:11, color:th.text2 }}>{mediaFile?.name}</div></div>
+            ) : (
+              <div><div style={{ fontSize:28, marginBottom:6 }}>📎</div><div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Drag & drop or click to upload</div><div style={{ fontSize:11, color:th.text2 }}>Images (JPG, PNG) or Videos (MP4) · Max 100MB</div></div>
+            )}
+          </label>
+          {uploading && <div style={{ fontSize:12, color:th.accent, marginTop:8, textAlign:"center" }}>⬆️ Uploading...</div>}
+          {imageUrl && !uploading && <div style={{ fontSize:11, color:th.success, marginTop:8 }}>✓ {mediaType === 'video' ? 'Reel' : 'Image'} uploaded successfully</div>}
+          {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>⚠️ {mediaWarning}</div>}
+          {mediaFile && <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:11, padding:"2px 8px", borderRadius:10, background:mediaType==='video'?"#FF005020":"#4F6EF720", color:mediaType==='video'?"#FF0050":"#4F6EF7", fontWeight:700, border:`1px solid ${mediaType==='video'?"#FF0050":"#4F6EF7"}` }}>{mediaType==='video'?'REEL':'POST'}</span><span style={{ fontSize:11, color:th.text2 }}>{mediaFile.name}</span></div>}
+
+          {/* Format guide */}
+          <div style={{ marginTop:14, borderTop:`1px solid ${th.border}`, paddingTop:12 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:th.text3, marginBottom:8, textTransform:"uppercase" }}>Instagram Format Guide</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+              {[["🖼","Square Post","1080×1080px · 1:1"],["📸","Portrait Post","1080×1350px · 4:5"],["🎬","Reel","1080×1920px · 9:16 · Max 90s"],["🌐","Landscape","1080×566px · 16:9"]].map(([icon,name,spec])=>(
+                <div key={name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:th.text2 }}><span>{icon} {name}</span><span style={{ color:th.text3 }}>{spec}</span></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Alt Text */}
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:0.5 }}>Alt Text</div>
+            <span style={{ fontSize:10, color:th.accent, background:th.accentSoft, padding:"2px 8px", borderRadius:10 }}>Accessibility & SEO</span>
+          </div>
+          <textarea value={altText} onChange={e=>setAltText(e.target.value)} placeholder="Describe your image for visually impaired users and search engines..." rows={2} style={{ width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", resize:"none", boxSizing:"border-box", fontFamily:"inherit" }}/>
+          <div style={{ fontSize:11, color:th.text3, marginTop:6 }}>Supported on Instagram. Improves discoverability.</div>
         </div>
 
         {/* Schedule */}
@@ -1528,13 +1594,25 @@ function LandingPage({ onGetStarted, onLogin }) {
     </div>
   );
 
+  const FeatureIcon = ({ type }) => {
+    const icons = {
+      publisher: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig1" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><rect x="2" y="4" width="28" height="24" rx="4" fill="url(#ig1)" opacity="0.15" stroke="url(#ig1)" strokeWidth="1.5"/><rect x="6" y="9" width="12" height="2" rx="1" fill="url(#ig1)"/><rect x="6" y="14" width="8" height="2" rx="1" fill="url(#ig1)" opacity="0.6"/><circle cx="24" cy="22" r="5" fill="url(#ig1)"/><path d="M22 22l1.5 1.5L26 20" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+      analytics: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig2" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><rect x="2" y="4" width="28" height="24" rx="4" fill="url(#ig2)" opacity="0.15" stroke="url(#ig2)" strokeWidth="1.5"/><rect x="6" y="18" width="4" height="8" rx="1" fill="url(#ig2)" opacity="0.5"/><rect x="12" y="13" width="4" height="13" rx="1" fill="url(#ig2)" opacity="0.7"/><rect x="18" y="9" width="4" height="17" rx="1" fill="url(#ig2)"/><path d="M7 17l5-5 5 3 5-7" stroke="url(#ig2)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+      inbox: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig3" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><rect x="2" y="6" width="28" height="20" rx="4" fill="url(#ig3)" opacity="0.15" stroke="url(#ig3)" strokeWidth="1.5"/><path d="M2 11l14 9 14-9" stroke="url(#ig3)" strokeWidth="1.5" strokeLinecap="round"/><circle cx="25" cy="8" r="4" fill="#EF4444"/><text x="25" y="11" textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold">7</text></svg>,
+      ai: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig4" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><circle cx="16" cy="16" r="13" fill="url(#ig4)" opacity="0.15" stroke="url(#ig4)" strokeWidth="1.5"/><path d="M10 13h12M10 16h8M10 19h10" stroke="url(#ig4)" strokeWidth="1.5" strokeLinecap="round"/><circle cx="24" cy="10" r="4" fill="url(#ig4)"/><text x="24" y="13" textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold">AI</text></svg>,
+      multiclient: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig5" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><circle cx="12" cy="11" r="4" fill="url(#ig5)" opacity="0.8"/><circle cx="22" cy="11" r="4" fill="url(#ig5)" opacity="0.5"/><path d="M4 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="url(#ig5)" strokeWidth="1.5" strokeLinecap="round"/><path d="M22 18c2.2 1.5 3.7 3.8 4 6.5" stroke="url(#ig5)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/></svg>,
+      reports: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig6" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><rect x="4" y="2" width="24" height="28" rx="4" fill="url(#ig6)" opacity="0.15" stroke="url(#ig6)" strokeWidth="1.5"/><rect x="8" y="8" width="16" height="2" rx="1" fill="url(#ig6)"/><rect x="8" y="13" width="12" height="2" rx="1" fill="url(#ig6)" opacity="0.7"/><rect x="8" y="18" width="10" height="2" rx="1" fill="url(#ig6)" opacity="0.5"/><path d="M8 24l4-3 3 2 4-4" stroke="url(#ig6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+    };
+    return <div style={{marginBottom:14}}>{icons[type]}</div>;
+  };
+
   const features = [
-    { icon:"📅", title:"Smart Publisher", desc:"Schedule and publish posts to Instagram and Facebook from one place. AI writes your captions in English and Arabic." },
-    { icon:"📊", title:"Analytics Dashboard", desc:"Track followers, engagement, and growth across all your connected social accounts in real time." },
-    { icon:"📥", title:"Unified Inbox", desc:"Manage all your messages and comments from Instagram and Facebook in a single inbox." },
-    { icon:"🤖", title:"AI Caption Generator", desc:"Generate bilingual captions (English + Arabic) tailored for GCC audiences in seconds." },
-    { icon:"👥", title:"Multi-Client Management", desc:"Manage multiple brands and clients from one agency dashboard. Each client gets their own workspace." },
-    { icon:"📈", title:"Reports", desc:"Get monthly performance reports for each client with follower counts, post history, and platform breakdowns." },
+    { icon:"publisher", title:"Smart Publisher", desc:"Schedule and publish posts to Instagram, Facebook, TikTok and LinkedIn. AI writes captions in English and Arabic." },
+    { icon:"analytics", title:"Analytics Dashboard", desc:"Track followers, engagement, and growth across all your connected social accounts in real time." },
+    { icon:"inbox", title:"Unified Inbox", desc:"Manage all your messages and comments from Instagram and Facebook in a single inbox." },
+    { icon:"ai", title:"AI Caption Generator", desc:"Generate bilingual captions (English + Arabic) instantly. Hashtags, emojis and tone — all customizable." },
+    { icon:"multiclient", title:"Multi-Client Management", desc:"Manage multiple brands and clients from one agency dashboard. Each client gets their own workspace." },
+    { icon:"reports", title:"Reports", desc:"Get monthly performance reports for each client with follower counts, post history, and platform breakdowns." },
   ];
 
   const plans = [
@@ -1579,8 +1657,8 @@ function LandingPage({ onGetStarted, onLogin }) {
           <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Everything your brand needs</h2>
           <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:40}}>Built for agencies and brands managing social media at scale.</p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
-            {[["📅","Smart Publisher","Schedule and publish to Instagram & Facebook. AI captions in Arabic and English."],["🤖","AI Captions","Generate bilingual captions instantly. Hashtags, emojis, and tone — all customizable."],["📊","Analytics","Track followers, engagement, and growth across all platforms in real time."],["📥","Unified Inbox","All your DMs and comments from Instagram and Facebook in one place."],["👥","Multi-Client","Manage multiple brands under one agency workspace with team roles."],["📈","Reports","Monthly performance reports per client. Export-ready for presentations."]].map(([icon,title,desc])=>(
-              <div key={title} style={card}><div style={{fontSize:22,marginBottom:10}}>{icon}</div><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
+            {[["publisher","Smart Publisher","Schedule and publish to Instagram, Facebook, TikTok & LinkedIn. AI captions in English and Arabic."],["ai","AI Captions","Generate bilingual captions instantly. Hashtags, emojis, and tone — all customizable."],["analytics","Analytics","Track followers, engagement, and growth across all platforms in real time."],["inbox","Unified Inbox","All your DMs and comments from Instagram and Facebook in one place."],["multiclient","Multi-Client","Manage multiple brands under one agency workspace with team roles."],["reports","Reports","Monthly performance reports per client. Export-ready for presentations."]].map(([icon,title,desc])=>(
+              <div key={title} style={card}><FeatureIcon type={icon}/><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
             ))}
           </div>
           <div style={{textAlign:"center",marginTop:32}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>

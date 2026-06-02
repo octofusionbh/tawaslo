@@ -2,7 +2,7 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { platform, accountId, accessToken, caption, imageUrl, videoUrl } = req.body;
+  const { platform, accountId, accessToken, caption, imageUrl, videoUrl, altText } = req.body;
   if (!platform || !accountId || !accessToken || !caption) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -22,8 +22,9 @@ export default async function handler(req, res) {
         caption,
         access_token: accessToken,
       };
-      if (imageUrl) containerBody.image_url = imageUrl;
+      if (imageUrl && !videoUrl) containerBody.image_url = imageUrl;
       if (videoUrl) { containerBody.video_url = videoUrl; containerBody.media_type = 'REELS'; }
+      if (altText) containerBody.alt_text = altText;
 
       const containerRes = await fetch(`https://graph.facebook.com/v19.0/${accountId}/media`, {
         method: 'POST',
