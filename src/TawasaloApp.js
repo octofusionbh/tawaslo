@@ -937,14 +937,15 @@ function SocialAccountsPage() {
     const IG_APP_ID = '3569589083219608';
     const scope = 'instagram_business_basic,instagram_business_content_publish';
     // Store current page so callback can return here
-    sessionStorage.setItem('ig_redirect_client', realClientId);
+    if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
     const authUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
     window.location.href = authUrl;
   };
 
   const handleInstagramCallback = async (code) => {
     const redirectUri = `https://tawaslo.com/api/instagram-callback`;
-    const clientId = sessionStorage.getItem('ig_redirect_client') || realClientId;
+    const storedId = sessionStorage.getItem('ig_redirect_client');
+    const clientId = (storedId && storedId !== 'null') ? storedId : realClientId;
     sessionStorage.removeItem('ig_redirect_client');
     setConnecting(true);
     try {
