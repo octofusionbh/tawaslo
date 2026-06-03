@@ -200,7 +200,7 @@ function Sidebar() {
       boxShadow:th.shadow, zIndex:30, overflow:"hidden",
     }}>
       <div style={{padding:"20px 18px 14px",display:"flex",alignItems:"center",gap:10}}>
-        <img src="/logo.png" alt="Tawaslo" style={{width:38,height:38,borderRadius:11,objectFit:"contain",flexShrink:0}}/>
+        <img src="/logo-transparent.png" alt="Tawaslo" style={{width:38,height:38,objectFit:"contain",flexShrink:0}}/>
         <div>
           <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
           <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>Social Intelligence</div>
@@ -285,7 +285,7 @@ function Sidebar() {
             <Languages size={10}/>{lang==="en"?"عربي":"EN"}
           </button>
           <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{flex:1,padding:"5px",borderRadius:7,background:th.dangerSoft,border:`1px solid ${th.danger}30`,color:th.danger,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-            <LogOut size={10}/>Out
+            <LogOut size={10}/>Log out
           </button>
         </div>
       </div>
@@ -505,6 +505,7 @@ function AgencyDashboard() {
                       background:sel?`${DARK[pl.color]}15`:"transparent",
                       fontSize:10,fontWeight:600,cursor:"pointer",
                       display:"flex",alignItems:"center",gap:4,
+                      color:th.text,
                     }}>
                       <PI/>{pl.name.split("/")[0]}
                     </button>
@@ -2108,7 +2109,7 @@ function AuthPage() {
             <>
               <div style={{marginBottom:28}}>
                 <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
-                  <img src="/logo.png" alt="Tawaslo" style={{width:44,height:44,borderRadius:12,objectFit:"contain"}}/>
+                  <img src="/logo-transparent.png" alt="Tawaslo" style={{width:44,height:44,objectFit:"contain"}}/>
                   <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawaslo</div>
                 </div>
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Welcome back</h1>
