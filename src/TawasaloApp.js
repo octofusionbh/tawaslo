@@ -935,7 +935,7 @@ function SocialAccountsPage() {
   const connectInstagram = () => {
     const redirectUri = `https://tawaslo.com/api/instagram-callback`;
     const IG_APP_ID = '3569589083219608';
-    const scope = 'instagram_business_basic,instagram_business_content_publish';
+    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights';
     // Store current page so callback can return here
     if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
     const authUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
