@@ -165,13 +165,12 @@ export const createProfile = async (userId, name, email, plan = 'trial', account
 
 // CREATE INITIAL WORKSPACE CLIENT (called after signup)
 export const createInitialClient = async (ownerId, companyName, plan, accountType) => {
-  const { data: existing } = await supabase
+  const { data: existingArr } = await supabase
     .from('clients')
     .select('id')
     .eq('owner_id', ownerId)
-    .limit(1)
-    .single();
-  if (existing) return { data: existing };
+    .limit(1);
+  if (existingArr && existingArr.length > 0) return { data: existingArr[0] };
   const planLabel = plan === 'starter' ? 'Starter' : plan === 'agency' ? 'Agency' : 'Professional';
   const { data, error } = await supabase
     .from('clients')
@@ -190,13 +189,13 @@ export const createInitialClient = async (ownerId, companyName, plan, accountTyp
 
 // AUTO-CREATE OCTO FUSION FREE CLIENT (called on first login for Octo Fusion email)
 export const ensureOctoFusionClient = async (ownerId) => {
-  const { data: existing } = await supabase
+  const { data: existingArr } = await supabase
     .from('clients')
     .select('id')
     .eq('owner_id', ownerId)
     .eq('name', 'Octo Fusion')
-    .single();
-  if (existing) return { data: existing };
+    .limit(1);
+  if (existingArr && existingArr.length > 0) return { data: existingArr[0] };
   const { data, error } = await supabase
     .from('clients')
     .insert([{
