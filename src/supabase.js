@@ -154,10 +154,35 @@ export const updateProfile = async (userId, updates) => {
 };
 
 // CREATE PROFILE (called after signup)
-export const createProfile = async (userId, name, email) => {
+export const createProfile = async (userId, name, email, plan = 'trial', accountType = 'agency', companyName = '') => {
   const { data, error } = await supabase
     .from('profiles')
-    .insert([{ id: userId, name, email, plan: 'trial', role: 'owner' }])
+    .insert([{ id: userId, name, email, plan, role: 'owner', account_type: accountType, company_name: companyName || name }])
+    .select()
+    .single();
+  return { data, error };
+};
+
+// CREATE INITIAL WORKSPACE CLIENT (called after signup)
+export const createInitialClient = async (ownerId, companyName, plan, accountType) => {
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .limit(1)
+    .single();
+  if (existing) return { data: existing };
+  const planLabel = plan === 'starter' ? 'Starter' : plan === 'agency' ? 'Agency' : 'Professional';
+  const { data, error } = await supabase
+    .from('clients')
+    .insert([{
+      owner_id: ownerId,
+      name: companyName,
+      plan: planLabel,
+      status: 'active',
+      is_free: false,
+      account_type: accountType,
+    }])
     .select()
     .single();
   return { data, error };
