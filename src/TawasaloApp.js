@@ -601,7 +601,7 @@ function PublisherPage() {
 
   useEffect(() => {
     if (!realClientId) return;
-    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => { if (data) setAccounts(data); });
   }, [realClientId]);
 
@@ -1272,7 +1272,7 @@ function AnalyticsPage() {
 
   useEffect(() => {
     if (!realClientId) return;
-    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => {
         if (data) {
           setAccounts(data);
@@ -1436,7 +1436,7 @@ function ReportsPage() {
 
   useEffect(() => {
     if (!realClientId) return;
-    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => { if (data) setAccounts(data); });
   }, [realClientId]);
 
@@ -1501,7 +1501,7 @@ function InboxPage() {
 
   useEffect(() => {
     if (!realClientId) return;
-    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => { if (data) setAccounts(data); });
   }, [realClientId]);
 
