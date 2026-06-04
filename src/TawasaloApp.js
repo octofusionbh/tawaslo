@@ -9,7 +9,7 @@ import {
   CreditCard, LogOut, ChevronRight, ChevronDown,
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
-  Languages, Wand2, MoreHorizontal,
+  Languages, Wand2, MoreHorizontal, RefreshCw,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -1201,77 +1201,137 @@ function AnalyticsPage() {
   const th = dark ? DARK : LIGHT;
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState({});
+  const [selectedAcc, setSelectedAcc] = useState(null);
   const [realClientId, setRealClientId] = useState(null);
 
   useEffect(() => {
     if (!selClient?.name) return;
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
+      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
   }, [selClient]);
 
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
-      .then(({ data }) => { if (data) setAccounts(data); setLoading(false); });
+      .then(({ data }) => {
+        if (data) {
+          setAccounts(data);
+          const igAccs = data.filter(a => a.platform === 'ig');
+          if (igAccs.length > 0) {
+            setSelectedAcc(igAccs[0]);
+            fetchAnalytics(igAccs[0]);
+          } else {
+            setLoading(false);
+          }
+        }
+      });
   }, [realClientId]);
 
-  const totalFollowers = accounts.reduce((s, a) => s + (a.followers_count || 0), 0);
+  const fetchAnalytics = async (acc) => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/instagram-analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: data }));
+    } catch(e) {
+      console.warn('Analytics error:', e);
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: { error: e.message } }));
+    }
+    setLoading(false);
+  };
+
   const igAccounts = accounts.filter(a => a.platform === 'ig');
   const fbAccounts = accounts.filter(a => a.platform === 'fb');
+  const totalFollowers = accounts.reduce((s,a) => s + (a.followers_count||0), 0);
+  const data = selectedAcc ? analyticsData[selectedAcc.id] : null;
 
   const statCard = (label, value, sub, color) => (
     <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-      <div style={{fontSize:12, color:th.text2, fontWeight:600, marginBottom:8}}>{label}</div>
-      <div style={{fontSize:28, fontWeight:900, color: color || th.text}}>{value}</div>
+      <div style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:0.5}}>{label}</div>
+      <div style={{fontSize:26, fontWeight:900, color: color || th.text}}>{value}</div>
       {sub && <div style={{fontSize:11, color:th.text2, marginTop:4}}>{sub}</div>}
     </div>
   );
 
   return (
-    <div style={{padding:"28px 32px", maxWidth:1100}}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Analytics</h2>
-        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Performance overview for {selClient?.name}</p>
-      </div>
-      {loading ? <div style={{color:th.text2}}>Loading...</div> : (
-        <>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
-            {statCard("Total Followers", totalFollowers.toLocaleString(), `Across ${accounts.length} accounts`, th.accent)}
-            {statCard("Connected Accounts", accounts.length, `${igAccounts.length} Instagram · ${fbAccounts.length} Facebook`, th.success)}
-            {statCard("Instagram Followers", igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), "Instagram Business", "#E1306C")}
-            {statCard("Facebook Pages", fbAccounts.length, "Connected pages", "#1877F2")}
+    <div style={{padding:"28px 32px", maxWidth:1200}}>
+      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Analytics</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Performance overview for {selClient?.name}</p>
+        </div>
+        {igAccounts.length > 1 && (
+          <div style={{display:"flex", gap:8}}>
+            {igAccounts.map(acc => (
+              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${selectedAcc?.id===acc.id?"#E1306C":th.border}`, background:selectedAcc?.id===acc.id?"rgba(225,48,108,0.1)":"transparent", color:selectedAcc?.id===acc.id?"#E1306C":th.text2, fontSize:11, fontWeight:600, cursor:"pointer"}}>
+                @{acc.username || acc.account_name}
+              </button>
+            ))}
           </div>
+        )}
+      </div>
+
+      {/* Summary cards */}
+      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
+        {statCard("Total Followers", totalFollowers.toLocaleString(), `Across ${accounts.length} accounts`, th.accent)}
+        {statCard("Instagram", igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), `${igAccounts.length} account${igAccounts.length!==1?'s':''}`, "#E1306C")}
+        {statCard("Facebook Pages", fbAccounts.length.toString(), "Connected pages", "#1877F2")}
+        {statCard("Engagement Rate", data?.summary?.engagementRate ? `${data.summary.engagementRate}%` : "—", "Last 30 days", th.success)}
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:"center", padding:40, color:th.text2, fontSize:13}}>Loading analytics...</div>
+      ) : data?.error ? (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
+          <div style={{fontSize:13, color:th.danger, marginBottom:8}}>Could not load Instagram insights</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>{data.error}</div>
+          <div style={{fontSize:12, color:th.text2, marginTop:8, lineHeight:1.6}}>Full analytics (reach, impressions, engagement) will be available after <strong style={{color:th.text}}>instagram_manage_insights</strong> permission is approved by Meta.</div>
+        </div>
+      ) : data ? (
+        <>
+          {/* Instagram insights summary */}
+          <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
+            {statCard("Reach (30d)", data.summary.totalReach.toLocaleString(), "Unique accounts reached", "#E1306C")}
+            {statCard("Impressions (30d)", data.summary.totalImpressions.toLocaleString(), "Total content views", "#A78BFA")}
+            {statCard("Profile Views", data.summary.totalProfileViews.toLocaleString(), "Last 30 days", th.accent)}
+            {statCard("Total Likes", data.summary.totalLikes.toLocaleString(), `On ${data.summary.postsAnalyzed} recent posts`, "#F59E0B")}
+          </div>
+
+          {/* Recent posts grid */}
           <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
-            <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Connected Accounts</div>
-            {accounts.length === 0 ? <div style={{color:th.text2, fontSize:13}}>No accounts connected yet.</div> : (
-              <div style={{display:"flex", flexDirection:"column", gap:12}}>
-                {accounts.map(acc => {
-                  const color = acc.platform === 'ig' ? "#E1306C" : "#1877F2";
-                  const Icon = acc.platform === 'ig' ? FaInstagram : FaFacebook;
-                  return (
-                    <div key={acc.id} style={{display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", background:th.card2, borderRadius:10, border:`1px solid ${th.border}`}}>
-                      <div style={{display:"flex", alignItems:"center", gap:12}}>
-                        {acc.picture ? <img src={acc.picture} alt="" style={{width:36, height:36, borderRadius:"50%", objectFit:"cover"}}/> : <div style={{width:36, height:36, borderRadius:"50%", background:th.border, display:"flex", alignItems:"center", justifyContent:"center"}}><Icon style={{color, fontSize:16}}/></div>}
-                        <div>
-                          <div style={{fontSize:13, fontWeight:700}}>{acc.account_name}</div>
-                          <div style={{fontSize:11, color:th.text2}}>{acc.platform === 'ig' ? 'Instagram' : 'Facebook'}{acc.username ? ` · @${acc.username}` : ''}</div>
-                        </div>
-                      </div>
-                      <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:18, fontWeight:800, color}}>{(acc.followers_count||0).toLocaleString()}</div>
-                        <div style={{fontSize:11, color:th.text2}}>followers</div>
+            <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Recent posts performance</div>
+            {data.recentPosts.length === 0 ? (
+              <div style={{color:th.text2, fontSize:13}}>No recent posts found.</div>
+            ) : (
+              <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}}>
+                {data.recentPosts.map(post => (
+                  <div key={post.id} style={{background:th.card2, borderRadius:10, overflow:"hidden", border:`1px solid ${th.border}`}}>
+                    {post.thumbnail && <img src={post.thumbnail} alt="" style={{width:"100%", height:120, objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>}
+                    <div style={{padding:12}}>
+                      <div style={{fontSize:11, color:th.text2, marginBottom:8, lineHeight:1.5}}>{post.caption || '(No caption)'}</div>
+                      <div style={{display:"flex", gap:12}}>
+                        <div style={{fontSize:11}}><span style={{color:th.text2}}>❤️</span> <strong style={{color:th.text}}>{post.likes}</strong></div>
+                        <div style={{fontSize:11}}><span style={{color:th.text2}}>💬</span> <strong style={{color:th.text}}>{post.comments}</strong></div>
+                        {post.reach > 0 && <div style={{fontSize:11}}><span style={{color:th.text2}}>👁</span> <strong style={{color:th.text}}>{post.reach.toLocaleString()}</strong></div>}
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             )}
           </div>
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-            <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>Note</div>
-            <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Detailed post analytics (impressions, reach, engagement rate) will be available after Meta App Review approval.</div>
-          </div>
         </>
+      ) : (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
+          <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>Instagram Analytics</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Connect an Instagram Business account to see detailed analytics including reach, impressions, and post performance.</div>
+        </div>
       )}
     </div>
   );
@@ -1337,56 +1397,153 @@ function ReportsPage() {
 function InboxPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
-  const messages = [
-    { id:1, from:"Ahmed Al-Mansoori", platform:"ig", text:"Love your latest post! Can you share more about this?", time:"2h ago", read:false },
-    { id:2, from:"Sara Mohammed", platform:"fb", text:"What are your working hours?", time:"4h ago", read:false },
-    { id:3, from:"Khalid Hassan", platform:"ig", text:"Great content, keep it up! 🔥", time:"6h ago", read:true },
-    { id:4, from:"Fatima Al-Ali", platform:"fb", text:"I'd like to know more about your services.", time:"1d ago", read:true },
-    { id:5, from:"Omar Abdullah", platform:"ig", text:"Do you ship to Bahrain?", time:"1d ago", read:true },
-    { id:6, from:"Noura Al-Rashid", platform:"fb", text:"Amazing work! Following for more.", time:"2d ago", read:true },
-    { id:7, from:"Yousuf Al-Qahtani", platform:"ig", text:"Can I get a price list?", time:"2d ago", read:true },
-  ];
-  const [selected, setSelected] = useState(messages[0]);
+  const [accounts, setAccounts] = useState([]);
+  const [messages, setMessages] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState('all');
+  const [reply, setReply] = useState('');
+  const [realClientId, setRealClientId] = useState(null);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('is_active', true)
+      .then(({ data }) => { if (data) setAccounts(data); });
+  }, [realClientId]);
+
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    fetchInbox();
+  }, [accounts]);
+
+  const fetchInbox = async () => {
+    setLoading(true);
+    const allMessages = [];
+    for (const acc of accounts.filter(a => a.platform === 'ig')) {
+      try {
+        const res = await fetch('/api/instagram-inbox', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, type: 'comments' }),
+        });
+        const data = await res.json();
+        if (data.data) allMessages.push(...data.data.map(m => ({ ...m, accountName: acc.account_name })));
+      } catch(e) { console.warn('Inbox fetch error:', e); }
+    }
+    allMessages.sort((a, b) => new Date(b.time) - new Date(a.time));
+    setMessages(allMessages);
+    if (allMessages.length > 0) setSelected(allMessages[0]);
+    setLoading(false);
+  };
+
+  const formatTime = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  };
+
+  const filtered = filter === 'all' ? messages : messages.filter(m => m.type === filter);
 
   return (
-    <div style={{padding:"28px 32px", maxWidth:1100}}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Inbox</h2>
-        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Messages from {selClient?.name}</p>
-      </div>
-      <div style={{display:"grid", gridTemplateColumns:"320px 1fr", gap:16, height:500}}>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"auto"}}>
-          {messages.map(msg => {
-            const color = msg.platform === 'ig' ? "#E1306C" : "#1877F2";
-            return (
-              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"14px 16px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:selected?.id===msg.id?th.accentSoft:"transparent"}}>
-                <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}>
-                  <div style={{fontSize:12, fontWeight:700, display:"flex", alignItems:"center", gap:6}}>
-                    {!msg.read && <div style={{width:6, height:6, borderRadius:"50%", background:th.accent}}/>}
-                    {msg.from}
-                  </div>
-                  <div style={{fontSize:10, color:th.text2}}>{msg.time}</div>
-                </div>
-                <div style={{fontSize:11, color:th.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{msg.text}</div>
-                <div style={{marginTop:4}}><span style={{fontSize:9, fontWeight:700, color, background:`${color}18`, padding:"2px 6px", borderRadius:4}}>{msg.platform==='ig'?'Instagram':'Facebook'}</span></div>
-              </div>
-            );
-          })}
+    <div style={{padding:"28px 32px", maxWidth:1200}}>
+      <div style={{marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Inbox</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Real-time comments and messages for {selClient?.name}</p>
         </div>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, display:"flex", flexDirection:"column"}}>
-          {selected && (
-            <>
-              <div style={{fontSize:14, fontWeight:700, marginBottom:4}}>{selected.from}</div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:20}}>{selected.platform==='ig'?'Instagram':'Facebook'} · {selected.time}</div>
-              <div style={{background:th.card2, borderRadius:10, padding:16, fontSize:13, flex:1, marginBottom:16}}>{selected.text}</div>
-              <div style={{display:"flex", gap:8}}>
-                <input placeholder="Type a reply..." style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
-                <button style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Send</button>
-              </div>
-            </>
+        <div style={{display:"flex", gap:8}}>
+          {['all','comment','dm'].map(f => (
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer"}}>
+              {f==='all'?'All':f==='comment'?'Comments':'DMs'}
+            </button>
+          ))}
+          <button onClick={fetchInbox} disabled={loading} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
+            <RefreshCw size={11}/>{loading?'Loading…':'Refresh'}
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>Loading inbox...</div>
+      ) : messages.length === 0 ? (
+        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>
+          <MessageCircle size={32} style={{marginBottom:12, opacity:0.3}}/>
+          <div>No messages yet. Comments and DMs will appear here once your Instagram account receives activity.</div>
+          {accounts.filter(a=>a.platform==='ig').length === 0 && (
+            <div style={{marginTop:8, fontSize:12, color:th.danger}}>No Instagram accounts connected for this client.</div>
           )}
         </div>
-      </div>
+      ) : (
+        <div style={{display:"grid", gridTemplateColumns:"340px 1fr", gap:16, height:560}}>
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflowY:"auto"}}>
+            {filtered.map(msg => (
+              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"14px 16px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:selected?.id===msg.id?th.accentSoft:"transparent", transition:"background 0.15s"}}>
+                <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}>
+                  <div style={{fontSize:12, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6}}>
+                    <FaInstagram style={{color:"#E1306C", fontSize:10}}/>
+                    @{msg.from}
+                  </div>
+                  <div style={{fontSize:10, color:th.text2}}>{formatTime(msg.time)}</div>
+                </div>
+                <div style={{fontSize:11, color:th.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{msg.text}</div>
+                {msg.mediaCaption && <div style={{fontSize:9, color:th.text3, marginTop:3}}>On: {msg.mediaCaption}...</div>}
+                <div style={{marginTop:4, display:"flex", gap:4}}>
+                  <span style={{fontSize:9, fontWeight:700, color:"#E1306C", background:"rgba(225,48,108,0.1)", padding:"2px 6px", borderRadius:4}}>
+                    {msg.type === 'dm' ? 'DM' : 'Comment'}
+                  </span>
+                  {msg.likeCount > 0 && <span style={{fontSize:9, color:th.text2}}>❤️ {msg.likeCount}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, display:"flex", flexDirection:"column"}}>
+            {selected ? (
+              <>
+                <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16, paddingBottom:16, borderBottom:`1px solid ${th.border}`}}>
+                  <div style={{width:38, height:38, borderRadius:"50%", background:"rgba(225,48,108,0.15)", display:"flex", alignItems:"center", justifyContent:"center"}}>
+                    <FaInstagram style={{color:"#E1306C", fontSize:16}}/>
+                  </div>
+                  <div>
+                    <div style={{fontSize:13, fontWeight:700, color:th.text}}>@{selected.from}</div>
+                    <div style={{fontSize:11, color:th.text2}}>Instagram {selected.type === 'dm' ? 'DM' : 'Comment'} · {formatTime(selected.time)}</div>
+                  </div>
+                </div>
+                <div style={{flex:1, overflowY:"auto", marginBottom:16}}>
+                  <div style={{background:th.card2, borderRadius:10, padding:16, fontSize:13, color:th.text, lineHeight:1.6, marginBottom:12}}>{selected.text}</div>
+                  {selected.replies?.length > 0 && (
+                    <div style={{marginLeft:16}}>
+                      <div style={{fontSize:11, color:th.text2, marginBottom:8}}>Replies:</div>
+                      {selected.replies.map(r => (
+                        <div key={r.id} style={{background:th.card2, borderRadius:8, padding:"10px 14px", fontSize:12, color:th.text, marginBottom:6, borderLeft:`3px solid ${th.accent}`}}>
+                          <span style={{fontWeight:700}}>@{r.username}</span>: {r.text}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex", gap:8}}>
+                  <input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Type a reply..." style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
+                  <button style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Reply</button>
+                </div>
+                <div style={{fontSize:10, color:th.text3, marginTop:6}}>Replying requires instagram_manage_comments permission approval from Meta.</div>
+              </>
+            ) : (
+              <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:th.text2, fontSize:13}}>Select a message to view</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
