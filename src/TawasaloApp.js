@@ -2011,15 +2011,30 @@ function AuthPage() {
     if (data?.user) setIsAuthed(true);
   };
 
+  const [signupStep,    setSignupStep]    = useState(1);
+  const [accountType,   setAccountType]   = useState("agency");
+  const [selectedPlan,  setSelectedPlan]  = useState("professional");
+  const [companyName,   setCompanyName]   = useState("");
+  const [tosAgreed,     setTosAgreed]     = useState(false);
+
   const handleSignUp = async () => {
+    if (!tosAgreed) { setError("Please agree to the Terms of Service to continue."); return; }
+    if (!companyName.trim()) { setError("Please enter your company or agency name."); return; }
     setError(""); setLoading(true);
     const { data, error: err } = await signUp(email, pw, name);
     setLoading(false);
     if (err) { setError(err.message); return; }
     if (data?.user) {
       await createProfile(data.user.id, name, email);
-      setSuccess("Account created! Check your email to confirm, then sign in.");
-      setAuthPage("login");
+      // Send welcome email
+      try {
+        await fetch('/api/send-welcome-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: companyName || name, email, plan: selectedPlan, accountType }),
+        });
+      } catch(e) { console.warn('Welcome email failed:', e); }
+      setSignupStep(4);
     }
   };
 
@@ -2065,7 +2080,7 @@ function AuthPage() {
             from one place.
           </div>
           <div style={{fontSize:13,color:th.text2,lineHeight:1.7,marginBottom:36,maxWidth:320}}>
-            Schedule, analyse, respond, and grow — one platform built for GCC agencies.
+            Schedule, analyse, respond, and grow — one platform built for agencies and brands worldwide.
           </div>
           {[
             {Icon:BarChart2,     label:"Real-time analytics across all platforms"},
@@ -2135,20 +2150,128 @@ function AuthPage() {
           )}
           {authPage==="register"&&(
             <>
-              <div style={{marginBottom:28}}>
-                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Create your account</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>14-day free trial · No credit card required</p>
-              </div>
-              {inp("Full name",name,e=>{setName(e.target.value);setError("");},"text")}
-              {inp("Work email",email,e=>{setEmail(e.target.value);setError("");},"email")}
-              {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
-              <button onClick={handleSignUp} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
-                {loading?"Creating account…":"Create account"} {!loading&&<ChevronRight size={15}/>}
-              </button>
-              <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
-                Already have an account?{" "}
-                <button onClick={()=>{setAuthPage("login");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign in</button>
-              </div>
+              {/* Step pills */}
+              {signupStep < 4 && (
+                <div style={{display:"flex",gap:6,marginBottom:24}}>
+                  {[1,2,3].map(s=>(
+                    <div key={s} style={{height:4,flex:1,borderRadius:2,background:s<=signupStep?th.accent:"#1C2D45",transition:"background 0.3s"}}/>
+                  ))}
+                </div>
+              )}
+
+              {/* STEP 1 — Account type */}
+              {signupStep===1&&(
+                <>
+                  <div style={{marginBottom:24}}>
+                    <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>What best describes you?</h1>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>We will customize your workspace based on your selection.</p>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:20}}>
+                    {[
+                      { id:"agency", label:"Agency", desc:"Managing social media for multiple clients", icon:(
+                        <svg width="40" height="40" viewBox="0 0 56 56" fill="none"><rect x="8" y="10" width="40" height="38" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="8" y="6" width="40" height="6" rx="1.5" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="13" y="16" width="8" height="8" rx="1.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><rect x="24" y="16" width="8" height="8" rx="1.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><rect x="35" y="16" width="8" height="8" rx="1.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><rect x="11" y="27" width="34" height="8" rx="1.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><text x="28" y="34" textAnchor="middle" fontSize="5.5" fontWeight="700" fill="#4F6EF7" fontFamily="sans-serif" letterSpacing="0.5">AGENCY</text><rect x="13" y="38" width="8" height="10" rx="1" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><rect x="35" y="38" width="8" height="10" rx="1" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><rect x="22" y="38" width="12" height="10" rx="1" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><line x1="28" y1="38" x2="28" y2="48" stroke="#4F6EF7" strokeWidth="1.2"/></svg>
+                      )},
+                      { id:"freelancer", label:"Freelancer", desc:"Independent social media manager", icon:(
+                        <svg width="40" height="40" viewBox="0 0 64 64" fill="none"><circle cx="28" cy="11" r="6" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><path d="M12 38 C12 28 18 24 28 24 C38 24 44 28 44 38" stroke="#4F6EF7" strokeWidth="1.8" strokeLinecap="round" fill="none"/><path d="M15 44 L41 44 L43 38 L13 38 Z" stroke="#4F6EF7" strokeWidth="1.8" strokeLinejoin="round" fill="none"/><path d="M17 38 L19 28 L37 28 L39 38" stroke="#4F6EF7" strokeWidth="1.8" strokeLinejoin="round" fill="none"/><circle cx="28" cy="33" r="2.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><line x1="8" y1="48" x2="58" y2="48" stroke="#4F6EF7" strokeWidth="1.8" strokeLinecap="round"/><rect x="47" y="39" width="9" height="9" rx="1.5" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><path d="M56 41.5 C58.5 41.5 58.5 46 56 46" stroke="#4F6EF7" strokeWidth="1.4" strokeLinecap="round" fill="none"/><line x1="46" y1="48" x2="57" y2="48" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                      )},
+                      { id:"corporate", label:"Corporate", desc:"Managing your own brand's social presence", icon:(
+                        <svg width="40" height="40" viewBox="0 0 56 56" fill="none"><rect x="16" y="8" width="24" height="40" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="6" y="20" width="10" height="28" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="40" y="20" width="10" height="28" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><line x1="21" y1="14" x2="23" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="27" y1="14" x2="29" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="33" y1="14" x2="35" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="21" y1="20" x2="23" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="27" y1="20" x2="29" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="33" y1="20" x2="35" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="26" x2="13" y2="26" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="9" y1="31" x2="13" y2="31" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="43" y1="26" x2="47" y2="26" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="43" y1="31" x2="47" y2="31" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><rect x="22" y="38" width="12" height="10" rx="1" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><line x1="28" y1="38" x2="28" y2="48" stroke="#4F6EF7" strokeWidth="1.2"/><line x1="4" y1="48" x2="52" y2="48" stroke="#4F6EF7" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                      )},
+                    ].map(({id,label,desc,icon})=>(
+                      <div key={id} onClick={()=>setAccountType(id)} style={{background:th.card,border:`1.5px solid ${accountType===id?th.accent:th.border}`,borderRadius:10,padding:"14px 10px",textAlign:"center",cursor:"pointer",background:accountType===id?"rgba(79,110,247,0.1)":th.card,transition:"all 0.15s"}}>
+                        <div style={{display:"flex",justifyContent:"center",marginBottom:8}}>{icon}</div>
+                        <div style={{fontSize:11,fontWeight:700,color:th.text}}>{label}</div>
+                        <div style={{fontSize:9,color:th.text2,marginTop:3,lineHeight:1.4}}>{desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={()=>setSignupStep(2)} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                    Continue <ChevronRight size={15}/>
+                  </button>
+                  <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
+                    Already have an account?{" "}
+                    <button onClick={()=>{setAuthPage("login");setError("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign in</button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 2 — Plan */}
+              {signupStep===2&&(
+                <>
+                  <div style={{marginBottom:24}}>
+                    <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>Choose your plan</h1>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>7-day free trial included. No credit card required.</p>
+                  </div>
+                  {[
+                    {id:"starter",      name:"Starter",      price:"$49", desc:"3 accounts · 1 member · 30 posts/mo"},
+                    {id:"professional", name:"Professional", price:"$99", desc:"10 accounts · 5 members · 100 posts/mo", popular:true},
+                    {id:"agency",       name:"Agency",       price:"$199",desc:"Unlimited accounts · 20 members · unlimited posts"},
+                  ].map(p=>(
+                    <div key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{background:selectedPlan===p.id?"rgba(79,110,247,0.1)":th.card,border:`1.5px solid ${selectedPlan===p.id?th.accent:th.border}`,borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all 0.15s"}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:800,color:th.text}}>
+                          {p.name}
+                          {p.popular&&<span style={{fontSize:9,background:"rgba(124,58,237,0.2)",color:"#A78BFA",padding:"2px 8px",borderRadius:10,marginLeft:8}}>Most popular</span>}
+                        </div>
+                        <div style={{fontSize:11,color:th.text2,marginTop:2}}>{p.desc}</div>
+                      </div>
+                      <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:18,fontWeight:800,color:th.accent}}>{p.price}</div>
+                        <div style={{fontSize:10,color:th.text2}}>/month</div>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",gap:8,marginTop:4}}>
+                    <button onClick={()=>setSignupStep(1)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
+                    <button onClick={()=>setSignupStep(3)} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 3 — Details */}
+              {signupStep===3&&(
+                <>
+                  <div style={{marginBottom:24}}>
+                    <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>Create your account</h1>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Almost there — set up your workspace in seconds.</p>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"11px 14px",marginBottom:10}}>
+                    <Building2 size={15} color={th.text3}/>
+                    <input value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Agency or company name" style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:13,width:"100%",fontFamily:"inherit"}}/>
+                  </div>
+                  {inp("Your full name",name,e=>{setName(e.target.value);setError("");},"text")}
+                  {inp("Work email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
+                  {inp("Password (min 8 characters)",pw,e=>{setPw(e.target.value);setError("");},"password")}
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:20,marginTop:4}}>
+                    <div onClick={()=>setTosAgreed(!tosAgreed)} style={{width:16,height:16,minWidth:16,borderRadius:4,border:`1.5px solid ${tosAgreed?th.accent:th.border}`,background:tosAgreed?"rgba(79,110,247,0.2)":"transparent",marginTop:1,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                      {tosAgreed&&<CheckCircle size={10} color={th.accent}/>}
+                    </div>
+                    <div style={{fontSize:11,color:th.text2,lineHeight:1.6}}>
+                      I agree to Tawaslo's <a href="https://tawaslo.com/terms.html" target="_blank" rel="noreferrer" style={{color:th.accent}}>Terms of Service</a> and <a href="https://tawaslo.com/privacy.html" target="_blank" rel="noreferrer" style={{color:th.accent}}>Privacy Policy</a>. I confirm this is a business account and I will only connect business or creator social accounts.
+                    </div>
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>{setSignupStep(2);setError("");}} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
+                    <button onClick={handleSignUp} disabled={loading} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      {loading?"Creating…":"Create workspace"} {!loading&&<ChevronRight size={15}/>}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 4 — Success */}
+              {signupStep===4&&(
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(16,185,129,0.15)",border:"1.5px solid rgba(16,185,129,0.3)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}>
+                    <CheckCircle size={28} color="#10B981"/>
+                  </div>
+                  <h1 style={{margin:"0 0 10px",fontSize:22,fontWeight:900}}>Your workspace is live!</h1>
+                  <p style={{fontSize:13,color:th.text2,lineHeight:1.7,marginBottom:24}}>Welcome email sent to your inbox.<br/>Confirm your email and sign in to get started.</p>
+                  <button onClick={()=>{setAuthPage("login");setSignupStep(1);setError("");}} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                    Go to sign in
+                  </button>
+                </div>
+              )}
             </>
           )}
           {authPage==="forgot"&&(
