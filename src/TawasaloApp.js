@@ -1196,6 +1196,65 @@ function Placeholder({ icon:Icon, title, description }) {
   );
 }
 
+function InsightChart({ chartData, dark }) {
+  const th = dark ? DARK : LIGHT;
+  if (!chartData || chartData.length < 2) return (
+    <div style={{textAlign:"center", padding:"30px 0", fontSize:12, color:th.text2}}>
+      Chart data available after <strong style={{color:th.text}}>instagram_manage_insights</strong> is approved by Meta.
+    </div>
+  );
+  const padL = 42, padR = 12, padT = 14, padB = 28;
+  const vW = 600, vH = 160;
+  const chartW = vW - padL - padR;
+  const chartH = vH - padT - padB;
+  const maxVal = Math.max(...chartData.flatMap(d => [d.reach||0, d.impressions||0]), 1);
+  const x = i => padL + (i / (chartData.length - 1)) * chartW;
+  const y = v => padT + (1 - v / maxVal) * chartH;
+  const reachPts = chartData.map((d,i) => `${x(i)},${y(d.reach||0)}`).join(' ');
+  const impPts   = chartData.map((d,i) => `${x(i)},${y(d.impressions||0)}`).join(' ');
+  const reachArea = `${padL},${padT+chartH} ${reachPts} ${x(chartData.length-1)},${padT+chartH}`;
+  const impArea   = `${padL},${padT+chartH} ${impPts}   ${x(chartData.length-1)},${padT+chartH}`;
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+  const xStep = Math.ceil(chartData.length / 6);
+  const fmt = v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`;
+  return (
+    <svg viewBox={`0 0 ${vW} ${vH}`} style={{width:"100%", height:"auto", display:"block"}}>
+      <defs>
+        <linearGradient id="rGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#E1306C" stopOpacity="0.35"/>
+          <stop offset="100%" stopColor="#E1306C" stopOpacity="0"/>
+        </linearGradient>
+        <linearGradient id="iGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.25"/>
+          <stop offset="100%" stopColor="#A78BFA" stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      {yTicks.map(p => {
+        const yy = y(maxVal * p);
+        return (
+          <g key={p}>
+            <line x1={padL} y1={yy} x2={padL+chartW} y2={yy} stroke={dark?"#ffffff18":"#00000012"} strokeWidth={1}/>
+            <text x={padL-5} y={yy+3.5} textAnchor="end" fontSize={9} fill={th.text2}>{fmt(Math.round(maxVal*p))}</text>
+          </g>
+        );
+      })}
+      <polygon points={impArea}   fill="url(#iGrad)"/>
+      <polygon points={reachArea} fill="url(#rGrad)"/>
+      <polyline points={impPts}   fill="none" stroke="#A78BFA" strokeWidth={2} strokeLinejoin="round"/>
+      <polyline points={reachPts} fill="none" stroke="#E1306C" strokeWidth={2} strokeLinejoin="round"/>
+      {chartData.map((d,i) => {
+        if (i % xStep !== 0) return null;
+        return <text key={i} x={x(i)} y={vH-6} textAnchor="middle" fontSize={8.5} fill={th.text2}>{d.date}</text>;
+      })}
+      {/* Legend */}
+      <circle cx={padL+2} cy={padT-4} r={4} fill="#E1306C"/>
+      <text x={padL+10} y={padT-0.5} fontSize={9} fill={th.text2}>Reach</text>
+      <circle cx={padL+52} cy={padT-4} r={4} fill="#A78BFA"/>
+      <text x={padL+60} y={padT-0.5} fontSize={9} fill={th.text2}>Impressions</text>
+    </svg>
+  );
+}
+
 function AnalyticsPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -1303,6 +1362,32 @@ function AnalyticsPage() {
             {statCard("Total Likes", data.summary.totalLikes.toLocaleString(), `On ${data.summary.postsAnalyzed} recent posts`, "#F59E0B")}
           </div>
 
+          {/* Reach & Impressions chart */}
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
+            <div style={{fontSize:13, fontWeight:700, marginBottom:4}}>Reach &amp; Impressions — last 30 days</div>
+            <div style={{fontSize:11, color:th.text2, marginBottom:16}}>Daily reach vs impressions trend</div>
+            <InsightChart chartData={data.chartData} dark={dark}/>
+          </div>
+
+          {/* Top performing post */}
+          {data.recentPosts.length > 0 && (() => {
+            const top = [...data.recentPosts].sort((a,b) => (b.likes+b.comments) - (a.likes+a.comments))[0];
+            return (
+              <div style={{background:th.card, border:`1px solid #E1306C40`, borderRadius:14, padding:20, marginBottom:16, display:"flex", gap:16, alignItems:"center"}}>
+                <div style={{fontSize:20}}>🏆</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12, fontWeight:700, color:"#E1306C", marginBottom:4}}>Top Performing Post</div>
+                  <div style={{fontSize:12, color:th.text2, lineHeight:1.5}}>{top.caption || '(No caption)'}</div>
+                </div>
+                <div style={{display:"flex", gap:20, textAlign:"center"}}>
+                  <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.likes.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Likes</div></div>
+                  <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.comments.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Comments</div></div>
+                  {top.reach > 0 && <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.reach.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Reach</div></div>}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Recent posts grid */}
           <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
             <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Recent posts performance</div>
@@ -1403,6 +1488,9 @@ function InboxPage() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [reply, setReply] = useState('');
+  const [replying, setReplying] = useState(false);
+  const [replyError, setReplyError] = useState('');
+  const [replySuccess, setReplySuccess] = useState(false);
   const [realClientId, setRealClientId] = useState(null);
 
   useEffect(() => {
@@ -1421,6 +1509,28 @@ function InboxPage() {
     if (accounts.length === 0) return;
     fetchInbox();
   }, [accounts]);
+
+  const sendReply = async () => {
+    if (!reply.trim() || !selected || selected.type === 'dm') return;
+    const acc = accounts.find(a => a.platform === 'ig');
+    if (!acc) return;
+    setReplying(true); setReplyError(''); setReplySuccess(false);
+    try {
+      const res = await fetch('/api/instagram-reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentId: selected.id, message: reply, accessToken: acc.access_token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setReply('');
+      setReplySuccess(true);
+      setTimeout(() => setReplySuccess(false), 3000);
+    } catch(e) {
+      setReplyError(e.message);
+    }
+    setReplying(false);
+  };
 
   const fetchInbox = async () => {
     setLoading(true);
@@ -1532,11 +1642,26 @@ function InboxPage() {
                     </div>
                   )}
                 </div>
+                {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600}}>✓ Reply posted successfully!</div>}
+                {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
                 <div style={{display:"flex", gap:8}}>
-                  <input value={reply} onChange={e=>setReply(e.target.value)} placeholder="Type a reply..." style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
-                  <button style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Reply</button>
+                  <input
+                    value={reply}
+                    onChange={e=>{setReply(e.target.value); setReplyError('');}}
+                    onKeyDown={e=>e.key==='Enter'&&sendReply()}
+                    placeholder={selected.type==='dm'?"DM replies coming soon…":"Type a reply…"}
+                    disabled={selected.type==='dm'||replying}
+                    style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", opacity:selected.type==='dm'?0.5:1}}
+                  />
+                  <button
+                    onClick={sendReply}
+                    disabled={!reply.trim()||replying||selected.type==='dm'}
+                    style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", opacity:(!reply.trim()||replying||selected.type==='dm')?0.5:1}}
+                  >{replying?'Sending…':'Reply'}</button>
                 </div>
-                <div style={{fontSize:10, color:th.text3, marginTop:6}}>Replying requires instagram_manage_comments permission approval from Meta.</div>
+                <div style={{fontSize:10, color:th.text3, marginTop:6}}>
+                  {selected.type==='dm'?'DM replies require instagram_manage_messages (pending Meta approval).':'Requires instagram_manage_comments (pending Meta approval).'}
+                </div>
               </>
             ) : (
               <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:th.text2, fontSize:13}}>Select a message to view</div>
