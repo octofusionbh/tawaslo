@@ -389,7 +389,7 @@ function OwnerDashboard() {
 }
 
 function AgencyDashboard() {
-  const { selClient, setPage } = useApp();
+  const { selClient, setPage, clients, setSelClient } = useApp();
   const th = useTheme();
   const [caption, setCaption] = useState("");
   const [selPl, setSelPl] = useState(["ig","fb"]);
@@ -401,6 +401,9 @@ function AgencyDashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError]     = useState("");
   const [aiResult, setAiResult]   = useState(null); // {english, arabic}
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [platOpen, setPlatOpen]   = useState(false);
+  const [platform, setPlatform]   = useState("All platforms");
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
@@ -426,20 +429,50 @@ function AgencyDashboard() {
   };
   return (
     <div>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22,flexWrap:"wrap",gap:12}}>
         <div>
-          <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}>
-            <h1 style={{margin:0,fontSize:21,fontWeight:600,letterSpacing:-0.4}}>{selClient.name}</h1>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5}}>
+            <div style={{position:"relative"}}>
+              <button onClick={()=>{setBrandOpen(o=>!o);setPlatOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,background:"transparent",border:"none",padding:0,cursor:"pointer",color:th.text}}>
+                <span style={{fontSize:22,fontWeight:600,letterSpacing:-0.4}}>{selClient.name}</span>
+                <ChevronDown size={18} color={th.text2}/>
+              </button>
+              {brandOpen&&(
+                <div style={{position:"absolute",top:"125%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 12px 34px rgba(0,0,0,0.45)",padding:6,minWidth:210}}>
+                  <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"4px 10px 6px"}}>Switch brand</div>
+                  {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>No brands yet</div>}
+                  {clients.map(c=>(
+                    <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{padding:"9px 10px",borderRadius:8,fontSize:12.5,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent",color:selClient.id===c.id?th.accent:th.text,display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>{c.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
             <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
           </div>
-          <p style={{margin:0,fontSize:12,color:th.text2}}>{selClient.accounts} accounts · {selClient.posts} posts · {selClient.reach} reach</p>
+          <p style={{margin:0,fontSize:12.5,color:th.text2}}>{selClient.accounts} accounts &middot; {selClient.posts} posts &middot; {selClient.reach} reach</p>
         </div>
-        <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>
-          <Plus size={14}/>New Post
-        </button>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{position:"relative"}}>
+            <button onClick={()=>{setPlatOpen(o=>!o);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text,cursor:"pointer"}}>
+              {platform}<ChevronDown size={13} color={th.text2}/>
+            </button>
+            {platOpen&&(
+              <div style={{position:"absolute",top:"120%",right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 12px 34px rgba(0,0,0,0.45)",padding:6,minWidth:180}}>
+                {["All platforms","Instagram","Facebook","LinkedIn","TikTok","X (Twitter)"].map(pl=>(
+                  <div key={pl} onClick={()=>{setPlatform(pl);setPlatOpen(false);}} style={{padding:"9px 10px",borderRadius:8,fontSize:12.5,cursor:"pointer",background:platform===pl?th.accentSoft:"transparent",color:platform===pl?th.accent:th.text}}>{pl}</div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>Last 30 days</div>
+          <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>New post</button>
+        </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:22}}>
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
         {[
           {label:"Total Posts",  value:"342",  change:"+12%", up:true,Icon:FileText,color:"accent" },
           {label:"Total Reach",  value:"1.2M", change:"+28%", up:true,Icon:Eye,     color:"info"   },
@@ -447,66 +480,79 @@ function AgencyDashboard() {
           {label:"Followers",    value:"45.2K",change:"+2.1K",up:true,Icon:Users,   color:"success"},
         ].map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:18}}>
+
+      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:13.5,fontWeight:600}}>Post performance</div>
+            <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>Reach</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#2DD4BF",display:"inline-block"}}/>Engagement</span>
+            </div>
+          </div>
+          <svg viewBox="0 0 540 180" style={{width:"100%",height:"auto",display:"block"}}>
+            <line x1="0" y1="40" x2="540" y2="40" stroke={th.border}/>
+            <line x1="0" y1="90" x2="540" y2="90" stroke={th.border}/>
+            <line x1="0" y1="140" x2="540" y2="140" stroke={th.border}/>
+            <path d="M0,125 C60,125 75,55 135,55 C195,55 195,140 255,140 C315,140 315,35 375,35 C435,35 450,95 540,75" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
+            <path d="M0,95 C60,95 90,110 135,107 C195,103 210,68 270,70 C330,72 345,135 405,130 C450,127 480,82 540,86" fill="none" stroke="#2DD4BF" strokeWidth="2.5" strokeLinecap="round"/>
+            <circle cx="375" cy="35" r="4" fill="#4F6EF7"/>
+          </svg>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:th.text3,marginTop:6}}><span>5 Feb</span><span>9 Feb</span><span>13 Feb</span><span>18 Feb</span></div>
+        </div>
+
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
+          <div style={{fontSize:13.5,fontWeight:600,marginBottom:16}}>Reach by post type</div>
+          <div style={{display:"flex",alignItems:"center",gap:16}}>
+            <svg viewBox="0 0 120 120" width="104" height="104">
+              <circle cx="60" cy="60" r="42" fill="none" stroke={th.border} strokeWidth="15"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="#4F6EF7" strokeWidth="15" strokeDasharray="118.8 145.1" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="#7C3AED" strokeWidth="15" strokeDasharray="79.2 184.7" strokeDashoffset="-120" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+              <circle cx="60" cy="60" r="42" fill="none" stroke="#2DD4BF" strokeWidth="15" strokeDasharray="60 203.9" strokeDashoffset="-202" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+            </svg>
+            <div style={{fontSize:11.5,color:th.text2,lineHeight:2.1}}>
+              <div><span style={{color:"#4F6EF7"}}>&#9679;</span> Reels 45%</div>
+              <div><span style={{color:"#7C3AED"}}>&#9679;</span> Carousel 30%</div>
+              <div><span style={{color:"#2DD4BF"}}>&#9679;</span> Photo 25%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16}}>
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>Upcoming Posts</div>
-            <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>View All<ChevronRight size={12}/></button>
+            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>Upcoming posts</div>
+            <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>View all<ChevronRight size={12}/></button>
           </div>
           {[
-            {platform:"ig",time:"Today · 3:00 PM",  caption:"New collection drop 🔥",     status:"scheduled"},
-            {platform:"fb",time:"Today · 5:30 PM",  caption:"Behind the scenes",           status:"scheduled"},
-            {platform:"tw",time:"Today · 7:00 PM",  caption:"Exciting news dropping soon", status:"draft"    },
-            {platform:"li",time:"Tomorrow · 9 AM",  caption:"We're hiring! Apply now →",   status:"scheduled"},
-            {platform:"tt",time:"Tomorrow · 6 PM",  caption:"Day in the life 🎬",          status:"draft"    },
+            {platform:"ig",time:"Today \u00b7 3:00 PM",  caption:"New collection drop",         status:"scheduled"},
+            {platform:"fb",time:"Today \u00b7 5:30 PM",  caption:"Behind the scenes",           status:"scheduled"},
+            {platform:"tw",time:"Today \u00b7 7:00 PM",  caption:"Exciting news dropping soon", status:"draft"    },
+            {platform:"li",time:"Tomorrow \u00b7 9 AM",  caption:"We are hiring! Apply now",    status:"scheduled"},
+            {platform:"tt",time:"Tomorrow \u00b7 6 PM",  caption:"Day in the life",             status:"draft"    },
           ].map((p,i)=>{
             const PI = PlatformIcons[p.platform];
             return (
-              <div key={i} style={{padding:"11px 18px",borderBottom:i<4?`1px solid ${th.border}`:"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
-                <div style={{width:32,height:32,borderRadius:9,flexShrink:0,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>
-                  <PI/>
-                </div>
+              <div key={i} style={{padding:"12px 18px",borderBottom:i<4?`1px solid ${th.border}`:"none",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+                <div style={{width:34,height:34,borderRadius:10,flexShrink:0,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}><PI/></div>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:12,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption}</div>
-                  <div style={{fontSize:10,color:th.text2,marginTop:2,display:"flex",alignItems:"center",gap:3}}><Clock size={9}/>{p.time}</div>
+                  <div style={{fontSize:12.5,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption}</div>
+                  <div style={{fontSize:10.5,color:th.text2,marginTop:2,display:"flex",alignItems:"center",gap:3}}><Clock size={9}/>{p.time}</div>
                 </div>
-                <Badge color={p.status==="scheduled"?"success":"warning"} size="xs">
-                  {p.status==="scheduled"?<CheckCircle size={8}/>:<Circle size={8}/>}{p.status}
-                </Badge>
+                <Badge color={p.status==="scheduled"?"success":"warning"} size="xs">{p.status}</Badge>
               </div>
             );
           })}
         </div>
 
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
-          <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}>
-            <Sparkles size={14} color={th.accent}/>Quick actions
-          </div>
+          <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Sparkles size={14} color={th.accent}/>Quick actions</div>
           <div style={{padding:18}}>
-            <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}>
-              <Plus size={15}/>New post
-            </button>
+            <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}><Plus size={15}/>New post</button>
             {[["analytics","Analytics",BarChart2],["inbox","Inbox",Inbox],["reports","Reports",PieChart]].map(([pg,lbl,Ic])=>(
-              <button key={pg} onClick={()=>setPage(pg)} style={{width:"100%",padding:"10px 12px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text,fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
-                <Ic size={15} color={th.text2}/>{lbl}<ChevronRight size={13} color={th.text3} style={{marginLeft:"auto"}}/>
-              </button>
+              <button key={pg} onClick={()=>setPage(pg)} style={{width:"100%",padding:"10px 12px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text,fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:9,marginBottom:8}}><Ic size={15} color={th.text2}/>{lbl}<ChevronRight size={13} color={th.text3} style={{marginLeft:"auto"}}/></button>
             ))}
-            <div style={{marginTop:6,paddingTop:16,borderTop:`1px solid ${th.border}`}}>
-              <div style={{fontSize:12,fontWeight:600,marginBottom:12}}>Reach by post type</div>
-              <div style={{display:"flex",alignItems:"center",gap:14}}>
-                <svg viewBox="0 0 120 120" width="92" height="92">
-                  <circle cx="60" cy="60" r="42" fill="none" stroke={th.border} strokeWidth="15"/>
-                  <circle cx="60" cy="60" r="42" fill="none" stroke="#4F6EF7" strokeWidth="15" strokeDasharray="118.8 145.1" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-                  <circle cx="60" cy="60" r="42" fill="none" stroke="#7C3AED" strokeWidth="15" strokeDasharray="79.2 184.7" strokeDashoffset="-120" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-                  <circle cx="60" cy="60" r="42" fill="none" stroke="#2DD4BF" strokeWidth="15" strokeDasharray="60 203.9" strokeDashoffset="-202" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-                </svg>
-                <div style={{fontSize:11,color:th.text2,lineHeight:2}}>
-                  <div><span style={{color:"#4F6EF7"}}>●</span> Reels 45%</div>
-                  <div><span style={{color:"#7C3AED"}}>●</span> Carousel 30%</div>
-                  <div><span style={{color:"#2DD4BF"}}>●</span> Photo 25%</div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
