@@ -404,6 +404,14 @@ function AgencyDashboard() {
   const [brandOpen, setBrandOpen] = useState(false);
   const [platOpen, setPlatOpen]   = useState(false);
   const [platform, setPlatform]   = useState("All platforms");
+  const [accounts, setAccounts]   = useState([]);
+  useEffect(() => {
+    let active = true;
+    if (!selClient?.id) { setAccounts([]); return; }
+    supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false)
+      .then(({ data }) => { if (active) setAccounts(data || []); });
+    return () => { active = false; };
+  }, [selClient]);
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
@@ -429,48 +437,65 @@ function AgencyDashboard() {
   };
   return (
     <div>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22,flexWrap:"wrap",gap:12}}>
-        <div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:5}}>
-            <div style={{position:"relative"}}>
-              <button onClick={()=>{setBrandOpen(o=>!o);setPlatOpen(false);}} style={{display:"flex",alignItems:"center",gap:8,background:"transparent",border:"none",padding:0,cursor:"pointer",color:th.text}}>
-                <span style={{fontSize:22,fontWeight:600,letterSpacing:-0.4}}>{selClient.name}</span>
-                <ChevronDown size={18} color={th.text2}/>
-              </button>
-              {brandOpen&&(
-                <div style={{position:"absolute",top:"125%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 12px 34px rgba(0,0,0,0.45)",padding:6,minWidth:210}}>
-                  <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"4px 10px 6px"}}>Switch brand</div>
-                  {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>No brands yet</div>}
-                  {clients.map(c=>(
-                    <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{padding:"9px 10px",borderRadius:8,fontSize:12.5,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent",color:selClient.id===c.id?th.accent:th.text,display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{width:6,height:6,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>{c.name}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
-            <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
-          </div>
-          <p style={{margin:0,fontSize:12.5,color:th.text2}}>{selClient.accounts} accounts &middot; {selClient.posts} posts &middot; {selClient.reach} reach</p>
-        </div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{position:"relative"}}>
-            <button onClick={()=>{setPlatOpen(o=>!o);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text,cursor:"pointer"}}>
-              {platform}<ChevronDown size={13} color={th.text2}/>
+            <button onClick={()=>setBrandOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:10,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"9px 14px",cursor:"pointer",color:th.text}}>
+              <span style={{width:28,height:28,borderRadius:8,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff"}}>{(selClient.name||"?").slice(0,2).toUpperCase()}</span>
+              <span style={{fontSize:15,fontWeight:600,letterSpacing:-0.2}}>{selClient.name}</span>
+              <ChevronDown size={16} color={th.text2}/>
             </button>
-            {platOpen&&(
-              <div style={{position:"absolute",top:"120%",right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 12px 34px rgba(0,0,0,0.45)",padding:6,minWidth:180}}>
-                {["All platforms","Instagram","Facebook","LinkedIn","TikTok","X (Twitter)"].map(pl=>(
-                  <div key={pl} onClick={()=>{setPlatform(pl);setPlatOpen(false);}} style={{padding:"9px 10px",borderRadius:8,fontSize:12.5,cursor:"pointer",background:platform===pl?th.accentSoft:"transparent",color:platform===pl?th.accent:th.text}}>{pl}</div>
+            {brandOpen&&(
+              <div style={{position:"absolute",top:"115%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 14px 40px rgba(0,0,0,0.55)",padding:6,minWidth:240}}>
+                <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"6px 10px"}}>Switch client</div>
+                {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>No clients yet</div>}
+                {clients.map(c=>(
+                  <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent"}}>
+                    <span style={{width:26,height:26,borderRadius:7,background:selClient.id===c.id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:selClient.id===c.id?"#fff":th.text2,flexShrink:0}}>{(c.name||"?").slice(0,2).toUpperCase()}</span>
+                    <span style={{fontSize:12.5,color:selClient.id===c.id?th.accent:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                    {c.free&&<span style={{marginLeft:"auto",fontSize:9,color:th.success,flexShrink:0}}>FREE</span>}
+                  </div>
                 ))}
               </div>
             )}
           </div>
+          <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
+          <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>Last 30 days</div>
           <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>New post</button>
         </div>
       </div>
+
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <div style={{fontSize:11,color:th.text2}}>{accounts.length>0?(accounts.length+" connected account"+(accounts.length>1?"s":"")):"Connected accounts"}</div>
+        {accounts.length>0&&<button onClick={()=>setPlatform("All platforms")} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${platform==="All platforms"?th.accent:th.border}`,background:platform==="All platforms"?th.accentSoft:"transparent",color:platform==="All platforms"?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>All platforms</button>}
+      </div>
+      {accounts.length===0?(
+        <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:16,padding:22,textAlign:"center",marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>No accounts connected yet</div>
+          <div style={{fontSize:12,color:th.text2,marginBottom:14}}>Connect this client's social accounts to see their analytics here.</div>
+          <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>Connect accounts</button>
+        </div>
+      ):(
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(accounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
+          {accounts.slice(0,8).map((acc,i)=>{
+            const PI = PlatformIcons[acc.platform];
+            const sel = platform===acc.platform;
+            return (
+              <div key={acc.id||i} onClick={()=>setPlatform(acc.platform)} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                  <div style={{width:32,height:32,borderRadius:9,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={15} color={th.text2}/>}</div>
+                  {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>viewing</span>}
+                </div>
+                <div style={{fontSize:11.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.username?("@"+acc.username):acc.account_name}</div>
+                <div style={{fontSize:18,fontWeight:600,marginTop:2}}>{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}<span style={{fontSize:11,color:th.text2,fontWeight:400}}> followers</span></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
         {[
