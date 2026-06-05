@@ -16,7 +16,8 @@ export default async function handler(req, res) {
         `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
       );
       const mediaData = await mediaRes.json();
-      if (mediaData.error) return res.status(400).json({ error: mediaData.error.message });
+      console.log('Media result:', JSON.stringify(mediaData).substring(0, 500));
+      if (mediaData.error) return res.status(400).json({ error: mediaData.error.message, debug: { accountId, base, mediaError: mediaData.error } });
 
       const comments = [];
       for (const media of (mediaData.data || []).slice(0, 5)) {
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
           `${base}/${media.id}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp}&limit=20&access_token=${accessToken}`
         );
         const commentsData = await commentsRes.json();
+        console.log(`Comments for ${media.id}:`, JSON.stringify(commentsData).substring(0, 300));
         if (commentsData.data) {
           for (const comment of commentsData.data) {
             comments.push({

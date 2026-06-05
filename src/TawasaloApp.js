@@ -2593,8 +2593,8 @@ export default function TawasloApp() {
   const [showLanding, setShowLanding] = useState(true);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
-  const [mode,      setMode]      = useState("owner");
-  const [page,      setPage]      = useState("overview");
+  const [mode,      setMode]      = useState(()=>sessionStorage.getItem('tw_mode')||"owner");
+  const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
   const [selClient, setSelClient] = useState(CLIENTS[0]);
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
 
@@ -2618,12 +2618,15 @@ export default function TawasloApp() {
 
   const th = dark ? DARK : LIGHT;
 
+  const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
+  const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
+
   const ctx = {
     dark, setDark, lang, setLang,
     isAuthed, setIsAuthed,
     authPage, setAuthPage,
-    mode, setMode,
-    page, setPage,
+    mode, setMode: saveMode,
+    page, setPage: savePage,
     selClient, setSelClient,
   };
 
