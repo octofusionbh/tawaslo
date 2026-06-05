@@ -1374,16 +1374,31 @@ function AnalyticsPage() {
           {data.recentPosts.length > 0 && (() => {
             const top = [...data.recentPosts].sort((a,b) => (b.likes+b.comments) - (a.likes+a.comments))[0];
             return (
-              <div style={{background:th.card, border:`1px solid #E1306C40`, borderRadius:14, padding:20, marginBottom:16, display:"flex", gap:16, alignItems:"center"}}>
-                <div style={{fontSize:20}}>🏆</div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:12, fontWeight:700, color:"#E1306C", marginBottom:4}}>Top Performing Post</div>
-                  <div style={{fontSize:12, color:th.text2, lineHeight:1.5}}>{top.caption || '(No caption)'}</div>
-                </div>
-                <div style={{display:"flex", gap:20, textAlign:"center"}}>
-                  <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.likes.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Likes</div></div>
-                  <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.comments.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Comments</div></div>
-                  {top.reach > 0 && <div><div style={{fontSize:18, fontWeight:900, color:th.text}}>{top.reach.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Reach</div></div>}
+              <div style={{background:th.card, border:`1px solid ${th.accent}40`, borderRadius:14, overflow:"hidden", marginBottom:16, display:"flex"}}>
+                {top.thumbnail && (
+                  <img src={top.thumbnail} alt="" style={{width:200, minWidth:200, objectFit:"cover", display:"block"}} onError={e=>e.target.style.display="none"}/>
+                )}
+                <div style={{flex:1, padding:20, display:"flex", flexDirection:"column", justifyContent:"space-between"}}>
+                  <div>
+                    <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
+                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
+                        <path d="M5 26H27" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M8 26V18" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M15 26V13" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M22 26V8" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M8 15L14 10L19 12L24 6" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M24 4.5L25.1 6.8L27.6 7.15L25.8 8.95L26.25 11.45L24 10.25L21.75 11.45L22.2 8.95L20.4 7.15L22.9 6.8L24 4.5Z" stroke="#4F6EF7" strokeWidth="1.6" strokeLinejoin="round"/>
+                      </svg>
+                      <div style={{fontSize:12, fontWeight:700, color:th.accent}}>Top Performing Post</div>
+                    </div>
+                    <div style={{fontSize:12, color:th.text, lineHeight:1.8}}>{top.caption || '(No caption)'}</div>
+                  </div>
+                  <div style={{display:"flex", gap:24, marginTop:16}}>
+                    <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.likes.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Likes</div></div>
+                    <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.comments.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Comments</div></div>
+                    {top.reach > 0 && <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.reach.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Reach</div></div>}
+                    {top.saved > 0 && <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.saved.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Saved</div></div>}
+                  </div>
                 </div>
               </div>
             );
@@ -1398,9 +1413,9 @@ function AnalyticsPage() {
               <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}}>
                 {data.recentPosts.map(post => (
                   <div key={post.id} style={{background:th.card2, borderRadius:10, overflow:"hidden", border:`1px solid ${th.border}`}}>
-                    {post.thumbnail && <img src={post.thumbnail} alt="" style={{width:"100%", height:120, objectFit:"cover"}} onError={e=>e.target.style.display="none"}/>}
+                    {post.thumbnail && <img src={post.thumbnail} alt="" style={{width:"100%", height:"auto", display:"block"}} onError={e=>e.target.style.display="none"}/>}
                     <div style={{padding:12}}>
-                      <div style={{fontSize:11, color:th.text2, marginBottom:8, lineHeight:1.5}}>{post.caption || '(No caption)'}</div>
+                      <div style={{fontSize:11, color:th.text2, marginBottom:8, lineHeight:1.6}}>{post.caption || '(No caption)'}</div>
                       <div style={{display:"flex", gap:12}}>
                         <div style={{fontSize:11}}><span style={{color:th.text2}}>❤️</span> <strong style={{color:th.text}}>{post.likes}</strong></div>
                         <div style={{fontSize:11}}><span style={{color:th.text2}}>💬</span> <strong style={{color:th.text}}>{post.comments}</strong></div>
@@ -1599,103 +1614,175 @@ function ReportsPage() {
   const exportPDF = () => {
     const igAccounts = accounts.filter(a => a.platform === 'ig');
     const fbAccounts = accounts.filter(a => a.platform === 'fb');
+    const topPosts = analyticsData
+      ? [...analyticsData.recentPosts].sort((a,b)=>(b.likes+b.comments)-(a.likes+a.comments)).slice(0,5)
+      : [];
+    const maxEng = topPosts.length ? topPosts[0].likes + topPosts[0].comments : 1;
+
+    const postsHtml = topPosts.map((p, i) => {
+      const eng = p.likes + p.comments;
+      const pct = Math.round((eng / maxEng) * 100);
+      const thumbHtml = p.thumbnail
+        ? '<img class="post-thumb" src="' + p.thumbnail + '" alt="" onerror="this.style.display=\'none\'"/>'
+        : '<div class="post-thumb-placeholder">📸</div>';
+      const cap = (p.caption || '(No caption)').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const reachHtml = p.reach > 0 ? '<div class="ps"><div class="psv">' + p.reach.toLocaleString() + '</div><div class="psl">Reach</div></div>' : '';
+      const savedHtml = (p.saved||0) > 0 ? '<div class="ps"><div class="psv">' + p.saved.toLocaleString() + '</div><div class="psl">Saved</div></div>' : '';
+      return '<div class="post-card">' + thumbHtml +
+        '<div class="post-body"><div><div class="post-rank">#' + (i+1) + ' Top Post</div>' +
+        '<div class="post-cap">' + cap + '</div></div>' +
+        '<div><div class="bar-row"><span class="bar-pct">' + pct + '%</span>' +
+        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>' +
+        '<div class="post-stats"><div class="ps"><div class="psv">' + p.likes.toLocaleString() + '</div><div class="psl">Likes</div></div>' +
+        '<div class="ps"><div class="psv">' + p.comments.toLocaleString() + '</div><div class="psl">Comments</div></div>' +
+        reachHtml + savedHtml + '</div></div></div></div>';
+    }).join('');
+
+    const accountsHtml = accounts.map(a =>
+      '<tr><td><strong>' + a.account_name + '</strong>' + (a.username ? ' <span style="color:#aaa;font-size:11px">@' + a.username + '</span>' : '') + '</td>' +
+      '<td><span class="badge ' + a.platform + '">' + (a.platform === 'ig' ? 'Instagram' : 'Facebook') + '</span></td>' +
+      '<td><strong style="font-size:14px">' + (a.followers_count||0).toLocaleString() + '</strong></td>' +
+      '<td><span style="color:#059669;font-weight:700;font-size:11px">&#9679; Active</span></td></tr>'
+    ).join('');
+
     const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>${selClient?.name} — ${month} Report</title>
+<title>${selClient?.name} — ${month} Social Media Report</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; background:#fff; color:#1a1a2e; padding:40px; }
-  .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; padding-bottom:20px; border-bottom:3px solid #4F6EF7; }
-  .logo { font-size:22px; font-weight:900; background:linear-gradient(135deg,#4F6EF7,#7C3AED); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-  .client { font-size:14px; color:#666; margin-top:4px; }
-  .date { font-size:12px; color:#999; text-align:right; }
-  .section { margin-bottom:28px; }
-  .section-title { font-size:15px; font-weight:700; color:#1a1a2e; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #eee; }
-  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
-  .stat { background:#f8f9ff; border-radius:10px; padding:16px; text-align:center; border:1px solid #e8ecff; }
-  .stat-val { font-size:22px; font-weight:900; color:#4F6EF7; }
-  .stat-label { font-size:10px; color:#888; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px; }
-  table { width:100%; border-collapse:collapse; font-size:12px; }
-  th { background:#f8f9ff; padding:10px 14px; text-align:left; font-weight:700; color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; }
-  td { padding:10px 14px; border-bottom:1px solid #f0f0f0; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; }
-  .ig { background:#fce4ec; color:#c2185b; }
-  .fb { background:#e3f2fd; color:#1565c0; }
-  .footer { margin-top:40px; padding-top:16px; border-top:1px solid #eee; font-size:10px; color:#bbb; text-align:center; }
-  @media print { body { padding:20px; } }
+  @page{margin:0;size:A4}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#1a1a2e}
+  .cover{min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;justify-content:space-between;padding:60px;page-break-after:always}
+  .cover-logo{display:flex;align-items:center;gap:14px}
+  .cover-logo img{width:48px;height:48px;object-fit:contain}
+  .cover-logo-text{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1px}
+  .cover-tag{font-size:12px;color:rgba(255,255,255,.4);margin-top:8px;letter-spacing:3px;text-transform:uppercase}
+  .cover-label{font-size:11px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px}
+  .cover-client{font-size:48px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:16px}
+  .cover-sub{font-size:18px;color:rgba(255,255,255,.55);margin-bottom:32px}
+  .cover-pill{display:inline-block;background:rgba(79,110,247,.2);border:1px solid rgba(79,110,247,.5);color:#8ba4fa;padding:10px 22px;border-radius:30px;font-size:13px;font-weight:600}
+  .cover-ft{display:flex;justify-content:space-between;align-items:flex-end}
+  .cover-ft-l{font-size:10px;color:rgba(255,255,255,.25);line-height:1.8}
+  .cover-ft-r{font-size:10px;color:rgba(255,255,255,.25)}
+  .page{padding:50px;page-break-after:always}
+  .page:last-child{page-break-after:auto}
+  .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:36px;padding-bottom:14px;border-bottom:2px solid #f0f0f0}
+  .ph-logo{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:900;color:#4F6EF7}
+  .ph-logo img{width:22px;height:22px;object-fit:contain}
+  .ph-info{font-size:10px;color:#aaa;text-align:right;line-height:1.6}
+  .sec{margin-bottom:32px}
+  .sec-title{font-size:10px;font-weight:700;color:#4F6EF7;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:14px}
+  .sg4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .sc{background:#f8f9ff;border-radius:12px;padding:20px 16px;text-align:center;border:1px solid #e8ecff}
+  .sv{font-size:26px;font-weight:900;color:#1a1a2e}
+  .sv.a{color:#4F6EF7}.sv.ig{color:#E1306C}.sv.fb{color:#1877F2}.sv.g{color:#059669}.sv.p{color:#A78BFA}.sv.o{color:#F59E0B}
+  .sl{font-size:10px;color:#999;margin-top:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  table{width:100%;border-collapse:collapse}
+  th{padding:10px 16px;text-align:left;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;background:#f8f9ff}
+  td{padding:13px 16px;border-bottom:1px solid #f5f5f5;font-size:12px}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
+  .badge.ig{background:#fce4ec;color:#c2185b}.badge.fb{background:#e3f2fd;color:#1565c0}
+  .post-card{display:flex;margin-bottom:14px;border:1px solid #eee;border-radius:12px;overflow:hidden}
+  .post-thumb{width:120px;min-width:120px;height:120px;object-fit:cover;display:block}
+  .post-thumb-placeholder{width:120px;min-width:120px;height:120px;background:linear-gradient(135deg,#e8ecff,#f0f4ff);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
+  .post-body{flex:1;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between}
+  .post-rank{font-size:10px;font-weight:700;color:#4F6EF7;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
+  .post-cap{font-size:11px;color:#333;line-height:1.7;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+  .bar-row{display:flex;align-items:center;gap:10px;margin-top:10px;margin-bottom:8px}
+  .bar-pct{font-size:10px;font-weight:700;color:#4F6EF7;min-width:30px}
+  .bar-bg{flex:1;height:5px;background:#eee;border-radius:3px}
+  .bar-fill{height:5px;border-radius:3px;background:linear-gradient(90deg,#4F6EF7,#a78bfa)}
+  .post-stats{display:flex;gap:18px}
+  .psv{font-size:17px;font-weight:900;color:#1a1a2e}
+  .psl{font-size:9px;color:#aaa;margin-top:1px;text-transform:uppercase;letter-spacing:.5px}
+  .ft{margin-top:36px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between}
+  .ft div{font-size:10px;color:#ccc}
+  @media print{.page{padding:30px}}
 </style>
 </head>
 <body>
-<div class="header">
+
+<div class="cover">
   <div>
-    <div class="logo">Tawaslo</div>
-    <div class="client">Social Intelligence Report</div>
+    <div class="cover-logo">
+      <img src="${window.location.origin}/logo-transparent.png" alt="Tawaslo"/>
+      <div class="cover-logo-text">Tawaslo</div>
+    </div>
+    <div class="cover-tag">Social Intelligence Platform</div>
   </div>
-  <div class="date">
-    <strong style="font-size:16px;color:#1a1a2e">${selClient?.name}</strong><br/>
-    ${month}<br/>
-    Generated ${now.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
+  <div>
+    <div class="cover-label">Monthly Social Media Report</div>
+    <div class="cover-client">${selClient?.name}</div>
+    <div class="cover-sub">Performance Analysis &amp; Insights</div>
+    <div class="cover-pill">&#128197; ${month}</div>
+  </div>
+  <div class="cover-ft">
+    <div class="cover-ft-l">
+      Generated on ${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}<br/>
+      Confidential &#8212; Prepared by Tawaslo
+    </div>
+    <div class="cover-ft-r">tawaslo.com</div>
   </div>
 </div>
 
-<div class="section">
-  <div class="section-title">Performance Overview</div>
-  <div class="stats">
-    <div class="stat"><div class="stat-val">${totalFollowers.toLocaleString()}</div><div class="stat-label">Total Followers</div></div>
-    <div class="stat"><div class="stat-val">${accounts.length}</div><div class="stat-label">Connected Accounts</div></div>
-    <div class="stat"><div class="stat-val">${analyticsData ? analyticsData.summary.engagementRate+'%' : '—'}</div><div class="stat-label">Engagement Rate</div></div>
-    <div class="stat"><div class="stat-val">${platforms.length}</div><div class="stat-label">Platforms</div></div>
+<div class="page">
+  <div class="ph">
+    <div class="ph-logo"><img src="${window.location.origin}/logo-transparent.png" alt=""/>Tawaslo</div>
+    <div class="ph-info">${selClient?.name}<br/>${month} &middot; Performance Overview</div>
   </div>
-  ${analyticsData ? `
-  <div class="stats">
-    <div class="stat"><div class="stat-val">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="stat-label">Total Reach (30d)</div></div>
-    <div class="stat"><div class="stat-val">${analyticsData.summary.totalImpressions.toLocaleString()}</div><div class="stat-label">Impressions (30d)</div></div>
-    <div class="stat"><div class="stat-val">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="stat-label">Total Likes</div></div>
-    <div class="stat"><div class="stat-val">${analyticsData.summary.totalComments.toLocaleString()}</div><div class="stat-label">Total Comments</div></div>
+
+  <div class="sec">
+    <div class="sec-title">Audience Overview</div>
+    <div class="sg4">
+      <div class="sc"><div class="sv a">${totalFollowers.toLocaleString()}</div><div class="sl">Total Followers</div></div>
+      <div class="sc"><div class="sv">${accounts.length}</div><div class="sl">Connected Accounts</div></div>
+      <div class="sc"><div class="sv ig">${igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString()}</div><div class="sl">Instagram</div></div>
+      <div class="sc"><div class="sv fb">${fbAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString()}</div><div class="sl">Facebook</div></div>
+    </div>
+  </div>
+
+  ${analyticsData ? `<div class="sec">
+    <div class="sec-title">Engagement &mdash; Last 30 Days</div>
+    <div class="sg4">
+      <div class="sc"><div class="sv ig">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="sl">Total Reach</div></div>
+      <div class="sc"><div class="sv p">${analyticsData.summary.totalImpressions.toLocaleString()}</div><div class="sl">Impressions</div></div>
+      <div class="sc"><div class="sv o">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="sl">Total Likes</div></div>
+      <div class="sc"><div class="sv g">${analyticsData.summary.engagementRate}%</div><div class="sl">Engagement Rate</div></div>
+    </div>
   </div>` : ''}
+
+  <div class="sec">
+    <div class="sec-title">Connected Accounts</div>
+    <table>
+      <thead><tr><th>Account</th><th>Platform</th><th>Followers</th><th>Status</th></tr></thead>
+      <tbody>${accountsHtml}</tbody>
+    </table>
+  </div>
+
+  <div class="ft">
+    <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
+    <div>Confidential &middot; ${selClient?.name}</div>
+  </div>
 </div>
 
-<div class="section">
-  <div class="section-title">Connected Accounts</div>
-  <table>
-    <thead><tr><th>Account</th><th>Platform</th><th>Followers</th><th>Status</th></tr></thead>
-    <tbody>
-      ${accounts.map(a => `
-        <tr>
-          <td><strong>${a.account_name}</strong>${a.username ? ` <span style="color:#999">@${a.username}</span>` : ''}</td>
-          <td><span class="badge ${a.platform}">${a.platform === 'ig' ? 'Instagram' : 'Facebook'}</span></td>
-          <td><strong>${(a.followers_count||0).toLocaleString()}</strong></td>
-          <td><span style="color:#059669;font-weight:700">Active</span></td>
-        </tr>`).join('')}
-    </tbody>
-  </table>
-</div>
-
-${analyticsData && analyticsData.recentPosts.length > 0 ? `
-<div class="section">
-  <div class="section-title">Top Posts (Last 30 days)</div>
-  <table>
-    <thead><tr><th>Caption</th><th>Type</th><th>Likes</th><th>Comments</th><th>Reach</th></tr></thead>
-    <tbody>
-      ${analyticsData.recentPosts.slice(0,5).map(p => `
-        <tr>
-          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.caption || '(No caption)'}</td>
-          <td>${p.type}</td>
-          <td><strong>${p.likes}</strong></td>
-          <td><strong>${p.comments}</strong></td>
-          <td>${p.reach > 0 ? p.reach.toLocaleString() : '—'}</td>
-        </tr>`).join('')}
-    </tbody>
-  </table>
+${topPosts.length > 0 ? `<div class="page">
+  <div class="ph">
+    <div class="ph-logo"><img src="${window.location.origin}/logo-transparent.png" alt=""/>Tawaslo</div>
+    <div class="ph-info">${selClient?.name}<br/>${month} &middot; Top Performing Posts</div>
+  </div>
+  <div class="sec">
+    <div class="sec-title">Top Posts &mdash; Last 30 Days</div>
+    ${postsHtml}
+  </div>
+  <div class="ft">
+    <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
+    <div>Confidential &middot; ${selClient?.name}</div>
+  </div>
 </div>` : ''}
 
-<div class="footer">
-  Generated by Tawaslo — Social Intelligence Platform — tawaslo.com<br/>
-  This report is confidential and prepared for ${selClient?.name}
-</div>
-<script>window.onload = function(){ window.print(); }</script>
+<script>window.onload=function(){window.print();}</script>
 </body>
 </html>`;
     const w = window.open('', '_blank');

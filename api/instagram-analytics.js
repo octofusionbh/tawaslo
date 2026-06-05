@@ -84,7 +84,7 @@ export default async function handler(req, res) {
       chartData,
       recentPosts: posts.slice(0, 9).map(p => ({
         id: p.id,
-        caption: p.caption?.substring(0, 80) || '',
+        caption: p.caption || '',
         type: p.media_type,
         timestamp: p.timestamp,
         likes: p.like_count || 0,
