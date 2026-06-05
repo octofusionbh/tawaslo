@@ -118,22 +118,21 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
   const th = useTheme();
   return (
     <div style={{
-      background:th.card, borderRadius:14, border:`1px solid ${th.border}`,
-      padding:18, position:"relative", overflow:"hidden",
+      background:th.card, borderRadius:18, border:`1px solid ${th.border}`,
+      padding:"18px 20px", boxShadow:"0 10px 30px rgba(0,0,0,0.28)",
     }}>
-      <div style={{position:"absolute",top:-15,right:-15,width:55,height:55,borderRadius:"50%",background:th[color+"Soft"]||th.accentSoft}}/>
-      <div style={{display:"flex",justifyContent:"space-between",marginBottom:12}}>
-        <div style={{width:32,height:32,borderRadius:9,background:th[color+"Soft"]||th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <I size={15} color={th[color]||th.accent}/>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+        <div style={{width:34,height:34,borderRadius:11,background:th[color+"Soft"]||th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <I size={16} color={th[color]||th.accent}/>
         </div>
         {change&&(
-          <div style={{display:"flex",alignItems:"center",gap:3,fontSize:10,fontWeight:700,color:up?th.success:th.danger,background:up?th.successSoft:th.dangerSoft,padding:"2px 7px",borderRadius:6}}>
-            {up?<ArrowUpRight size={10}/>:<ArrowDownRight size={10}/>}{change}
+          <div style={{display:"flex",alignItems:"center",gap:3,fontSize:11,fontWeight:600,color:up?th.success:th.danger}}>
+            {up?<ArrowUpRight size={13}/>:<ArrowDownRight size={13}/>}{change}
           </div>
         )}
       </div>
-      <div style={{fontSize:24,fontWeight:900,letterSpacing:-0.8,marginBottom:3}}>{value}</div>
-      <div style={{fontSize:11,color:th.text2}}>{label}</div>
+      <div style={{fontSize:26,fontWeight:600,letterSpacing:-0.5,marginBottom:3}}>{value}</div>
+      <div style={{fontSize:12,color:th.text2}}>{label}</div>
     </div>
   );
 }
@@ -353,7 +352,7 @@ function OwnerDashboard() {
           {label:"API Usage",         value:"74%",   change:"+8%", up:false,Icon:Activity,  color:"warning"},
         ].map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
-      <div style={{background:th.card,borderRadius:14,border:`1px solid ${th.border}`}}>
+      <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
         <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}><Building2 size={15} color={th.accent}/>All Clients</div>
           <button style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,background:th.gradient,border:"none",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>
@@ -430,13 +429,13 @@ function AgencyDashboard() {
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:4}}>
-            <h1 style={{margin:0,fontSize:21,fontWeight:900,letterSpacing:-0.6}}>{selClient.name}</h1>
+            <h1 style={{margin:0,fontSize:21,fontWeight:600,letterSpacing:-0.4}}>{selClient.name}</h1>
             <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
             <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
           </div>
           <p style={{margin:0,fontSize:12,color:th.text2}}>{selClient.accounts} accounts · {selClient.posts} posts · {selClient.reach} reach</p>
         </div>
-        <button style={{display:"flex",alignItems:"center",gap:6,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontWeight:700,fontSize:13,cursor:"pointer",boxShadow:`0 4px 14px rgba(79,110,247,0.4)`}}>
+        <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}>
           <Plus size={14}/>New Post
         </button>
       </div>
@@ -449,7 +448,7 @@ function AgencyDashboard() {
         ].map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 340px",gap:18}}>
-        <div style={{background:th.card,borderRadius:14,border:`1px solid ${th.border}`}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>Upcoming Posts</div>
             <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>View All<ChevronRight size={12}/></button>
@@ -479,80 +478,34 @@ function AgencyDashboard() {
           })}
         </div>
 
-        <div style={{background:th.card,borderRadius:14,border:`1px solid ${th.border}`,overflow:"hidden"}}>
-          <div style={{padding:"13px 16px",borderBottom:`1px solid ${th.border}`,fontWeight:700,fontSize:13,display:"flex",alignItems:"center",gap:7,background:th.gradientSoft}}>
-            <Edit3 size={13} color={th.accent}/>Create Post
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
+          <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}>
+            <Sparkles size={14} color={th.accent}/>Quick actions
           </div>
-          <div style={{padding:16}}>
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:9,color:th.text2,marginBottom:7,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8}}>Publish to</div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-                {PLATFORMS.map(pl=>{
-                  const sel=selPl.includes(pl.id);
-                  const PI=PlatformIcons[pl.id];
-                  return (
-                    <button key={pl.id} onClick={()=>setSelPl(p=>p.includes(pl.id)?p.filter(x=>x!==pl.id):[...p,pl.id])} style={{
-                      padding:"4px 8px",borderRadius:6,
-                      border:sel?`1.5px solid ${DARK[pl.color]}`:`1.5px solid ${th.border}`,
-                      background:sel?`${DARK[pl.color]}15`:"transparent",
-                      fontSize:10,fontWeight:600,cursor:"pointer",
-                      display:"flex",alignItems:"center",gap:4,
-                      color:th.text,
-                    }}>
-                      <PI/>{pl.name.split("/")[0]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption..." rows={4}
-              style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"9px 11px",color:th.text,fontSize:12,resize:"none",outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:10}}/>
-
-            {/* AI Caption Generator */}
-            <button onClick={()=>{setShowAI(!showAI);setAiResult(null);setAiError("");}} style={{width:"100%",padding:"8px",borderRadius:8,background:th.accent2Soft,border:`1px solid ${th.accent2}30`,color:th.accent2,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:showAI?8:10,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-              <Sparkles size={12}/>{showAI?"Hide AI Generator":"Generate with AI"}
+          <div style={{padding:18}}>
+            <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}>
+              <Plus size={15}/>New post
             </button>
-
-            {showAI&&(
-              <div style={{background:th.card2,border:`1px solid ${th.accent2}30`,borderRadius:10,padding:12,marginBottom:10}}>
-                <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Describe your post topic</div>
-                <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} placeholder="e.g. New summer collection launch for a fashion brand"
-                  style={{width:"100%",background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",color:th.text,fontSize:11,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}/>
-                <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>Tone</div>
-                <select value={aiTone} onChange={e=>setAiTone(e.target.value)}
-                  style={{width:"100%",background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"7px 10px",color:th.text,fontSize:11,outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}>
-                  <option>engaging and professional</option>
-                  <option>fun and casual</option>
-                  <option>luxury and premium</option>
-                  <option>urgent and promotional</option>
-                  <option>informative and educational</option>
-                </select>
-                <button onClick={generateCaption} disabled={aiLoading||!aiTopic.trim()} style={{width:"100%",padding:"8px",borderRadius:7,background:th.gradient,border:"none",color:"#fff",fontSize:11,fontWeight:700,cursor:aiLoading?"not-allowed":"pointer",opacity:aiLoading||!aiTopic.trim()?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                  <Sparkles size={11}/>{aiLoading?"Generating…":"Generate"}
-                </button>
-                {aiError&&<div style={{marginTop:8,fontSize:10,color:th.danger,background:th.dangerSoft,borderRadius:6,padding:"6px 9px"}}>{aiError}</div>}
-                {aiResult&&(
-                  <div style={{marginTop:10}}>
-                    <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>English</div>
-                    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",fontSize:11,lineHeight:1.6,marginBottom:8}}>{aiResult.english}</div>
-                    <button onClick={()=>setCaption(aiResult.english)} style={{width:"100%",padding:"5px",borderRadius:6,background:th.accentSoft,border:`1px solid ${th.accent}30`,color:th.accent,fontSize:10,fontWeight:600,cursor:"pointer",marginBottom:10}}>Use English Caption</button>
-                    <div style={{fontSize:9,color:th.text2,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:4}}>Arabic / عربي</div>
-                    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:7,padding:"8px 10px",fontSize:12,lineHeight:1.8,direction:"rtl",textAlign:"right",marginBottom:8}}>{aiResult.arabic}</div>
-                    <button onClick={()=>setCaption(aiResult.arabic)} style={{width:"100%",padding:"5px",borderRadius:6,background:th.accentSoft,border:`1px solid ${th.accent}30`,color:th.accent,fontSize:10,fontWeight:600,cursor:"pointer"}}>Use Arabic Caption</button>
-                  </div>
-                )}
+            {[["analytics","Analytics",BarChart2],["inbox","Inbox",Inbox],["reports","Reports",PieChart]].map(([pg,lbl,Ic])=>(
+              <button key={pg} onClick={()=>setPage(pg)} style={{width:"100%",padding:"10px 12px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text,fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:9,marginBottom:8}}>
+                <Ic size={15} color={th.text2}/>{lbl}<ChevronRight size={13} color={th.text3} style={{marginLeft:"auto"}}/>
+              </button>
+            ))}
+            <div style={{marginTop:6,paddingTop:16,borderTop:`1px solid ${th.border}`}}>
+              <div style={{fontSize:12,fontWeight:600,marginBottom:12}}>Reach by post type</div>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <svg viewBox="0 0 120 120" width="92" height="92">
+                  <circle cx="60" cy="60" r="42" fill="none" stroke={th.border} strokeWidth="15"/>
+                  <circle cx="60" cy="60" r="42" fill="none" stroke="#4F6EF7" strokeWidth="15" strokeDasharray="118.8 145.1" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+                  <circle cx="60" cy="60" r="42" fill="none" stroke="#7C3AED" strokeWidth="15" strokeDasharray="79.2 184.7" strokeDashoffset="-120" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+                  <circle cx="60" cy="60" r="42" fill="none" stroke="#2DD4BF" strokeWidth="15" strokeDasharray="60 203.9" strokeDashoffset="-202" transform="rotate(-90 60 60)" strokeLinecap="round"/>
+                </svg>
+                <div style={{fontSize:11,color:th.text2,lineHeight:2}}>
+                  <div><span style={{color:"#4F6EF7"}}>●</span> Reels 45%</div>
+                  <div><span style={{color:"#7C3AED"}}>●</span> Carousel 30%</div>
+                  <div><span style={{color:"#2DD4BF"}}>●</span> Photo 25%</div>
+                </div>
               </div>
-            )}
-            <button style={{width:"100%",padding:"10px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 14px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:7}}>
-              <Calendar size={13}/>Schedule Post
-            </button>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-              <button style={{padding:"7px 0",borderRadius:8,background:th.successSoft,border:`1px solid ${th.success}40`,color:th.success,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                <Send size={11}/>Publish Now
-              </button>
-              <button style={{padding:"7px 0",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-                <Bookmark size={11}/>Draft
-              </button>
             </div>
           </div>
         </div>
@@ -2099,7 +2052,7 @@ function BillingPage() {
           <div style={{fontSize:13, fontWeight:700}}>Current Plan: <span style={{color:th.accent}}>Essential</span></div>
           <div style={{fontSize:12, color:th.text2, marginTop:4}}>Next billing date: July 1, 2026</div>
         </div>
-        <div style={{fontSize:24, fontWeight:900, color:th.accent}}>49 BHD<span style={{fontSize:12, fontWeight:400, color:th.text2}}>/mo</span></div>
+        <div style={{fontSize:24, fontWeight:900, color:th.accent}}>$49<span style={{fontSize:12, fontWeight:400, color:th.text2}}>/mo</span></div>
       </div>
       <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16}}>
         {plans.map(plan => (
@@ -2511,7 +2464,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
           <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
-            {!isHead&&<><div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div></>}
+            <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
           </div>
         ))}
       </div>
@@ -2654,7 +2607,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   return (
-    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",minHeight:"100vh"}}>
+    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh"}}>
       <Nav/>
       {landingPage==='home'&&<HomePage/>}
       {landingPage==='features'&&<FeaturesPage/>}
@@ -2740,7 +2693,7 @@ function AuthPage() {
   );
 
   return (
-    <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden"}}>
       <div style={{width:420,flexShrink:0,background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,display:"flex",flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
         <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:60}}>
           <div style={{width:42,height:42,borderRadius:12,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -3082,7 +3035,7 @@ export default function TawasloApp() {
   if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
     return (
       <AppCtx.Provider value={ctx}>
-        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>
+        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>
           <div>
             <div style={{fontSize:20,fontWeight:900,marginBottom:8}}>Restricted area</div>
             <div style={{fontSize:13,color:th.text2,marginBottom:18}}>This is the Tawaslo admin console. Your account doesn't have access.</div>
@@ -3114,7 +3067,7 @@ export default function TawasloApp() {
       <div style={{
         display:"flex", height:"100vh",
         background:th.bg, color:th.text,
-        fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",
+        fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",
         direction:lang==="ar"?"rtl":"ltr",
         transition:"all 0.3s", overflow:"hidden",
       }}>
