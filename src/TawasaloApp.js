@@ -163,6 +163,7 @@ function Sidebar() {
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
+      {key:"ads",       Icon:DollarSign,      label:"Ads",       badge:null},
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
     ]},
     {section:"Account", items:[
@@ -1422,11 +1423,150 @@ function AnalyticsPage() {
   );
 }
 
+function AdsPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [loading, setLoading] = useState(false);
+  const [adsData, setAdsData] = useState(null);
+  const [error, setError] = useState('');
+  const [accounts, setAccounts] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
+      .then(({ data }) => { if (data) { setAccounts(data); fetchAds(data); } });
+  }, [realClientId]);
+
+  const fetchAds = async (accs) => {
+    const fbAcc = (accs || accounts).find(a => a.platform === 'fb');
+    if (!fbAcc) return;
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/meta-ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: fbAcc.access_token, pageId: fbAcc.account_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setAdsData(data);
+    } catch(e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+
+  const statCard = (label, value, sub, color) => (
+    <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
+      <div style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:0.5}}>{label}</div>
+      <div style={{fontSize:26, fontWeight:900, color: color || th.text}}>{value}</div>
+      {sub && <div style={{fontSize:11, color:th.text2, marginTop:4}}>{sub}</div>}
+    </div>
+  );
+
+  const statusColor = (s) => s === 'ACTIVE' ? th.success : s === 'PAUSED' ? th.warning : th.text2;
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:1200}}>
+      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+        <div>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Ads Performance</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Last 30 days — {selClient?.name}</p>
+        </div>
+        <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+          <RefreshCw size={13}/> {loading ? 'Loading…' : 'Refresh'}
+        </button>
+      </div>
+
+      {loading ? (
+        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>Loading ads data...</div>
+      ) : error ? (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
+          <div style={{fontSize:13, color:th.danger, marginBottom:8, fontWeight:700}}>Could not load ads data</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.7, marginBottom:12}}>{error}</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.7}}>
+            Ads performance requires the <strong style={{color:th.text}}>ads_read</strong> permission from Meta App Review.
+            Connect your Facebook account with ads access to see campaign performance.
+          </div>
+        </div>
+      ) : !adsData ? (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:32, textAlign:"center"}}>
+          <div style={{fontSize:32, marginBottom:16}}>📊</div>
+          <div style={{fontSize:14, fontWeight:700, marginBottom:8}}>No Ads Connected</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.7, maxWidth:400, margin:"0 auto"}}>
+            Connect a Facebook account that has ad account access, then reconnect via Social Accounts to see campaign performance.
+          </div>
+        </div>
+      ) : adsData.campaigns.length === 0 ? (
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:32, textAlign:"center"}}>
+          <div style={{fontSize:32, marginBottom:16}}>📭</div>
+          <div style={{fontSize:14, fontWeight:700, marginBottom:8}}>No campaigns in the last 30 days</div>
+          <div style={{fontSize:12, color:th.text2}}>Create a campaign in Meta Ads Manager to see data here.</div>
+        </div>
+      ) : (
+        <>
+          {/* Summary */}
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24}}>
+            {statCard("Total Spend", `$${adsData.summary.totalSpend}`, "Last 30 days", th.danger)}
+            {statCard("Total Reach", adsData.summary.totalReach.toLocaleString(), "Unique accounts", "#E1306C")}
+            {statCard("Total Clicks", adsData.summary.totalClicks.toLocaleString(), `Avg CPC $${adsData.summary.avgCPC}`, th.accent)}
+          </div>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24}}>
+            {statCard("Impressions", adsData.summary.totalImpressions.toLocaleString(), "Total views", "#A78BFA")}
+            {statCard("Avg CPM", `$${adsData.summary.avgCPM}`, "Cost per 1k impressions", th.warning)}
+            {statCard("Campaigns", adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} active`, th.success)}
+          </div>
+
+          {/* Campaigns table */}
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden"}}>
+            <div style={{padding:"16px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700}}>Campaigns</div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%", borderCollapse:"collapse", fontSize:12}}>
+                <thead>
+                  <tr style={{background:th.card2}}>
+                    {["Campaign","Status","Objective","Spend","Reach","Impressions","Clicks","CPC"].map(h => (
+                      <th key={h} style={{padding:"10px 16px", textAlign:"left", fontWeight:700, color:th.text2, fontSize:11, textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {adsData.campaigns.map((c, i) => (
+                    <tr key={c.id} style={{borderTop:`1px solid ${th.border}`, background:i%2===0?"transparent":th.card2}}>
+                      <td style={{padding:"12px 16px", fontWeight:600, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.name}</td>
+                      <td style={{padding:"12px 16px"}}>
+                        <span style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20, background:`${statusColor(c.status)}20`, color:statusColor(c.status)}}>{c.status}</span>
+                      </td>
+                      <td style={{padding:"12px 16px", color:th.text2}}>{c.objective?.replace(/_/g,' ')}</td>
+                      <td style={{padding:"12px 16px", fontWeight:700, color:th.danger}}>${c.spend.toFixed(2)}</td>
+                      <td style={{padding:"12px 16px"}}>{c.reach.toLocaleString()}</td>
+                      <td style={{padding:"12px 16px"}}>{c.impressions.toLocaleString()}</td>
+                      <td style={{padding:"12px 16px"}}>{c.clicks.toLocaleString()}</td>
+                      <td style={{padding:"12px 16px", color:th.text2}}>${c.cpc.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function ReportsPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
   const [accounts, setAccounts] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -1437,11 +1577,131 @@ function ReportsPage() {
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data }) => { if (data) setAccounts(data); });
+      .then(({ data }) => {
+        if (data) {
+          setAccounts(data);
+          const igAcc = data.find(a => a.platform === 'ig');
+          if (igAcc) {
+            fetch('/api/instagram-analytics', {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ accountId: igAcc.account_id, accessToken: igAcc.access_token }),
+            }).then(r => r.json()).then(d => { if (!d.error) setAnalyticsData(d); });
+          }
+        }
+      });
   }, [realClientId]);
 
   const now = new Date();
   const month = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  const totalFollowers = accounts.reduce((s,a)=>s+(a.followers_count||0),0);
+  const platforms = [...new Set(accounts.map(a=>a.platform))];
+
+  const exportPDF = () => {
+    const igAccounts = accounts.filter(a => a.platform === 'ig');
+    const fbAccounts = accounts.filter(a => a.platform === 'fb');
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${selClient?.name} — ${month} Report</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background:#fff; color:#1a1a2e; padding:40px; }
+  .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:32px; padding-bottom:20px; border-bottom:3px solid #4F6EF7; }
+  .logo { font-size:22px; font-weight:900; background:linear-gradient(135deg,#4F6EF7,#7C3AED); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .client { font-size:14px; color:#666; margin-top:4px; }
+  .date { font-size:12px; color:#999; text-align:right; }
+  .section { margin-bottom:28px; }
+  .section-title { font-size:15px; font-weight:700; color:#1a1a2e; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #eee; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }
+  .stat { background:#f8f9ff; border-radius:10px; padding:16px; text-align:center; border:1px solid #e8ecff; }
+  .stat-val { font-size:22px; font-weight:900; color:#4F6EF7; }
+  .stat-label { font-size:10px; color:#888; margin-top:4px; text-transform:uppercase; letter-spacing:0.5px; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { background:#f8f9ff; padding:10px 14px; text-align:left; font-weight:700; color:#555; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; }
+  td { padding:10px 14px; border-bottom:1px solid #f0f0f0; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; }
+  .ig { background:#fce4ec; color:#c2185b; }
+  .fb { background:#e3f2fd; color:#1565c0; }
+  .footer { margin-top:40px; padding-top:16px; border-top:1px solid #eee; font-size:10px; color:#bbb; text-align:center; }
+  @media print { body { padding:20px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <div class="logo">Tawaslo</div>
+    <div class="client">Social Intelligence Report</div>
+  </div>
+  <div class="date">
+    <strong style="font-size:16px;color:#1a1a2e">${selClient?.name}</strong><br/>
+    ${month}<br/>
+    Generated ${now.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'})}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Performance Overview</div>
+  <div class="stats">
+    <div class="stat"><div class="stat-val">${totalFollowers.toLocaleString()}</div><div class="stat-label">Total Followers</div></div>
+    <div class="stat"><div class="stat-val">${accounts.length}</div><div class="stat-label">Connected Accounts</div></div>
+    <div class="stat"><div class="stat-val">${analyticsData ? analyticsData.summary.engagementRate+'%' : '—'}</div><div class="stat-label">Engagement Rate</div></div>
+    <div class="stat"><div class="stat-val">${platforms.length}</div><div class="stat-label">Platforms</div></div>
+  </div>
+  ${analyticsData ? `
+  <div class="stats">
+    <div class="stat"><div class="stat-val">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="stat-label">Total Reach (30d)</div></div>
+    <div class="stat"><div class="stat-val">${analyticsData.summary.totalImpressions.toLocaleString()}</div><div class="stat-label">Impressions (30d)</div></div>
+    <div class="stat"><div class="stat-val">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="stat-label">Total Likes</div></div>
+    <div class="stat"><div class="stat-val">${analyticsData.summary.totalComments.toLocaleString()}</div><div class="stat-label">Total Comments</div></div>
+  </div>` : ''}
+</div>
+
+<div class="section">
+  <div class="section-title">Connected Accounts</div>
+  <table>
+    <thead><tr><th>Account</th><th>Platform</th><th>Followers</th><th>Status</th></tr></thead>
+    <tbody>
+      ${accounts.map(a => `
+        <tr>
+          <td><strong>${a.account_name}</strong>${a.username ? ` <span style="color:#999">@${a.username}</span>` : ''}</td>
+          <td><span class="badge ${a.platform}">${a.platform === 'ig' ? 'Instagram' : 'Facebook'}</span></td>
+          <td><strong>${(a.followers_count||0).toLocaleString()}</strong></td>
+          <td><span style="color:#059669;font-weight:700">Active</span></td>
+        </tr>`).join('')}
+    </tbody>
+  </table>
+</div>
+
+${analyticsData && analyticsData.recentPosts.length > 0 ? `
+<div class="section">
+  <div class="section-title">Top Posts (Last 30 days)</div>
+  <table>
+    <thead><tr><th>Caption</th><th>Type</th><th>Likes</th><th>Comments</th><th>Reach</th></tr></thead>
+    <tbody>
+      ${analyticsData.recentPosts.slice(0,5).map(p => `
+        <tr>
+          <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.caption || '(No caption)'}</td>
+          <td>${p.type}</td>
+          <td><strong>${p.likes}</strong></td>
+          <td><strong>${p.comments}</strong></td>
+          <td>${p.reach > 0 ? p.reach.toLocaleString() : '—'}</td>
+        </tr>`).join('')}
+    </tbody>
+  </table>
+</div>` : ''}
+
+<div class="footer">
+  Generated by Tawaslo — Social Intelligence Platform — tawaslo.com<br/>
+  This report is confidential and prepared for ${selClient?.name}
+</div>
+<script>window.onload = function(){ window.print(); }</script>
+</body>
+</html>`;
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  };
 
   return (
     <div style={{padding:"28px 32px", maxWidth:900}}>
@@ -1450,7 +1710,7 @@ function ReportsPage() {
           <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Reports</h2>
           <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Monthly summary for {selClient?.name}</p>
         </div>
-        <button style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+        <button onClick={exportPDF} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
           <Download size={14}/> Export PDF
         </button>
       </div>
@@ -2639,6 +2899,7 @@ export default function TawasloApp() {
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="analytics") return <AnalyticsPage/>;
+    if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="agencyteam") return <TeamPage/>;
