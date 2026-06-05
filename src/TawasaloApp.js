@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, ensureOctoFusionClient, getProfile, updateProfile } from './supabase';
+import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, ensureOctoFusionClient, getProfile, updateProfile, getClients } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -60,6 +60,11 @@ const PLATFORMS = [
   {id:"tt",name:"TikTok",   color:"tt"  },
   {id:"yt",name:"YouTube",  color:"yt"  },
 ];
+
+const ADMIN_EMAIL = 'theoctopus.bh@gmail.com';
+const ADMIN_HOST_PREFIX = 'admin.';
+const ACCOUNT_LABELS = { agency: "Agency", freelancer: "Freelancer", corporate: "Corporate", enterprise: "Enterprise" };
+const accountLabelOf = (t) => ACCOUNT_LABELS[t] || "Agency";
 
 const CLIENTS = [
   { id:"octo",   name:"Octo Fusion",       plan:"Internal", free:true,  status:"active",   accounts:8,  posts:142, reach:"380K", health:99, spend:0   },
@@ -135,7 +140,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
 
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
-          selClient, setSelClient, setIsAuthed } = useApp();
+          selClient, setSelClient, setIsAuthed, clients } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
 
@@ -208,30 +213,16 @@ function Sidebar() {
         </div>
       </div>
 
-      <div style={{padding:"0 14px 12px"}}>
-        <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:3,display:"flex",gap:2}}>
-          {[{key:"owner",Icon:Shield,label:"Owner"},{key:"agency",Icon:Building2,label:"Agency"}].map(({key,Icon:I,label})=>(
-            <button key={key} onClick={()=>{setMode(key);setPage(key==="owner"?"overview":"dashboard");}} style={{
-              flex:1,padding:"7px 0",borderRadius:8,
-              background:mode===key?th.gradient:"transparent",
-              border:"none",color:mode===key?"#fff":th.text2,
-              fontSize:11,fontWeight:700,cursor:"pointer",
-              display:"flex",alignItems:"center",justifyContent:"center",gap:5,
-              transition:"all 0.2s",
-            }}>
-              <I size={11}/>{label}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {mode==="agency"&&(
         <div style={{padding:"0 14px 12px"}}>
           <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",marginBottom:6}}>
             <div style={{fontSize:11,fontWeight:700}}>{selClient.name}</div>
             <div style={{fontSize:9,color:th.text2,marginTop:1}}>{selClient.plan} · {selClient.accounts} accounts</div>
           </div>
-          {CLIENTS.map(c=>(
+          {clients.length===0 && (
+            <div style={{fontSize:10,color:th.text3,padding:"6px 9px"}}>No brands yet</div>
+          )}
+          {clients.map(c=>(
             <div key={c.id} onClick={()=>setSelClient(c)} style={{
               display:"flex",alignItems:"center",gap:7,
               padding:"6px 9px",borderRadius:7,cursor:"pointer",
@@ -295,7 +286,7 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient } = useApp();
+  const { mode, page, selClient, accountType } = useApp();
   const th = useTheme();
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
@@ -314,7 +305,7 @@ function Topbar() {
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2}}>
           <span style={{padding:"4px 10px",borderRadius:7,background:mode==="owner"?th.accentSoft:th.accent2Soft,color:mode==="owner"?th.accent:th.accent2,fontWeight:700,fontSize:11}}>
-            {mode==="owner"?"Owner":"Agency"}
+            {mode==="owner"?"Owner":accountLabelOf(accountType)}
           </span>
           {mode==="agency"&&<><ChevronRight size={12}/><span style={{fontWeight:600}}>{selClient.name}</span></>}
           <ChevronRight size={12}/>
@@ -2092,9 +2083,9 @@ function BillingPage() {
   const { dark } = useApp();
   const th = dark ? DARK : LIGHT;
   const plans = [
-    { name:"Starter", price:"49", accounts:3, users:1, posts:30, current:true },
+    { name:"Essential", price:"49", accounts:3, users:1, posts:30, current:true },
     { name:"Professional", price:"99", accounts:10, users:5, posts:100, current:false },
-    { name:"Agency", price:"199", accounts:999, users:20, posts:999, current:false },
+    { name:"Enterprise", price:"199", accounts:999, users:20, posts:999, current:false },
   ];
 
   return (
@@ -2105,7 +2096,7 @@ function BillingPage() {
       </div>
       <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
         <div>
-          <div style={{fontSize:13, fontWeight:700}}>Current Plan: <span style={{color:th.accent}}>Starter</span></div>
+          <div style={{fontSize:13, fontWeight:700}}>Current Plan: <span style={{color:th.accent}}>Essential</span></div>
           <div style={{fontSize:12, color:th.text2, marginTop:4}}>Next billing date: July 1, 2026</div>
         </div>
         <div style={{fontSize:24, fontWeight:900, color:th.accent}}>49 BHD<span style={{fontSize:12, fontWeight:400, color:th.text2}}>/mo</span></div>
@@ -2279,13 +2270,13 @@ function LandingPage({ onGetStarted, onLogin }) {
   const grad = {background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
   const card = {background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:22};
 
-  const PlanCard = ({name,desc,price,features,popular,extra=[]}) => (
+  const PlanCard = ({name,desc,price,features,popular,extra=[],planKey}) => (
     <div style={{background:"#101828",border:`2px solid ${popular?"#4F6EF7":"#1C2D45"}`,borderRadius:16,padding:24,position:"relative"}}>
       {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
       <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
       <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
       <div style={{marginBottom:8}}><span style={{fontSize:34,fontWeight:900,color:popular?"#4F6EF7":"#E8EFF8"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
-      {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[name.toLowerCase().replace('professional','pro')]-price)*12}/year</div>}
+      {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[planKey]-price)*12}/year</div>}
       <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
       <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#4F6EF7,#7C3AED)":"transparent",border:popular?"none":"1px solid #1C2D45",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
     </div>
@@ -2313,9 +2304,9 @@ function LandingPage({ onGetStarted, onLogin }) {
   ];
 
   const plans = [
-    { name:"Starter", price:"49", desc:"Perfect for small businesses", accounts:3, users:1, posts:30 },
+    { name:"Essential", price:"49", desc:"Perfect for small businesses", accounts:3, users:1, posts:30 },
     { name:"Professional", price:"99", desc:"For growing brands", accounts:10, users:5, posts:100, popular:true },
-    { name:"Agency", price:"199", desc:"For agencies managing multiple clients", accounts:999, users:20, posts:999 },
+    { name:"Enterprise", price:"199", desc:"For agencies managing multiple clients", accounts:999, users:20, posts:999 },
   ];
 
   const s = {
@@ -2511,13 +2502,13 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:48}}>
-        <PlanCard name="Starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
-        <PlanCard name="Professional" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
-        <PlanCard name="Agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
+        <PlanCard name="Essential" planKey="starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
+        <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
+        <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
       </div>
       <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #1C2D45"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
-        {[["","Starter","Professional","Agency",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
+        {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
           <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
             {!isHead&&<><div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div></>}
@@ -2699,6 +2690,7 @@ function AuthPage() {
   const [signupStep,    setSignupStep]    = useState(1);
   const [accountType,   setAccountType]   = useState("agency");
   const [selectedPlan,  setSelectedPlan]  = useState("professional");
+  const [billingPeriod, setBillingPeriod] = useState("monthly");
   const [companyName,   setCompanyName]   = useState("");
   const [tosAgreed,     setTosAgreed]     = useState(false);
 
@@ -2717,7 +2709,7 @@ function AuthPage() {
         await fetch('/api/send-welcome-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: companyName || name, email, plan: selectedPlan, accountType }),
+          body: JSON.stringify({ name: companyName || name, email, plan: selectedPlan, accountType, billingPeriod }),
         });
       } catch(e) { console.warn('Welcome email failed:', e); }
       setSignupStep(4);
@@ -2888,10 +2880,17 @@ function AuthPage() {
                     <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>Choose your plan</h1>
                     <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>7-day free trial included. No credit card required.</p>
                   </div>
+                  <div style={{display:"flex",justifyContent:"center",gap:4,background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:3,width:"fit-content",margin:"0 auto 16px"}}>
+                    {[["monthly","Monthly"],["annual","Annual"]].map(([b,lbl])=>(
+                      <button key={b} onClick={()=>setBillingPeriod(b)} style={{padding:"6px 18px",borderRadius:8,border:"none",background:billingPeriod===b?th.gradient:"transparent",color:billingPeriod===b?"#fff":th.text2,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+                        {lbl}{b==="annual"&&<span style={{fontSize:9,background:"rgba(16,185,129,0.2)",color:"#10B981",padding:"1px 6px",borderRadius:8}}>-20%</span>}
+                      </button>
+                    ))}
+                  </div>
                   {[
-                    {id:"starter",      name:"Starter",      price:"$49", desc:"3 accounts · 1 member · 30 posts/mo"},
-                    {id:"professional", name:"Professional", price:"$99", desc:"10 accounts · 5 members · 100 posts/mo", popular:true},
-                    {id:"agency",       name:"Agency",       price:"$199",desc:"Unlimited accounts · 20 members · unlimited posts"},
+                    {id:"starter",      name:"Essential",    monthly:49,  annual:39,  desc:"3 accounts · 1 member · 30 posts/mo"},
+                    {id:"professional", name:"Professional", monthly:99,  annual:79,  desc:"10 accounts · 5 members · 100 posts/mo", popular:true},
+                    {id:"agency",       name:"Enterprise",   monthly:199, annual:159, desc:"Unlimited accounts · 20 members · unlimited posts"},
                   ].map(p=>(
                     <div key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{background:selectedPlan===p.id?"rgba(79,110,247,0.1)":th.card,border:`1.5px solid ${selectedPlan===p.id?th.accent:th.border}`,borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all 0.15s"}}>
                       <div>
@@ -2902,8 +2901,9 @@ function AuthPage() {
                         <div style={{fontSize:11,color:th.text2,marginTop:2}}>{p.desc}</div>
                       </div>
                       <div style={{textAlign:"right"}}>
-                        <div style={{fontSize:18,fontWeight:800,color:th.accent}}>{p.price}</div>
-                        <div style={{fontSize:10,color:th.text2}}>/month</div>
+                        <div style={{fontSize:18,fontWeight:800,color:th.accent}}>${billingPeriod==="annual"?p.annual:p.monthly}</div>
+                        <div style={{fontSize:10,color:th.text2}}>/mo{billingPeriod==="annual"?" · billed yearly":""}</div>
+                        {billingPeriod==="annual"&&<div style={{fontSize:9,color:"#10B981",marginTop:2}}>Save ${(p.monthly-p.annual)*12}/yr</div>}
                       </div>
                     </div>
                   ))}
@@ -2987,25 +2987,51 @@ export default function TawasloApp() {
   const [showLanding, setShowLanding] = useState(true);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
-  const [mode,      setMode]      = useState(()=>sessionStorage.getItem('tw_mode')||"owner");
+  const [mode,      setMode]      = useState("agency");
   const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
-  const [selClient, setSelClient] = useState(CLIENTS[0]);
+  const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
+  const [userEmail, setUserEmail] = useState(null);
+  const [clients,   setClients]   = useState([]);
+  const [accountType, setAccountType] = useState("agency");
+  const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
+  const isAdminUser = userEmail === ADMIN_EMAIL;
+
+  // Load the signed-in user's real brands + decide which app (client vs admin) to show
+  const loadWorkspace = async (user) => {
+    setUserEmail(user.email || null);
+    const { data: prof } = await getProfile(user.id);
+    setAccountType(prof?.account_type || "agency");
+    await ensureOctoFusionClient(user.id);
+    const { data: rows } = await getClients(user.id);
+    const norm = (rows || []).map(c => ({
+      ...c,
+      free: c.is_free ?? false,
+      accounts: c.accounts ?? 0,
+      posts: c.posts ?? 0,
+      reach: c.reach ?? "—",
+      health: c.health ?? 100,
+      spend: c.spend ?? 0,
+    }));
+    setClients(norm);
+    if (norm.length) setSelClient(norm[0]);
+    const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
+    setMode(onAdminHost && user.email === ADMIN_EMAIL ? "owner" : "agency");
+  };
 
   // Restore session on load
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setIsAuthed(true);
-        // Ensure Octo Fusion client exists in DB
-        ensureOctoFusionClient(session.user.id);
+        loadWorkspace(session.user);
       }
       setAuthReady(true);
     });
     // Listen for auth changes (e.g. email confirmation callback)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsAuthed(!!session?.user);
-      if (session?.user) ensureOctoFusionClient(session.user.id);
+      if (session?.user) loadWorkspace(session.user);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -3022,6 +3048,8 @@ export default function TawasloApp() {
     mode, setMode: saveMode,
     page, setPage: savePage,
     selClient, setSelClient,
+    clients, setClients,
+    accountType,
   };
 
   const renderPage = () => {
@@ -3049,6 +3077,21 @@ export default function TawasloApp() {
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
+
+  // admin.tawaslo.com is the private Super Admin console — only the admin email may enter
+  if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:900,marginBottom:8}}>Restricted area</div>
+            <div style={{fontSize:13,color:th.text2,marginBottom:18}}>This is the Tawaslo admin console. Your account doesn't have access.</div>
+            <a href="https://www.tawaslo.com" style={{color:th.accent,fontSize:13,fontWeight:700,textDecoration:"none"}}>Go to your dashboard →</a>
+          </div>
+        </div>
+      </AppCtx.Provider>
+    );
+  }
 
   if (showLanding && !isAuthed) {
     return (

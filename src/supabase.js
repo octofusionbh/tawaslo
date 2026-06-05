@@ -171,7 +171,7 @@ export const createInitialClient = async (ownerId, companyName, plan, accountTyp
     .eq('owner_id', ownerId)
     .limit(1);
   if (existingArr && existingArr.length > 0) return { data: existingArr[0] };
-  const planLabel = plan === 'starter' ? 'Starter' : plan === 'agency' ? 'Agency' : 'Professional';
+  const planLabel = plan === 'starter' ? 'Essential' : plan === 'agency' ? 'Enterprise' : 'Professional';
   const { data, error } = await supabase
     .from('clients')
     .insert([{
