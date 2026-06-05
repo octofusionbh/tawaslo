@@ -12,11 +12,16 @@ export default async function handler(req, res) {
   try {
     if (type === 'comments') {
       // Fetch recent media then get comments on each
+      // Check account info first
+      const meRes = await fetch(`${base}/me?fields=id,username&access_token=${accessToken}`);
+      const meData = await meRes.json();
+      console.log('Account:', JSON.stringify(meData));
+
       const mediaRes = await fetch(
         `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
       );
       const mediaData = await mediaRes.json();
-      console.log('Media result:', JSON.stringify(mediaData).substring(0, 500));
+      console.log('Media result:', JSON.stringify(mediaData).substring(0, 800));
       if (mediaData.error) return res.status(400).json({ error: mediaData.error.message, debug: { accountId, base, mediaError: mediaData.error } });
 
       const comments = [];
