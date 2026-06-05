@@ -153,7 +153,7 @@ function Sidebar() {
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Calendar,        label:"Publisher", badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
-      {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:7   },
+      {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
       {key:"listening", Icon:Activity,        label:"Listening", badge:null},
     ]},
     {section:"Create", items:[
@@ -1494,18 +1494,27 @@ function InboxPage() {
   const [realClientId, setRealClientId] = useState(null);
 
   useEffect(() => {
+    console.log('[Inbox] selClient:', selClient?.name);
     if (!selClient?.name) return;
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
+      .then(({ data, error }) => {
+        console.log('[Inbox] clients result:', data, error);
+        if (data?.[0]) setRealClientId(data[0].id);
+      });
   }, [selClient]);
 
   useEffect(() => {
+    console.log('[Inbox] realClientId:', realClientId);
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data }) => { if (data) setAccounts(data); });
+      .then(({ data, error }) => {
+        console.log('[Inbox] accounts result:', data, error);
+        if (data) setAccounts(data);
+      });
   }, [realClientId]);
 
   useEffect(() => {
+    console.log('[Inbox] accounts:', accounts.length);
     if (accounts.length === 0) return;
     fetchInbox();
   }, [accounts]);
