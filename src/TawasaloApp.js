@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, ensureOctoFusionClient } from './supabase';
+import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, ensureOctoFusionClient, getProfile, updateProfile } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -2135,6 +2135,42 @@ function SettingsPage() {
   const { dark, setDark, lang, setLang } = useApp();
   const th = dark ? DARK : LIGHT;
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [userId, setUserId] = useState(null);
+  const [agencyName, setAgencyName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [website, setWebsite] = useState("");
+
+  // Load the signed-in user's profile from Supabase
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !active) { setLoading(false); return; }
+      setUserId(user.id);
+      const { data: profile } = await getProfile(user.id);
+      if (!active) return;
+      setAgencyName(profile?.company_name || profile?.name || "");
+      setContactEmail(profile?.email || user.email || "");
+      setWebsite(profile?.website || "");
+      setLoading(false);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const handleSave = async () => {
+    if (!userId || saving) return;
+    setSaving(true); setErr("");
+    const { error } = await updateProfile(userId, { company_name: agencyName, email: contactEmail });
+    await updateProfile(userId, { website });
+    setSaving(false);
+    if (error) { setErr(error.message || "Could not save. Please try again."); return; }
+    setSaved(true); setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const fieldStyle = {width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box"};
 
   return (
     <div style={{padding:"28px 32px", maxWidth:700}}>
@@ -2168,15 +2204,22 @@ function SettingsPage() {
         <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
           <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Agency Info</div>
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            {[["Agency Name","Octo Fusion"],["Contact Email","theoctopus.bh@gmail.com"],["Website","tawaslo.com"]].map(([label,val]) => (
-              <div key={label}>
-                <div style={{fontSize:11, color:th.text2, marginBottom:4}}>{label}</div>
-                <input defaultValue={val} style={{width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box"}}/>
-              </div>
-            ))}
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Agency Name</div>
+              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?"Loading…":"Your agency name"} style={fieldStyle}/>
+            </div>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Contact Email</div>
+              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
+            </div>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Website</div>
+              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?"Loading…":"yoursite.com"} style={fieldStyle}/>
+            </div>
           </div>
-          <button onClick={()=>{setSaved(true); setTimeout(()=>setSaved(false),2000);}} style={{marginTop:16, padding:"10px 24px", borderRadius:8, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>
-            {saved?"✓ Saved!":"Save Changes"}
+          {err && <div style={{marginTop:10, fontSize:12, color:th.danger}}>{err}</div>}
+          <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:8, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
+            {saved?"✓ Saved!":saving?"Saving…":"Save Changes"}
           </button>
         </div>
         <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
