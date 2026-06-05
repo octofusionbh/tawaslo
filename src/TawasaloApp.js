@@ -2894,4 +2894,152 @@ function AuthPage() {
                     </div>
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <
+                    <button onClick={()=>{setSignupStep(2);setError("");}} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
+                    <button onClick={handleSignUp} disabled={loading} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                      {loading?"Creating…":"Create workspace"} {!loading&&<ChevronRight size={15}/>}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 4 — Success */}
+              {signupStep===4&&(
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div style={{width:60,height:60,borderRadius:"50%",background:"rgba(16,185,129,0.15)",border:"1.5px solid rgba(16,185,129,0.3)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px"}}>
+                    <CheckCircle size={28} color="#10B981"/>
+                  </div>
+                  <h1 style={{margin:"0 0 10px",fontSize:22,fontWeight:900}}>Your workspace is live!</h1>
+                  <p style={{fontSize:13,color:th.text2,lineHeight:1.7,marginBottom:24}}>Welcome email sent to your inbox.<br/>Confirm your email and sign in to get started.</p>
+                  <button onClick={()=>{setAuthPage("login");setSignupStep(1);setError("");}} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>
+                    Go to sign in
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {authPage==="forgot"&&(
+            <>
+              <div style={{marginBottom:28}}>
+                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Reset password</h1>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>We'll send a reset link to your email</p>
+              </div>
+              {inp("Your email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
+              <button onClick={handleReset} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                {loading?"Sending…":"Send reset link"} {!loading&&<ChevronRight size={15}/>}
+              </button>
+              <button onClick={()=>{setAuthPage("login");setError("");setSuccess("");}} style={{width:"100%",padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+                <ArrowLeft size={13}/>Back to sign in
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function TawasloApp() {
+  const [dark,      setDark]      = useState(true);
+  const [lang,      setLang]      = useState("en");
+  const [showLanding, setShowLanding] = useState(true);
+  const [isAuthed,  setIsAuthed]  = useState(false);
+  const [authPage,  setAuthPage]  = useState("login");
+  const [mode,      setMode]      = useState(()=>sessionStorage.getItem('tw_mode')||"owner");
+  const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
+  const [selClient, setSelClient] = useState(CLIENTS[0]);
+  const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
+
+  // Restore session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setIsAuthed(true);
+        // Ensure Octo Fusion client exists in DB
+        ensureOctoFusionClient(session.user.id);
+      }
+      setAuthReady(true);
+    });
+    // Listen for auth changes (e.g. email confirmation callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthed(!!session?.user);
+      if (session?.user) ensureOctoFusionClient(session.user.id);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const th = dark ? DARK : LIGHT;
+
+  const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
+  const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
+
+  const ctx = {
+    dark, setDark, lang, setLang,
+    isAuthed, setIsAuthed,
+    authPage, setAuthPage,
+    mode, setMode: saveMode,
+    page, setPage: savePage,
+    selClient, setSelClient,
+  };
+
+  const renderPage = () => {
+    if (mode==="owner") {
+      if (page==="overview") return <OwnerDashboard/>;
+      return <Placeholder icon={Settings} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is coming soon."/>;
+    }
+    if (page==="dashboard") return <AgencyDashboard/>;
+    if (page==="social") return <SocialAccountsPage/>;
+    if (page==="publisher") return <PublisherPage/>;
+    if (page==="analytics") return <AnalyticsPage/>;
+    if (page==="ads") return <AdsPage/>;
+    if (page==="reports") return <ReportsPage/>;
+    if (page==="inbox") return <InboxPage/>;
+    if (page==="agencyteam") return <TeamPage/>;
+    if (page==="billing") return <BillingPage/>;
+    if (page==="agencysets") return <SettingsPage/>;
+    const icons = {
+      streams:Radio, listening:Activity,
+      campaigns:Megaphone, aistudio:Wand2, media:Image,
+    };
+    const Icon = icons[page]||Settings;
+    return <Placeholder icon={Icon} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This page is being connected. Full version ready — linking it now."/>;
+  };
+
+  // Don't render anything until we've checked the session
+  if (!authReady) return null;
+
+  if (showLanding && !isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <LandingPage onGetStarted={()=>setShowLanding(false)} onLogin={()=>setShowLanding(false)}/>
+      </AppCtx.Provider>
+    );
+  }
+
+  if (!isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <AuthPage/>
+      </AppCtx.Provider>
+    );
+  }
+
+  return (
+    <AppCtx.Provider value={ctx}>
+      <div style={{
+        display:"flex", height:"100vh",
+        background:th.bg, color:th.text,
+        fontFamily:"'Sora','DM Sans','Segoe UI',sans-serif",
+        direction:lang==="ar"?"rtl":"ltr",
+        transition:"all 0.3s", overflow:"hidden",
+      }}>
+        <Sidebar/>
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <Topbar/>
+          <div style={{flex:1,overflowY:"auto",padding:22}}>
+            {renderPage()}
+          </div>
+        </div>
+      </div>
+    </AppCtx.Provider>
+  );
+}
