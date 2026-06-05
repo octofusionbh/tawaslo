@@ -1552,6 +1552,7 @@ function InboxPage() {
           body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, type: 'comments' }),
         });
         const data = await res.json();
+        console.log('[Inbox] API response:', JSON.stringify(data));
         if (data.data) allMessages.push(...data.data.map(m => ({ ...m, accountName: acc.account_name })));
       } catch(e) { console.warn('Inbox fetch error:', e); }
     }
