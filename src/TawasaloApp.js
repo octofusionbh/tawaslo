@@ -1326,130 +1326,169 @@ function AnalyticsPage() {
   const totalFollowers = accounts.reduce((s,a) => s + (a.followers_count||0), 0);
   const data = selectedAcc ? analyticsData[selectedAcc.id] : null;
 
-  const statCard = (label, value, sub, color) => (
-    <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-      <div style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:0.5}}>{label}</div>
-      <div style={{fontSize:26, fontWeight:900, color: color || th.text}}>{value}</div>
-      {sub && <div style={{fontSize:11, color:th.text2, marginTop:4}}>{sub}</div>}
+  const sparkPath = (vals, w, h, close) => {
+    if (!vals || vals.length < 2) return "";
+    const max = Math.max(...vals, 1), min = Math.min(...vals, 0), rng = (max - min) || 1;
+    const pts = vals.map((v,i) => [ (i/(vals.length-1))*w, h - ((v-min)/rng)*(h-3) - 2 ]);
+    let d = "M" + pts.map(pt => pt[0].toFixed(1)+","+pt[1].toFixed(1)).join(" L");
+    if (close) d += " L"+w+","+h+" L0,"+h+" Z";
+    return d;
+  };
+  const pct = (n,d) => d>0 ? Math.round((n/d)*1000)/10 : 0;
+  const reachSeries = (data?.chartData||[]).map(d => d.reach||0);
+  const imprSeries  = (data?.chartData||[]).map(d => d.impressions||0);
+  const engRate = data?.summary?.engagementRate || 0;
+  const engFrac = Math.min(engRate/20, 1);
+  const ringC = 2*Math.PI*32;
+  const typeLabels = { IMAGE:"Photo", VIDEO:"Video", CAROUSEL_ALBUM:"Carousel", REELS:"Reels" };
+  const typeColors = { IMAGE:"#2DD4BF", VIDEO:"#A78BFA", CAROUSEL_ALBUM:"#4F6EF7", REELS:"#7C3AED" };
+  const typeCounts = (data?.recentPosts||[]).reduce((m,pp)=>{ const t=pp.type||"IMAGE"; m[t]=(m[t]||0)+1; return m; },{});
+  const mixTotal = Object.values(typeCounts).reduce((a,b)=>a+b,0) || 0;
+  const DC = 2*Math.PI*44;
+  let _acc = 0;
+  const mixSegs = Object.entries(typeCounts).map(([t,n])=>{ const frac=mixTotal?n/mixTotal:0; const seg={ t, color:typeColors[t]||th.accent, label:typeLabels[t]||t, pctVal:Math.round(frac*100), dash:frac*DC, offset:-_acc*DC }; _acc+=frac; return seg; });
+  const topPosts = [...(data?.recentPosts||[])].sort((a,b)=>(b.likes+b.comments)-(a.likes+a.comments)).slice(0,5);
+  const maxEng = Math.max(1, ...topPosts.map(pp=>pp.likes+pp.comments));
+
+  const metric = (label, value, series, scolor) => (
+    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"15px 17px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+      <div style={{fontSize:11.5,color:th.text2,marginBottom:7}}>{label}</div>
+      <div style={{fontSize:23,fontWeight:600,letterSpacing:-0.5}}>{value}</div>
+      {series && series.length>1 && (
+        <svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none" style={{marginTop:8,display:"block"}}>
+          <path d={sparkPath(series,100,26,true)} fill={(scolor||th.accent)+"22"}/>
+          <path d={sparkPath(series,100,26,false)} fill="none" stroke={scolor||th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke"/>
+        </svg>
+      )}
     </div>
   );
 
   return (
     <div style={{padding:"28px 32px", maxWidth:1200}}>
-      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+      <div style={{marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12}}>
         <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Analytics</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Performance overview for {selClient?.name}</p>
+          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Analytics</h2>
+          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Performance overview &middot; {selClient?.name}</p>
         </div>
-        {igAccounts.length > 1 && (
-          <div style={{display:"flex", gap:8}}>
+        {igAccounts.length > 0 && (
+          <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
             {igAccounts.map(acc => (
-              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${selectedAcc?.id===acc.id?"#E1306C":th.border}`, background:selectedAcc?.id===acc.id?"rgba(225,48,108,0.1)":"transparent", color:selectedAcc?.id===acc.id?"#E1306C":th.text2, fontSize:11, fontWeight:600, cursor:"pointer"}}>
-                @{acc.username || acc.account_name}
+              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px", borderRadius:999, border:`1px solid ${selectedAcc?.id===acc.id?"#E1306C":th.border}`, background:selectedAcc?.id===acc.id?"rgba(225,48,108,0.1)":th.card, color:selectedAcc?.id===acc.id?"#E1306C":th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer"}}>
+                <FaInstagram/>@{acc.username || acc.account_name}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* Summary cards */}
-      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
-        {statCard("Total Followers", totalFollowers.toLocaleString(), `Across ${accounts.length} accounts`, th.accent)}
-        {statCard("Instagram", igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), `${igAccounts.length} account${igAccounts.length!==1?'s':''}`, "#E1306C")}
-        {statCard("Facebook Pages", fbAccounts.length.toString(), "Connected pages", "#1877F2")}
-        {statCard("Engagement Rate", data?.summary?.engagementRate ? `${data.summary.engagementRate}%` : "—", "Last 30 days", th.success)}
-      </div>
-
       {loading ? (
-        <div style={{textAlign:"center", padding:40, color:th.text2, fontSize:13}}>Loading analytics...</div>
+        <div style={{textAlign:"center", padding:48, color:th.text2, fontSize:13}}>Loading analytics&hellip;</div>
       ) : data?.error ? (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
-          <div style={{fontSize:13, color:th.danger, marginBottom:8}}>Could not load Instagram insights</div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+          <div style={{fontSize:13, color:th.danger, marginBottom:8, fontWeight:600}}>Could not load Instagram insights</div>
           <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>{data.error}</div>
-          <div style={{fontSize:12, color:th.text2, marginTop:8, lineHeight:1.6}}>Full analytics (reach, impressions, engagement) will be available after <strong style={{color:th.text}}>instagram_manage_insights</strong> permission is approved by Meta.</div>
+          <div style={{fontSize:12, color:th.text2, marginTop:8, lineHeight:1.6}}>Full analytics will be available after <strong style={{color:th.text}}>instagram_manage_insights</strong> is approved by Meta.</div>
         </div>
       ) : data ? (
         <>
-          {/* Instagram insights summary */}
-          <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:24}}>
-            {statCard("Reach (30d)", data.summary.totalReach.toLocaleString(), "Unique accounts reached", "#E1306C")}
-            {statCard("Impressions (30d)", data.summary.totalImpressions.toLocaleString(), "Total content views", "#A78BFA")}
-            {statCard("Profile Views", data.summary.totalProfileViews.toLocaleString(), "Last 30 days", th.accent)}
-            {statCard("Total Likes", data.summary.totalLikes.toLocaleString(), `On ${data.summary.postsAnalyzed} recent posts`, "#F59E0B")}
+          <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
+            {metric("Followers", (selectedAcc?.followers_count||totalFollowers).toLocaleString(), null, null)}
+            {metric("Reach (30d)", data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7")}
+            {metric("Impressions (30d)", data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA")}
+            {metric("Engagement", engRate+"%", null, null)}
           </div>
 
-          {/* Reach & Impressions chart */}
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
-            <div style={{fontSize:13, fontWeight:700, marginBottom:4}}>Reach &amp; Impressions — last 30 days</div>
-            <div style={{fontSize:11, color:th.text2, marginBottom:16}}>Daily reach vs impressions trend</div>
-            <InsightChart chartData={data.chartData} dark={dark}/>
-          </div>
-
-          {/* Top performing post */}
-          {data.recentPosts.length > 0 && (() => {
-            const top = [...data.recentPosts].sort((a,b) => (b.likes+b.comments) - (a.likes+a.comments))[0];
-            return (
-              <div style={{background:th.card, border:`1px solid ${th.accent}40`, borderRadius:14, overflow:"hidden", marginBottom:16, display:"flex"}}>
-                {top.thumbnail ? (
-                  <img src={top.thumbnail} alt="" style={{width:200, minWidth:200, objectFit:"cover", display:"block"}} onError={e=>{e.target.style.display="none"; e.target.nextSibling && (e.target.nextSibling.style.display="flex");}}/>
-                ) : null}
-                {!top.thumbnail && (
-                  <div style={{width:200, minWidth:200, background:`linear-gradient(135deg,${th.accentSoft},rgba(124,58,237,0.1))`, display:"flex", alignItems:"center", justifyContent:"center", color:th.accent, fontSize:32}}>📸</div>
-                )}
-                <div style={{flex:1, padding:20, display:"flex", flexDirection:"column", justifyContent:"space-between"}}>
-                  <div>
-                    <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
-                      <svg width="22" height="22" viewBox="0 0 32 32" fill="none">
-                        <path d="M5 26H27" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M8 26V18" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M15 26V13" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M22 26V8" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round"/>
-                        <path d="M8 15L14 10L19 12L24 6" stroke="#4F6EF7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M24 4.5L25.1 6.8L27.6 7.15L25.8 8.95L26.25 11.45L24 10.25L21.75 11.45L22.2 8.95L20.4 7.15L22.9 6.8L24 4.5Z" stroke="#4F6EF7" strokeWidth="1.6" strokeLinejoin="round"/>
-                      </svg>
-                      <div style={{fontSize:12, fontWeight:700, color:th.accent}}>Top Performing Post</div>
-                    </div>
-                    <div style={{fontSize:12, color:th.text, lineHeight:1.8}}>{top.caption || '(No caption)'}</div>
-                  </div>
-                  <div style={{display:"flex", gap:24, marginTop:16}}>
-                    <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.likes.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Likes</div></div>
-                    <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.comments.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Comments</div></div>
-                    {top.reach > 0 && <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.reach.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Reach</div></div>}
-                    {top.saved > 0 && <div><div style={{fontSize:20, fontWeight:900, color:th.text}}>{top.saved.toLocaleString()}</div><div style={{fontSize:10, color:th.text2}}>Saved</div></div>}
-                  </div>
+          <div style={{display:"grid", gridTemplateColumns:"1.7fr 1fr", gap:16, marginBottom:14}}>
+            <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div style={{fontSize:13.5,fontWeight:600}}>Reach &amp; impressions</div>
+                <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
+                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>Reach</span>
+                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#A78BFA",display:"inline-block"}}/>Impressions</span>
                 </div>
               </div>
-            );
-          })()}
-
-          {/* Recent posts grid */}
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
-            <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Recent posts performance</div>
-            {data.recentPosts.length === 0 ? (
-              <div style={{color:th.text2, fontSize:13}}>No recent posts found.</div>
-            ) : (
-              <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12}}>
-                {data.recentPosts.map(post => (
-                  <div key={post.id} style={{background:th.card2, borderRadius:10, overflow:"hidden", border:`1px solid ${th.border}`}}>
-                    {post.thumbnail && <img src={post.thumbnail} alt="" style={{width:"100%", height:"auto", display:"block"}} onError={e=>e.target.style.display="none"}/>}
-                    <div style={{padding:12}}>
-                      <div style={{fontSize:11, color:th.text2, marginBottom:8, lineHeight:1.6}}>{post.caption || '(No caption)'}</div>
-                      <div style={{display:"flex", gap:12}}>
-                        <div style={{fontSize:11}}><span style={{color:th.text2}}>❤️</span> <strong style={{color:th.text}}>{post.likes}</strong></div>
-                        <div style={{fontSize:11}}><span style={{color:th.text2}}>💬</span> <strong style={{color:th.text}}>{post.comments}</strong></div>
-                        {post.reach > 0 && <div style={{fontSize:11}}><span style={{color:th.text2}}>👁</span> <strong style={{color:th.text}}>{post.reach.toLocaleString()}</strong></div>}
-                      </div>
+              {reachSeries.length>1 ? (
+                <svg viewBox="0 0 520 160" style={{width:"100%",height:"auto",display:"block"}}>
+                  <line x1="0" y1="40" x2="520" y2="40" stroke={th.border}/>
+                  <line x1="0" y1="100" x2="520" y2="100" stroke={th.border}/>
+                  <path d={sparkPath(imprSeries,520,150,true)} fill="rgba(167,139,250,0.10)"/>
+                  <path d={sparkPath(imprSeries,520,150,false)} fill="none" stroke="#A78BFA" strokeWidth="2.5" strokeLinecap="round"/>
+                  <path d={sparkPath(reachSeries,520,150,true)} fill="rgba(79,110,247,0.12)"/>
+                  <path d={sparkPath(reachSeries,520,150,false)} fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
+              ) : (
+                <div style={{fontSize:12,color:th.text2,padding:"30px 0",textAlign:"center"}}>Daily trend appears once insights data is available.</div>
+              )}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>Engagement rate</div>
+                <div style={{display:"flex",alignItems:"center",gap:14}}>
+                  <svg viewBox="0 0 80 80" width="68" height="68">
+                    <circle cx="40" cy="40" r="32" fill="none" stroke={th.border} strokeWidth="8"/>
+                    <circle cx="40" cy="40" r="32" fill="none" stroke="#4F6EF7" strokeWidth="8" strokeDasharray={`${engFrac*ringC} ${ringC}`} strokeLinecap="round" transform="rotate(-90 40 40)"/>
+                  </svg>
+                  <div><div style={{fontSize:22,fontWeight:600}}>{engRate}%</div><div style={{fontSize:10.5,color:th.text2}}>per post avg</div></div>
+                </div>
+              </div>
+              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+                <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Content mix</div>
+                {mixTotal>0 ? (
+                  <div style={{display:"flex",alignItems:"center",gap:14}}>
+                    <svg viewBox="0 0 120 120" width="78" height="78">
+                      <circle cx="60" cy="60" r="44" fill="none" stroke={th.border} strokeWidth="13"/>
+                      {mixSegs.map(sg => (
+                        <circle key={sg.t} cx="60" cy="60" r="44" fill="none" stroke={sg.color} strokeWidth="13" strokeDasharray={`${sg.dash} ${DC-sg.dash}`} strokeDashoffset={sg.offset} transform="rotate(-90 60 60)"/>
+                      ))}
+                      <text x="60" y="57" textAnchor="middle" fill={th.text} fontSize="16" fontWeight="500" fontFamily="sans-serif">{mixTotal}</text>
+                      <text x="60" y="73" textAnchor="middle" fill={th.text2} fontSize="9" fontFamily="sans-serif">posts</text>
+                    </svg>
+                    <div style={{fontSize:10.5,color:th.text2,lineHeight:1.9}}>
+                      {mixSegs.map(sg => <div key={sg.t}><span style={{color:sg.color}}>&#9679;</span> {sg.label} {sg.pctVal}%</div>)}
                     </div>
                   </div>
-                ))}
+                ) : (
+                  <div style={{fontSize:11.5,color:th.text2,padding:"14px 0"}}>No posts in range.</div>
+                )}
               </div>
+            </div>
+          </div>
+
+          <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
+            <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontSize:13,fontWeight:600}}>Top performing posts</div>
+            {topPosts.length===0 ? (
+              <div style={{padding:20,fontSize:12.5,color:th.text2}}>No posts found.</div>
+            ) : (
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"9px 18px",borderBottom:`1px solid ${th.border}`,fontSize:10,color:th.text3,letterSpacing:0.5,textTransform:"uppercase"}}>
+                  <div>Post</div><div style={{textAlign:"right"}}>Reach</div><div style={{textAlign:"right"}}>Likes</div><div style={{textAlign:"right"}}>Eng. rate</div>
+                </div>
+                {topPosts.map((pp,idx) => {
+                  const eng = pp.likes+pp.comments;
+                  const er = pp.reach>0 ? pct(eng,pp.reach) : null;
+                  return (
+                    <div key={pp.id||idx} style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"12px 18px",borderBottom:idx<topPosts.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+                        {pp.thumbnail ? <img src={pp.thumbnail} alt="" style={{width:42,height:42,borderRadius:9,objectFit:"cover",flexShrink:0}} onError={e=>{e.target.style.display="none";}}/> : <div style={{width:42,height:42,borderRadius:9,background:th.gradient,flexShrink:0}}/>}
+                        <div style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pp.caption||"(No caption)"}</div>
+                      </div>
+                      <div style={{textAlign:"right",fontSize:12.5}}>{pp.reach>0?pp.reach.toLocaleString():"—"}</div>
+                      <div style={{textAlign:"right",fontSize:12.5}}>{pp.likes.toLocaleString()}</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
+                        <div style={{width:46,height:6,borderRadius:3,background:th.border}}><div style={{width:`${Math.round((eng/maxEng)*100)}%`,height:"100%",borderRadius:3,background:th.accent}}/></div>
+                        <span style={{fontSize:12,color:er!=null?th.success:th.text2,minWidth:32,textAlign:"right"}}>{er!=null?er+"%":"—"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
             )}
           </div>
         </>
       ) : (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:8}}>Instagram Analytics</div>
-          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Connect an Instagram Business account to see detailed analytics including reach, impressions, and post performance.</div>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+          <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>Instagram Analytics</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Connect an Instagram Business account to see reach, impressions, content mix, and post performance.</div>
         </div>
       )}
     </div>
