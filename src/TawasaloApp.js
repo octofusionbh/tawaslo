@@ -1271,6 +1271,101 @@ function InsightChart({ chartData, dark }) {
   );
 }
 
+function TrendingPage() {
+  const { setPage, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [region, setRegion] = useState("worldwide");
+  const [platform, setPlatform] = useState("all");
+  const [regionOpen, setRegionOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState(true);
+
+  const REGIONS = [
+    { id:"worldwide", label:"Worldwide", flag:"\uD83C\uDF0D" },
+    { id:"gcc", label:"GCC", flag:"\uD83C\uDF0D" },
+    { id:"bahrain", label:"Bahrain", flag:"\uD83C\uDDE7\uD83C\uDDED" },
+    { id:"saudi", label:"Saudi Arabia", flag:"\uD83C\uDDF8\uD83C\uDDE6" },
+    { id:"uae", label:"United Arab Emirates", flag:"\uD83C\uDDE6\uD83C\uDDEA" },
+    { id:"usa", label:"United States", flag:"\uD83C\uDDFA\uD83C\uDDF8" },
+  ];
+  const curRegion = REGIONS.find(r=>r.id===region) || REGIONS[0];
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetch(`/api/trends?region=${region}&platform=${platform}`)
+      .then(r=>r.json())
+      .then(d=>{ if(!active) return; setConnected(d.connected!==false); setItems(d.items||[]); setLoading(false); })
+      .catch(()=>{ if(active) setLoading(false); });
+    return ()=>{ active=false; };
+  }, [region, platform]);
+
+  const fmt = (n) => n>=1000000 ? (n/1000000).toFixed(1)+"M" : n>=1000 ? (n/1000).toFixed(1)+"K" : String(n||0);
+
+  return (
+    <div style={{padding:"28px 32px", maxWidth:1200}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
+        <div>
+          <h2 style={{margin:0,fontSize:20,fontWeight:600,letterSpacing:-0.3}}>Trending now</h2>
+          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>Showing trends for {curRegion.label} &middot; TikTok &amp; Instagram</p>
+        </div>
+        <div style={{position:"relative"}}>
+          <button onClick={()=>setRegionOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"9px 14px",cursor:"pointer",color:th.text,fontSize:13}}>
+            <span>{curRegion.flag}</span> {curRegion.label} <ChevronDown size={15} color={th.text2}/>
+          </button>
+          {regionOpen&&(
+            <div style={{position:"absolute",top:"115%",right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 16px 44px rgba(0,0,0,0.55)",padding:6,minWidth:220}}>
+              {REGIONS.map(r=>(
+                <div key={r.id} onClick={()=>{setRegion(r.id);setRegionOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:region===r.id?th.accentSoft:"transparent",color:region===r.id?th.accent:th.text,fontSize:12.5}}>
+                  <span>{r.flag}</span> {r.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:"flex",gap:7,marginBottom:16}}>
+        {[["all","All"],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
+          <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
+        ))}
+      </div>
+
+      {!connected ? (
+        <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:18,padding:32,textAlign:"center"}}>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>Connect your trends source</div>
+          <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,maxWidth:460,margin:"0 auto"}}>Add your EnsembleData API token in Vercel as the environment variable <strong style={{color:th.text}}>ENSEMBLE_TOKEN</strong> to start pulling live TikTok &amp; Instagram trends here.</div>
+        </div>
+      ) : loading ? (
+        <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>Loading trends&hellip;</div>
+      ) : items.length===0 ? (
+        <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>No trends found right now &mdash; try another region.</div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
+          {items.map((it,i)=>(
+            <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.32)"}}>
+              <div style={{position:"relative",height:150,background:th.gradient}}>
+                {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
+                <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":"Instagram"}</span>
+                <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?fmt(it.views)+" views":fmt(it.likes)+" likes"}</span>
+              </div>
+              <div style={{padding:"11px 13px"}}>
+                <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||"(no caption)"}</div>
+                <div style={{fontSize:10.5,color:th.text2,margin:"6px 0 9px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.author}</div>
+                <div style={{display:"flex",gap:7}}>
+                  <a href={it.url} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"7px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>View</a>
+                  <button onClick={()=>setPage("publisher")} style={{flex:1.3,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:"#fff",background:th.gradient,border:"none",borderRadius:9,padding:"7px",cursor:"pointer"}}><Sparkles size={13}/>Create post</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnalyticsPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -3127,6 +3222,7 @@ export default function TawasloApp() {
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
     if (page==="inbox") return <InboxPage/>;
+    if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
     if (page==="billing") return <BillingPage/>;
     if (page==="agencysets") return <SettingsPage/>;
