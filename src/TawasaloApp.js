@@ -6,7 +6,7 @@ import {
   Heart, Bookmark, TrendingUp, Eye, CheckCircle, Circle,
   Download, ArrowUpRight, ArrowDownRight, Inbox, Star,
   Target, PieChart, Activity, UserPlus, Building2, FileText,
-  CreditCard, LogOut, ChevronRight, ChevronDown,
+  CreditCard, LogOut, ChevronRight, ChevronLeft, ChevronDown,
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw,
@@ -155,7 +155,8 @@ function Sidebar() {
   const AGENCY_NAV = [
     {section:"Manage", items:[
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
-      {key:"publisher", Icon:Calendar,        label:"Publisher", badge:null},
+      {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
+      {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
       {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
       {key:"listening", Icon:Activity,        label:"Listening", badge:null},
@@ -581,6 +582,181 @@ function AgencyDashboard() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CalendarPage() {
+  const { selClient, dark, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [view, setView] = useState("month");
+  const [cursor, setCursor] = useState(new Date());
+  const [posts, setPosts] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [realClientId, setRealClientId] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [dragId, setDragId] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  const reschedule = async (postId, targetDate) => {
+    if (!postId) return;
+    const pp = posts.find(x => x.id === postId); if (!pp) return;
+    const old = new Date(pp.scheduled_at);
+    const nd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), old.getHours(), old.getMinutes());
+    setPosts(prev => prev.map(x => x.id === postId ? { ...x, scheduled_at: nd.toISOString() } : x));
+    setDragId(null); setDragOver(null);
+    await supabase.from('posts').update({ scheduled_at: nd.toISOString() }).eq('id', postId);
+  };
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  const loadPosts = (cid) => {
+    const id = cid || realClientId; if (!id) return;
+    supabase.from('posts').select('*').eq('client_id', id).eq('status', 'scheduled').order('scheduled_at', { ascending: true })
+      .then(({ data }) => { if (data) setPosts(data.filter(p => p.scheduled_at)); });
+  };
+  useEffect(() => { if (realClientId) loadPosts(realClientId); }, [realClientId]);
+
+  const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text2,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text2,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const sameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const isToday = (d) => sameDay(d, new Date());
+  const postsOn = (d) => posts.filter(p => sameDay(new Date(p.scheduled_at), d)).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+  const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
+
+  const y = cursor.getFullYear(), m = cursor.getMonth();
+  const startDay = new Date(y, m, 1).getDay();
+  const gridStart = new Date(y, m, 1 - startDay);
+  const monthCells = Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
+  const wStart = new Date(cursor); wStart.setDate(cursor.getDate() - cursor.getDay());
+  const weekCells = Array.from({ length: 7 }, (_, i) => new Date(wStart.getFullYear(), wStart.getMonth(), wStart.getDate() + i));
+
+  const go = (dir) => {
+    if (view === "month") setCursor(new Date(y, m + dir, 1));
+    else { const d = new Date(cursor); d.setDate(cursor.getDate() + dir * 7); setCursor(d); }
+  };
+  const label = view === "month" ? `${MONTHS[m]} ${y}` : `${MONTHS[weekCells[0].getMonth()]} ${weekCells[0].getDate()} – ${MONTHS[weekCells[6].getMonth()]} ${weekCells[6].getDate()}`;
+
+  const deletePost = async (id) => { await supabase.from('posts').delete().eq('id', id); setSelected(null); loadPosts(); };
+  const postNow = async (p) => {
+    setBusy("posting");
+    try {
+      const { data: accs } = await supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('account_id', p.account_id).limit(1);
+      const acc = accs && accs[0];
+      if (!acc) { setBusy("noacc"); return; }
+      const res = await fetch('/api/meta-publish', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption: p.caption, imageUrl: p.image_url }) });
+      const data = await res.json();
+      if (data.success) { await supabase.from('posts').delete().eq('id', p.id); setSelected(null); loadPosts(); setBusy(""); }
+      else setBusy("err:" + (data.error || "failed"));
+    } catch (e) { setBusy("err:" + e.message); }
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.3)" };
+  const chip = (p) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; return (
+    <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
+      {p.image_url ? <img src={p.image_url} alt="" style={{ width:16, height:16, borderRadius:4, objectFit:"cover", flexShrink:0 }}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
+      <span style={{ fontSize:9.5, color:info.color, fontWeight:600, flexShrink:0 }}>{fmtTime(p.scheduled_at)}</span>
+      <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || "(no caption)"}</span>
+    </div>
+  ); };
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Planner</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || "Your brand"} &middot; {posts.length} scheduled {posts.length===1?"post":"posts"} &middot; <span style={{ color:th.text3 }}>drag a post to reschedule</span></p>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
+            {[["month","Month"],["week","Week"]].map(([k,t])=>(
+              <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
+            ))}
+          </div>
+          <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>New post</button>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={()=>go(-1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronLeft size={16}/></button>
+          <button onClick={()=>go(1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronRight size={16}/></button>
+          <div style={{ fontSize:16, fontWeight:600, marginLeft:6 }}>{label}</div>
+        </div>
+        <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>Today</button>
+      </div>
+
+      <div style={{ ...card, overflow:"hidden" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:`1px solid ${th.border}` }}>
+          {DOW.map(d => <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, fontWeight:600, color:th.text2, letterSpacing:0.3 }}>{d}</div>)}
+        </div>
+        {view === "month" ? (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
+            {monthCells.map((d, i) => { const inMonth = d.getMonth() === m; const dayPosts = postsOn(d); const today = isToday(d);
+              return (
+                <div key={i} onClick={()=>{ setView("week"); setCursor(d); }} onDragOver={(e)=>{ if(dragId){ e.preventDefault(); setDragOver(d.toDateString()); } }} onDrop={(e)=>{ e.preventDefault(); reschedule(dragId, d); }} style={{ minHeight:108, padding:7, borderRight:(i%7!==6)?`1px solid ${th.border}`:"none", borderBottom:i<35?`1px solid ${th.border}`:"none", background:dragOver===d.toDateString()?th.accentSoft:(today?th.accentSoft:(inMonth?"transparent":th.bg)), boxShadow:dragOver===d.toDateString()?`inset 0 0 0 2px ${th.accent}`:"none", cursor:"pointer", opacity:inMonth?1:0.5, overflow:"hidden" }}>
+                  <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:5 }}>
+                    <span style={{ fontSize:11.5, fontWeight:today?700:500, color:today?"#fff":th.text2, background:today?th.accent:"transparent", width:22, height:22, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.getDate()}</span>
+                  </div>
+                  {dayPosts.slice(0,3).map(p => chip(p))}
+                  {dayPosts.length > 3 && <div style={{ fontSize:9.5, color:th.text2, paddingLeft:3 }}>+{dayPosts.length-3} more</div>}
+                </div>
+              ); })}
+          </div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", minHeight:440 }}>
+            {weekCells.map((d, i) => { const dayPosts = postsOn(d); const today = isToday(d);
+              return (
+                <div key={i} onDragOver={(e)=>{ if(dragId){ e.preventDefault(); setDragOver(d.toDateString()); } }} onDrop={(e)=>{ e.preventDefault(); reschedule(dragId, d); }} style={{ padding:9, borderRight:(i!==6)?`1px solid ${th.border}`:"none", background:dragOver===d.toDateString()?th.accentSoft:(today?th.accentSoft:"transparent"), boxShadow:dragOver===d.toDateString()?`inset 0 0 0 2px ${th.accent}`:"none" }}>
+                  <div style={{ textAlign:"center", marginBottom:9 }}>
+                    <div style={{ fontSize:10, color:th.text2 }}>{DOW[d.getDay()]}</div>
+                    <div style={{ fontSize:17, fontWeight:today?700:500, color:today?th.accent:th.text }}>{d.getDate()}</div>
+                  </div>
+                  {dayPosts.length === 0 ? <div onClick={()=>setPage("publisher")} style={{ textAlign:"center", fontSize:10, color:th.text3, padding:"14px 0", cursor:"pointer", border:`1px dashed ${th.border}`, borderRadius:8 }}>+ Add</div> : dayPosts.map(p => chip(p))}
+                </div>
+              ); })}
+          </div>
+        )}
+      </div>
+
+      {posts.length === 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginTop:18 }}>
+          {[["Start from scratch","Compose a fresh post for any platform",Edit3],["Repurpose top posts","Turn winning content into new posts",RefreshCw],["Get inspired","See what's trending right now",Sparkles]].map(([t,sub,Ic],i)=>(
+            <div key={i} onClick={()=> i===2 ? setPage("listening") : setPage("publisher")} style={{ ...card, padding:18, cursor:"pointer", boxShadow:"0 6px 20px rgba(0,0,0,0.22)" }}>
+              <div style={{ width:38, height:38, borderRadius:11, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:11 }}><Ic size={18} color={th.accent}/></div>
+              <div style={{ fontSize:13.5, fontWeight:600, marginBottom:4 }}>{t}</div>
+              <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.5 }}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; return (
+        <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
+              <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:16 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString([], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
+            {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
+            <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || "(no caption)"}</div>
+            {busy.startsWith("err") && <div style={{ fontSize:11.5, color:th.danger, marginBottom:10 }}>{busy.slice(4)}</div>}
+            {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>Connected account not found for this post.</div>}
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              <button onClick={()=>postNow(selected)} disabled={busy==="posting"} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:busy==="posting"?0.6:1 }}><Send size={15}/>{busy==="posting"?"Posting…":"Post now"}</button>
+              <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer" }}><Edit3 size={14}/>Edit in composer</button>
+              <button onClick={()=>deletePost(selected.id)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.dangerSoft, border:`1px solid ${th.danger}33`, color:th.danger, fontSize:13, cursor:"pointer" }}><XCircle size={14}/>Delete</button>
+            </div>
+          </div>
+        </div>
+      ); })()}
     </div>
   );
 }
@@ -3237,6 +3413,7 @@ export default function TawasloApp() {
     if (page==="dashboard") return <AgencyDashboard/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
+    if (page==="planner") return <CalendarPage/>;
     if (page==="analytics") return <AnalyticsPage/>;
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
