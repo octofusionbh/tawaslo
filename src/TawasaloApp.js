@@ -2250,6 +2250,8 @@ ${topPosts.length > 0 ? `<div class="page">
 function InboxPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
+  const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
+  const platOf = (m) => PLAT[m && m.platform] || PLAT.ig;
   const [accounts, setAccounts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -2265,12 +2267,12 @@ function InboxPage() {
 
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
   const SAMPLE = [
-    { id:'s1', from:'sara.alkhalifa', text:'This looks amazing 😍 where can I order from?', time:ago(8), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:14, replies:[], sample:true },
-    { id:'s2', from:'foodie.bahrain', text:'Came by yesterday — best service in Adliya 🙌', time:ago(42), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:31, replies:[{ id:'r1', username:'marinacafe', text:'Thank you so much! See you again soon 🤍' }], sample:true },
-    { id:'s3', from:'mohammed_q8', text:'هل يوجد توصيل للمنطقة؟ وكم سعر البرانش؟', time:ago(95), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:5, replies:[], sample:true },
-    { id:'s4', from:'lulwa.events', text:'Hi! Can you send me your catering & private events pricing?', time:ago(180), type:'dm', likeCount:0, replies:[], sample:true },
-    { id:'s5', from:'ahmed.alsayed', text:'Do you open early on Fridays? 🕌', time:ago(300), type:'comment', mediaCaption:'Ramadan timings', likeCount:2, replies:[], sample:true },
-    { id:'s6', from:'noor.designs', text:'Featured you in my story! Tag me back please 💛', time:ago(540), type:'dm', likeCount:0, replies:[], sample:true },
+    { id:'s1', platform:'ig', from:'sara.alkhalifa', text:'This looks amazing 😍 where can I order from?', time:ago(8), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:14, replies:[], sample:true },
+    { id:'s2', platform:'fb', from:'foodie.bahrain', text:'Came by yesterday — best service in Adliya 🙌', time:ago(42), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:31, replies:[{ id:'r1', username:'marinacafe', text:'Thank you so much! See you again soon 🤍' }], sample:true },
+    { id:'s3', platform:'ig', from:'mohammed_q8', text:'هل يوجد توصيل للمنطقة؟ وكم سعر البرانش؟', time:ago(95), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:5, replies:[], sample:true },
+    { id:'s4', platform:'ig', from:'lulwa.events', text:'Hi! Can you send me your catering & private events pricing?', time:ago(180), type:'dm', likeCount:0, replies:[], sample:true },
+    { id:'s5', platform:'fb', from:'ahmed.alsayed', text:'Do you open early on Fridays? 🕌', time:ago(300), type:'comment', mediaCaption:'Ramadan timings', likeCount:2, replies:[], sample:true },
+    { id:'s6', platform:'ig', from:'noor.designs', text:'Featured you in my story! Tag me back please 💛', time:ago(540), type:'dm', likeCount:0, replies:[], sample:true },
   ];
   const loadSample = () => { setSampleMode(true); setApiError(''); setMessages(SAMPLE); setSelected(SAMPLE[0]); };
   const exitSample = () => { setSampleMode(false); setMessages([]); setSelected(null); fetchInbox(); };
@@ -2421,15 +2423,16 @@ function InboxPage() {
               <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"14px 16px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:selected?.id===msg.id?th.accentSoft:"transparent", transition:"background 0.15s"}}>
                 <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}>
                   <div style={{fontSize:12, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6}}>
-                    <FaInstagram style={{color:"#E1306C", fontSize:10}}/>
+                    {(()=>{ const P=platOf(msg); return <P.Icon style={{color:P.color, fontSize:12}}/>; })()}
                     @{msg.from}
                   </div>
                   <div style={{fontSize:10, color:th.text2}}>{formatTime(msg.time)}</div>
                 </div>
                 <div style={{fontSize:11, color:th.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{msg.text}</div>
                 {msg.mediaCaption && <div style={{fontSize:9, color:th.text3, marginTop:3}}>On: {msg.mediaCaption}...</div>}
-                <div style={{marginTop:4, display:"flex", gap:4}}>
-                  <span style={{fontSize:9, fontWeight:700, color:"#E1306C", background:"rgba(225,48,108,0.1)", padding:"2px 6px", borderRadius:4}}>
+                <div style={{marginTop:5, display:"flex", gap:5, alignItems:"center", flexWrap:"wrap"}}>
+                  {(()=>{ const P=platOf(msg); return <span style={{fontSize:9, fontWeight:700, color:P.color, background:P.color+"22", padding:"2px 7px", borderRadius:5, display:"inline-flex", alignItems:"center", gap:4}}><P.Icon style={{fontSize:9}}/>{P.name}</span>; })()}
+                  <span style={{fontSize:9, fontWeight:700, color:th.text2, background:th.card2, padding:"2px 6px", borderRadius:5}}>
                     {msg.type === 'dm' ? 'DM' : 'Comment'}
                   </span>
                   {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:4}}>Sample</span>}
@@ -2443,12 +2446,16 @@ function InboxPage() {
             {selected ? (
               <>
                 <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16, paddingBottom:16, borderBottom:`1px solid ${th.border}`}}>
-                  <div style={{width:38, height:38, borderRadius:"50%", background:"rgba(225,48,108,0.15)", display:"flex", alignItems:"center", justifyContent:"center"}}>
-                    <FaInstagram style={{color:"#E1306C", fontSize:16}}/>
-                  </div>
+                  {(()=>{ const P=platOf(selected); return (
+                  <div style={{width:38, height:38, borderRadius:"50%", background:P.color+"26", display:"flex", alignItems:"center", justifyContent:"center"}}>
+                    <P.Icon style={{color:P.color, fontSize:17}}/>
+                  </div>); })()}
                   <div>
                     <div style={{fontSize:13, fontWeight:700, color:th.text}}>@{selected.from}</div>
-                    <div style={{fontSize:11, color:th.text2}}>Instagram {selected.type === 'dm' ? 'DM' : 'Comment'} · {formatTime(selected.time)}</div>
+                    <div style={{fontSize:11, color:th.text2, display:"flex", alignItems:"center", gap:5}}>
+                      <span style={{fontWeight:700, color:platOf(selected).color}}>{platOf(selected).name}</span>
+                      · {selected.type === 'dm' ? 'Direct message' : 'Comment'} · {formatTime(selected.time)}
+                    </div>
                   </div>
                 </div>
                 <div style={{flex:1, overflowY:"auto", marginBottom:16}}>
@@ -2603,10 +2610,11 @@ function SettingsPage() {
   const [agencyName, setAgencyName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [website, setWebsite] = useState("");
+  const [notif, setNotif] = useState({ email:true, published:true, weekly:true, engagement:true });
 
-  // Load the signed-in user's profile from Supabase
   useEffect(() => {
     let active = true;
+    try { const n = JSON.parse(localStorage.getItem('tw_notify')||'null'); if (n) setNotif(prev=>({ ...prev, ...n })); } catch (e) { /* ignore */ }
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user || !active) { setLoading(false); return; }
@@ -2631,63 +2639,104 @@ function SettingsPage() {
     setSaved(true); setTimeout(()=>setSaved(false), 2000);
   };
 
-  const fieldStyle = {width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box"};
+  const toggleNotif = (k) => setNotif(prev => { const next = { ...prev, [k]: !prev[k] }; try { localStorage.setItem('tw_notify', JSON.stringify(next)); } catch (e) { /* ignore */ } return next; });
+
+  const fieldStyle = {width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit"};
+  const card = {background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, boxShadow:"0 8px 24px rgba(0,0,0,0.22)"};
+  const secTitle = (Icon, txt) => (<div style={{display:"flex", alignItems:"center", gap:8, fontSize:13.5, fontWeight:700, marginBottom:16}}><Icon size={15} color={th.accent}/>{txt}</div>);
+  const Sw = ({on, onClick}) => (
+    <button onClick={onClick} style={{width:42, height:23, borderRadius:12, background:on?th.accent:th.border, border:"none", cursor:"pointer", position:"relative", flexShrink:0}}>
+      <div style={{position:"absolute", top:3, left:on?22:3, width:17, height:17, borderRadius:"50%", background:"#fff", transition:"left 0.2s"}}/>
+    </button>
+  );
+
+  const NOTIFS = [
+    ["email","Email notifications","Receive important account updates by email"],
+    ["published","Post published alerts","Get notified when a scheduled post goes live"],
+    ["engagement","Comments & DM alerts","Know when someone engages with your posts"],
+    ["weekly","Weekly report","A performance summary every Monday"],
+  ];
 
   return (
-    <div style={{padding:"28px 32px", maxWidth:700}}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Settings</h2>
-        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Account and app preferences</p>
+    <div style={{padding:"28px 32px", maxWidth:720}}>
+      <div style={{marginBottom:22}}>
+        <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Settings</h2>
+        <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Manage your account, preferences and support</p>
       </div>
       <div style={{display:"flex", flexDirection:"column", gap:16}}>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Appearance</div>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+
+        <div style={card}>
+          {secTitle(Building2, "Agency profile")}
+          <div style={{display:"flex", flexDirection:"column", gap:12}}>
             <div>
-              <div style={{fontSize:13}}>Dark Mode</div>
-              <div style={{fontSize:11, color:th.text2}}>Toggle between dark and light theme</div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Agency name</div>
+              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?"Loading…":"Your agency name"} style={fieldStyle}/>
             </div>
-            <button onClick={()=>setDark(!dark)} style={{width:44, height:24, borderRadius:12, background:dark?th.accent:th.border, border:"none", cursor:"pointer", position:"relative"}}>
-              <div style={{position:"absolute", top:3, left:dark?22:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left 0.2s"}}/>
-            </button>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Contact email</div>
+              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
+            </div>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Website</div>
+              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?"Loading…":"yoursite.com"} style={fieldStyle}/>
+            </div>
+          </div>
+          {err && <div style={{marginTop:10, fontSize:12, color:th.danger}}>{err}</div>}
+          <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
+            {saved?"✓ Saved":saving?"Saving…":"Save changes"}
+          </button>
+        </div>
+
+        <div style={card}>
+          {secTitle(Bell, "Notifications")}
+          <div style={{display:"flex", flexDirection:"column", gap:14}}>
+            {NOTIFS.map(([k,title,sub])=>(
+              <div key={k} style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12}}>
+                <div><div style={{fontSize:12.5}}>{title}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{sub}</div></div>
+                <Sw on={notif[k]} onClick={()=>toggleNotif(k)}/>
+              </div>
+            ))}
           </div>
         </div>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Language</div>
+
+        <div style={card}>
+          {secTitle(dark?Moon:Sun, "Appearance")}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+            <div><div style={{fontSize:12.5}}>Dark mode</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>Switch between dark and light theme</div></div>
+            <Sw on={dark} onClick={()=>setDark(!dark)}/>
+          </div>
+        </div>
+
+        <div style={card}>
+          {secTitle(Languages, "Language")}
           <div style={{display:"flex", gap:8}}>
             {["en","ar"].map(l => (
-              <button key={l} onClick={()=>setLang(l)} style={{padding:"8px 20px", borderRadius:8, border:`2px solid ${lang===l?th.accent:th.border}`, background:lang===l?th.accentSoft:"transparent", color:lang===l?th.accent:th.text2, fontSize:13, fontWeight:600, cursor:"pointer"}}>
+              <button key={l} onClick={()=>setLang(l)} style={{padding:"8px 22px", borderRadius:9, border:`1.5px solid ${lang===l?th.accent:th.border}`, background:lang===l?th.accentSoft:"transparent", color:lang===l?th.accent:th.text2, fontSize:13, fontWeight:600, cursor:"pointer"}}>
                 {l==="en"?"English":"العربية"}
               </button>
             ))}
           </div>
         </div>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:16}}>Agency Info</div>
-          <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Agency Name</div>
-              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?"Loading…":"Your agency name"} style={fieldStyle}/>
-            </div>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Contact Email</div>
-              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
-            </div>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:4}}>Website</div>
-              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?"Loading…":"yoursite.com"} style={fieldStyle}/>
-            </div>
+
+        <div style={card}>
+          {secTitle(MessageCircle, "Support & help")}
+          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>Questions, issues, or a feature idea? Our team is here to help. We typically reply within one business day.</div>
+          <div style={{display:"flex", alignItems:"center", gap:10, background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", marginBottom:12}}>
+            <div style={{width:38, height:38, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0}}><Mail size={17} color={th.accent}/></div>
+            <div style={{flex:1, minWidth:0}}><div style={{fontSize:11, color:th.text2}}>Support email</div><div style={{fontSize:13, fontWeight:600}}>support@tawaslo.com</div></div>
           </div>
-          {err && <div style={{marginTop:10, fontSize:12, color:th.danger}}>{err}</div>}
-          <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:8, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
-            {saved?"✓ Saved!":saving?"Saving…":"Save Changes"}
-          </button>
+          <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
+            <a href="mailto:support@tawaslo.com" style={{display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12.5, fontWeight:600, textDecoration:"none"}}><Mail size={14}/>Email support</a>
+            <a href="mailto:support@tawaslo.com?subject=Feature%20request" style={{display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, textDecoration:"none"}}><Sparkles size={14}/>Request a feature</a>
+          </div>
         </div>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:4}}>Danger Zone</div>
-          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>These actions cannot be undone.</div>
-          <button style={{padding:"8px 16px", borderRadius:8, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>Delete Account</button>
+
+        <div style={{...card, border:`1px solid ${th.danger}33`}}>
+          {secTitle(Shield, "Danger zone")}
+          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>These actions are permanent and cannot be undone.</div>
+          <button style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>Delete account</button>
         </div>
+
       </div>
     </div>
   );
