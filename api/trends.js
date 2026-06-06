@@ -85,6 +85,20 @@ export default async function handler(req, res) {
     return res.status(200).json({ connected: false, items: [], message: "ENSEMBLE_TOKEN not set in Vercel env vars." });
   }
 
+  // Temporary debug: returns the raw EnsembleData responses so the field shapes can be mapped exactly.
+  if (req.query && req.query.debug) {
+    const probe = async (url) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      try { const r = await fetch(url, { signal: ctrl.signal }); const body = await r.text(); return { status: r.status, body: body.slice(0, 2600) }; }
+      catch (e) { return { error: e.message }; }
+      finally { clearTimeout(t); }
+    };
+    const tt = await probe(`${ROOT}/tt/hashtag/posts?name=fyp&cursor=0&token=${token}`);
+    const ig = await probe(`${ROOT}/instagram/hashtag/posts?name=reels&cursor=&get_author_info=false&token=${token}`);
+    return res.status(200).json({ tiktok: tt, instagram: ig });
+  }
+
   const region = String((req.query && req.query.region) || "worldwide").toLowerCase();
   const platform = String((req.query && req.query.platform) || "all").toLowerCase();
   const tags = REGION_TAGS[region] || REGION_TAGS.worldwide;
