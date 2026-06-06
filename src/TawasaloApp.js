@@ -586,28 +586,35 @@ function AgencyDashboard() {
 }
 
 function PublisherPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
-
+  const [tab, setTab] = useState("compose");
   const [accounts, setAccounts] = useState([]);
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [caption, setCaption] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [altText, setAltText] = useState("");
-  const [mediaFile, setMediaFile] = useState(null);
-  const [mediaPreview, setMediaPreview] = useState(null);
-  const [mediaType, setMediaType] = useState(null); // 'image' or 'video'
+  const [media, setMedia] = useState([]);
   const [mediaWarning, setMediaWarning] = useState("");
-  const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [igFormat, setIgFormat] = useState("feed");
   const [scheduleType, setScheduleType] = useState("now");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  const [firstComment, setFirstComment] = useState("");
+  const [previewPlatform, setPreviewPlatform] = useState("ig");
   const [posting, setPosting] = useState(false);
-  const [generatingAI, setGeneratingAI] = useState(false);
-  const [aiTopic, setAiTopic] = useState("");
   const [results, setResults] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
+  const [editingDraftId, setEditingDraftId] = useState(null);
+  const [showAI, setShowAI] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiTone, setAiTone] = useState("engaging and professional");
+  const [aiAudience, setAiAudience] = useState("");
+  const [aiDetails, setAiDetails] = useState("");
+  const [aiLang, setAiLang] = useState("both");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState(null);
+  const [drafts, setDrafts] = useState([]);
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -615,281 +622,293 @@ function PublisherPage() {
       .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
   }, [selClient]);
 
+  const loadDrafts = (cid) => {
+    const id = cid || realClientId; if (!id) return;
+    supabase.from('posts').select('*').eq('client_id', id).eq('status', 'draft').order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setDrafts(data); });
+  };
+
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => { if (data) setAccounts(data); });
+    loadDrafts(realClientId);
   }, [realClientId]);
 
-  const toggleAccount = (id) => {
-    setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
+  const igSelected = selPlats.includes("ig");
+  const images = media.filter(m => m.type === 'image' && m.url);
+  const video = media.find(m => m.type === 'video' && m.url);
+  const detected = video ? (igFormat === 'story' ? 'Story' : 'Reel / Video') : images.length > 1 ? ('Carousel · ' + images.length + ' images') : images.length === 1 ? 'Single photo' : null;
+
+  const handleUpload = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setMediaWarning("");
+    for (const file of files) {
+      const isVideo = file.type.startsWith('video/');
+      const isImage = file.type.startsWith('image/');
+      if (!isVideo && !isImage) { setMediaWarning('Only images or videos are supported.'); continue; }
+      if (file.size / 1024 / 1024 > 100) { setMediaWarning('File exceeds the 100MB limit.'); continue; }
+      if (isVideo) setMedia([]);
+      if (isImage && video) { setMediaWarning('Remove the video first to add images.'); continue; }
+      if (isImage && images.length >= 10) { setMediaWarning('Up to 10 images in a carousel.'); break; }
+      const id = Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+      const item = { id, name: file.name, type: isVideo ? 'video' : 'image', url: null, uploading: true };
+      setMedia(prev => isVideo ? [item] : [...prev, item]);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const uid = user?.id || 'anonymous';
+        const ext = file.name.split('.').pop();
+        const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
+        setMedia(prev => prev.map(m => m.id === id ? { ...m, url: urlData.publicUrl, uploading: false } : m));
+      } catch (err) {
+        setMediaWarning('Upload failed: ' + err.message);
+        setMedia(prev => prev.filter(m => m.id !== id));
+      }
+    }
   };
+  const removeMedia = (id) => setMedia(prev => prev.filter(m => m.id !== id));
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
-    setGeneratingAI(true);
+    setAiLoading(true); setAiResult(null);
     try {
-      const res = await fetch('/api/generate-caption', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: aiTopic, brand: selClient?.name }),
-      });
+      const res = await fetch('/api/generate-caption', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: aiTopic, tone: aiTone, audience: aiAudience, details: aiDetails, lang: aiLang, platform: selPlats[0] || 'ig', brand: selClient?.name }) });
       const data = await res.json();
-      if (data.english) setCaption(data.english + (data.arabic ? '\n\n' + data.arabic : ''));
-    } catch (e) { console.error(e); }
-    setGeneratingAI(false);
+      setAiResult(data);
+    } catch (e) { setAiResult({ error: 'Could not generate.' }); }
+    setAiLoading(false);
   };
 
-  const handleFileSelect = async (file) => {
-    if (!file) return;
-    const isVideo = file.type.startsWith('video/');
-    const isImage = file.type.startsWith('image/');
-    const sizeMB = file.size / 1024 / 1024;
-    setMediaFile(file);
-    setMediaType(isVideo ? 'video' : 'image');
-    setMediaWarning('');
-    if (sizeMB > 100) { setMediaWarning('File exceeds 100MB limit. Please compress before uploading.'); return; }
-    if (isImage) setMediaPreview(URL.createObjectURL(file));
-    else setMediaPreview(null);
-    setUploading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const uid = user?.id || 'anonymous';
-      const ext = file.name.split('.').pop();
-      const path = `${uid}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-      setImageUrl(urlData.publicUrl);
-    } catch (err) {
-      setMediaWarning('Upload failed: ' + err.message);
-    }
-    setUploading(false);
+  const resetComposer = () => { setCaption(""); setAltText(""); setFirstComment(""); setMedia([]); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); };
+
+  const saveDraft = async () => {
+    if (!realClientId) return;
+    const row = { client_id: realClientId, platform: selPlats[0] || 'ig', caption, image_url: images[0]?.url || video?.url || null, status: 'draft' };
+    if (editingDraftId) await supabase.from('posts').update(row).eq('id', editingDraftId);
+    else await supabase.from('posts').insert([row]);
+    resetComposer(); loadDrafts(); setTab("drafts");
   };
+  const loadDraft = (d) => { setCaption(d.caption || ""); setEditingDraftId(d.id); setMedia(d.image_url ? [{ id: 'd', url: d.image_url, type: 'image', name: 'media', uploading: false }] : []); setTab("compose"); };
+  const deleteDraft = async (id) => { await supabase.from('posts').delete().eq('id', id); loadDrafts(); };
 
   const handlePost = async () => {
-    if (!caption.trim()) return;
-    if (selectedAccounts.length === 0) return;
-    setPosting(true);
-    setResults([]);
-
-    const postResults = [];
+    if (!caption.trim() || selectedAccounts.length === 0) return;
+    setPosting(true); setResults([]);
+    const imgs = images.map(m => m.url);
+    const out = [];
     for (const accId of selectedAccounts) {
-      const acc = accounts.find(a => a.id === accId);
-      if (!acc) continue;
-
+      const acc = accounts.find(a => a.id === accId); if (!acc) continue;
       if (scheduleType === "schedule" && scheduleDate && scheduleTime) {
-        // Save to posts table for scheduling
         const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-        const { error } = await supabase.from('posts').insert([{
-          client_id: realClientId,
-          platform: acc.platform,
-          account_id: acc.account_id,
-          caption,
-          image_url: imageUrl || null,
-          status: 'scheduled',
-          scheduled_at: scheduledAt,
-        }]);
-        postResults.push({ account: acc.account_name, success: !error, error: error?.message });
+        const { error } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: scheduledAt }]);
+        out.push({ account: acc.account_name, success: !error, error: error?.message });
       } else {
-        // Post now
-        const res = await fetch('/api/meta-publish', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: acc.platform,
-            accountId: acc.account_id,
-            accessToken: acc.access_token,
-            caption,
-            imageUrl: imageUrl || null,
-            videoUrl: mediaType === 'video' ? imageUrl : null,
-            altText: altText || null,
-          }),
-        });
+        const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
+            imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
+            altText: altText || null, firstComment: firstComment || null, igFormat }) });
         const data = await res.json();
-        postResults.push({ account: acc.account_name, success: data.success, error: data.error });
+        out.push({ account: acc.account_name, success: data.success, error: data.error });
       }
     }
-
-    setResults(postResults);
-    setPosting(false);
-    if (postResults.every(r => r.success)) {
-      setCaption(""); setImageUrl(""); setSelectedAccounts([]); setAltText(""); setMediaFile(null); setMediaPreview(null); setMediaType(null);
-    }
+    setResults(out); setPosting(false);
+    if (out.every(r => r.success)) { if (editingDraftId) await supabase.from('posts').delete().eq('id', editingDraftId); resetComposer(); loadDrafts(); }
   };
 
-  const platformInfo = { ig: { name:"Instagram", color:"#E1306C", Icon:FaInstagram }, fb: { name:"Facebook", color:"#1877F2", Icon:FaFacebook } };
+  const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.3)" };
+  const lbl = { fontSize:12, color:th.text2, marginBottom:10 };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const firstImg = images[0];
 
   return (
-    <div style={{ padding:"28px 32px", maxWidth:900, display:"grid", gridTemplateColumns:"1fr 340px", gap:24, alignItems:"start" }}>
-      {/* Left: Composer */}
-      <div>
-        <div style={{ marginBottom:24 }}>
-          <h2 style={{ margin:0, fontSize:22, fontWeight:900, letterSpacing:-0.5 }}>Create Post</h2>
-          <p style={{ margin:"6px 0 0", fontSize:13, color:th.text2 }}>Publish or schedule content for {selClient?.name}</p>
+    <div style={{ padding:"28px 32px", maxWidth:1040 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Create post</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || "Your brand"} &middot; compose, schedule &amp; publish</p>
         </div>
+        <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
+          {[["compose","Compose"],["drafts","Drafts"+(drafts.length?" ("+drafts.length+")":"")]].map(([k,t])=>(
+            <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:tab===k?th.gradient:"transparent", color:tab===k?"#fff":th.text2, fontSize:12, fontWeight:tab===k?600:400, cursor:"pointer" }}>{t}</button>
+          ))}
+        </div>
+      </div>
 
-        {/* Account selector */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Post to</div>
-          {accounts.length === 0 ? (
-            <div style={{ fontSize:13, color:th.text2 }}>No connected accounts. <span style={{ color:th.accent, cursor:"pointer" }}>Connect accounts first.</span></div>
-          ) : (
-            <div style={{ display:"flex", flexWrap:"wrap", gap:10 }}>
-              {accounts.map(acc => {
-                const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe };
-                const selected = selectedAccounts.includes(acc.id);
-                return (
-                  <div key={acc.id} onClick={() => toggleAccount(acc.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 14px", borderRadius:20, border:`2px solid ${selected ? info.color : th.border}`, background:selected ? `${info.color}18` : th.card2, cursor:"pointer", transition:"all 0.15s" }}>
-                    <info.Icon style={{ color:info.color, fontSize:14 }}/>
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:700, color:selected ? info.color : th.text }}>{acc.account_name}</div>
-                      <div style={{ fontSize:10, color:th.text2 }}>{info.name}</div>
-                    </div>
-                    {selected && <CheckCircle size={14} color={info.color}/>}
-                  </div>
-                );
-              })}
+      {tab === "drafts" ? (
+        <div style={{ ...card, padding:0, overflow:"hidden", maxWidth:760 }}>
+          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600 }}>Saved drafts</div>
+          {drafts.length === 0 ? (
+            <div style={{ padding:28, textAlign:"center", color:th.text2, fontSize:12.5 }}>No drafts yet. Compose a post and hit <strong style={{color:th.text}}>Save draft</strong>.</div>
+          ) : drafts.map((d,i) => (
+            <div key={d.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderBottom:i<drafts.length-1?`1px solid ${th.border}`:"none" }}>
+              <div style={{ width:46, height:46, borderRadius:10, flexShrink:0, background:th.card2, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.image_url ? <img src={d.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <Image size={16} color={th.text3}/>}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{d.caption || "(no caption)"}</div>
+                <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{(PLAT[d.platform]||{}).name || d.platform} &middot; draft</div>
+              </div>
+              <button onClick={()=>loadDraft(d)} style={{ fontSize:11, color:th.accent, background:th.accentSoft, border:"none", borderRadius:8, padding:"6px 12px", cursor:"pointer" }}>Open</button>
+              <button onClick={()=>deleteDraft(d.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.danger, display:"flex" }}><XCircle size={16}/></button>
+            </div>
+          ))}
+        </div>
+      ) : (
+      <div style={{ display:"grid", gridTemplateColumns:"1.5fr 1fr", gap:18, alignItems:"start" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+
+          <div style={card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}><div style={{ fontSize:12, color:th.text2 }}>Publish to</div></div>
+            {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>No connected accounts. <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>Connect accounts</span> to start.</div> : (
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:9 }}>
+                {accounts.map(acc => { const info = PLAT[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe }; const sel = selectedAccounts.includes(acc.id);
+                  return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text2, fontSize:11.5, cursor:"pointer" }}><info.Icon style={{ fontSize:14 }}/>{acc.account_name}</button>; })}
+              </div>
+            )}
+            <div style={{ fontSize:10, color:th.text3, marginBottom:6 }}>Connect to enable</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {["tw","li","tt","yt"].map(k => { const info = PLAT[k]; return <button key={k} onClick={()=>setPage("social")} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:999, border:`1px dashed ${th.border}`, background:"transparent", color:th.text3, fontSize:11, cursor:"pointer" }}><info.Icon style={{ fontSize:12 }}/>{info.name} <Plus size={11}/></button>; })}
+            </div>
+          </div>
+
+          {igSelected && (
+            <div style={card}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:12, color:th.text2 }}>Instagram publishes as</span></div>
+              <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3, width:"fit-content" }}>
+                {[["feed","Feed post"],["reel","Reel"],["story","Story (soon)"]].map(([k,t])=>(
+                  <button key={k} onClick={()=>setIgFormat(k)} style={{ padding:"6px 14px", borderRadius:8, border:"none", background:igFormat===k?th.gradient:"transparent", color:igFormat===k?"#fff":th.text2, fontSize:11.5, fontWeight:igFormat===k?600:400, cursor:"pointer" }}>{t}</button>
+                ))}
+              </div>
             </div>
           )}
-        </div>
 
-        {/* AI Caption */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>AI Caption Generator</div>
-          <div style={{ display:"flex", gap:8 }}>
-            <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} onKeyDown={e=>e.key==="Enter"&&generateCaption()} placeholder="Describe your post topic..." style={{ flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
-            <button onClick={generateCaption} disabled={generatingAI||!aiTopic.trim()} style={{ padding:"10px 16px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", opacity:generatingAI?0.7:1 }}>
-              <Sparkles size={13}/>{generatingAI?"Generating…":"Generate"}
-            </button>
-          </div>
-        </div>
-
-        {/* Caption */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Caption</div>
-          <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption here..." rows={5} style={{ width:"100%", padding:"12px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", resize:"vertical", boxSizing:"border-box", fontFamily:"inherit", lineHeight:1.6 }}/>
-          <div style={{ fontSize:11, color:th.text3, marginTop:6, textAlign:"right" }}>{caption.length} characters</div>
-        </div>
-
-        {/* Media Upload */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>Media <span style={{ fontWeight:400, color:th.text3 }}>(optional)</span></div>
-          <div
-            onClick={()=>document.getElementById('media-file-input').click()}
-            onDragOver={e=>{e.preventDefault();setDragOver(true);}}
-            onDragLeave={()=>setDragOver(false)}
-            onDrop={e=>{e.preventDefault();setDragOver(false);handleFileSelect(e.dataTransfer.files[0]);}}
-            style={{ border:`2px dashed ${dragOver?th.accent:th.border}`, borderRadius:10, padding:24, textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent", transition:"all 0.2s" }}>
-            <input type="file" id="media-file-input" accept="image/*,video/*" style={{ display:"none" }} onChange={e=>handleFileSelect(e.target.files[0])}/>
-            {mediaPreview ? (
-              <img src={mediaPreview} alt="preview" style={{ maxHeight:160, borderRadius:8, objectFit:"cover", maxWidth:"100%" }}/>
-            ) : mediaType === 'video' ? (
-              <div><div style={{ fontSize:28, marginBottom:6 }}>🎬</div><div style={{ fontSize:12, fontWeight:700 }}>Reel detected</div><div style={{ fontSize:11, color:th.text2 }}>{mediaFile?.name}</div></div>
-            ) : (
-              <div><div style={{ fontSize:28, marginBottom:6 }}>📎</div><div style={{ fontSize:13, fontWeight:600, marginBottom:4 }}>Drag & drop or click to upload</div><div style={{ fontSize:11, color:th.text2 }}>Images (JPG, PNG) or Videos (MP4) · Max 100MB</div></div>
+          <div style={card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
+              <div style={{ fontSize:12, color:th.text2 }}>Caption</div>
+              <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>AI write</button>
+            </div>
+            {showAI && (
+              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:13, marginBottom:11 }}>
+                <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} placeholder="What's the post about?" style={{ ...inp, marginBottom:8 }}/>
+                <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+                  <select value={aiTone} onChange={e=>setAiTone(e.target.value)} style={{ ...inp, flex:1 }}>
+                    <option value="engaging and professional">Engaging &amp; professional</option>
+                    <option value="fun and casual">Fun &amp; casual</option>
+                    <option value="luxury and premium">Luxury &amp; premium</option>
+                    <option value="urgent and promotional">Urgent &amp; promotional</option>
+                    <option value="informative and educational">Informative</option>
+                  </select>
+                  <input value={aiAudience} onChange={e=>setAiAudience(e.target.value)} placeholder="Audience (optional)" style={{ ...inp, flex:1 }}/>
+                </div>
+                <input value={aiDetails} onChange={e=>setAiDetails(e.target.value)} placeholder="Key points / call-to-action (optional)" style={{ ...inp, marginBottom:9 }}/>
+                <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"space-between" }}>
+                  <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                    {[["en","English"],["ar","العربية"],["both","Both"]].map(([k,t])=>(
+                      <button key={k} onClick={()=>setAiLang(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", background:aiLang===k?th.gradient:"transparent", color:aiLang===k?"#fff":th.text2, fontSize:11, fontWeight:aiLang===k?600:400, cursor:"pointer" }}>{t}</button>
+                    ))}
+                  </div>
+                  <button onClick={generateCaption} disabled={aiLoading||!aiTopic.trim()} style={{ padding:"9px 16px", borderRadius:9, background:th.accent, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", opacity:(aiLoading||!aiTopic.trim())?0.6:1 }}>{aiLoading?"Writing…":"Generate"}</button>
+                </div>
+                {aiResult && !aiResult.error && (
+                  <div style={{ marginTop:11, background:th.card, border:`1px solid ${th.border}`, borderRadius:10, padding:12 }}>
+                    {aiResult.english && <><div style={{ fontSize:10, color:th.text2, marginBottom:4 }}>ENGLISH</div><div style={{ fontSize:12.5, lineHeight:1.6, marginBottom:8 }}>{aiResult.english}</div></>}
+                    {aiResult.arabic && <><div style={{ fontSize:10, color:th.text2, marginBottom:4 }}>العربية</div><div style={{ fontSize:13, lineHeight:1.7, direction:"rtl", textAlign:"right", marginBottom:9 }}>{aiResult.arabic}</div></>}
+                    <div style={{ display:"flex", gap:7 }}>
+                      {aiResult.english && <button onClick={()=>setCaption(aiResult.english)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use English</button>}
+                      {aiResult.arabic && <button onClick={()=>setCaption(aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use Arabic</button>}
+                      {aiResult.english && aiResult.arabic && <button onClick={()=>setCaption(aiResult.english+"\n\n"+aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.accentSoft, border:`1px solid ${th.accent}`, color:th.accent, fontSize:11, cursor:"pointer" }}>Use both</button>}
+                    </div>
+                  </div>
+                )}
+                {aiResult && aiResult.error && <div style={{ marginTop:9, fontSize:11, color:th.danger }}>{aiResult.error}</div>}
+              </div>
             )}
+            <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption…" rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7, gap:10 }}>
+              <input value={altText} onChange={e=>setAltText(e.target.value)} placeholder="Alt text (accessibility & SEO)" style={{ ...inp, flex:1, fontSize:11.5, padding:"7px 11px" }}/>
+              <span style={{ fontSize:11, color:th.text3 }}>{caption.length} / 2200</span>
+            </div>
           </div>
-          {uploading && <div style={{ fontSize:12, color:th.accent, marginTop:8, textAlign:"center" }}>⬆️ Uploading...</div>}
-          {imageUrl && !uploading && <div style={{ fontSize:11, color:th.success, marginTop:8 }}>✓ {mediaType === 'video' ? 'Reel' : 'Image'} uploaded successfully</div>}
-          {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>⚠️ {mediaWarning}</div>}
-          {mediaFile && <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:8 }}><span style={{ fontSize:11, padding:"2px 8px", borderRadius:10, background:mediaType==='video'?"#FF005020":"#4F6EF720", color:mediaType==='video'?"#FF0050":"#4F6EF7", fontWeight:700, border:`1px solid ${mediaType==='video'?"#FF0050":"#4F6EF7"}` }}>{mediaType==='video'?'REEL':'POST'}</span><span style={{ fontSize:11, color:th.text2 }}>{mediaFile.name}</span></div>}
 
-          {/* Format guide */}
-          <div style={{ marginTop:14, borderTop:`1px solid ${th.border}`, paddingTop:12 }}>
-            <div style={{ fontSize:10, fontWeight:700, color:th.text3, marginBottom:8, textTransform:"uppercase" }}>Instagram Format Guide</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-              {[["🖼","Square Post","1080×1080px · 1:1"],["📸","Portrait Post","1080×1350px · 4:5"],["🎬","Reel","1080×1920px · 9:16 · Max 90s"],["🌐","Landscape","1080×566px · 16:9"]].map(([icon,name,spec])=>(
-                <div key={name} style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:th.text2 }}><span>{icon} {name}</span><span style={{ color:th.text3 }}>{spec}</span></div>
+          <div style={card}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}><div style={{ fontSize:12, color:th.text2 }}>Media</div>{detected && <span style={{ fontSize:10.5, color:th.accent, background:th.accentSoft, borderRadius:8, padding:"2px 8px" }}>{detected}</span>}</div>
+            {!video && images.length < 10 && (
+              <div onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);handleUpload(e.dataTransfer.files);}} onClick={()=>document.getElementById('pub-file').click()}
+                style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:12, padding:"20px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent", marginBottom:media.length?12:0 }}>
+                <input type="file" id="pub-file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>handleUpload(e.target.files)}/>
+                <Image size={22} color={th.accent}/>
+                <div style={{ fontSize:12.5, fontWeight:500, marginTop:6 }}>Drag &amp; drop or click to upload</div>
+                <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Images auto-become a carousel &middot; drop a video for a Reel &middot; up to 100MB</div>
+              </div>
+            )}
+            {media.length > 0 && (
+              <div style={{ display:"flex", gap:9, flexWrap:"wrap" }}>
+                {media.map((m,i)=>(
+                  <div key={m.id} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}` }}>
+                    {m.url && m.type==="image" && <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>}
+                    {m.type==="video" && <div style={{ width:"100%", height:"100%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><Send size={18}/></div>}
+                    {m.uploading && <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }}>…</div>}
+                    {m.type==="image" && images.length>1 && <span style={{ position:"absolute", top:4, left:4, background:"rgba(0,0,0,0.6)", borderRadius:6, width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }}>{i+1}</span>}
+                    <span onClick={(e)=>{e.stopPropagation();removeMedia(m.id);}} style={{ position:"absolute", top:4, right:4, cursor:"pointer", color:"#fff", display:"flex" }}><XCircle size={15}/></span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>{mediaWarning}</div>}
+          </div>
+
+          <div style={card}>
+            <div style={lbl}><MessageCircle size={13} style={{ verticalAlign:-2, marginRight:5 }}/>First comment <span style={{ color:th.text3 }}>(optional &middot; great for hashtags)</span></div>
+            <input value={firstComment} onChange={e=>setFirstComment(e.target.value)} placeholder="#hashtags posted as the first comment…" style={inp}/>
+          </div>
+
+          <div style={card}>
+            <div style={lbl}>When to post</div>
+            <div style={{ display:"flex", gap:8, marginBottom:scheduleType==="schedule"?12:0 }}>
+              {[["now","Now",Send],["schedule","Schedule",Calendar]].map(([k,t,Ic])=>(
+                <button key={k} onClick={()=>setScheduleType(k)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"9px", borderRadius:10, border:`1.5px solid ${scheduleType===k?th.accent:th.border}`, background:scheduleType===k?th.accentSoft:th.card2, color:scheduleType===k?th.accent:th.text2, fontSize:12, fontWeight:scheduleType===k?600:400, cursor:"pointer" }}><Ic size={13}/>{t}</button>
               ))}
             </div>
+            {scheduleType==="schedule" && <div style={{ display:"flex", gap:10 }}><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp, flex:1 }}/><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp, flex:1 }}/></div>}
+          </div>
+
+          {results.length>0 && <div>{results.map((r,i)=><div key={i} style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>{r.success?<CheckCircle size={14}/>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span></div>)}</div>}
+
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?"Update draft":"Save draft"}</button>
+            <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?"Working…":scheduleType==="schedule"?<><Clock size={15}/>Schedule</>:<><Send size={15}/>Publish now</>}</button>
           </div>
         </div>
 
-        {/* Alt Text */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16 }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-            <div style={{ fontSize:12, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:0.5 }}>Alt Text</div>
-            <span style={{ fontSize:10, color:th.accent, background:th.accentSoft, padding:"2px 8px", borderRadius:10 }}>Accessibility & SEO</span>
-          </div>
-          <textarea value={altText} onChange={e=>setAltText(e.target.value)} placeholder="Describe your image for visually impaired users and search engines..." rows={2} style={{ width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", resize:"none", boxSizing:"border-box", fontFamily:"inherit" }}/>
-          <div style={{ fontSize:11, color:th.text3, marginTop:6 }}>Supported on Instagram. Improves discoverability.</div>
-        </div>
-
-        {/* Schedule */}
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:20 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:th.text2, marginBottom:12, textTransform:"uppercase", letterSpacing:0.5 }}>When to Post</div>
-          <div style={{ display:"flex", gap:8, marginBottom:scheduleType==="schedule"?14:0 }}>
-            {["now","schedule"].map(t => (
-              <button key={t} onClick={()=>setScheduleType(t)} style={{ padding:"8px 16px", borderRadius:8, border:`2px solid ${scheduleType===t?th.accent:th.border}`, background:scheduleType===t?th.accentSoft:th.card2, color:scheduleType===t?th.accent:th.text2, fontSize:12, fontWeight:700, cursor:"pointer" }}>
-                {t==="now"?"Post Now":"Schedule"}
-              </button>
+        <div style={{ position:"sticky", top:0 }}>
+          <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:10 }}>
+            {[["ig","IG",FaInstagram],["fb","FB",FaFacebook]].map(([k,lab,Ic])=>(
+              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:1, padding:"6px", borderRadius:999, border:"none", background:previewPlatform===k?th.gradient:"transparent", color:previewPlatform===k?"#fff":th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><Ic style={{ fontSize:13 }}/>{lab}</button>
             ))}
           </div>
-          {scheduleType==="schedule" && (
-            <div style={{ display:"flex", gap:10, marginTop:12 }}>
-              <input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ flex:1, padding:"9px 12px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
-              <input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ flex:1, padding:"9px 12px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none" }}/>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.45)" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
+              <div style={{ width:32, height:32, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:600 }}>{selClient?.name?.[0]||"T"}</div>
+              <div><div style={{ fontSize:12, fontWeight:600 }}>{selClient?.name||"Your brand"}</div><div style={{ fontSize:10, color:th.text2 }}>Just now</div></div>
             </div>
-          )}
-        </div>
-
-        {/* Results */}
-        {results.length > 0 && (
-          <div style={{ marginBottom:16 }}>
-            {results.map((r, i) => (
-              <div key={i} style={{ padding:"10px 14px", borderRadius:8, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:13, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
-                {r.success ? <CheckCircle size={14}/> : <XCircle size={14}/>}
-                <span><b>{r.account}</b>: {r.success ? (scheduleType==="schedule"?"Scheduled!":"Posted!") : r.error}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Post button */}
-        <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ width:"100%", padding:"14px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:15, fontWeight:800, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-          {posting ? "Posting…" : scheduleType==="schedule" ? <><Clock size={16}/>Schedule Post</> : <><Send size={16}/>Publish Now</>}
-        </button>
-      </div>
-
-      {/* Right: Preview */}
-      <div style={{ position:"sticky", top:24 }}>
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden" }}>
-          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:12, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:0.5 }}>Preview</div>
-          <div style={{ padding:18 }}>
-            {/* Mock post preview */}
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
-              <div style={{ width:36, height:36, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, color:"#fff", fontWeight:700 }}>
-                {selClient?.name?.[0] || "T"}
-              </div>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700 }}>{selClient?.name || "Your Brand"}</div>
-                <div style={{ fontSize:11, color:th.text2 }}>Just now</div>
-              </div>
+            <div style={{ position:"relative", height:(igFormat==="story"||igFormat==="reel")&&previewPlatform==="ig"?320:200, background:firstImg?"#000":th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.85)" }}>
+              {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : video ? <Send size={30}/> : <Image size={30}/>}
+              {images.length>1 && <><span style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.5)", borderRadius:8, padding:"2px 8px", fontSize:10, color:"#fff" }}>1/{images.length}</span><div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:5 }}>{images.map((m,i)=><span key={m.id} style={{ width:6, height:6, borderRadius:"50%", background:i===0?"#fff":"rgba(255,255,255,0.45)" }}/>)}</div></>}
             </div>
-            {imageUrl && (
-              <img src={imageUrl} alt="preview" style={{ width:"100%", borderRadius:10, marginBottom:10, maxHeight:200, objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>
-            )}
-            <div style={{ fontSize:13, color:th.text, lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-              {caption || <span style={{ color:th.text3 }}>Your caption will appear here…</span>}
+            <div style={{ padding:"10px 13px" }}>
+              <div style={{ display:"flex", gap:14, marginBottom:7, color:th.text, fontSize:17 }}><Heart size={17}/><MessageCircle size={17}/><Send size={17}/><Bookmark size={17} style={{ marginLeft:"auto" }}/></div>
+              <div style={{ fontSize:11.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word" }}><span style={{ fontWeight:600 }}>{selClient?.name?.toLowerCase().replace(/\s+/g,"")||"yourbrand"}</span> {caption || <span style={{ color:th.text3 }}>Your caption will appear here…</span>}</div>
             </div>
           </div>
         </div>
-
-        {selectedAccounts.length > 0 && (
-          <div style={{ marginTop:12, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:14 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:th.text2, marginBottom:8 }}>POSTING TO</div>
-            {selectedAccounts.map(id => {
-              const acc = accounts.find(a => a.id === id);
-              if (!acc) return null;
-              const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe };
-              return <div key={id} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6, fontSize:12 }}>
-                <info.Icon style={{ color:info.color, fontSize:13 }}/> {acc.account_name}
-              </div>;
-            })}
-          </div>
-        )}
       </div>
+      )}
     </div>
   );
 }

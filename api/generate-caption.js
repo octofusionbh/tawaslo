@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { topic, platform, tone, lang } = req.body;
+  const { topic, platform, tone, lang, audience, details, brand } = req.body;
 
   if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
@@ -16,18 +16,35 @@ export default async function handler(req, res) {
 
   const platformName = platform ? platformNames[platform] || platform : 'social media';
   const toneText = tone || 'engaging and professional';
+  const language = (lang || 'both').toLowerCase(); // 'en' | 'ar' | 'both'
 
-  const prompt = `You are a social media copywriter for GCC/MENA brands. Generate captions in BOTH English and Arabic.
+  const extras = [
+    brand ? `Brand: ${brand}` : '',
+    audience ? `Target audience: ${audience}` : '',
+    details ? `Key points / call-to-action: ${details}` : '',
+  ].filter(Boolean).join('\n');
+
+  const shape = language === 'en'
+    ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
+    : language === 'ar'
+    ? '{\n  "english": "",\n  "arabic": "النص العربي مع إيموجي وهاشتاق مناسب"\n}'
+    : '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": "النص العربي مع إيموجي وهاشتاق مناسب"\n}';
+
+  const langInstruction = language === 'en'
+    ? 'Generate the caption in English only. Leave "arabic" as an empty string.'
+    : language === 'ar'
+    ? 'Generate the caption in Arabic only. Leave "english" as an empty string.'
+    : 'Generate captions in BOTH English and Arabic.';
+
+  const prompt = `You are a social media copywriter for GCC/MENA brands. ${langInstruction}
 
 Topic/Product: ${topic}
 Platform: ${platformName}
 Tone: ${toneText}
+${extras}
 
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
-{
-  "english": "the English caption with relevant emojis and hashtags",
-  "arabic": "النص العربي مع إيموجي وهاشتاق مناسب"
-}`;
+${shape}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
