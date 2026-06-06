@@ -9,7 +9,7 @@ import {
   CreditCard, LogOut, ChevronRight, ChevronLeft, ChevronDown,
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
-  Languages, Wand2, MoreHorizontal, RefreshCw,
+  Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -885,6 +885,7 @@ function CalendarPage() {
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [realClientId, setRealClientId] = useState(null);
+  const [liOptions, setLiOptions] = useState(null);
   const [busy, setBusy] = useState("");
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
@@ -1420,6 +1421,7 @@ function SocialAccountsPage() {
   const { selClient } = useApp();
   const th = useTheme();
   const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
+  const LINKEDIN_CLIENT_ID = process.env.REACT_APP_LINKEDIN_CLIENT_ID || "";
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -1458,6 +1460,15 @@ function SocialAccountsPage() {
     }
   }, [realClientId]);
 
+  // Handle LinkedIn OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const liCode = params.get('li_code');
+    const liError = params.get('li_error');
+    if (liError) { setError('LinkedIn connection failed: ' + liError); window.history.replaceState({}, '', '/social'); }
+    else if (liCode && realClientId) { handleLinkedinCallback(liCode); }
+  }, [realClientId]);
+
   const loadAccounts = async (clientId) => {
     const cid = clientId || realClientId;
     if (!cid) return;
@@ -1471,7 +1482,7 @@ function SocialAccountsPage() {
   };
 
   const connectInstagram = () => {
-    const redirectUri = `https://tawaslo.com/api/instagram-callback`;
+    const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
     const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights';
     // Store current page so callback can return here
@@ -1481,7 +1492,7 @@ function SocialAccountsPage() {
   };
 
   const handleInstagramCallback = async (code) => {
-    const redirectUri = `https://tawaslo.com/api/instagram-callback`;
+    const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const storedId = sessionStorage.getItem('ig_redirect_client');
     const clientId = (storedId && storedId !== 'null') ? storedId : realClientId;
     sessionStorage.removeItem('ig_redirect_client');
@@ -1518,7 +1529,7 @@ function SocialAccountsPage() {
   };
 
   const connectMeta = () => {
-    const redirectUri = `https://tawaslo.com/api/meta-callback`;
+    const redirectUri = `https://tawaslo.com/api/meta-oauth`;
     const scope = [
       "pages_show_list",
       "pages_read_engagement",
@@ -1595,123 +1606,187 @@ function SocialAccountsPage() {
     setAccounts(prev => prev.filter(a => a.id !== accountId));
   };
 
+  const connectLiAccount = async (acc) => {
+    const storedId = sessionStorage.getItem('li_redirect_client');
+    const clientId = (storedId && storedId !== 'null') ? storedId : realClientId;
+    sessionStorage.removeItem('li_redirect_client');
+    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      client_id: clientId, platform: 'li', account_id: acc.account_id, account_name: acc.account_name,
+      username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
+      followers_count: acc.followers_count || 0, is_active: true,
+    }, { onConflict: 'client_id,account_id' });
+    if (upsertErr) { setError('LinkedIn save failed: ' + upsertErr.message); return; }
+    setSuccess(`LinkedIn ${acc.kind === 'organization' ? 'Page' : 'profile'} "${acc.account_name}" connected!`);
+    setLiOptions(null);
+    loadAccounts(clientId);
+  };
+
+  const handleLinkedinCallback = async (code) => {
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, redirectUri }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const opts = [];
+      if (data.member) opts.push(data.member);
+      (data.organizations || []).forEach(o => opts.push(o));
+      if (opts.length === 1) await connectLiAccount(opts[0]);
+      else if (opts.length > 1) setLiOptions(opts);
+      else setError('No LinkedIn profile or Pages found to connect.');
+    } catch (err) { setError('LinkedIn connect failed: ' + err.message); }
+    setConnecting(false);
+    window.history.replaceState({}, '', '/social');
+  };
+
+  const connectLinkedin = () => {
+    if (!LINKEDIN_CLIENT_ID) { setError("LinkedIn isn't configured yet — add your LinkedIn Client ID (REACT_APP_LINKEDIN_CLIENT_ID in Vercel) to enable connecting."); return; }
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    const scope = 'openid profile email w_member_social r_organization_admin w_organization_social';
+    if (realClientId) sessionStorage.setItem('li_redirect_client', realClientId);
+    const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=tawaslo`;
+    window.location.href = authUrl;
+  };
+
   const platformInfo = {
     ig: { name: "Instagram", color: "#E1306C", bg: "rgba(225,48,108,0.1)", Icon: FaInstagram },
     fb: { name: "Facebook",  color: "#1877F2", bg: "rgba(24,119,242,0.1)", Icon: FaFacebook  },
+    li: { name: "LinkedIn",  color: "#0A66C2", bg: "rgba(10,102,194,0.1)", Icon: FaLinkedin  },
   };
 
+  const NETWORKS = [
+    { key:'ig', name:'Instagram', desc:'Business or creator', color:'#E1306C', Icon:FaInstagram, onConnect:connectInstagram, live:true },
+    { key:'fb', name:'Facebook', desc:'Pages', color:'#1877F2', Icon:FaFacebook, onConnect:connectMeta, live:true },
+    { key:'li', name:'LinkedIn', desc:'Profile & company Pages', color:'#0A66C2', Icon:FaLinkedin, onConnect:connectLinkedin, live:true },
+    { key:'tw', name:'X', desc:'Coming soon', color:'#8A93A6', Icon:FaTwitter, live:false },
+    { key:'tt', name:'TikTok', desc:'Coming soon', color:'#8A93A6', Icon:FaTiktok, live:false },
+    { key:'yt', name:'YouTube', desc:'Coming soon', color:'#FF0000', Icon:FaYoutube, live:false },
+  ];
+  const countOf = (k) => accounts.filter(a => a.platform === k).length;
+  const platformsConnected = [...new Set(accounts.map(a => a.platform))].length;
+  const gradText = { background:th.gradient, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };
+
   return (
-    <div style={{ padding: "28px 32px", maxWidth: 860 }}>
-      <div style={{ marginBottom: 28 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, letterSpacing: -0.5 }}>Social Accounts</h2>
-        <p style={{ margin: "6px 0 0", fontSize: 13, color: th.text2 }}>
-          Connect Instagram and Facebook accounts for {selClient?.name}
-        </p>
-      </div>
+    <div style={{ padding:"28px 32px", maxWidth:1000, position:"relative" }}>
+      <style>{`
+        .tw-net{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;}
+        .tw-net:hover{transform:translateY(-4px); box-shadow:0 20px 46px rgba(0,0,0,0.45); border-color:${th.accent}66;}
+        .tw-acct{transition:background .15s ease;}
+        .tw-acct:hover{background:${th.card2};}
+        .tw-cta{transition:transform .12s ease, filter .15s ease;}
+        .tw-cta:hover{transform:translateY(-1px); filter:brightness(1.08);}
+      `}</style>
+      <div style={{ position:"absolute", top:-40, left:"30%", width:520, height:280, background:"radial-gradient(ellipse at center, rgba(79,110,247,0.18), transparent 70%)", filter:"blur(20px)", pointerEvents:"none", zIndex:0 }}/>
 
-      {error && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.dangerSoft, color: th.danger, fontSize: 13, marginBottom: 16 }}>{error}</div>}
-      {success && <div style={{ padding: "12px 16px", borderRadius: 10, background: th.successSoft, color: th.success, fontSize: 13, marginBottom: 16 }}>{success}</div>}
-
-      {/* Connect Buttons */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-        {/* Facebook */}
-        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(24,119,242,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <FaFacebook style={{ color: "#1877F2", fontSize: 20 }} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Facebook Pages</div>
-                <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>Connect your Facebook pages</div>
-              </div>
-            </div>
-            <button onClick={connectMeta} disabled={connecting}
-              style={{ padding: "10px 20px", borderRadius: 10, background: "#1877F2", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8 }}>
-              <Link size={14} />{connecting ? "Connecting…" : "Connect via Facebook"}
-            </button>
-          </div>
+      <div style={{ position:"relative", zIndex:1 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:24 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Social accounts</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Connect and manage the networks for {selClient?.name || "your brand"}</p>
         </div>
-        {/* Instagram */}
-        <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(225,48,108,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <FaInstagram style={{ color: "#E1306C", fontSize: 20 }} />
-              </div>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>Connect Instagram Business</div>
-                <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>Connect Instagram business or creator accounts</div>
-              </div>
-            </div>
-            <button onClick={connectInstagram} disabled={connecting}
-              style={{ padding: "10px 20px", borderRadius: 10, background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: connecting ? "not-allowed" : "pointer", opacity: connecting ? 0.7 : 1, display: "flex", alignItems: "center", gap: 8 }}>
-              <Link size={14} />{connecting ? "Connecting…" : "Connect via Instagram"}
-            </button>
+        <div style={{ display:"flex", gap:10 }}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize:24, fontWeight:800, ...gradText }}>{accounts.length}</div>
+            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Connected</div>
+          </div>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
+            <div style={{ fontSize:24, fontWeight:800 }}>{platformsConnected}</div>
+            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Networks</div>
           </div>
         </div>
       </div>
 
-      {/* Connected Accounts */}
-      <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${th.border}`, fontWeight: 700, fontSize: 13 }}>
-          Connected Accounts {accounts.length > 0 && <span style={{ fontWeight: 400, color: th.text2 }}>({accounts.length})</span>}
-        </div>
+      {error && <div style={{ padding:"12px 16px", borderRadius:11, background:th.dangerSoft, color:th.danger, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><XCircle size={15}/>{error}</div>}
+      {success && <div style={{ padding:"12px 16px", borderRadius:11, background:th.successSoft, color:th.success, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><CheckCircle size={15}/>{success}</div>}
+
+      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>Add a network</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(188px,1fr))", gap:15, marginBottom:32 }}>
+        {NETWORKS.map(net => {
+          const n = countOf(net.key);
+          return (
+            <div key={net.key} className="tw-net" style={{ background:`linear-gradient(160deg, ${net.color}0f, ${th.card} 55%)`, border:`1px solid ${th.border}`, borderRadius:18, padding:19, boxShadow:"0 10px 26px rgba(0,0,0,0.26)", opacity:net.live?1:0.62, position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg, ${net.color}, transparent)` }}/>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:15 }}>
+                <div style={{ width:52, height:52, borderRadius:15, background:`linear-gradient(135deg, ${net.color}38, ${net.color}12)`, border:`1px solid ${net.color}33`, display:"flex", alignItems:"center", justifyContent:"center" }}><net.Icon style={{ color:net.color, fontSize:24 }}/></div>
+                {n>0 && <span style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}><span style={{ width:5, height:5, borderRadius:"50%", background:th.success }}/>{n}</span>}
+              </div>
+              <div style={{ fontSize:15, fontWeight:700 }}>{net.name}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, marginBottom:15, minHeight:16 }}>{net.desc}</div>
+              {net.live ? (
+                <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ width:"100%", padding:"10px", borderRadius:11, background:n>0?"transparent":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                  {connecting?"Connecting…":(<><Plus size={13}/>{n>0?"Add another":"Connect"}</>)}
+                </button>
+              ) : (
+                <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center" }}>Coming soon</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>Connected accounts {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.32)" }}>
         {loading ? (
-          <div style={{ padding: 32, textAlign: "center", color: th.text2, fontSize: 13 }}>Loading…</div>
-        ) : accounts.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center" }}>
-            <Link size={32} color={th.text3} style={{ marginBottom: 12 }} />
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>No accounts connected</div>
-            <div style={{ fontSize: 12, color: th.text2 }}>Click "Connect via Facebook" above to get started</div>
+          <div style={{ padding:40, textAlign:"center", color:th.text2, fontSize:13 }}>Loading…</div>
+        ) : accounts.length===0 ? (
+          <div style={{ padding:"52px 24px", textAlign:"center" }}>
+            <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Link size={26} color={th.accent}/></div>
+            <div style={{ fontSize:15, fontWeight:600, marginBottom:5 }}>No accounts connected yet</div>
+            <div style={{ fontSize:12.5, color:th.text2 }}>Pick a network above to connect your first account.</div>
           </div>
-        ) : (
-          accounts.map((acc, i) => {
-            const info = platformInfo[acc.platform] || { name: acc.platform, color: th.accent, bg: th.accentSoft, Icon: Globe };
-            const PIcon = info.Icon;
-            return (
-              <div key={acc.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: i < accounts.length - 1 ? `1px solid ${th.border}` : "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ position: "relative" }}>
-                    {acc.picture ? (
-                      <img src={acc.picture} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />
-                    ) : (
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: info.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <PIcon style={{ color: info.color, fontSize: 20 }} />
-                      </div>
-                    )}
-                    <div style={{ position: "absolute", bottom: -3, right: -3, width: 16, height: 16, borderRadius: "50%", background: info.bg, border: `2px solid ${th.card}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <PIcon style={{ color: info.color, fontSize: 8 }} />
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{acc.account_name}</div>
-                    <div style={{ fontSize: 11, color: th.text2 }}>
-                      {acc.username ? `@${acc.username} · ` : ""}{info.name}
-                      {acc.followers_count > 0 && ` · ${acc.followers_count.toLocaleString()} followers`}
-                    </div>
-                  </div>
+        ) : accounts.map((acc,i) => {
+          const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, bg:th.accentSoft, Icon:Globe };
+          return (
+            <div key={acc.id} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none", borderLeft:`3px solid ${info.color}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <div style={{ position:"relative" }}>
+                  {acc.picture ? <img src={acc.picture} alt="" style={{ width:46, height:46, borderRadius:13, objectFit:"cover", border:`2px solid ${info.color}55` }}/> : <div style={{ width:46, height:46, borderRadius:13, background:`linear-gradient(135deg, ${info.color}38, ${info.color}12)`, border:`2px solid ${info.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ color:info.color, fontSize:22 }}/></div>}
+                  <div style={{ position:"absolute", bottom:-4, right:-4, width:20, height:20, borderRadius:"50%", background:th.card, display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${th.card}` }}><info.Icon style={{ color:info.color, fontSize:10 }}/></div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ padding: "3px 10px", borderRadius: 20, background: th.successSoft, color: th.success, fontSize: 11, fontWeight: 700 }}>
-                    ● Active
+                <div>
+                  <div style={{ fontSize:14, fontWeight:600 }}>{acc.account_name}</div>
+                  <div style={{ fontSize:11.5, color:th.text2, display:"flex", alignItems:"center", gap:7, marginTop:3 }}>
+                    <span style={{ color:info.color, fontWeight:600 }}>{info.name}</span>
+                    {acc.username && <span>&middot; @{acc.username}</span>}
+                    {acc.followers_count>0 && <span>&middot; {Number(acc.followers_count).toLocaleString()} followers</span>}
                   </div>
-                  <button
-                    onClick={() => disconnectAccount(acc.id)}
-                    style={{ padding: "6px 12px", borderRadius: 8, background: th.dangerSoft, border: "none", color: th.danger, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Disconnect
-                  </button>
                 </div>
               </div>
-            );
-          })
-        )}
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:10.5, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>Active</span>
+                <button className="tw-cta" onClick={()=>disconnectAccount(acc.id)} title="Disconnect" style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 12px", cursor:"pointer", color:th.text2, display:"flex", alignItems:"center", gap:6, fontSize:11.5 }}><XCircle size={14}/>Disconnect</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Info box */}
-      <div style={{ marginTop: 20, padding: "14px 18px", borderRadius: 10, background: th.accentSoft, border: `1px solid ${th.border}`, fontSize: 12, color: th.text2, lineHeight: 1.6 }}>
-        <strong style={{ color: th.accent }}>Note:</strong> Instagram accounts must be Business or Creator accounts connected to a Facebook Page. Personal Instagram accounts cannot be connected via the API.
+      {liOptions && (
+        <div onClick={()=>setLiOptions(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", backdropFilter:"blur(2px)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.65)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}><div style={{ width:38, height:38, borderRadius:11, background:"rgba(10,102,194,0.14)", display:"flex", alignItems:"center", justifyContent:"center" }}><FaLinkedin style={{ color:"#0A66C2", fontSize:19 }}/></div><span style={{ fontSize:15.5, fontWeight:700 }}>Connect LinkedIn</span></div>
+              <button onClick={()=>setLiOptions(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+            </div>
+            <div style={{ fontSize:12.5, color:th.text2, margin:"4px 0 18px" }}>Choose the profile or company Page to connect.</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              {liOptions.map((o,i)=>(
+                <div key={i} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:th.card, border:`1px solid ${th.border}`, borderRadius:13, padding:"12px 14px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+                    <div style={{ width:38, height:38, borderRadius:11, background:"rgba(10,102,194,0.12)", display:"flex", alignItems:"center", justifyContent:"center" }}><FaLinkedin style={{ color:"#0A66C2", fontSize:18 }}/></div>
+                    <div><div style={{ fontSize:13, fontWeight:600 }}>{o.account_name}</div><div style={{ fontSize:10.5, color:th.text2 }}>{o.kind==='organization'?'Company Page':'Personal profile'}</div></div>
+                  </div>
+                  <button className="tw-cta" onClick={()=>connectLiAccount(o)} style={{ padding:"8px 17px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Connect</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop:18, padding:"14px 18px", borderRadius:13, background:th.accentSoft, border:`1px solid ${th.border}`, fontSize:12, color:th.text2, lineHeight:1.6 }}>
+        <strong style={{ color:th.accent }}>Note:</strong> Instagram must be a Business/Creator account linked to a Facebook Page. LinkedIn company Pages require admin access. X, TikTok &amp; YouTube are coming soon.
+      </div>
       </div>
     </div>
   );
@@ -2801,42 +2876,104 @@ function TeamPage() {
 function BillingPage() {
   const { dark } = useApp();
   const th = dark ? DARK : LIGHT;
+  const [busy, setBusy] = useState("");
+  const [notice, setNotice] = useState("");
+  const [paid, setPaid] = useState(false);
+  const [period, setPeriod] = useState("annual");
+
+  useEffect(() => {
+    try { if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay'); } } catch (e) { /* ignore */ }
+  }, []);
+
   const plans = [
-    { name:"Essential", price:"49", accounts:3, users:1, posts:30, current:true },
-    { name:"Professional", price:"99", accounts:10, users:5, posts:100, current:false },
-    { name:"Enterprise", price:"199", accounts:999, users:20, posts:999, current:false },
+    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", current:true, popular:false, tag:"For small businesses" },
+    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", current:false, popular:true, tag:"For growing brands" },
+    { name:"Enterprise", m:199, y:159, accounts:"Unlimited", users:"20", posts:"Unlimited", current:false, popular:false, tag:"For agencies" },
   ];
 
+  const startCheckout = async (planName) => {
+    setBusy(planName); setNotice("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const res = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ plan: planName, period, name: user?.user_metadata?.full_name || user?.user_metadata?.name || '', email: user?.email }) });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; return; }
+      setBusy("");
+      if (data.configured === false || /not connected|not configured/i.test(data.error || ''))
+        setNotice("Payments aren't connected yet — add your Tap secret key in Vercel (TAP_SECRET_KEY) to accept live cards. Everything else is wired and ready.");
+      else setNotice(data.error || "Could not start checkout. Please try again.");
+    } catch (e) { setBusy(""); setNotice("Could not start checkout. Please try again."); }
+  };
+
   return (
-    <div style={{padding:"28px 32px", maxWidth:900}}>
-      <div style={{marginBottom:24}}>
-        <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Billing</h2>
-        <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Manage your subscription</p>
-      </div>
-      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+    <div style={{padding:"28px 32px", maxWidth:960}}>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22, flexWrap:"wrap", gap:14}}>
         <div>
-          <div style={{fontSize:13, fontWeight:700}}>Current Plan: <span style={{color:th.accent}}>Essential</span></div>
-          <div style={{fontSize:12, color:th.text2, marginTop:4}}>Next billing date: July 1, 2026</div>
+          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Plans &amp; billing</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · renews July 1, 2026</p>
         </div>
-        <div style={{fontSize:24, fontWeight:900, color:th.accent}}>$49<span style={{fontSize:12, fontWeight:400, color:th.text2}}>/mo</span></div>
+        <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
+          {[["monthly","Monthly"],["annual","Yearly"]].map(([k,l])=>(
+            <button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px", borderRadius:999, border:"none", background:period===k?th.gradient:"transparent", color:period===k?"#fff":th.text2, fontSize:12.5, fontWeight:period===k?600:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+              {l}{k==="annual"&&<span style={{fontSize:10, fontWeight:700, color:period==="annual"?"#fff":th.success}}>save 20%</span>}
+            </button>
+          ))}
+        </div>
       </div>
-      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16}}>
-        {plans.map(plan => (
-          <div key={plan.name} style={{background:th.card, border:`2px solid ${plan.current?th.accent:th.border}`, borderRadius:14, padding:24, position:"relative"}}>
-            {plan.current && <div style={{position:"absolute", top:12, right:12, fontSize:10, fontWeight:700, background:th.accent, color:"#fff", padding:"3px 8px", borderRadius:10}}>CURRENT</div>}
-            <div style={{fontSize:16, fontWeight:800, marginBottom:8}}>{plan.name}</div>
-            <div style={{fontSize:28, fontWeight:900, color:plan.current?th.accent:th.text, marginBottom:16}}>{plan.price} <span style={{fontSize:13, fontWeight:400, color:th.text2}}>USD/mo</span></div>
-            <div style={{fontSize:12, color:th.text2, lineHeight:2}}>
-              <div>✓ {plan.accounts===999?"Unlimited":plan.accounts} social accounts</div>
-              <div>✓ {plan.users} team member{plan.users>1?"s":""}</div>
-              <div>✓ {plan.posts===999?"Unlimited":plan.posts} posts/month</div>
-              <div>✓ AI caption generator</div>
-              <div>✓ Analytics dashboard</div>
+
+      {paid && (
+        <div style={{display:"flex", alignItems:"center", gap:10, background:th.successSoft, border:`1px solid ${th.success}44`, color:th.success, borderRadius:12, padding:"12px 16px", marginBottom:18, fontSize:13}}>
+          <CheckCircle size={16}/><span>Payment received — your subscription is being activated. Thank you!</span>
+        </div>
+      )}
+      {notice && (
+        <div style={{display:"flex", alignItems:"center", gap:10, background:th.accentSoft, border:`1px solid ${th.accent}44`, color:th.accent, borderRadius:12, padding:"12px 16px", marginBottom:18, fontSize:13}}>
+          <Shield size={16}/><span>{notice}</span>
+        </div>
+      )}
+
+      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, alignItems:"start"}}>
+        {plans.map(plan => {
+          const price = period==="annual" ? plan.y : plan.m;
+          const save = (plan.m - plan.y) * 12;
+          const featured = plan.popular;
+          return (
+            <div key={plan.name} style={{
+              background:featured?th.card2:th.card,
+              border:`2px solid ${featured?th.accent:(plan.current?th.accent+"66":th.border)}`,
+              borderRadius:16, padding:"26px 22px 22px", position:"relative",
+              boxShadow:featured?"0 16px 44px rgba(79,110,247,0.28)":"0 8px 24px rgba(0,0,0,0.22)",
+              transform:featured?"translateY(-6px)":"none",
+            }}>
+              {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(79,110,247,0.5)"}}>MOST POPULAR</div>}
+              {plan.current && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>CURRENT</div>}
+              <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
+              <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
+              <div style={{display:"flex", alignItems:"baseline", gap:6}}>
+                <span style={{fontSize:34, fontWeight:900, color:featured||plan.current?th.accent:th.text}}>${price}</span>
+                <span style={{fontSize:12, color:th.text2}}>/mo</span>
+              </div>
+              <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>
+              <div style={{fontSize:12, color:th.text2, lineHeight:2, marginBottom:18}}>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.accounts} social accounts</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.users} team member{plan.users!=="1"?"s":""}</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.posts} posts/month</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>AI captions (EN + AR)</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>Analytics dashboard</div>
+              </div>
+              {plan.current ? (
+                <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center"}}>Your current plan</div>
+              ) : (
+                <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1}}>
+                  {busy===plan.name?"Starting checkout…":`Upgrade to ${plan.name}`}
+                </button>
+              )}
             </div>
-            {!plan.current && <button style={{width:"100%", marginTop:16, padding:"10px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Upgrade</button>}
-          </div>
-        ))}
+          );
+        })}
       </div>
+      <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
     </div>
   );
 }
@@ -2987,6 +3124,7 @@ function SettingsPage() {
 function LandingPage({ onGetStarted, onLogin }) {
   const [landingPage, setLandingPage] = useState('home');
   const isMobile = useIsMobile();
+  const [navOpen, setNavOpen] = useState(false);
   const [billing, setBilling] = useState('monthly');
   const prices = { monthly:{starter:49,pro:99,agency:199}, yearly:{starter:39,pro:79,agency:159} };
   const p = prices[billing];
@@ -3005,6 +3143,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   const Nav = () => (
     <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #1C2D45",padding:isMobile?"0 16px":"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
       <Logo/>
+      {isMobile && <button onClick={()=>setNavOpen(o=>!o)} aria-label="Menu" style={{background:"transparent",border:"1px solid #1C2D45",borderRadius:8,width:38,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#E8EFF8"}}>{navOpen?<XCircle size={18}/>:<Menu size={18}/>}</button>}
       <div style={{display:isMobile?"none":"flex",alignItems:"center",gap:28}}>
         {navLink('home','Home')}
         {navLink('features','Features')}
@@ -3012,10 +3151,20 @@ function LandingPage({ onGetStarted, onLogin }) {
         {navLink('about','About')}
         {navLink('contact','Contact')}
       </div>
-      <div style={{display:"flex",gap:10}}>
+      <div style={{display:isMobile?"none":"flex",gap:10}}>
         <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
         <button onClick={onGetStarted} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
       </div>
+      {isMobile && navOpen && (
+        <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1120",borderBottom:"1px solid #1C2D45",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
+          {[['home','Home'],['features','Features'],['pricing','Pricing'],['about','About'],['contact','Contact']].map(([id,label])=>(
+            <div key={id} onClick={()=>{setLandingPage(id);setNavOpen(false);}} style={{padding:"11px 12px",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",color:landingPage===id?"#4F6EF7":"#E8EFF8",background:landingPage===id?"rgba(79,110,247,0.1)":"transparent"}}>{label}</div>
+          ))}
+          <div style={{height:1,background:"#1C2D45",margin:"6px 0"}}/>
+          <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
+          <button onClick={()=>{onGetStarted();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+        </div>
+      )}
     </nav>
   );
 
@@ -3416,7 +3565,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   return (
-    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh"}}>
+    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh",paddingBottom:isMobile?74:0}}>
       <Nav/>
       {landingPage==='home'&&<HomePage/>}
       {landingPage==='features'&&<FeaturesPage/>}
@@ -3426,6 +3575,12 @@ function LandingPage({ onGetStarted, onLogin }) {
       {landingPage==='privacy'&&<PrivacyPage/>}
       {landingPage==='terms'&&<TermsPage/>}
       <Footer/>
+      {isMobile && landingPage!=='pricing' && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(12,17,32,0.96)",borderTop:"1px solid #1C2D45",backdropFilter:"blur(12px)",padding:"12px 16px",display:"flex",gap:10,alignItems:"center",boxShadow:"0 -8px 30px rgba(0,0,0,0.55)"}}>
+          <button onClick={()=>setLandingPage('pricing')} style={{flex:1,padding:"12px",borderRadius:11,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>View pricing</button>
+          <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(79,110,247,0.45)"}}>Start free trial</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -3798,6 +3953,18 @@ export default function TawasloApp() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.get('tap_return') || u.searchParams.get('tap_id')) {
+        sessionStorage.setItem('tw_pay', 'success');
+        setPage('billing');
+        ['tap_return','tap_id','tap_status'].forEach(k => u.searchParams.delete(k));
+        window.history.replaceState({}, '', u.pathname);
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
   const th = dark ? DARK : LIGHT;
   const isMobile = useIsMobile();
 
@@ -3879,14 +4046,25 @@ export default function TawasloApp() {
   }
 
   if (isMobile) {
+    const planName = selClient?.plan || accountLabelOf(accountType) || "Active membership";
     return (
       <AppCtx.Provider value={ctx}>
-        <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",textAlign:"center",padding:28,direction:"ltr"}}>
-          <div style={{maxWidth:340}}>
-            <img src="/logo-transparent.png" alt="Tawaslo" style={{width:56,height:56,objectFit:"contain",marginBottom:18}}/>
-            <div style={{fontSize:19,fontWeight:700,marginBottom:10}}>Best viewed on desktop</div>
-            <div style={{fontSize:13.5,color:th.text2,lineHeight:1.7,marginBottom:22}}>The Tawaslo dashboard \u2014 publishing, planner, analytics and inbox \u2014 is built for a larger screen. Please open <strong style={{color:th.text}}>tawaslo.com</strong> on your computer to manage your social media.</div>
-            <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{padding:"10px 20px",borderRadius:10,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>Log out</button>
+        <div style={{minHeight:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",direction:"ltr",padding:"26px 20px"}}>
+          <div style={{maxWidth:420,margin:"0 auto"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22}}>
+              <img src="/logo-transparent.png" alt="Tawaslo" style={{width:36,height:36,objectFit:"contain"}}/>
+              <div style={{fontSize:17,fontWeight:800}}>Tawaslo</div>
+            </div>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Manage your account</div>
+            <div style={{fontSize:12.5,color:th.text2,lineHeight:1.65,marginBottom:20}}>You can manage your membership here. The full dashboard \u2014 publishing, planner, analytics \u2014 is built for desktop, so open <strong style={{color:th.text}}>tawaslo.com</strong> on a computer to create &amp; schedule posts.</div>
+            <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:18,marginBottom:14}}>
+              <div style={{fontSize:11,color:th.text2,marginBottom:4}}>Current plan</div>
+              <div style={{fontSize:20,fontWeight:700,marginBottom:2}}>{planName}</div>
+              <div style={{fontSize:12,color:th.text2}}>{userEmail}</div>
+            </div>
+            <a href="mailto:support@tawaslo.com?subject=Change%20my%20Tawaslo%20plan" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"12px",borderRadius:11,background:th.gradient,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none",marginBottom:10}}>Change plan</a>
+            <button onClick={()=>{ if(window.confirm("Cancel your Tawaslo membership? Our team will process your request.")){ window.location.href="mailto:support@tawaslo.com?subject=Cancel%20my%20membership"; } }} style={{width:"100%",padding:"12px",borderRadius:11,background:th.dangerSoft,border:`1px solid ${th.danger}33`,color:th.danger,fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:10}}>Cancel membership</button>
+            <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{width:"100%",padding:"12px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>Log out</button>
           </div>
         </div>
       </AppCtx.Provider>

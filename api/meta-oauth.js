@@ -1,5 +1,16 @@
 // api/meta-oauth.js — Meta OAuth token exchange & account info
 export default async function handler(req, res) {
+  // GET = OAuth redirect landing for the connect popup (folded in from meta-callback)
+  if (req.method === 'GET') {
+    const { code, error } = req.query;
+    if (error) {
+      return res.send(`<html><body><script>window.opener && window.opener.postMessage({ type: 'meta_oauth_error', error: '${error}' }, '*'); window.close();</script><p>Authorization failed. You can close this window.</p></body></html>`);
+    }
+    if (code) {
+      return res.send(`<html><body><script>document.title='Connected!';</script><p style="font-family:sans-serif;text-align:center;margin-top:100px">Connected! Closing window...</p></body></html>`);
+    }
+    return res.status(400).send('Invalid callback');
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { code, redirectUri } = req.body;

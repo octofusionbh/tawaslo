@@ -1,5 +1,12 @@
 // api/instagram-oauth.js — Instagram Business OAuth token exchange
 export default async function handler(req, res) {
+  // GET = OAuth redirect callback (folded in from instagram-callback to stay under Vercel's function limit)
+  if (req.method === 'GET') {
+    const { code, error, error_description } = req.query;
+    if (error) return res.redirect(`https://tawaslo.com/social?ig_error=${encodeURIComponent(error_description || error)}`);
+    if (!code) return res.redirect(`https://tawaslo.com/social?ig_error=${encodeURIComponent('No code received')}`);
+    return res.redirect(`https://tawaslo.com/social?ig_code=${encodeURIComponent(code)}`);
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { code, redirectUri } = req.body;
