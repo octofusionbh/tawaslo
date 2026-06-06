@@ -1475,6 +1475,21 @@ function TrendingPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(true);
+  const [sampleMode, setSampleMode] = useState(false);
+
+  const SAMPLE_TRENDS = [
+    { id:"t1", platform:"tiktok", caption:"3 dishes you have to try this weekend 🤤 #bahrainfood", author:"@bahrain.eats", thumbnail:null, views:1840000, likes:212000, sample:true },
+    { id:"t2", platform:"instagram", caption:"Ramadan tablescape inspo 🌙✨ save this for later", author:"@gulf.living", thumbnail:null, views:0, likes:98400, sample:true },
+    { id:"t3", platform:"tiktok", caption:"POV: you found the best karak in Manama ☕️", author:"@khaleeji.vibes", thumbnail:null, views:920000, likes:154000, sample:true },
+    { id:"t4", platform:"instagram", caption:"Weekend brunch spots in the GCC you can't miss", author:"@foodie.gcc", thumbnail:null, views:0, likes:64200, sample:true },
+    { id:"t5", platform:"tiktok", caption:"Trending audio everyone is using right now 🔥", author:"@trendwatch", thumbnail:null, views:4200000, likes:511000, sample:true },
+    { id:"t6", platform:"instagram", caption:"Small business owners — try this Reel hook 👀", author:"@socialgrowth", thumbnail:null, views:0, likes:41800, sample:true },
+    { id:"t7", platform:"tiktok", caption:"Eid outfit transitions ✨ #eidstyle", author:"@style.khaleeji", thumbnail:null, views:2600000, likes:388000, sample:true },
+    { id:"t8", platform:"instagram", caption:"How we grew to 100k followers in 90 days", author:"@marketing.mena", thumbnail:null, views:0, likes:73500, sample:true },
+  ];
+  const sampleShown = SAMPLE_TRENDS.filter(it => platform==="all" || it.platform===platform);
+  const loadSample = () => setSampleMode(true);
+  const exitSample = () => setSampleMode(false);
 
   const REGIONS = [
     { id:"worldwide", label:"Worldwide", flag:"\uD83C\uDF0D" },
@@ -1487,6 +1502,7 @@ function TrendingPage() {
   const curRegion = REGIONS.find(r=>r.id===region) || REGIONS[0];
 
   useEffect(() => {
+    if (sampleMode) return;
     let active = true;
     setLoading(true);
     fetch(`/api/trends?region=${region}&platform=${platform}`)
@@ -1494,7 +1510,7 @@ function TrendingPage() {
       .then(d=>{ if(!active) return; setConnected(d.connected!==false); setItems(d.items||[]); setLoading(false); })
       .catch(()=>{ if(active) setLoading(false); });
     return ()=>{ active=false; };
-  }, [region, platform]);
+  }, [region, platform, sampleMode]);
 
   const fmt = (n) => n>=1000000 ? (n/1000000).toFixed(1)+"M" : n>=1000 ? (n/1000).toFixed(1)+"K" : String(n||0);
 
@@ -1521,35 +1537,48 @@ function TrendingPage() {
         </div>
       </div>
 
-      <div style={{display:"flex",gap:7,marginBottom:16}}>
+      <div style={{display:"flex",gap:7,marginBottom:16,alignItems:"center"}}>
         {[["all","All"],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
         ))}
+        <button onClick={sampleMode?exitSample:loadSample} style={{marginLeft:"auto",fontSize:11.5,borderRadius:999,border:`1px solid ${sampleMode?th.accent:th.border}`,background:sampleMode?th.accentSoft:th.card,color:sampleMode?th.accent:th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Eye size={12}/>{sampleMode?"Exit preview":"Preview sample"}</button>
       </div>
+      {sampleMode && (
+        <div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:th.accentSoft,border:`1px solid ${th.accent}55`,fontSize:12,color:th.accent,display:"flex",alignItems:"center",gap:8}}>
+          <Eye size={13}/> Showing <strong>sample trends</strong> for preview. Live TikTok &amp; Instagram trends load automatically when the data source has quota.
+        </div>
+      )}
 
-      {!connected ? (
+      {(!sampleMode && !connected) ? (
         <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:18,padding:32,textAlign:"center"}}>
           <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>Connect your trends source</div>
           <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,maxWidth:460,margin:"0 auto"}}>Add your EnsembleData API token in Vercel as the environment variable <strong style={{color:th.text}}>ENSEMBLE_TOKEN</strong> to start pulling live TikTok &amp; Instagram trends here.</div>
+          <button onClick={loadSample} style={{marginTop:16,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>Preview with sample data</button>
         </div>
-      ) : loading ? (
+      ) : (!sampleMode && loading) ? (
         <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>Loading trends&hellip;</div>
-      ) : items.length===0 ? (
-        <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>No trends found right now &mdash; try another region.</div>
+      ) : (!sampleMode && items.length===0) ? (
+        <div style={{textAlign:"center",padding:"48px 24px",color:th.text2,fontSize:13,maxWidth:460,margin:"0 auto"}}>
+          <TrendingUp size={32} style={{marginBottom:12,opacity:0.3}}/>
+          <div style={{fontSize:14,fontWeight:600,color:th.text,marginBottom:6}}>No live trends right now</div>
+          <div style={{lineHeight:1.6}}>The data source may have hit its daily quota, or this region has no results yet. Try another region, or check back later &mdash; it refreshes automatically.</div>
+          <button onClick={loadSample} style={{marginTop:18,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>Preview with sample data</button>
+        </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
-          {items.map((it,i)=>(
+          {(sampleMode?sampleShown:items).map((it,i)=>(
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.32)"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":"Instagram"}</span>
+                {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>Sample</span>}
                 <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?fmt(it.views)+" views":fmt(it.likes)+" likes"}</span>
               </div>
               <div style={{padding:"11px 13px"}}>
                 <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||"(no caption)"}</div>
                 <div style={{fontSize:10.5,color:th.text2,margin:"6px 0 9px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.author}</div>
                 <div style={{display:"flex",gap:7}}>
-                  <a href={it.url} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"7px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>View</a>
+                  <a href={it.url||"#"} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"7px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>View</a>
                   <button onClick={()=>setPage("publisher")} style={{flex:1.3,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:"#fff",background:th.gradient,border:"none",borderRadius:9,padding:"7px",cursor:"pointer"}}><Sparkles size={13}/>Create post</button>
                 </div>
               </div>
@@ -2187,6 +2216,20 @@ function InboxPage() {
   const [replyError, setReplyError] = useState('');
   const [replySuccess, setReplySuccess] = useState(false);
   const [realClientId, setRealClientId] = useState(null);
+  const [apiError, setApiError] = useState('');
+  const [sampleMode, setSampleMode] = useState(false);
+
+  const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+  const SAMPLE = [
+    { id:'s1', from:'sara.alkhalifa', text:'This looks amazing 😍 where can I order from?', time:ago(8), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:14, replies:[], sample:true },
+    { id:'s2', from:'foodie.bahrain', text:'Came by yesterday — best service in Adliya 🙌', time:ago(42), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:31, replies:[{ id:'r1', username:'marinacafe', text:'Thank you so much! See you again soon 🤍' }], sample:true },
+    { id:'s3', from:'mohammed_q8', text:'هل يوجد توصيل للمنطقة؟ وكم سعر البرانش؟', time:ago(95), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:5, replies:[], sample:true },
+    { id:'s4', from:'lulwa.events', text:'Hi! Can you send me your catering & private events pricing?', time:ago(180), type:'dm', likeCount:0, replies:[], sample:true },
+    { id:'s5', from:'ahmed.alsayed', text:'Do you open early on Fridays? 🕌', time:ago(300), type:'comment', mediaCaption:'Ramadan timings', likeCount:2, replies:[], sample:true },
+    { id:'s6', from:'noor.designs', text:'Featured you in my story! Tag me back please 💛', time:ago(540), type:'dm', likeCount:0, replies:[], sample:true },
+  ];
+  const loadSample = () => { setSampleMode(true); setApiError(''); setMessages(SAMPLE); setSelected(SAMPLE[0]); };
+  const exitSample = () => { setSampleMode(false); setMessages([]); setSelected(null); fetchInbox(); };
 
   useEffect(() => {
     console.log('[Inbox] selClient:', selClient?.name);
@@ -2210,12 +2253,14 @@ function InboxPage() {
 
   useEffect(() => {
     console.log('[Inbox] accounts:', accounts.length);
+    if (sampleMode) return;
     if (accounts.length === 0) return;
     fetchInbox();
-  }, [accounts]);
+  }, [accounts, sampleMode]);
 
   const sendReply = async () => {
     if (!reply.trim() || !selected || selected.type === 'dm') return;
+    if (selected.sample) { setReply(''); setReplySuccess(true); setTimeout(()=>setReplySuccess(false),3000); return; }
     const acc = accounts.find(a => a.platform === 'ig');
     if (!acc) return;
     setReplying(true); setReplyError(''); setReplySuccess(false);
@@ -2237,8 +2282,9 @@ function InboxPage() {
   };
 
   const fetchInbox = async () => {
-    setLoading(true);
+    setLoading(true); setApiError('');
     const allMessages = [];
+    let lastError = '';
     for (const acc of accounts.filter(a => a.platform === 'ig')) {
       try {
         const res = await fetch('/api/instagram-inbox', {
@@ -2249,11 +2295,13 @@ function InboxPage() {
         const data = await res.json();
         console.log('[Inbox] API response:', JSON.stringify(data));
         if (data.data) allMessages.push(...data.data.map(m => ({ ...m, accountName: acc.account_name })));
-      } catch(e) { console.warn('Inbox fetch error:', e); }
+        else if (data.error) lastError = data.error;
+      } catch(e) { lastError = e.message; console.warn('Inbox fetch error:', e); }
     }
     allMessages.sort((a, b) => new Date(b.time) - new Date(a.time));
     setMessages(allMessages);
     if (allMessages.length > 0) setSelected(allMessages[0]);
+    if (allMessages.length === 0 && lastError) setApiError(lastError);
     setLoading(false);
   };
 
@@ -2285,18 +2333,42 @@ function InboxPage() {
           <button onClick={fetchInbox} disabled={loading} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
             <RefreshCw size={11}/>{loading?'Loading…':'Refresh'}
           </button>
+          <button onClick={sampleMode?exitSample:loadSample} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
+            <Eye size={11}/>{sampleMode?'Exit preview':'Preview sample'}
+          </button>
         </div>
       </div>
 
+      {sampleMode && (
+        <div style={{marginBottom:14, padding:"10px 14px", borderRadius:10, background:th.accentSoft, border:`1px solid ${th.accent}55`, fontSize:12, color:th.accent, display:"flex", alignItems:"center", gap:8}}>
+          <Eye size={13}/> Showing <strong>sample data</strong> for preview. Real comments &amp; DMs appear here automatically once Meta approves your app.
+        </div>
+      )}
       {loading ? (
         <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>Loading inbox...</div>
       ) : messages.length === 0 ? (
-        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>
-          <MessageCircle size={32} style={{marginBottom:12, opacity:0.3}}/>
-          <div>No messages yet. Comments and DMs will appear here once your Instagram account receives activity.</div>
-          {accounts.filter(a=>a.platform==='ig').length === 0 && (
-            <div style={{marginTop:8, fontSize:12, color:th.danger}}>No Instagram accounts connected for this client.</div>
+        <div style={{textAlign:"center", padding:"54px 24px", color:th.text2, fontSize:13, maxWidth:460, margin:"0 auto"}}>
+          <MessageCircle size={34} style={{marginBottom:14, opacity:0.3}}/>
+          {accounts.filter(a=>a.platform==='ig').length === 0 ? (
+            <>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>No Instagram account connected</div>
+              <div>Connect an Instagram account for {selClient?.name} to start receiving comments and DMs here.</div>
+            </>
+          ) : apiError ? (
+            <>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>Can&apos;t load messages yet</div>
+              <div>Instagram returned: <span style={{color:th.danger}}>{apiError}</span></div>
+              <div style={{marginTop:8, fontSize:12, color:th.text3}}>This usually means the <code>instagram_manage_comments</code> permission is still pending Meta App Review.</div>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>No activity yet</div>
+              <div>Comments and DMs will appear here as soon as your posts get engagement.</div>
+            </>
           )}
+          <button onClick={loadSample} style={{marginTop:18, padding:"9px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7}}>
+            <Eye size={14}/>Preview with sample data
+          </button>
         </div>
       ) : (
         <div style={{display:"grid", gridTemplateColumns:"340px 1fr", gap:16, height:560}}>
@@ -2316,6 +2388,7 @@ function InboxPage() {
                   <span style={{fontSize:9, fontWeight:700, color:"#E1306C", background:"rgba(225,48,108,0.1)", padding:"2px 6px", borderRadius:4}}>
                     {msg.type === 'dm' ? 'DM' : 'Comment'}
                   </span>
+                  {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:4}}>Sample</span>}
                   {msg.likeCount > 0 && <span style={{fontSize:9, color:th.text2}}>❤️ {msg.likeCount}</span>}
                 </div>
               </div>
