@@ -76,6 +76,21 @@ const CLIENTS = [
 ];
 
 const AppCtx = createContext(null);
+const TR = {
+  en: {},
+  ar: {
+    "nav.overview":"نظرة عامة","nav.clients":"العملاء","nav.revenue":"الإيرادات","nav.apiusage":"الاستخدام",
+    "nav.dashboard":"الرئيسية","nav.publisher":"النشر","nav.planner":"المخطط","nav.streams":"التدفقات",
+    "nav.inbox":"الوارد","nav.listening":"الاستماع","nav.campaigns":"الحملات","nav.aistudio":"استوديو الذكاء",
+    "nav.media":"الوسائط","nav.analytics":"التحليلات","nav.ads":"الإعلانات","nav.reports":"التقارير",
+    "nav.social":"الحسابات","nav.team":"الفريق","nav.agencyteam":"الفريق","nav.billing":"الفوترة",
+    "nav.settings":"الإعدادات","nav.agencysets":"الإعدادات",
+    "sec.Manage":"الإدارة","sec.Create":"الإنشاء","sec.Analyse":"التحليل","sec.Account":"الحساب",
+    "btn.createPost":"إنشاء منشور","btn.newCampaign":"حملة جديدة","btn.logout":"تسجيل الخروج",
+    "btn.export":"تصدير","btn.owner":"المالك",
+    "theme.dark":"داكن","theme.light":"فاتح","brand.tagline":"ذكاء اجتماعي","common.search":"بحث...",
+  },
+};
 const useApp = () => useContext(AppCtx);
 
 function useTheme() {
@@ -139,7 +154,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
 
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
-          selClient, setSelClient, setIsAuthed, clients } = useApp();
+          selClient, setSelClient, setIsAuthed, clients, t } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
 
@@ -209,7 +224,7 @@ function Sidebar() {
         <img src="/logo-transparent.png" alt="Tawaslo" style={{width:38,height:38,objectFit:"contain",flexShrink:0}}/>
         <div>
           <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
-          <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>Social Intelligence</div>
+          <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>{t("brand.tagline","Social Intelligence")}</div>
         </div>
       </div>
 
@@ -248,18 +263,18 @@ function Sidebar() {
           display:"flex",alignItems:"center",justifyContent:"center",gap:6,
         }}>
           <Plus size={14} strokeWidth={2.5}/>
-          {mode==="owner"?"New Campaign":"Create Post"}
+          {mode==="owner"?t("btn.newCampaign","New Campaign"):t("btn.createPost","Create Post")}
         </button>
       </div>
 
       <nav style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
-          <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,label,null,page===key,()=>setPage(key)))}</div>
+          <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
           AGENCY_NAV.map((sec,si)=>(
             <div key={si} style={{marginBottom:16}}>
-              <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{sec.section}</div>
-              {sec.items.map(({key,Icon:I,label,badge})=>navItem(key,I,label,badge,page===key,()=>setPage(key)))}
+              <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>
+              {sec.items.map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),badge,page===key,()=>setPage(key)))}
             </div>
           ))
         )}
@@ -268,7 +283,7 @@ function Sidebar() {
       <div style={{padding:"12px 14px",borderTop:`1px solid ${th.border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <span style={{fontSize:11,color:th.text2,display:"flex",alignItems:"center",gap:5}}>
-            {dark?<Moon size={11}/>:<Sun size={11}/>}{dark?"Dark":"Light"}
+            {dark?<Moon size={11}/>:<Sun size={11}/>}{dark?t("theme.dark","Dark"):t("theme.light","Light")}
           </span>
           <Toggle on={dark} onColor="accent" onClick={()=>setDark(!dark)}/>
         </div>
@@ -277,7 +292,7 @@ function Sidebar() {
             <Languages size={10}/>{lang==="en"?"عربي":"EN"}
           </button>
           <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{flex:1,padding:"5px",borderRadius:7,background:th.dangerSoft,border:`1px solid ${th.danger}30`,color:th.danger,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-            <LogOut size={10}/>Log out
+            <LogOut size={10}/>{t("btn.logout","Log out")}
           </button>
         </div>
       </div>
@@ -286,7 +301,7 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType } = useApp();
+  const { mode, page, selClient, accountType, t } = useApp();
   const th = useTheme();
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
@@ -301,20 +316,20 @@ function Topbar() {
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div style={{display:"flex",alignItems:"center",gap:7,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"6px 12px",width:220}}>
           <Search size={13} color={th.text3}/>
-          <input placeholder="Search..." style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12,width:"100%",fontFamily:"inherit"}}/>
+          <input placeholder={t("common.search","Search...")} style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12,width:"100%",fontFamily:"inherit"}}/>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2}}>
           <span style={{padding:"4px 10px",borderRadius:7,background:mode==="owner"?th.accentSoft:th.accent2Soft,color:mode==="owner"?th.accent:th.accent2,fontWeight:700,fontSize:11}}>
-            {mode==="owner"?"Owner":accountLabelOf(accountType)}
+            {mode==="owner"?t("btn.owner","Owner"):accountLabelOf(accountType)}
           </span>
           {mode==="agency"&&<><ChevronRight size={12}/><span style={{fontWeight:600}}>{selClient.name}</span></>}
           <ChevronRight size={12}/>
-          <span style={{fontWeight:500,color:th.text}}>{titles[page]||page}</span>
+          <span style={{fontWeight:500,color:th.text}}>{t("nav."+page,titles[page]||page)}</span>
         </div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
         <button style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,cursor:"pointer"}}>
-          <Download size={12}/> Export
+          <Download size={12}/> {t("btn.export","Export")}
         </button>
         <button style={{width:32,height:32,borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
           <Bell size={14} color={th.text2}/>
@@ -903,6 +918,18 @@ function PublisherPage() {
   const lbl = { fontSize:12, color:th.text2, marginBottom:10 };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const firstImg = images[0];
+  const primaryPlat = selPlats[0] || "ig";
+  const BEST = { ig:[["13:00","Lunch scroll"],["20:00","Evening peak"],["21:00","Prime time"]], fb:[["12:00","Midday"],["19:00","Evening"],["21:00","Late evening"]], tw:[["09:00","Morning"],["12:00","Midday"],["18:00","Commute"]], li:[["08:00","Pre-work"],["09:00","Morning"],["12:00","Lunch"]], tt:[["18:00","After work"],["20:00","Evening"],["21:00","Prime time"]], yt:[["17:00","Evening"],["20:00","Prime time"]] };
+  const bestSlots = (BEST[primaryPlat] || BEST.ig).map(([t, blab]) => {
+    const [hh, mm] = t.split(":").map(Number);
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
+    if (d <= now) d.setDate(d.getDate() + 1);
+    const sameDayNow = d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const h12 = hh % 12 || 12; const ap = hh >= 12 ? "PM" : "AM";
+    return { dateStr, time: t, blab, when: `${sameDayNow ? "Today" : "Tomorrow"} ${h12}:${String(mm).padStart(2,'0')} ${ap}` };
+  });
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
@@ -1051,7 +1078,24 @@ function PublisherPage() {
                 <button key={k} onClick={()=>setScheduleType(k)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"9px", borderRadius:10, border:`1.5px solid ${scheduleType===k?th.accent:th.border}`, background:scheduleType===k?th.accentSoft:th.card2, color:scheduleType===k?th.accent:th.text2, fontSize:12, fontWeight:scheduleType===k?600:400, cursor:"pointer" }}><Ic size={13}/>{t}</button>
               ))}
             </div>
-            {scheduleType==="schedule" && <div style={{ display:"flex", gap:10 }}><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp, flex:1 }}/><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp, flex:1 }}/></div>}
+            {scheduleType==="schedule" && (
+              <div>
+                <div style={{ display:"flex", gap:10, marginBottom:13 }}>
+                  <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
+                  <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
+                </div>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}><Sparkles size={12} color={th.accent}/>Best times to post on {(PLAT[primaryPlat]||{}).name || "Instagram"}</div>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {bestSlots.map((bs,i)=>{ const active = scheduleDate===bs.dateStr && scheduleTime===bs.time; return (
+                    <button key={i} onClick={()=>{ setScheduleDate(bs.dateStr); setScheduleTime(bs.time); }} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"8px 13px", borderRadius:11, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, cursor:"pointer", minWidth:96 }}>
+                      <span style={{ fontSize:11.5, fontWeight:600, color:active?th.accent:th.text }}>{bs.when}</span>
+                      <span style={{ fontSize:9.5, color:th.text2 }}>{bs.blab}</span>
+                    </button>
+                  ); })}
+                </div>
+                <div style={{ fontSize:9.5, color:th.text3, marginTop:8 }}>Suggested for GCC audiences &middot; adjusts to your selected platform</div>
+              </div>
+            )}
           </div>
 
           {results.length>0 && <div>{results.map((r,i)=><div key={i} style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>{r.success?<CheckCircle size={14}/>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span></div>)}</div>}
@@ -3469,6 +3513,7 @@ export default function TawasloApp() {
 
   const ctx = {
     dark, setDark, lang, setLang,
+    t: (k, fb) => (TR[lang] && TR[lang][k]) || TR.en[k] || fb || k,
     isAuthed, setIsAuthed,
     authPage, setAuthPage,
     mode, setMode: saveMode,

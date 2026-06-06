@@ -1,5 +1,5 @@
-// api/meta-publish.js — Publish posts to Instagram & Facebook
-// Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment.
+// api/meta-publish.js — Publish posts to Instagram, Facebook & LinkedIn
+// Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image.
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -109,6 +109,50 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ success: true, postId: result.id || result.post_id, platform: 'fb' });
+
+    } else if (platform === 'li') {
+      // LinkedIn — text + optional single image via REST Posts API. Requires a connected token + API approval.
+      const version = process.env.LINKEDIN_API_VERSION || '202401';
+      const author = String(accountId).startsWith('urn:') ? accountId : `urn:li:person:${accountId}`;
+      const liHeaders = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'X-Restli-Protocol-Version': '2.0.0',
+        'LinkedIn-Version': version,
+      };
+      const singleImg = imageUrl || (imageUrls && imageUrls[0]) || null;
+      let mediaContent = null;
+
+      if (singleImg) {
+        // 1) initialize an image upload -> get upload URL + image URN
+        const init = await fetch('https://api.linkedin.com/rest/images?action=initializeUpload', {
+          method: 'POST', headers: liHeaders,
+          body: JSON.stringify({ initializeUploadRequest: { owner: author } }),
+        }).then(r => r.json());
+        const uploadUrl = init && init.value && init.value.uploadUrl;
+        const imageUrn = init && init.value && init.value.image;
+        if (!uploadUrl || !imageUrn) return res.status(400).json({ error: 'LinkedIn image init failed', details: init });
+        // 2) fetch bytes and upload
+        const bytes = await fetch(singleImg).then(r => r.arrayBuffer());
+        const up = await fetch(uploadUrl, { method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}` }, body: Buffer.from(bytes) });
+        if (!up.ok && up.status !== 201) return res.status(400).json({ error: 'LinkedIn image upload failed', status: up.status });
+        mediaContent = { media: { title: (altText || caption || 'image').slice(0, 100), id: imageUrn } };
+      }
+
+      const liBody = {
+        author,
+        commentary: caption,
+        visibility: 'PUBLIC',
+        distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
+        lifecycleState: 'PUBLISHED',
+        isReshareDisabledByAuthor: false,
+      };
+      if (mediaContent) liBody.content = mediaContent;
+
+      const liRes = await fetch('https://api.linkedin.com/rest/posts', { method: 'POST', headers: liHeaders, body: JSON.stringify(liBody) });
+      if (!liRes.ok) { const err = await liRes.json().catch(() => ({})); return res.status(400).json({ error: err.message || 'LinkedIn publish failed', details: err }); }
+      const postUrn = liRes.headers.get('x-restli-id') || liRes.headers.get('x-linkedin-id');
+      return res.status(200).json({ success: true, postId: postUrn, platform: 'li' });
     }
 
     return res.status(400).json({ error: 'Unsupported platform' });
