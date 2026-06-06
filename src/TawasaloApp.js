@@ -601,6 +601,234 @@ function AgencyDashboard() {
   );
 }
 
+function MediaPage() {
+  const { dark, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [uid, setUid] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [copied, setCopied] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+
+  const load = async (id) => {
+    const u = id || uid; if (!u) return;
+    setLoading(true);
+    const { data } = await supabase.storage.from('media').list(u, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+    const files = (data || []).filter(f => f.name && /\.(png|jpe?g|gif|webp|mp4|mov|webm)$/i.test(f.name)).map(f => {
+      const { data: url } = supabase.storage.from('media').getPublicUrl(`${u}/${f.name}`);
+      return { name: f.name, url: url.publicUrl, video: /\.(mp4|mov|webm)$/i.test(f.name) };
+    });
+    setItems(files); setLoading(false);
+  };
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) { setUid(user.id); load(user.id); } else setLoading(false);
+    })();
+  }, []);
+
+  const upload = async (fileList) => {
+    const files = Array.from(fileList || []); if (!files.length || !uid) return;
+    setUploading(true);
+    for (const file of files) {
+      const ext = file.name.split('.').pop();
+      const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+      try { await supabase.storage.from('media').upload(path, file, { upsert: true }); } catch (e) { /* ignore */ }
+    }
+    setUploading(false); load();
+  };
+  const copyUrl = (url, key) => { try { navigator.clipboard.writeText(url); setCopied(key); setTimeout(()=>setCopied(""),1500); } catch (e) { /* ignore */ } };
+  const useInPost = (url) => { try { sessionStorage.setItem('tw_studio_media', url); } catch (e) { /* ignore */ } setPage('publisher'); };
+  const remove = async (name) => { if (!window.confirm('Delete this asset? This cannot be undone.')) return; try { await supabase.storage.from('media').remove([`${uid}/${name}`]); } catch (e) { /* ignore */ } load(); };
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1040 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Media Library</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{items.length} {items.length===1?"asset":"assets"} &middot; reuse across any post</p>
+        </div>
+        <label style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:11, background:th.gradient, color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>
+          <Plus size={14}/>{uploading?"Uploading…":"Upload"}
+          <input type="file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>upload(e.target.files)}/>
+        </label>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign:"center", padding:48, color:th.text2, fontSize:13 }}>Loading your media…</div>
+      ) : items.length === 0 ? (
+        <div onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);upload(e.dataTransfer.files);}} onClick={()=>document.getElementById('media-file').click()}
+          style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:18, padding:"56px 24px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent" }}>
+          <input type="file" id="media-file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>upload(e.target.files)}/>
+          <Image size={34} color={th.accent} style={{ marginBottom:12 }}/>
+          <div style={{ fontSize:14, fontWeight:600, marginBottom:5 }}>Your media library is empty</div>
+          <div style={{ fontSize:12.5, color:th.text2 }}>Drag &amp; drop or click to upload images and videos you can reuse in any post.</div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14 }}>
+          {items.map((it,i)=>(
+            <div key={it.name} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden", boxShadow:"0 8px 22px rgba(0,0,0,0.24)" }}>
+              <div style={{ position:"relative", height:150, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                {it.video ? <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, color:th.text2 }}><Send size={22}/><span style={{ fontSize:10 }}>Video</span></div> : <img src={it.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}}/>}
+                <button onClick={()=>remove(it.name)} title="Delete" style={{ position:"absolute", top:8, right:8, width:26, height:26, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={15}/></button>
+              </div>
+              <div style={{ padding:"10px 11px", display:"flex", gap:7 }}>
+                <button onClick={()=>useInPost(it.url)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"7px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={12}/>Use</button>
+                <button onClick={()=>copyUrl(it.url,"m"+i)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>{copied==="m"+i?<><CheckCircle size={12} color={th.success}/>Copied</>:"Copy URL"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AIStudioPage() {
+  const { dark, setPage, selClient } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [tool, setTool] = useState("captions");
+  const [topic, setTopic] = useState("");
+  const [platform, setPlatform] = useState("ig");
+  const [tone, setTone] = useState("engaging and professional");
+  const [aiLang, setAiLang] = useState("both");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [captions, setCaptions] = useState([]);
+  const [ideas, setIdeas] = useState([]);
+  const [hashtags, setHashtags] = useState([]);
+  const [copied, setCopied] = useState("");
+
+  const PLATS = [["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
+  const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
+  const TOOLS = [["captions","Captions",Edit3],["ideas","Post ideas",Sparkles],["hashtags","Hashtags",TrendingUp]];
+
+  const copy = (text, key) => { try { navigator.clipboard.writeText(text); setCopied(key); setTimeout(()=>setCopied(""),1500); } catch (e) { /* ignore */ } };
+  const useInComposer = (text) => { try { sessionStorage.setItem('tw_studio_caption', text); } catch (e) { /* ignore */ } setPage('publisher'); };
+
+  const run = async () => {
+    if (!topic.trim() || loading) return;
+    setLoading(true); setError(""); setCaptions([]); setIdeas([]); setHashtags([]);
+    try {
+      if (tool === "captions") {
+        const reqs = [0,1,2].map(()=>fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,lang:aiLang,brand:selClient?.name})}).then(r=>r.json()).catch(()=>({error:true})));
+        const results = await Promise.all(reqs);
+        const ok = results.filter(r=>r && !r.error && (r.english||r.arabic));
+        if (ok.length) setCaptions(ok); else setError("Could not generate. Please try again.");
+      } else if (tool === "ideas") {
+        const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,mode:'ideas',count:6,brand:selClient?.name})}).then(r=>r.json());
+        if (r.ideas && r.ideas.length) setIdeas(r.ideas); else setError(r.error||"Could not generate.");
+      } else {
+        const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,mode:'hashtags',brand:selClient?.name})}).then(r=>r.json());
+        if (r.hashtags && r.hashtags.length) setHashtags(r.hashtags); else setError(r.error||"Could not generate.");
+      }
+    } catch (e) { setError("Something went wrong. Please try again."); }
+    setLoading(false);
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, boxShadow:"0 8px 24px rgba(0,0,0,0.22)" };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const smallBtn = (active) => ({ fontSize:11, padding:"6px 11px", borderRadius:8, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2 });
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:920 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
+        <div style={{ width:40, height:40, borderRadius:12, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={20} color="#fff"/></div>
+        <div>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>AI Studio</h2>
+          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>Generate captions, post ideas &amp; hashtags &mdash; in English &amp; Arabic</p>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:6, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4, width:"fit-content", margin:"16px 0" }}>
+        {TOOLS.map(([k,label,Ic])=>(
+          <button key={k} onClick={()=>{setTool(k);setError("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 16px", borderRadius:999, border:"none", background:tool===k?th.gradient:"transparent", color:tool===k?"#fff":th.text2, fontSize:12.5, fontWeight:tool===k?600:400, cursor:"pointer" }}><Ic size={14}/>{label}</button>
+        ))}
+      </div>
+
+      <div style={{ ...card, marginBottom:18 }}>
+        <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{tool==="hashtags"?"What's the post about?":"Topic / product"}</div>
+        <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="e.g. New weekend brunch menu launch at our Adliya cafe" rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
+        <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Platform</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>{PLATS.map(([k,l])=><button key={k} onClick={()=>setPlatform(k)} style={smallBtn(platform===k)}>{l}</button>)}</div>
+          </div>
+          {tool!=="hashtags" && (
+            <div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Tone</div>
+              <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp, width:"auto", padding:"7px 10px", fontSize:12 }}>
+                {TONES.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+              </select>
+            </div>
+          )}
+          {tool==="captions" && (
+            <div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Language</div>
+              <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                {[["en","EN"],["ar","ع"],["both","Both"]].map(([k,t])=><button key={k} onClick={()=>setAiLang(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", background:aiLang===k?th.gradient:"transparent", color:aiLang===k?"#fff":th.text2, fontSize:11, fontWeight:aiLang===k?600:400, cursor:"pointer" }}>{t}</button>)}
+              </div>
+            </div>
+          )}
+          <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?"Generating…":"Generate"}</button>
+        </div>
+      </div>
+
+      {error && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{error}</div>}
+
+      {tool==="captions" && captions.length>0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:14 }}>
+          {captions.map((c,i)=>(
+            <div key={i} style={card}>
+              <div style={{ fontSize:10, color:th.text2, marginBottom:8, fontWeight:600 }}>VARIATION {i+1}</div>
+              {c.english && <div style={{ fontSize:12.5, lineHeight:1.6, marginBottom:c.arabic?10:12 }}>{c.english}</div>}
+              {c.arabic && <div style={{ fontSize:13, lineHeight:1.7, direction:"rtl", textAlign:"right", marginBottom:12 }}>{c.arabic}</div>}
+              <div style={{ display:"flex", gap:7 }}>
+                <button onClick={()=>useInComposer([c.english,c.arabic].filter(Boolean).join("\n\n"))} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>Use</button>
+                <button onClick={()=>copy([c.english,c.arabic].filter(Boolean).join("\n\n"),"c"+i)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>{copied==="c"+i?<><CheckCircle size={13} color={th.success}/>Copied</>:"Copy"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tool==="ideas" && ideas.length>0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {ideas.map((idea,i)=>(
+            <div key={i} style={{ ...card, padding:14, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ width:26, height:26, borderRadius:8, background:th.accentSoft, color:th.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, flexShrink:0 }}>{i+1}</div>
+              <div style={{ flex:1, fontSize:13, lineHeight:1.5 }}>{idea}</div>
+              <button onClick={()=>{ setTopic(idea); setTool("captions"); }} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.accentSoft, border:"none", color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Edit3 size={12}/>Write caption</button>
+              <button onClick={()=>copy(idea,"i"+i)} style={{ padding:"7px 12px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", flexShrink:0 }}>{copied==="i"+i?"Copied":"Copy"}</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tool==="hashtags" && hashtags.length>0 && (
+        <div style={card}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontSize:12, color:th.text2 }}>{hashtags.length} hashtags</div>
+            <button onClick={()=>copy(hashtags.join(" "),"all")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>{copied==="all"?<><CheckCircle size={13}/>Copied</>:"Copy all"}</button>
+          </div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {hashtags.map((h,i)=><span key={i} style={{ fontSize:12, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"6px 12px" }}>{h}</span>)}
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && captions.length===0 && ideas.length===0 && hashtags.length===0 && (
+        <div style={{ textAlign:"center", padding:"40px 24px", color:th.text2, fontSize:12.5 }}>
+          <Wand2 size={28} color={th.text3} style={{ marginBottom:10 }}/>
+          <div>Enter a topic and hit Generate to get {tool==="captions"?"3 bilingual caption variations":tool==="ideas"?"fresh post ideas":"a hashtag pack"}.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -812,6 +1040,13 @@ function PublisherPage() {
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
       .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
   }, [selClient]);
+
+  useEffect(() => {
+    try {
+      const c = sessionStorage.getItem('tw_studio_caption'); if (c) { setCaption(c); sessionStorage.removeItem('tw_studio_caption'); }
+      const m = sessionStorage.getItem('tw_studio_media'); if (m) { setMedia(prev => [...prev, { id:'h'+Date.now(), name:'media', type:/\.(mp4|mov|webm)$/i.test(m)?'video':'image', url:m, uploading:false }]); sessionStorage.removeItem('tw_studio_media'); }
+    } catch (e) { /* ignore */ }
+  }, []);
 
   const loadDrafts = (cid) => {
     const id = cid || realClientId; if (!id) return;
@@ -1434,79 +1669,38 @@ function SocialAccountsPage() {
   );
 }
 
-function Placeholder({ icon:Icon, title, description }) {
+function Placeholder({ icon:Icon, title, description, badge, features, ctaLabel, ctaPage }) {
   const { setPage } = useApp();
   const th = useTheme();
   return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",textAlign:"center",padding:40}}>
-      <div style={{width:72,height:72,borderRadius:20,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
-        <Icon size={32} color={th.accent} strokeWidth={1.5}/>
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"66vh",textAlign:"center",padding:40}}>
+      <div style={{width:74,height:74,borderRadius:20,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18,boxShadow:"0 10px 30px rgba(79,110,247,0.22)"}}>
+        <Icon size={32} color={th.accent} strokeWidth={1.6}/>
       </div>
-      <h2 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.6,marginBottom:8}}>{title}</h2>
-      <p style={{margin:0,fontSize:13,color:th.text2,maxWidth:400,lineHeight:1.6,marginBottom:24}}>{description}</p>
-      <button onClick={()=>setPage("dashboard")} style={{padding:"10px 20px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",boxShadow:`0 4px 14px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",gap:7}}>
-        <LayoutDashboard size={14}/>Go to Dashboard
-      </button>
+      {badge && <div style={{display:"inline-flex",alignItems:"center",gap:6,background:th.accentSoft,color:th.accent,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:999,marginBottom:12,letterSpacing:0.3}}><Sparkles size={12}/>{badge}</div>}
+      <h2 style={{margin:0,fontSize:22,fontWeight:700,letterSpacing:-0.5,marginBottom:9}}>{title}</h2>
+      <p style={{margin:0,fontSize:13,color:th.text2,maxWidth:440,lineHeight:1.7,marginBottom:features?20:24}}>{description}</p>
+      {features && (
+        <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:24,textAlign:"left",width:"100%",maxWidth:360}}>
+          {features.map((f,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"11px 14px"}}>
+              <CheckCircle size={15} color={th.accent} style={{flexShrink:0}}/>
+              <span style={{fontSize:12.5,color:th.text}}>{f}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
+        {ctaLabel && ctaPage && (
+          <button onClick={()=>setPage(ctaPage)} style={{padding:"10px 20px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 14px rgba(79,110,247,0.4)",display:"flex",alignItems:"center",gap:7}}>
+            <ArrowUpRight size={15}/>{ctaLabel}
+          </button>
+        )}
+        <button onClick={()=>setPage("dashboard")} style={{padding:"10px 20px",borderRadius:10,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:7}}>
+          <LayoutDashboard size={14}/>Dashboard
+        </button>
+      </div>
     </div>
-  );
-}
-
-function InsightChart({ chartData, dark }) {
-  const th = dark ? DARK : LIGHT;
-  if (!chartData || chartData.length < 2) return (
-    <div style={{textAlign:"center", padding:"30px 0", fontSize:12, color:th.text2}}>
-      Chart data available after <strong style={{color:th.text}}>instagram_manage_insights</strong> is approved by Meta.
-    </div>
-  );
-  const padL = 42, padR = 12, padT = 14, padB = 28;
-  const vW = 600, vH = 160;
-  const chartW = vW - padL - padR;
-  const chartH = vH - padT - padB;
-  const maxVal = Math.max(...chartData.flatMap(d => [d.reach||0, d.impressions||0]), 1);
-  const x = i => padL + (i / (chartData.length - 1)) * chartW;
-  const y = v => padT + (1 - v / maxVal) * chartH;
-  const reachPts = chartData.map((d,i) => `${x(i)},${y(d.reach||0)}`).join(' ');
-  const impPts   = chartData.map((d,i) => `${x(i)},${y(d.impressions||0)}`).join(' ');
-  const reachArea = `${padL},${padT+chartH} ${reachPts} ${x(chartData.length-1)},${padT+chartH}`;
-  const impArea   = `${padL},${padT+chartH} ${impPts}   ${x(chartData.length-1)},${padT+chartH}`;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1];
-  const xStep = Math.ceil(chartData.length / 6);
-  const fmt = v => v >= 1000 ? `${(v/1000).toFixed(0)}k` : `${v}`;
-  return (
-    <svg viewBox={`0 0 ${vW} ${vH}`} style={{width:"100%", height:"auto", display:"block"}}>
-      <defs>
-        <linearGradient id="rGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#E1306C" stopOpacity="0.35"/>
-          <stop offset="100%" stopColor="#E1306C" stopOpacity="0"/>
-        </linearGradient>
-        <linearGradient id="iGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.25"/>
-          <stop offset="100%" stopColor="#A78BFA" stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      {yTicks.map(p => {
-        const yy = y(maxVal * p);
-        return (
-          <g key={p}>
-            <line x1={padL} y1={yy} x2={padL+chartW} y2={yy} stroke={dark?"#ffffff18":"#00000012"} strokeWidth={1}/>
-            <text x={padL-5} y={yy+3.5} textAnchor="end" fontSize={9} fill={th.text2}>{fmt(Math.round(maxVal*p))}</text>
-          </g>
-        );
-      })}
-      <polygon points={impArea}   fill="url(#iGrad)"/>
-      <polygon points={reachArea} fill="url(#rGrad)"/>
-      <polyline points={impPts}   fill="none" stroke="#A78BFA" strokeWidth={2} strokeLinejoin="round"/>
-      <polyline points={reachPts} fill="none" stroke="#E1306C" strokeWidth={2} strokeLinejoin="round"/>
-      {chartData.map((d,i) => {
-        if (i % xStep !== 0) return null;
-        return <text key={i} x={x(i)} y={vH-6} textAnchor="middle" fontSize={8.5} fill={th.text2}>{d.date}</text>;
-      })}
-      {/* Legend */}
-      <circle cx={padL+2} cy={padT-4} r={4} fill="#E1306C"/>
-      <text x={padL+10} y={padT-0.5} fontSize={9} fill={th.text2}>Reach</text>
-      <circle cx={padL+52} cy={padT-4} r={4} fill="#A78BFA"/>
-      <text x={padL+60} y={padT-0.5} fontSize={9} fill={th.text2}>Impressions</text>
-    </svg>
   );
 }
 
@@ -3575,12 +3769,14 @@ export default function TawasloApp() {
   const renderPage = () => {
     if (mode==="owner") {
       if (page==="overview") return <OwnerDashboard/>;
-      return <Placeholder icon={Settings} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is coming soon."/>;
+      return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (page==="dashboard") return <AgencyDashboard/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
+    if (page==="aistudio") return <AIStudioPage/>;
+    if (page==="media") return <MediaPage/>;
     if (page==="analytics") return <AnalyticsPage/>;
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
@@ -3589,12 +3785,13 @@ export default function TawasloApp() {
     if (page==="agencyteam") return <TeamPage/>;
     if (page==="billing") return <BillingPage/>;
     if (page==="agencysets") return <SettingsPage/>;
-    const icons = {
-      streams:Radio, listening:Activity,
-      campaigns:Megaphone, aistudio:Wand2, media:Image,
+    const SOON = {
+      streams: { Icon:Radio, title:"Streams", desc:"Monitor mentions, hashtags and keywords across your connected networks in live, side-by-side columns \u2014 a real-time pulse of every conversation about your brand.", features:["Custom keyword & hashtag columns","Brand mention monitoring","Side-by-side multi-network view"], ctaLabel:"Open Listening", ctaPage:"listening" },
+      campaigns: { Icon:Megaphone, title:"Campaigns", desc:"Group posts into campaigns, track them together, and measure performance against a goal \u2014 perfect for launches, seasonal pushes and client retainers.", features:["Bundle posts into one campaign","Campaign-level analytics","Goal & budget tracking"], ctaLabel:"Plan a post", ctaPage:"planner" },
+      aistudio: { Icon:Wand2, title:"AI Studio", desc:"A dedicated home for AI content \u2014 generate captions, hashtags, image ideas and full content calendars in Arabic & English, tuned to each brand's voice.", features:["Bulk AI caption generation","Bilingual content ideas (AR / EN)","AI image prompt suggestions"], ctaLabel:"Try the AI writer", ctaPage:"publisher" },
     };
-    const Icon = icons[page]||Settings;
-    return <Placeholder icon={Icon} title={page.charAt(0).toUpperCase()+page.slice(1)} description="This page is being connected. Full version ready — linking it now."/>;
+    const cfg = SOON[page] || { Icon:Settings, title:page.charAt(0).toUpperCase()+page.slice(1), desc:"This feature is on the way." };
+    return <Placeholder icon={cfg.Icon} badge="Coming soon" title={cfg.title} description={cfg.desc} features={cfg.features} ctaLabel={cfg.ctaLabel} ctaPage={cfg.ctaPage}/>;
   };
 
   // Don't render anything until we've checked the session
