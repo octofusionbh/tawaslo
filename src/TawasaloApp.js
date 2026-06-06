@@ -2215,92 +2215,82 @@ function AdsPage() {
     setLoading(false);
   };
 
-  const statCard = (label, value, sub, color) => (
-    <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-      <div style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:8, textTransform:"uppercase", letterSpacing:0.5}}>{label}</div>
-      <div style={{fontSize:26, fontWeight:900, color: color || th.text}}>{value}</div>
-      {sub && <div style={{fontSize:11, color:th.text2, marginTop:4}}>{sub}</div>}
+  const statCard = (label, value, sub, color, Icon) => (
+    <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, boxShadow:"0 8px 24px rgba(0,0,0,0.24)", position:"relative", overflow:"hidden" }}>
+      <div style={{ position:"absolute", top:0, left:0, width:3, height:"100%", background:color || th.accent }}/>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+        <div style={{ fontSize:11, color:th.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
+        {Icon && <div style={{ width:30, height:30, borderRadius:9, background:(color || th.accent)+"1f", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon size={15} color={color || th.accent}/></div>}
+      </div>
+      <div style={{ fontSize:26, fontWeight:800, color: color || th.text }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:th.text2, marginTop:4 }}>{sub}</div>}
     </div>
   );
 
-  const statusColor = (s) => s === 'ACTIVE' ? th.success : s === 'PAUSED' ? th.warning : th.text2;
+  const statusColor = (st) => st === 'ACTIVE' ? th.success : st === 'PAUSED' ? th.warning : th.text2;
+  const emptyState = (Icon, title, body) => (
+    <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:"48px 24px", textAlign:"center", boxShadow:"0 10px 30px rgba(0,0,0,0.26)" }}>
+      <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Icon size={26} color={th.accent}/></div>
+      <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{title}</div>
+      <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.7, maxWidth:430, margin:"0 auto" }}>{body}</div>
+    </div>
+  );
 
   return (
-    <div style={{padding:"28px 32px", maxWidth:1200}}>
-      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+    <div style={{ padding:"28px 32px", maxWidth:1200 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Ads Performance</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Last 30 days — {selClient?.name}</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Ads performance</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Last 30 days &middot; {selClient?.name || "your brand"}</p>
         </div>
-        <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-          <RefreshCw size={13}/> {loading ? 'Loading…' : 'Refresh'}
+        <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
+          <RefreshCw size={14}/> {loading ? 'Loading…' : 'Refresh'}
         </button>
       </div>
 
       {loading ? (
-        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>Loading ads data...</div>
+        <div style={{ textAlign:"center", padding:60, color:th.text2, fontSize:13 }}>Loading ads data…</div>
       ) : error ? (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24}}>
-          <div style={{fontSize:13, color:th.danger, marginBottom:8, fontWeight:700}}>Could not load ads data</div>
-          <div style={{fontSize:12, color:th.text2, lineHeight:1.7, marginBottom:12}}>{error}</div>
-          <div style={{fontSize:12, color:th.text2, lineHeight:1.7}}>
-            Ads performance requires the <strong style={{color:th.text}}>ads_read</strong> permission from Meta App Review.
-            Connect your Facebook account with ads access to see campaign performance.
-          </div>
-        </div>
+        emptyState(Megaphone, "Could not load ads data", <>Ads performance needs the <strong style={{color:th.text}}>ads_read</strong> permission from Meta App Review. Connect a Facebook account with ads access to see campaigns. <span style={{ color:th.danger }}>({error})</span></>)
       ) : !adsData ? (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:32, textAlign:"center"}}>
-          <div style={{fontSize:32, marginBottom:16}}>📊</div>
-          <div style={{fontSize:14, fontWeight:700, marginBottom:8}}>No Ads Connected</div>
-          <div style={{fontSize:12, color:th.text2, lineHeight:1.7, maxWidth:400, margin:"0 auto"}}>
-            Connect a Facebook account that has ad account access, then reconnect via Social Accounts to see campaign performance.
-          </div>
-        </div>
+        emptyState(BarChart2, "No ad account connected", "Connect a Facebook account that has ad-account access (via Social Accounts), then reconnect to see campaign performance here.")
       ) : adsData.campaigns.length === 0 ? (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:32, textAlign:"center"}}>
-          <div style={{fontSize:32, marginBottom:16}}>📭</div>
-          <div style={{fontSize:14, fontWeight:700, marginBottom:8}}>No campaigns in the last 30 days</div>
-          <div style={{fontSize:12, color:th.text2}}>Create a campaign in Meta Ads Manager to see data here.</div>
-        </div>
+        emptyState(Megaphone, "No campaigns in the last 30 days", "Launch a campaign in Meta Ads Manager and it'll appear here automatically.")
       ) : (
         <>
-          {/* Summary */}
-          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24}}>
-            {statCard("Total Spend", `$${adsData.summary.totalSpend}`, "Last 30 days", th.danger)}
-            {statCard("Total Reach", adsData.summary.totalReach.toLocaleString(), "Unique accounts", "#E1306C")}
-            {statCard("Total Clicks", adsData.summary.totalClicks.toLocaleString(), `Avg CPC $${adsData.summary.avgCPC}`, th.accent)}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:16 }}>
+            {statCard("Total spend", `$${adsData.summary.totalSpend}`, "Last 30 days", th.danger, DollarSign)}
+            {statCard("Total reach", adsData.summary.totalReach.toLocaleString(), "Unique accounts", "#E1306C", Eye)}
+            {statCard("Total clicks", adsData.summary.totalClicks.toLocaleString(), `Avg CPC $${adsData.summary.avgCPC}`, th.accent, Target)}
           </div>
-          <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24}}>
-            {statCard("Impressions", adsData.summary.totalImpressions.toLocaleString(), "Total views", "#A78BFA")}
-            {statCard("Avg CPM", `$${adsData.summary.avgCPM}`, "Cost per 1k impressions", th.warning)}
-            {statCard("Campaigns", adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} active`, th.success)}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24 }}>
+            {statCard("Impressions", adsData.summary.totalImpressions.toLocaleString(), "Total views", th.accent2, TrendingUp)}
+            {statCard("Avg CPM", `$${adsData.summary.avgCPM}`, "Per 1k impressions", th.warning, Activity)}
+            {statCard("Campaigns", adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} active`, th.success, Megaphone)}
           </div>
 
-          {/* Campaigns table */}
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden"}}>
-            <div style={{padding:"16px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700}}>Campaigns</div>
-            <div style={{overflowX:"auto"}}>
-              <table style={{width:"100%", borderCollapse:"collapse", fontSize:12}}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 12px 32px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding:"15px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700 }}>Campaigns</div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                 <thead>
-                  <tr style={{background:th.card2}}>
+                  <tr style={{ background:th.card2 }}>
                     {["Campaign","Status","Objective","Spend","Reach","Impressions","Clicks","CPC"].map(h => (
-                      <th key={h} style={{padding:"10px 16px", textAlign:"left", fontWeight:700, color:th.text2, fontSize:11, textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap"}}>{h}</th>
+                      <th key={h} style={{ padding:"11px 16px", textAlign:"left", fontWeight:700, color:th.text2, fontSize:10.5, textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {adsData.campaigns.map((c, i) => (
-                    <tr key={c.id} style={{borderTop:`1px solid ${th.border}`, background:i%2===0?"transparent":th.card2}}>
-                      <td style={{padding:"12px 16px", fontWeight:600, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.name}</td>
-                      <td style={{padding:"12px 16px"}}>
-                        <span style={{fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:20, background:`${statusColor(c.status)}20`, color:statusColor(c.status)}}>{c.status}</span>
-                      </td>
-                      <td style={{padding:"12px 16px", color:th.text2}}>{c.objective?.replace(/_/g,' ')}</td>
-                      <td style={{padding:"12px 16px", fontWeight:700, color:th.danger}}>${c.spend.toFixed(2)}</td>
-                      <td style={{padding:"12px 16px"}}>{c.reach.toLocaleString()}</td>
-                      <td style={{padding:"12px 16px"}}>{c.impressions.toLocaleString()}</td>
-                      <td style={{padding:"12px 16px"}}>{c.clicks.toLocaleString()}</td>
-                      <td style={{padding:"12px 16px", color:th.text2}}>${c.cpc.toFixed(2)}</td>
+                    <tr key={c.id} style={{ borderTop:`1px solid ${th.border}` }}>
+                      <td style={{ padding:"13px 16px", fontWeight:600, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</td>
+                      <td style={{ padding:"13px 16px" }}><span style={{ fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:999, background:`${statusColor(c.status)}22`, color:statusColor(c.status) }}>{c.status}</span></td>
+                      <td style={{ padding:"13px 16px", color:th.text2 }}>{c.objective?.replace(/_/g,' ')}</td>
+                      <td style={{ padding:"13px 16px", fontWeight:700, color:th.danger }}>${c.spend.toFixed(2)}</td>
+                      <td style={{ padding:"13px 16px" }}>{c.reach.toLocaleString()}</td>
+                      <td style={{ padding:"13px 16px" }}>{c.impressions.toLocaleString()}</td>
+                      <td style={{ padding:"13px 16px" }}>{c.clicks.toLocaleString()}</td>
+                      <td style={{ padding:"13px 16px", color:th.text2 }}>${c.cpc.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -2824,48 +2814,65 @@ function TeamPage() {
   const th = dark ? DARK : LIGHT;
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("Admin");
+  const [sent, setSent] = useState(false);
   const team = [
     { name:"Abdulla Al-Nahas", email:"theoctopus.bh@gmail.com", role:"Owner", joined:"Jan 2025", avatar:"A" },
     { name:"Agency Manager", email:"manager@octofusion.bh", role:"Admin", joined:"Mar 2025", avatar:"M" },
   ];
+  const SEATS = 5;
+  const roleColor = (r) => r === "Owner" ? th.accent : r === "Admin" ? th.accent2 : r === "Editor" ? th.success : th.text2;
+  const inp = { padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" };
+  const sendInvite = () => { if (!inviteEmail.trim()) return; setSent(true); setTimeout(()=>{ setSent(false); setInviteEmail(""); setShowInvite(false); }, 1400); };
 
   return (
-    <div style={{padding:"28px 32px", maxWidth:800}}>
-      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+    <div style={{ padding:"28px 32px", maxWidth:880 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Team</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Manage your team members</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Team</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Invite teammates and manage access &middot; <span style={{ color:th.text }}>{team.length} of {SEATS} seats used</span></p>
         </div>
-        <button onClick={()=>setShowInvite(!showInvite)} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-          <UserPlus size={14}/> Invite Member
+        <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(79,110,247,0.4)" }}>
+          <UserPlus size={15}/> Invite member
         </button>
       </div>
+
+      <div style={{ height:6, borderRadius:999, background:th.card2, border:`1px solid ${th.border}`, overflow:"hidden", marginBottom:22 }}>
+        <div style={{ width:`${Math.min(100, team.length/SEATS*100)}%`, height:"100%", background:th.gradient }}/>
+      </div>
+
       {showInvite && (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:16}}>
-          <div style={{fontSize:13, fontWeight:700, marginBottom:12}}>Invite Team Member</div>
-          <div style={{display:"flex", gap:8}}>
-            <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Email address" style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}/>
-            <select style={{padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}>
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, marginBottom:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" }}>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:13, display:"flex", alignItems:"center", gap:8 }}><UserPlus size={15} color={th.accent}/>Invite a team member</div>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" style={{ ...inp, flex:1, minWidth:200 }}/>
+            <select value={inviteRole} onChange={e=>setInviteRole(e.target.value)} style={{ ...inp, minWidth:120 }}>
               <option>Admin</option><option>Editor</option><option>Viewer</option>
             </select>
-            <button onClick={()=>{alert("Invite sent to "+inviteEmail); setInviteEmail(""); setShowInvite(false);}} style={{padding:"10px 20px", borderRadius:8, background:th.accent, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer"}}>Send</button>
+            <button onClick={sendInvite} style={{ padding:"11px 22px", borderRadius:10, background:sent?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>{sent?<><CheckCircle size={14}/>Sent</>:"Send invite"}</button>
           </div>
+          <div style={{ fontSize:11, color:th.text3, marginTop:10 }}>They'll get an email invite to join {team[0]?.name ? "your" : "the"} workspace. Admins can publish &amp; manage; Editors draft; Viewers read-only.</div>
         </div>
       )}
-      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden"}}>
-        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"12px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11, fontWeight:700, color:th.text2, textTransform:"uppercase"}}>
-          <div>Member</div><div>Email</div><div>Role</div><div>Joined</div><div></div>
-        </div>
+
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 12px 32px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>Members &middot; {team.length}</div>
         {team.map((m,i) => (
-          <div key={i} style={{display:"grid", gridTemplateColumns:"1fr 1fr 120px 120px 80px", padding:"14px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none", alignItems:"center"}}>
-            <div style={{display:"flex", alignItems:"center", gap:10}}>
-              <div style={{width:32, height:32, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, color:"#fff"}}>{m.avatar}</div>
-              <div style={{fontSize:13, fontWeight:600}}>{m.name}</div>
+          <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:13 }}>
+              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(79,110,247,0.35)" }}>{m.avatar}</div>
+              <div>
+                <div style={{ fontSize:13.5, fontWeight:600 }}>{m.name}</div>
+                <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{m.email}</div>
+              </div>
             </div>
-            <div style={{fontSize:12, color:th.text2}}>{m.email}</div>
-            <div><span style={{fontSize:11, fontWeight:700, padding:"3px 10px", borderRadius:20, background:m.role==="Owner"?`${th.accent}20`:th.card2, color:m.role==="Owner"?th.accent:th.text2}}>{m.role}</span></div>
-            <div style={{fontSize:12, color:th.text2}}>{m.joined}</div>
-            <div>{m.role!=="Owner"&&<button style={{fontSize:11, color:th.danger, background:"none", border:"none", cursor:"pointer"}}>Remove</button>}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+              <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{m.role}</span>
+              <span style={{ fontSize:11.5, color:th.text2, minWidth:74, textAlign:"right" }}>{m.joined}</span>
+              {m.role !== "Owner" ? (
+                <button style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>Remove</button>
+              ) : <span style={{ width:62 }}/>}
+            </div>
           </div>
         ))}
       </div>
