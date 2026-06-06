@@ -1,4 +1,6 @@
-// api/instagram-analytics.js — Real Instagram analytics via Graph API
+// api/instagram-analytics.js — Real Instagram analytics via the Instagram API
+// NOTE: Meta deprecated `impressions` (Mar 2025) and `profile_views` time-series (Jan 2025).
+// Requesting a deprecated metric/field makes the whole call fail, so we only request supported ones.
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -17,49 +19,38 @@ export default async function handler(req, res) {
     const profile = await profileRes.json();
     if (profile.error) return res.status(400).json({ error: profile.error.message });
 
-    // 2. Account insights — reach, impressions, profile views (requires instagram_manage_insights)
+    // 2. Account insights — only currently-supported account metrics (reach). period=day time series.
+    const since = Math.floor(Date.now() / 1000) - 30 * 24 * 3600;
+    const until = Math.floor(Date.now() / 1000);
     const insightsRes = await fetch(
-      `${base}/${accountId}/insights?metric=reach,impressions,profile_views,follower_count&period=day&since=${Math.floor(Date.now()/1000) - 30*24*3600}&until=${Math.floor(Date.now()/1000)}&access_token=${accessToken}`
+      `${base}/${accountId}/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${accessToken}`
     );
     const insightsData = await insightsRes.json();
 
-    // 3. Recent media with engagement
+    // 3. Recent media — valid fields only (reach/impressions/saved are NOT media fields; they live on /insights)
     const mediaRes = await fetch(
-      `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count,reach,impressions,saved,thumbnail_url,media_url&limit=12&access_token=${accessToken}`
+      `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count,thumbnail_url,media_url,permalink&limit=12&access_token=${accessToken}`
     );
     const mediaData = await mediaRes.json();
 
-    // Process insights into daily data
     const insightsByMetric = {};
     if (insightsData.data) {
-      for (const metric of insightsData.data) {
-        insightsByMetric[metric.name] = metric.values || [];
-      }
+      for (const metric of insightsData.data) insightsByMetric[metric.name] = metric.values || [];
     }
 
-    // Calculate totals from recent posts
     const posts = mediaData.data || [];
     const totalLikes = posts.reduce((s, p) => s + (p.like_count || 0), 0);
     const totalComments = posts.reduce((s, p) => s + (p.comments_count || 0), 0);
-    const totalReach = insightsByMetric.reach?.reduce((s, v) => s + (v.value || 0), 0) || 0;
-    const totalImpressions = insightsByMetric.impressions?.reduce((s, v) => s + (v.value || 0), 0) || 0;
-    const totalProfileViews = insightsByMetric.profile_views?.reduce((s, v) => s + (v.value || 0), 0) || 0;
-    const engagementRate = profile.followers_count > 0
+    const totalReach = (insightsByMetric.reach || []).reduce((s, v) => s + (v.value || 0), 0);
+    const engagementRate = (profile.followers_count > 0 && posts.length > 0)
       ? (((totalLikes + totalComments) / posts.length) / profile.followers_count * 100).toFixed(2)
       : 0;
 
-    // Daily reach chart data (last 30 days)
     const chartData = (insightsByMetric.reach || []).slice(-30).map(v => ({
       date: new Date(v.end_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       reach: v.value || 0,
       impressions: 0,
     }));
-
-    // Merge impressions into chart
-    const impressionsData = insightsByMetric.impressions || [];
-    chartData.forEach((d, i) => {
-      d.impressions = impressionsData[i]?.value || 0;
-    });
 
     return res.status(200).json({
       profile: {
@@ -74,13 +65,14 @@ export default async function handler(req, res) {
       },
       summary: {
         totalReach,
-        totalImpressions,
-        totalProfileViews,
+        totalImpressions: 0, // deprecated by Meta — no longer available
+        totalProfileViews: 0, // deprecated by Meta — no longer available
         totalLikes,
         totalComments,
         engagementRate: parseFloat(engagementRate),
         postsAnalyzed: posts.length,
       },
+      insightsError: insightsData.error ? (insightsData.error.message || 'insights unavailable') : null,
       chartData,
       recentPosts: posts.slice(0, 9).map(p => ({
         id: p.id,
@@ -89,9 +81,9 @@ export default async function handler(req, res) {
         timestamp: p.timestamp,
         likes: p.like_count || 0,
         comments: p.comments_count || 0,
-        reach: p.reach || 0,
-        impressions: p.impressions || 0,
-        saved: p.saved || 0,
+        reach: 0,
+        impressions: 0,
+        saved: 0,
         thumbnail: p.thumbnail_url || p.media_url || null,
       })),
     });
