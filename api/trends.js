@@ -6,14 +6,14 @@ export const maxDuration = 10;
 
 const ROOT = "https://ensembledata.com/apis";
 
-// Region -> representative hashtags (small set; calls run in parallel).
+// Region -> one representative hashtag (kept to a single tag to conserve the free 50/day unit budget).
 const REGION_TAGS = {
-  worldwide: ["fyp", "viral"],
-  gcc:       ["khaleeji", "gulf"],
-  bahrain:   ["bahrain", "bahrainfood"],
-  saudi:     ["saudi", "riyadh"],
-  uae:       ["dubai", "uae"],
-  usa:       ["fyp", "trending"],
+  worldwide: ["fyp"],
+  gcc:       ["khaleeji"],
+  bahrain:   ["bahrain"],
+  saudi:     ["saudi"],
+  uae:       ["dubai"],
+  usa:       ["trending"],
 };
 
 async function getJson(url, ms = 7000) {
