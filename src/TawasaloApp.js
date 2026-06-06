@@ -93,6 +93,16 @@ const TR = {
 };
 const useApp = () => useContext(AppCtx);
 
+function useIsMobile(bp = 820) {
+  const [m, setM] = useState(typeof window !== 'undefined' ? window.innerWidth < bp : false);
+  useEffect(() => {
+    const on = () => setM(window.innerWidth < bp);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [bp]);
+  return m;
+}
+
 function useTheme() {
   const { dark } = useApp();
   return dark ? DARK : LIGHT;
@@ -602,7 +612,7 @@ function AgencyDashboard() {
 }
 
 function MediaPage() {
-  const { dark, setPage } = useApp();
+  const { dark, setPage, selClient, clients } = useApp();
   const th = dark ? DARK : LIGHT;
   const [uid, setUid] = useState(null);
   const [items, setItems] = useState([]);
@@ -610,14 +620,23 @@ function MediaPage() {
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [clientId, setClientId] = useState(selClient?.id ? String(selClient.id) : "general");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [plat, setPlat] = useState("all");
 
-  const load = async (id) => {
-    const u = id || uid; if (!u) return;
+  const PLATS = [["all","All"],["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
+  const PCOL = { ig:"#E1306C", fb:"#1877F2", tw:th.text2, li:"#0A66C2", tt:th.text2, yt:"#FF0000", general:th.text2 };
+  const PNAME = { ig:"Instagram", fb:"Facebook", tw:"X", li:"LinkedIn", tt:"TikTok", yt:"YouTube", general:"General" };
+  const clientName = (clients.find(c=>String(c.id)===clientId)||{}).name || (clientId==="general"?"General":selClient?.name) || "General";
+
+  const load = async (id, cid) => {
+    const u = id || uid; const c = cid || clientId; if (!u) return;
     setLoading(true);
-    const { data } = await supabase.storage.from('media').list(u, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+    const { data } = await supabase.storage.from('media').list(`${u}/${c}`, { limit: 200, sortBy: { column: 'created_at', order: 'desc' } });
     const files = (data || []).filter(f => f.name && /\.(png|jpe?g|gif|webp|mp4|mov|webm)$/i.test(f.name)).map(f => {
-      const { data: url } = supabase.storage.from('media').getPublicUrl(`${u}/${f.name}`);
-      return { name: f.name, url: url.publicUrl, video: /\.(mp4|mov|webm)$/i.test(f.name) };
+      const platTag = f.name.includes('__') ? f.name.split('__')[0] : 'general';
+      const { data: url } = supabase.storage.from('media').getPublicUrl(`${u}/${c}/${f.name}`);
+      return { name: f.name, url: url.publicUrl, plat: platTag, video: /\.(mp4|mov|webm)$/i.test(f.name) };
     });
     setItems(files); setLoading(false);
   };
@@ -625,30 +644,36 @@ function MediaPage() {
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) { setUid(user.id); load(user.id); } else setLoading(false);
+      if (user) { setUid(user.id); load(user.id, clientId); } else setLoading(false);
     })();
   }, []);
+  useEffect(() => { if (uid) load(uid, clientId); }, [clientId]);
+
+  const shown = plat === "all" ? items : items.filter(i => i.plat === plat);
 
   const upload = async (fileList) => {
     const files = Array.from(fileList || []); if (!files.length || !uid) return;
+    const tag = plat === "all" ? "general" : plat;
     setUploading(true);
     for (const file of files) {
       const ext = file.name.split('.').pop();
-      const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+      const path = `${uid}/${clientId}/${tag}__${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
       try { await supabase.storage.from('media').upload(path, file, { upsert: true }); } catch (e) { /* ignore */ }
     }
     setUploading(false); load();
   };
   const copyUrl = (url, key) => { try { navigator.clipboard.writeText(url); setCopied(key); setTimeout(()=>setCopied(""),1500); } catch (e) { /* ignore */ } };
   const useInPost = (url) => { try { sessionStorage.setItem('tw_studio_media', url); } catch (e) { /* ignore */ } setPage('publisher'); };
-  const remove = async (name) => { if (!window.confirm('Delete this asset? This cannot be undone.')) return; try { await supabase.storage.from('media').remove([`${uid}/${name}`]); } catch (e) { /* ignore */ } load(); };
+  const remove = async (name) => { if (!window.confirm('Delete this asset? This cannot be undone.')) return; try { await supabase.storage.from('media').remove([`${uid}/${clientId}/${name}`]); } catch (e) { /* ignore */ } load(); };
+
+  const clientOptions = [{ id:"general", name:"General (shared)" }, ...clients.map(c=>({ id:String(c.id), name:c.name }))];
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Media Library</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{items.length} {items.length===1?"asset":"assets"} &middot; reuse across any post</p>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{shown.length} {shown.length===1?"asset":"assets"} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
         </div>
         <label style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:11, background:th.gradient, color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>
           <Plus size={14}/>{uploading?"Uploading…":"Upload"}
@@ -656,22 +681,45 @@ function MediaPage() {
         </label>
       </div>
 
+      <div style={{ display:"flex", gap:10, marginBottom:18, flexWrap:"wrap", alignItems:"center" }}>
+        <div style={{ position:"relative" }}>
+          <button onClick={()=>setClientOpen(o=>!o)} style={{ display:"flex", alignItems:"center", gap:8, background:th.card, border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 13px", cursor:"pointer", color:th.text, fontSize:12.5 }}>
+            <Building2 size={13} color={th.accent}/>{clientName} <ChevronDown size={14} color={th.text2}/>
+          </button>
+          {clientOpen && (
+            <div style={{ position:"absolute", top:"112%", left:0, zIndex:40, background:th.card, border:`1px solid ${th.border}`, borderRadius:11, boxShadow:"0 16px 44px rgba(0,0,0,0.5)", padding:6, minWidth:200, maxHeight:260, overflowY:"auto" }}>
+              {clientOptions.map(c=>(
+                <div key={c.id} onClick={()=>{ setClientId(c.id); setClientOpen(false); }} style={{ padding:"8px 10px", borderRadius:8, cursor:"pointer", fontSize:12.5, background:clientId===c.id?th.accentSoft:"transparent", color:clientId===c.id?th.accent:th.text }}>{c.name}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {PLATS.map(([k,l])=>(
+            <button key={k} onClick={()=>setPlat(k)} style={{ fontSize:11.5, padding:"7px 13px", borderRadius:999, cursor:"pointer", border:`1px solid ${plat===k?th.accent:th.border}`, background:plat===k?th.accentSoft:th.card, color:plat===k?th.accent:th.text2, fontWeight:plat===k?600:400 }}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {plat!=="all" && <div style={{ fontSize:10.5, color:th.text3, marginBottom:12, marginTop:-8 }}>New uploads are tagged to <strong style={{color:th.text2}}>{clientName} · {PNAME[plat]}</strong>. Switch the platform filter to All to upload shared assets.</div>}
+
       {loading ? (
-        <div style={{ textAlign:"center", padding:48, color:th.text2, fontSize:13 }}>Loading your media…</div>
-      ) : items.length === 0 ? (
+        <div style={{ textAlign:"center", padding:48, color:th.text2, fontSize:13 }}>Loading media…</div>
+      ) : shown.length === 0 ? (
         <div onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);upload(e.dataTransfer.files);}} onClick={()=>document.getElementById('media-file').click()}
-          style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:18, padding:"56px 24px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent" }}>
+          style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:18, padding:"52px 24px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent" }}>
           <input type="file" id="media-file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>upload(e.target.files)}/>
           <Image size={34} color={th.accent} style={{ marginBottom:12 }}/>
-          <div style={{ fontSize:14, fontWeight:600, marginBottom:5 }}>Your media library is empty</div>
-          <div style={{ fontSize:12.5, color:th.text2 }}>Drag &amp; drop or click to upload images and videos you can reuse in any post.</div>
+          <div style={{ fontSize:14, fontWeight:600, marginBottom:5 }}>No assets for {clientName}{plat!=="all"?" · "+PNAME[plat]:""} yet</div>
+          <div style={{ fontSize:12.5, color:th.text2 }}>Drag &amp; drop or click to upload images and videos for this client.</div>
         </div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14 }}>
-          {items.map((it,i)=>(
+          {shown.map((it,i)=>(
             <div key={it.name} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden", boxShadow:"0 8px 22px rgba(0,0,0,0.24)" }}>
               <div style={{ position:"relative", height:150, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 {it.video ? <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, color:th.text2 }}><Send size={22}/><span style={{ fontSize:10 }}>Video</span></div> : <img src={it.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}}/>}
+                <span style={{ position:"absolute", top:8, left:8, fontSize:9, fontWeight:700, color:"#fff", background:(PCOL[it.plat]||th.text2), borderRadius:6, padding:"2px 7px" }}>{PNAME[it.plat]||"General"}</span>
                 <button onClick={()=>remove(it.name)} title="Delete" style={{ position:"absolute", top:8, right:8, width:26, height:26, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={15}/></button>
               </div>
               <div style={{ padding:"10px 11px", display:"flex", gap:7 }}>
@@ -2938,6 +2986,7 @@ function SettingsPage() {
 
 function LandingPage({ onGetStarted, onLogin }) {
   const [landingPage, setLandingPage] = useState('home');
+  const isMobile = useIsMobile();
   const [billing, setBilling] = useState('monthly');
   const prices = { monthly:{starter:49,pro:99,agency:199}, yearly:{starter:39,pro:79,agency:159} };
   const p = prices[billing];
@@ -2954,9 +3003,9 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Nav = () => (
-    <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #1C2D45",padding:"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
+    <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #1C2D45",padding:isMobile?"0 16px":"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
       <Logo/>
-      <div style={{display:"flex",alignItems:"center",gap:28}}>
+      <div style={{display:isMobile?"none":"flex",alignItems:"center",gap:28}}>
         {navLink('home','Home')}
         {navLink('features','Features')}
         {navLink('pricing','Pricing')}
@@ -3028,7 +3077,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#07090F", position:"relative", overflow:"hidden" },
     heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
     badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(79,110,247,0.1)", border:"1px solid rgba(79,110,247,0.3)", color:"#4F6EF7", fontSize:12, fontWeight:700, marginBottom:24 },
-    h1: { fontSize:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
+    h1: { fontSize:isMobile?34:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
     sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
     btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },
     btnSecondary: { padding:"14px 32px", borderRadius:12, background:"transparent", border:"1px solid #1C2D45", color:"#7A8BA8", fontSize:15, fontWeight:600, cursor:"pointer" },
@@ -3039,9 +3088,9 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const HomePage = () => (
     <div>
-      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F", padding:"88px 32px 72px", textAlign:"center"}}>
+      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F", padding:isMobile?"64px 18px 48px":"88px 32px 72px", textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(79,110,247,0.1)",border:"1px solid rgba(79,110,247,0.3)",color:"#4F6EF7",fontSize:11,fontWeight:700,marginBottom:24}}>✦ Social media management, reimagined</div>
-        <h1 style={{fontSize:52,fontWeight:900,lineHeight:1.1,marginBottom:20,letterSpacing:-1.5,maxWidth:760,margin:"0 auto 20px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
+        <h1 style={{fontSize:isMobile?32:52,fontWeight:900,lineHeight:1.1,marginBottom:20,letterSpacing:isMobile?-0.8:-1.5,maxWidth:760,margin:"0 auto 20px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
         <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 36px",lineHeight:1.75}}>Tawaslo is the social media management platform for agencies and brands worldwide. Publish, schedule, analyze, and grow — with full Arabic and English support.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:56,flexWrap:"wrap"}}>
           <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free trial →</button>
@@ -3057,7 +3106,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         <div style={{maxWidth:1000,margin:"0 auto"}}>
           <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Everything your brand needs</h2>
           <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:40}}>Built for agencies and brands managing social media at scale.</p>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
             {[["publisher","Smart Publisher","Schedule and publish to Instagram, Facebook, TikTok & LinkedIn. AI captions in English and Arabic."],["ai","AI Captions","Generate bilingual captions instantly. Hashtags, emojis, and tone — all customizable."],["analytics","Analytics","Track followers, engagement, and growth across all platforms in real time."],["inbox","Unified Inbox","All your DMs and comments from Instagram and Facebook in one place."],["multiclient","Multi-Client","Manage multiple brands under one agency workspace with team roles."],["reports","Reports","Monthly performance reports per client. Export-ready for presentations."]].map(([icon,title,desc])=>(
               <div key={title} style={card}><FeatureIcon type={icon}/><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
             ))}
@@ -3082,7 +3131,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
         {/* Publishing */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>PUBLISHING</div>
             <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish & schedule to all platforms</h3>
@@ -3096,7 +3145,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           </div>
           <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>SCHEDULE</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:12,textAlign:"center"}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(7,1fr)",gap:4,marginBottom:12,textAlign:"center"}}>
               {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=><div key={d} style={{fontSize:9,color:"#7A8BA8"}}>{d}</div>)}
               {[["2",false],["3",true,"#4F6EF7"],["4",false],["5",true,"#E1306C"],["6",false],["7",true,"#4F6EF7"],["8",false]].map(([n,active,c])=>(
                 <div key={n} style={{fontSize:10,padding:4,borderRadius:4,background:active?`${c}30`:"transparent",color:active?c:"#7A8BA8",fontWeight:active?700:400}}>{n}</div>
@@ -3108,7 +3157,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* AI Captions */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:4}}>TOPIC</div>
             <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#7A8BA8",marginBottom:10}}>New summer collection launch</div>
@@ -3133,12 +3182,12 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Analytics */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:10,letterSpacing:1}}>ANALYTICS</div>
             <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Real data. Real insights.</h3>
             <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Track followers, engagement, and growth across all platforms in real time. Monthly reports ready for your clients.</p>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
               {[["12.4K","Total Followers","#4F6EF7"],["+8.2%","Growth this month","#10B981"],["8.2K","Instagram","#E1306C"],["4.2K","Facebook","#1877F2"]].map(([v,l,c])=>(
                 <div key={l} style={{background:"#101828",borderRadius:10,padding:12,textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
               ))}
@@ -3158,7 +3207,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Inbox */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#4F6EF7",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4}}>7</span></div>
             {[["A","Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C"],["S","Sara Mohammed","What are your working hours?","4h","#1877F2"],["K","Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050"]].map(([init,name,msg,time,c])=>(
@@ -3177,7 +3226,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Multi-client */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>YOUR CLIENTS</div>
             {[["🍽","Lumière Dining","Fine Dining","#E1306C","#F97316","Active"],["👗","Velour Fashion","Retail & Fashion","#7C3AED","#E1306C","Active"],["🏠","Prime Properties","Real Estate","#4F6EF7","#10B981","Active"],["🚗","Motivo Motors","Automotive","#F59E0B","#EF4444","Pending"]].map(([icon,name,cat,c1,c2,status])=>(
@@ -3214,7 +3263,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           ))}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:16,marginBottom:48}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16,marginBottom:48}}>
         <PlanCard name="Essential" planKey="starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
         <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
@@ -3222,7 +3271,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #1C2D45"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
         {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
+          <div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
             <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
           </div>
@@ -3236,14 +3285,14 @@ function LandingPage({ onGetStarted, onLogin }) {
       <h1 style={{fontSize:38,fontWeight:900,marginBottom:20,lineHeight:1.2}}>Social media management,<br/><span style={grad}>reimagined for every brand.</span></h1>
       <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:20}}>Tawaslo is a global social media management platform built for agencies and brands who want to do more — publish smarter, analyze better, and grow faster. Whether you're managing one brand or fifty, Tawaslo brings everything into one clean workspace.</p>
       <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:40}}>But we didn't stop there. We noticed something every other platform ignored: <strong style={{color:"#E8EFF8"}}>400 million people speak Arabic</strong> — and not a single major social media tool was truly built for them. So we built Tawaslo with Arabic as a first-class citizen. Full Arabic dashboard, AI captions in Arabic, right-to-left support. Not a plugin. Not a translation. Built in from day one.</p>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:40}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:14,marginBottom:40}}>
         {[["400M+","Arabic speakers worldwide"],["5th","Most spoken language globally"],["22","Countries speak Arabic"],["$1T+","MENA digital economy by 2030"]].map(([v,l])=>(
           <div key={l} style={card}><div style={{fontSize:22,fontWeight:900,...grad,textAlign:"center"}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5,textAlign:"center"}}>{l}</div></div>
         ))}
       </div>
       <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,marginBottom:28}}>
         <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",letterSpacing:1,marginBottom:16}}>WHAT MAKES US DIFFERENT</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           {[["🌍","Truly global platform","Works for any brand anywhere in the world. No geographic limits."],["🇸🇦","Native Arabic support","Full Arabic dashboard and AI captions. RTL interface. Built in, not bolted on."],["🏢","Agency-ready","Manage dozens of clients and brands from one clean workspace."],["💰","Priced fairly","Fraction of the cost of Hootsuite or Sprout Social. No per-user nonsense."]].map(([icon,title,desc])=>(
             <div key={title} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
               <div style={{fontSize:20,marginTop:2}}>{icon}</div>
@@ -3252,7 +3301,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           ))}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
         {[["2026","Founded"],["Bahrain","Headquarters"],["Global","Vision"]].map(([v,l])=>(
           <div key={l} style={{...card,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5}}>{l}</div></div>
         ))}
@@ -3750,6 +3799,7 @@ export default function TawasloApp() {
   }, []);
 
   const th = dark ? DARK : LIGHT;
+  const isMobile = useIsMobile();
 
   const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
   const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
@@ -3824,6 +3874,21 @@ export default function TawasloApp() {
     return (
       <AppCtx.Provider value={ctx}>
         <AuthPage/>
+      </AppCtx.Provider>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",textAlign:"center",padding:28,direction:"ltr"}}>
+          <div style={{maxWidth:340}}>
+            <img src="/logo-transparent.png" alt="Tawaslo" style={{width:56,height:56,objectFit:"contain",marginBottom:18}}/>
+            <div style={{fontSize:19,fontWeight:700,marginBottom:10}}>Best viewed on desktop</div>
+            <div style={{fontSize:13.5,color:th.text2,lineHeight:1.7,marginBottom:22}}>The Tawaslo dashboard \u2014 publishing, planner, analytics and inbox \u2014 is built for a larger screen. Please open <strong style={{color:th.text}}>tawaslo.com</strong> on your computer to manage your social media.</div>
+            <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{padding:"10px 20px",borderRadius:10,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>Log out</button>
+          </div>
+        </div>
       </AppCtx.Provider>
     );
   }
