@@ -89,6 +89,20 @@ export default async function handler(req, res) {
   const platform = String((req.query && req.query.platform) || "all").toLowerCase();
   const tags = REGION_TAGS[region] || REGION_TAGS.worldwide;
 
+  // Optional debug: returns raw upstream status + body so the field shapes / quota can be checked.
+  if (req.query && req.query.debug) {
+    const probe = async (url) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      try { const r = await fetch(url, { signal: ctrl.signal }); const body = await r.text(); return { status: r.status, body: body.slice(0, 1500) }; }
+      catch (e) { return { error: e.message }; }
+      finally { clearTimeout(t); }
+    };
+    const tt = await probe(`${ROOT}/tt/hashtag/posts?name=${encodeURIComponent(tags[0])}&cursor=0&token=${token}`);
+    const ig = await probe(`${ROOT}/instagram/hashtag/posts?name=${encodeURIComponent(tags[0])}&cursor=&get_author_info=false&token=${token}`);
+    return res.status(200).json({ tiktok: tt, instagram: ig });
+  }
+
   // Build all upstream calls up front, then run them in parallel.
   const jobs = [];
   for (const tag of tags) {
@@ -106,4 +120,12 @@ export default async function handler(req, res) {
     const results = await Promise.all(jobs);
     let items = results.flat().filter(i => i && i.thumbnail);
     const seen = new Set();
-    items =
+    items = items.filter(i => (seen.has(i.id) ? false : (seen.add(i.id), true)));
+    items.sort((a, b) => (b.views + b.likes) - (a.views + a.likes));
+    items = items.slice(0, 24);
+    res.setHeader("Cache-Control", "s-maxage=43200, stale-while-revalidate=86400");
+    return res.status(200).json({ connected: true, region, platform, items, updatedAt: Date.now() });
+  } catch (e) {
+    return res.status(200).json({ connected: true, items: [], error: e.message });
+  }
+}
