@@ -414,6 +414,44 @@ function OwnerDashboard() {
   );
 }
 
+function TrialBanner() {
+  const { dark, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [daysLeft, setDaysLeft] = useState(null);
+  const [hidden, setHidden] = useState(false);
+  const [paid, setPaid] = useState(false);
+  const TRIAL_DAYS = 30;
+
+  useEffect(() => {
+    try { if (localStorage.getItem('tw_sub_active') === '1') { setPaid(true); return; } } catch (e) { /* ignore */ }
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !user.created_at) return;
+      const start = new Date(user.created_at).getTime();
+      const end = start + TRIAL_DAYS * 24 * 3600 * 1000;
+      setDaysLeft(Math.ceil((end - Date.now()) / (24 * 3600 * 1000)));
+    })();
+  }, []);
+
+  if (paid || hidden || daysLeft === null) return null;
+  const ended = daysLeft <= 0;
+
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : th.accentSoft, borderBottom:`1px solid ${ended ? th.danger + '33' : th.border}`, flexWrap:"wrap" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:9, fontSize:12.5, color: ended ? th.danger : th.text }}>
+        <Sparkles size={14} color={ended ? th.danger : th.accent}/>
+        {ended
+          ? <span><strong>Your free trial has ended.</strong> Upgrade to keep publishing &amp; scheduling.</span>
+          : <span><strong>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</strong> in your free trial &middot; <span style={{ color:th.text2 }}>full access, no card needed</span></span>}
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <button onClick={()=>setPage('billing')} style={{ padding:"7px 16px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Upgrade now</button>
+        {!ended && <button onClick={()=>setHidden(true)} title="Hide" style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><XCircle size={16}/></button>}
+      </div>
+    </div>
+  );
+}
+
 function OnboardingHero() {
   const { selClient, dark, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -454,6 +492,38 @@ function OnboardingHero() {
   const go = (st) => { if (st.key === 'grow') { try { localStorage.setItem('tw_onb_analytics', '1'); } catch (e) { /* ignore */ } } setPage(st.page); };
   const dismiss = () => { try { localStorage.setItem('tw_onboard_dismissed', '1'); } catch (e) { /* ignore */ } setDismissed(true); };
 
+  const stepVisual = (k) => {
+    if (k === 'connect') return (
+      <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+        {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["LinkedIn","#0A66C2",FaLinkedin]].map(([n,c,Ic],i)=>(
+          <div key={n} style={{ display:"flex", alignItems:"center", gap:10, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"10px 12px", boxShadow:"0 6px 16px rgba(0,0,0,0.25)" }}>
+            <div style={{ width:30, height:30, borderRadius:9, background:c+"22", display:"flex", alignItems:"center", justifyContent:"center" }}><Ic style={{ color:c, fontSize:16 }}/></div>
+            <div style={{ flex:1, fontSize:12, fontWeight:600 }}>{n}</div>
+            <div style={{ fontSize:9.5, fontWeight:700, color:i===0?th.success:th.accent, background:(i===0?th.success:th.accent)+"1f", borderRadius:999, padding:"3px 9px" }}>{i===0?"Linked":"Connect"}</div>
+          </div>
+        ))}
+      </div>
+    );
+    if (k === 'post') return (
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:13, boxShadow:"0 10px 26px rgba(0,0,0,0.3)" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11 }}><div style={{ width:26, height:26, borderRadius:8, background:th.gradient }}/><div style={{ height:7, width:"55%", borderRadius:4, background:th.card2 }}/></div>
+        <div style={{ height:7, borderRadius:4, background:th.card2, marginBottom:6 }}/>
+        <div style={{ height:7, width:"82%", borderRadius:4, background:th.card2, marginBottom:6 }}/>
+        <div style={{ height:7, width:"40%", borderRadius:4, background:th.accentSoft, marginBottom:12 }}/>
+        <div style={{ height:70, borderRadius:10, background:th.gradient, opacity:0.22, marginBottom:11 }}/>
+        <div style={{ padding:"8px", borderRadius:9, background:th.gradient, color:"#fff", fontSize:11.5, fontWeight:600, textAlign:"center" }}>Publish</div>
+      </div>
+    );
+    return (
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:14, boxShadow:"0 10px 26px rgba(0,0,0,0.3)" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:11, color:th.text2 }}>Reach this week</div><div style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"3px 8px" }}>+24%</div></div>
+        <div style={{ display:"flex", alignItems:"flex-end", gap:7, height:84 }}>
+          {[34,52,44,68,84,76,96].map((h,i)=><div key={i} style={{ flex:1, height:h+"%", borderRadius:5, background: i>=5?th.gradient:th.accent+"55" }}/>)}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="tw-jny" style={{ position:"relative", overflow:"hidden", background:`linear-gradient(135deg, ${th.accent}1c, ${th.accent2}12 50%, ${th.surface})`, border:`1px solid ${th.border}`, borderRadius:20, marginBottom:22, boxShadow:"0 18px 48px rgba(0,0,0,0.34)" }}>
       <style>{`
@@ -466,6 +536,7 @@ function OnboardingHero() {
         .tw-jcta:hover{transform:translateY(-1px); filter:brightness(1.08);}
         @keyframes jswap{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
         .tw-jfocus{animation:jswap .35s ease both;}
+        @media(max-width:980px){.tw-jvis{display:none;}}
       `}</style>
       <div style={{ position:"absolute", top:-70, right:-30, width:340, height:240, background:`radial-gradient(ellipse, ${th.accent}33, transparent 70%)`, filter:"blur(34px)", pointerEvents:"none" }}/>
       <div style={{ height:4, background:th.border }}><div style={{ height:"100%", width:`${pct}%`, background:th.gradient, transition:"width .6s ease" }}/></div>
@@ -505,16 +576,19 @@ function OnboardingHero() {
               </div>
             </>
           ) : (
-            <>
-              <div style={{ width:56, height:56, borderRadius:16, background:`linear-gradient(135deg, ${th.accent}33, ${th.accent2}1c)`, border:`1px solid ${th.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}><step.icon size={25} color={th.accent}/></div>
-              <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, color:th.accent, textTransform:"uppercase", marginBottom:6 }}>Step {current + 1} · {step.label}</div>
-              <div style={{ fontSize:23, fontWeight:700, letterSpacing:-0.4, marginBottom:9 }}>{step.title}</div>
-              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.65, maxWidth:470, marginBottom:20 }}>{step.narrative}</div>
-              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                <button className="tw-jcta" onClick={()=>go(step)} style={{ padding:"12px 22px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:8, boxShadow:`0 8px 22px ${th.accent}44` }}>{step.cta}<ArrowUpRight size={16}/></button>
-                {current < steps.length - 1 && <button onClick={()=>setFocus(current + 1)} style={{ background:"none", border:"none", color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>Skip for now</button>}
+            <div style={{ display:"flex", gap:24, alignItems:"center", width:"100%" }}>
+              <div style={{ flex:1, minWidth:240 }}>
+                <div style={{ width:54, height:54, borderRadius:15, background:`linear-gradient(135deg, ${th.accent}33, ${th.accent2}1c)`, border:`1px solid ${th.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:15 }}><step.icon size={24} color={th.accent}/></div>
+                <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, color:th.accent, textTransform:"uppercase", marginBottom:6 }}>Step {current + 1} · {step.label}</div>
+                <div style={{ fontSize:23, fontWeight:700, letterSpacing:-0.4, marginBottom:9 }}>{step.title}</div>
+                <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.65, maxWidth:430, marginBottom:20 }}>{step.narrative}</div>
+                <div style={{ display:"flex", gap:14, alignItems:"center" }}>
+                  <button className="tw-jcta" onClick={()=>go(step)} style={{ padding:"12px 22px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:8, boxShadow:`0 8px 22px ${th.accent}44` }}>{step.cta}<ArrowUpRight size={16}/></button>
+                  {current < steps.length - 1 && <button onClick={()=>setFocus(current + 1)} style={{ background:"none", border:"none", color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>Skip for now</button>}
+                </div>
               </div>
-            </>
+              <div className="tw-jvis" style={{ width:236, flexShrink:0 }}>{stepVisual(step.key)}</div>
+            </div>
           )}
         </div>
       </div>
@@ -4149,6 +4223,7 @@ export default function TawasloApp() {
       const u = new URL(window.location.href);
       if (u.searchParams.get('tap_return') || u.searchParams.get('tap_id')) {
         sessionStorage.setItem('tw_pay', 'success');
+        try { localStorage.setItem('tw_sub_active', '1'); } catch (e) { /* ignore */ }
         setPage('billing');
         ['tap_return','tap_id','tap_status'].forEach(k => u.searchParams.delete(k));
         window.history.replaceState({}, '', u.pathname);
@@ -4280,6 +4355,7 @@ export default function TawasloApp() {
         <Sidebar/>
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <Topbar/>
+          {mode==="agency" && <TrialBanner/>}
           <div style={{flex:1,overflowY:"auto",padding:22}}>
             {renderPage()}
           </div>
