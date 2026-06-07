@@ -6,6 +6,25 @@ const PRICES = {
   Enterprise:  { monthly: 199, annual: 159 },
 };
 
+// Email the Tawaslo team about an event. No-op until RESEND_API_KEY is set in Vercel,
+// so this is safe to ship now and "just works" once email is configured later.
+//   RESEND_API_KEY  — from resend.com
+//   NOTIFY_EMAIL    — where alerts go (default support@tawaslo.com; comma-separate for several)
+//   NOTIFY_FROM     — verified sender (default "Tawaslo <notifications@tawaslo.com>")
+async function notify(subject, html) {
+  const KEY = process.env.RESEND_API_KEY;
+  if (!KEY) return; // email not connected yet
+  const to = (process.env.NOTIFY_EMAIL || 'support@tawaslo.com').split(',').map(s => s.trim());
+  const from = process.env.NOTIFY_FROM || 'Tawaslo <notifications@tawaslo.com>';
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, subject, html }),
+    });
+  } catch (e) { /* notifications must never break the payment flow */ }
+}
+
 export default async function handler(req, res) {
   const KEY = process.env.TAP_SECRET_KEY;
 
@@ -23,8 +42,23 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // Tap webhooks POST the charge object (no plan field) — just acknowledge.
-  if (!req.body || !req.body.plan) return res.status(200).json({ received: true });
+  // Tap webhooks POST the charge object (no plan field). Email the team on a successful capture.
+  if (!req.body || !req.body.plan) {
+    try {
+      const c = req.body || {};
+      if (c.status === 'CAPTURED') {
+        const cur = c.currency || 'USD';
+        const who = (c.customer && (c.customer.email || [c.customer.first_name, c.customer.last_name].filter(Boolean).join(' '))) || 'A customer';
+        const plan = (c.metadata && c.metadata.plan) || 'a plan';
+        const period = (c.metadata && c.metadata.period) || '';
+        await notify(`💰 New Tawaslo purchase — ${cur} ${c.amount}`,
+          `<div style="font-family:sans-serif"><h2 style="margin:0 0 8px">New purchase 🎉</h2>
+           <p><b>${who}</b> just paid <b>${cur} ${c.amount}</b> for the <b>${plan}</b> plan${period ? ` (${period})` : ''}.</p>
+           <p style="color:#667">Charge ID: ${c.id || '—'}</p></div>`);
+      }
+    } catch (e) { /* ignore */ }
+    return res.status(200).json({ received: true });
+  }
 
   if (!KEY) return res.status(200).json({ configured: false, error: 'Payments not connected yet. Add TAP_SECRET_KEY in Vercel.' });
 

@@ -366,10 +366,37 @@ function OwnerDashboard() {
   const { setMode, setPage, setSelClient } = useApp();
   const th = useTheme();
 
+  // Live platform data — pulled straight from Supabase so HQ shows real signups/counts.
+  const [live, setLive] = useState({ profiles:null, clients:null, signups:[], loaded:false });
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const [pRes, cRes, recentRes] = await Promise.all([
+          supabase.from('profiles').select('id', { count:'exact', head:true }),
+          supabase.from('clients').select('id', { count:'exact', head:true }),
+          supabase.from('profiles').select('name,email,plan,account_type,company_name,created_at').order('created_at', { ascending:false }).limit(6),
+        ]);
+        if (!on) return;
+        setLive({ profiles: pRes.count ?? null, clients: cRes.count ?? null, signups: recentRes.data || [], loaded:true });
+      } catch (e) { if (on) setLive(s => ({ ...s, loaded:true })); }
+    })();
+    return () => { on = false; };
+  }, []);
+
+  const sinceLabel = (ts) => {
+    if (!ts) return "";
+    const s = Math.floor((Date.now() - new Date(ts).getTime())/1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return Math.floor(s/60)+"m ago";
+    if (s < 86400) return Math.floor(s/3600)+"h ago";
+    return Math.floor(s/86400)+"d ago";
+  };
+
   const kpis = [
     { label:"Monthly revenue (MRR)", value:"$2,180", change:"+12%", up:true, Icon:DollarSign, color:"success" },
     { label:"Active subscriptions", value:"18", change:"+3", up:true, Icon:CreditCard, color:"accent" },
-    { label:"Total clients", value:"24", change:"+5", up:true, Icon:Building2, color:"accent2" },
+    { label:"Total clients", value: live.clients!=null ? String(live.clients) : "24", change:"+5", up:true, Icon:Building2, color:"accent2" },
     { label:"Trials active", value:"6", change:"+2", up:true, Icon:Sparkles, color:"info" },
     { label:"ARPU", value:"$91", change:"+4%", up:true, Icon:TrendingUp, color:"orange" },
     { label:"Open support", value:"3", change:"-1", up:false, Icon:MessageCircle, color:"warning" },
@@ -410,7 +437,14 @@ function OwnerDashboard() {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:13,marginBottom:20}}>
-        {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
+        {kpis.map((s,i)=> i===0 ? (
+          <div key={i} style={{background:th.gradient,borderRadius:16,padding:16,boxShadow:"0 16px 38px rgba(79,110,247,0.42)",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",right:-12,top:-12,opacity:0.16}}><DollarSign size={70} color="#fff"/></div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.85)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,fontWeight:700}}>{s.label}</div>
+            <div style={{fontSize:23,fontWeight:800,color:"#fff",letterSpacing:-0.5}}>{s.value}</div>
+            <div style={{fontSize:10.5,color:"rgba(255,255,255,0.92)",marginTop:5,fontWeight:600}}>▲ {s.change} this month</div>
+          </div>
+        ) : <StatCard key={i} {...s}/>)}
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:20}}>
@@ -439,24 +473,82 @@ function OwnerDashboard() {
         </div>
       </div>
 
+      {/* Recent activity across all clients — like the reference's main table, in our dark brand */}
+      <div style={{...card,overflow:"hidden",marginBottom:16}}>
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><Activity size={15} color={th.accent}/>Recent activity across clients</div>
+          <button onClick={()=>setPage("clients")} style={{fontSize:11,color:th.accent,background:th.accentSoft,border:"none",borderRadius:8,padding:"5px 11px",cursor:"pointer"}}>See all →</button>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1.6fr 1.4fr 0.9fr 0.9fr",gap:12,padding:"11px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
+          <span>Client</span><span>Activity</span><span>Platform</span><span style={{textAlign:"right"}}>When</span>
+        </div>
+        {[
+          { c:"Marina Cafe", a:"Published a Reel", p:"ig", t:"4m ago", dot:th.success },
+          { c:"Gulf Auto", a:"Scheduled 3 posts", p:"fb", t:"22m ago", dot:th.accent },
+          { c:"Lulwa Events", a:"Replied to 5 comments", p:"ig", t:"1h ago", dot:th.accent2 },
+          { c:"Trio Restaurant", a:"Connected a new account", p:"tt", t:"2h ago", dot:th.info },
+          { c:"Noor Designs", a:"Started free trial", p:"li", t:"3h ago", dot:th.success },
+        ].map((r,i,arr)=>{ const PI = PlatformIcons[r.p]; return (
+          <div key={i} style={{display:"grid",gridTemplateColumns:"1.6fr 1.4fr 0.9fr 0.9fr",gap:12,padding:"12px 20px",borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+              <div style={{width:30,height:30,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{r.c.slice(0,2).toUpperCase()}</div>
+              <span style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.c}</span>
+            </div>
+            <span style={{fontSize:12,color:th.text2,display:"flex",alignItems:"center",gap:8}}><span style={{width:6,height:6,borderRadius:"50%",background:r.dot,flexShrink:0}}/>{r.a}</span>
+            <span style={{display:"flex",alignItems:"center"}}>{PI && <PI/>}</span>
+            <span style={{fontSize:11,color:th.text3,textAlign:"right"}}>{r.t}</span>
+          </div>
+        );})}
+      </div>
+
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16}}>
         <div style={{...card,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><Building2 size={15} color={th.accent}/>Recent clients</div>
+            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}>
+              <span style={{position:"relative",display:"inline-flex"}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:th.success,display:"inline-block"}}/>
+                <span style={{position:"absolute",inset:0,borderRadius:"50%",background:th.success,opacity:0.5,animation:"twpulse 1.8s ease-out infinite"}}/>
+              </span>
+              Who just joined
+            </div>
             <button onClick={()=>setPage("clients")} style={{fontSize:11,color:th.accent,background:th.accentSoft,border:"none",borderRadius:8,padding:"5px 11px",cursor:"pointer"}}>View all</button>
           </div>
-          {CLIENTS.slice(0,5).map((cl,i)=>(
-            <div key={cl.id} onClick={()=>{setSelClient(cl);setMode("agency");setPage("dashboard");}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 20px",borderBottom:i<4?`1px solid ${th.border}`:"none",cursor:"pointer"}}>
-              <div style={{display:"flex",alignItems:"center",gap:11}}>
-                <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{(cl.name||"?").slice(0,2).toUpperCase()}</div>
-                <div><div style={{fontSize:13,fontWeight:600}}>{cl.name}</div><div style={{fontSize:10.5,color:th.text2}}>{cl.accounts} accounts · {cl.reach} reach</div></div>
+          <style>{`@keyframes twpulse{0%{transform:scale(1);opacity:.5}70%{transform:scale(2.6);opacity:0}100%{opacity:0}}`}</style>
+          {live.loaded && live.signups.length>0 ? (
+            live.signups.map((u,i)=>{
+              const nm = u.company_name || u.name || (u.email||"?").split("@")[0];
+              const plan = u.plan==="trial" || !u.plan ? "Trial" : u.plan;
+              const isTrial = plan==="Trial";
+              return (
+                <div key={i} onClick={()=>setPage("clients")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 20px",borderBottom:i<live.signups.length-1?`1px solid ${th.border}`:"none",cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+                    <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{nm.slice(0,2).toUpperCase()}</div>
+                    <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nm}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email} · {sinceLabel(u.created_at)}</div></div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                    <Badge color={isTrial?"info":u.account_type==="agency"?"accent":"accent2"}>{isTrial?"Trial":(u.account_type||plan)}</Badge>
+                    <div style={{display:"flex",gap:5}}>
+                      <a href={`mailto:${u.email}`} onClick={e=>e.stopPropagation()} title="Email" style={{width:28,height:28,borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,display:"flex",alignItems:"center",justifyContent:"center",textDecoration:"none"}}><Mail size={13}/></a>
+                      <button onClick={e=>{e.stopPropagation();setPage("clients");}} title="View" style={{width:28,height:28,borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Eye size={13}/></button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            CLIENTS.slice(0,5).map((cl,i)=>(
+              <div key={cl.id} onClick={()=>{setSelClient(cl);setMode("agency");setPage("dashboard");}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 20px",borderBottom:i<4?`1px solid ${th.border}`:"none",cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"center",gap:11}}>
+                  <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{(cl.name||"?").slice(0,2).toUpperCase()}</div>
+                  <div><div style={{fontSize:13,fontWeight:600}}>{cl.name}</div><div style={{fontSize:10.5,color:th.text2}}>{cl.accounts} accounts · {cl.reach} reach</div></div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
+                  <span style={{fontSize:13,fontWeight:700,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
+                </div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
-                <span style={{fontSize:13,fontWeight:700,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
         <div style={{...card,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><MessageCircle size={15} color={th.accent}/>Support inbox</div>
@@ -4064,6 +4156,97 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 }
 
+function AdminLogin() {
+  const { setIsAuthed } = useApp();
+  const th = DARK; // admin console is always the premium dark theme
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!email || !pw) { setError("Enter your email and password."); return; }
+    setError(""); setLoading(true);
+    const { data, error: err } = await signIn(email, pw);
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    if (data?.user) setIsAuthed(true);
+  };
+
+  const field = (icon, placeholder, value, onChange, type) => (
+    <div style={{display:"flex",alignItems:"center",gap:11,background:"rgba(255,255,255,0.03)",border:`1px solid ${th.border}`,borderRadius:13,padding:"13px 15px",marginBottom:12}}>
+      {icon}
+      <input
+        type={type} value={value}
+        onChange={e=>{onChange(e.target.value);setError("");}}
+        onKeyDown={e=>{ if(e.key==="Enter") submit(); }}
+        placeholder={placeholder}
+        style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:13.5,width:"100%",fontFamily:"inherit"}}
+      />
+      {type==="password" && (
+        <button onClick={()=>setShow(s=>!s)} tabIndex={-1} style={{background:"none",border:"none",color:th.text3,cursor:"pointer",display:"flex",padding:0}}>
+          <Eye size={15}/>
+        </button>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",
+      background:"radial-gradient(1100px 600px at 50% -10%, rgba(79,110,247,0.18), transparent 60%), radial-gradient(900px 500px at 90% 110%, rgba(124,58,237,0.16), transparent 55%), #07090F",
+      fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",color:th.text,direction:"ltr",padding:24,position:"relative",overflow:"hidden",
+    }}>
+      {/* faint grid backdrop */}
+      <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(${th.border}22 1px, transparent 1px), linear-gradient(90deg, ${th.border}22 1px, transparent 1px)`,backgroundSize:"46px 46px",maskImage:"radial-gradient(circle at 50% 40%, #000 0%, transparent 70%)",WebkitMaskImage:"radial-gradient(circle at 50% 40%, #000 0%, transparent 70%)",pointerEvents:"none"}}/>
+
+      <div style={{position:"relative",width:"100%",maxWidth:404}}>
+        {/* brand */}
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:26}}>
+          <div style={{position:"relative",marginBottom:16}}>
+            <div style={{width:64,height:64,borderRadius:19,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 14px 40px rgba(79,110,247,0.45)"}}>
+              <Shield size={30} color="#fff" strokeWidth={1.7}/>
+            </div>
+            <div style={{position:"absolute",right:-7,bottom:-7,width:26,height:26,borderRadius:9,background:th.card,border:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <Lock size={13} color={th.accent}/>
+            </div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:7}}>
+            <img src="/logo-transparent.png" alt="Tawaslo" style={{width:26,height:26,objectFit:"contain"}}/>
+            <span style={{fontSize:21,fontWeight:900,letterSpacing:-0.7}}>Tawaslo</span>
+            <span style={{fontSize:11,fontWeight:800,letterSpacing:1,color:th.accent,background:th.accentSoft,border:`1px solid ${th.accent}33`,borderRadius:8,padding:"3px 9px"}}>HQ</span>
+          </div>
+          <div style={{fontSize:12.5,color:th.text2,textAlign:"center"}}>Admin console · staff sign in only</div>
+        </div>
+
+        {/* card */}
+        <div style={{background:"rgba(16,24,40,0.72)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",border:`1px solid ${th.border}`,borderRadius:22,padding:"26px 24px",boxShadow:"0 30px 80px rgba(0,0,0,0.55)"}}>
+          {error && (
+            <div style={{background:th.dangerSoft,border:`1px solid ${th.danger}40`,borderRadius:11,padding:"10px 13px",marginBottom:14,fontSize:12,color:th.danger}}>{error}</div>
+          )}
+          {field(<Mail size={15} color={th.text3}/>, "Admin email", email, setEmail, "email")}
+          {field(<Lock size={15} color={th.text3}/>, "Password", pw, setPw, show?"text":"password")}
+          <button onClick={submit} disabled={loading} style={{
+            width:"100%",padding:"14px",borderRadius:13,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,
+            cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:"0 8px 26px rgba(79,110,247,0.42)",
+            display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4,
+          }}>
+            {loading?"Signing in…":"Enter HQ"} {!loading && <ChevronRight size={16}/>}
+          </button>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginTop:20,fontSize:11,color:th.text3}}>
+          <Lock size={12}/> Protected area · Octo Fusion Collective Hub W.L.L
+        </div>
+        <div style={{textAlign:"center",marginTop:10}}>
+          <a href="https://www.tawaslo.com" style={{fontSize:11.5,color:th.text2,textDecoration:"none"}}>← Back to tawaslo.com</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AuthPage() {
   const { authPage, setAuthPage, setIsAuthed, setRecovery } = useApp();
   const [showPw,  setShowPw]  = useState(false);
@@ -4546,10 +4729,20 @@ export default function TawasloApp() {
     );
   }
 
-  if (showLanding && !isAuthed) {
+  // The admin console subdomain never shows the marketing site — go straight to login.
+  if (showLanding && !isAuthed && !isAdminHost) {
     return (
       <AppCtx.Provider value={ctx}>
         <LandingPage onGetStarted={()=>setShowLanding(false)} onLogin={()=>setShowLanding(false)}/>
+      </AppCtx.Provider>
+    );
+  }
+
+  // Admin subdomain → dedicated centered HQ login (not the user-facing auth screen)
+  if (isAdminHost && !isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <AdminLogin/>
       </AppCtx.Provider>
     );
   }
