@@ -10,6 +10,7 @@ import {
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
+  Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -61,7 +62,7 @@ const PLATFORMS = [
   {id:"yt",name:"YouTube",  color:"yt"  },
 ];
 
-const ADMIN_EMAIL = 'theoctopus.bh@gmail.com';
+const ADMIN_EMAIL = 'octofusionbh@gmail.com';
 const ADMIN_HOST_PREFIX = 'admin.';
 const ACCOUNT_LABELS = { agency: "Agency", freelancer: "Freelancer", corporate: "Corporate", enterprise: "Enterprise" };
 const accountLabelOf = (t) => ACCOUNT_LABELS[t] || "Agency";
@@ -169,12 +170,15 @@ function Sidebar() {
   const isAR = lang==="ar";
 
   const OWNER_NAV = [
-    {key:"overview", Icon:LayoutDashboard, label:"Overview"    },
-    {key:"clients",  Icon:Building2,       label:"All Clients" },
-    {key:"revenue",  Icon:DollarSign,      label:"Revenue"     },
-    {key:"apiusage", Icon:Activity,        label:"API & Usage" },
-    {key:"team",     Icon:Users,           label:"Team"        },
-    {key:"settings", Icon:Settings,        label:"Settings"    },
+    {key:"overview", Icon:LayoutDashboard, label:"Overview"     },
+    {key:"clients",  Icon:Building2,       label:"All Clients"  },
+    {key:"revenue",  Icon:DollarSign,      label:"Revenue"      },
+    {key:"promos",   Icon:Tag,             label:"Promo Codes"  },
+    {key:"gifts",    Icon:Gift,            label:"Gift Cards"   },
+    {key:"support",  Icon:LifeBuoy,        label:"Support"      },
+    {key:"apiusage", Icon:Activity,        label:"API & Usage"  },
+    {key:"team",     Icon:Users,           label:"Team"         },
+    {key:"settings", Icon:Settings,        label:"Settings"     },
   ];
 
   const AGENCY_NAV = [
@@ -315,6 +319,7 @@ function Topbar() {
   const th = useTheme();
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
+    promos:"Promo Codes", gifts:"Gift Cards & Gifting", support:"Support Inbox",
     apiusage:"API & Usage", team:"Team", settings:"Settings",
     dashboard:"Dashboard", publisher:"Publisher", streams:"Streams",
     inbox:"Inbox", listening:"Listening", campaigns:"Campaigns",
@@ -360,237 +365,473 @@ function Topbar() {
 function OwnerDashboard() {
   const { setMode, setPage, setSelClient } = useApp();
   const th = useTheme();
+
+  const kpis = [
+    { label:"Monthly revenue (MRR)", value:"$2,180", change:"+12%", up:true, Icon:DollarSign, color:"success" },
+    { label:"Active subscriptions", value:"18", change:"+3", up:true, Icon:CreditCard, color:"accent" },
+    { label:"Total clients", value:"24", change:"+5", up:true, Icon:Building2, color:"accent2" },
+    { label:"Trials active", value:"6", change:"+2", up:true, Icon:Sparkles, color:"info" },
+    { label:"ARPU", value:"$91", change:"+4%", up:true, Icon:TrendingUp, color:"orange" },
+    { label:"Open support", value:"3", change:"-1", up:false, Icon:MessageCircle, color:"warning" },
+  ];
+
+  const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
+  const max = Math.max(...rev), min = Math.min(...rev), W = 560, H = 150, rng = (max - min) || 1;
+  const pts = rev.map((v,i)=>[ (i/(rev.length-1))*W, H - ((v-min)/rng)*(H-16) - 8 ]);
+  const line = "M" + pts.map(pt=>pt[0].toFixed(1)+","+pt[1].toFixed(1)).join(" L");
+  const area = line + ` L${W},${H} L0,${H} Z`;
+
+  const planMix = [
+    { name:"Professional", count:11, color:th.accent },
+    { name:"Essential", count:8, color:th.accent2 },
+    { name:"Enterprise", count:5, color:th.success },
+  ];
+  const planTotal = planMix.reduce((s,p)=>s+p.count,0);
+
+  const support = [
+    { who:"Marina Cafe", msg:"How do I connect a second Instagram?", ago:"12m", urgent:false },
+    { who:"Trio Restaurant", msg:"Payment failed on renewal", ago:"1h", urgent:true },
+    { who:"Lulwa Events", msg:"Can I get an invoice for March?", ago:"3h", urgent:false },
+  ];
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22,flexWrap:"wrap",gap:12}}>
         <div>
-          <h1 style={{margin:0,fontSize:21,fontWeight:900,letterSpacing:-0.6}}>Good morning, Abdulla 👋</h1>
-          <p style={{margin:"4px 0 0",fontSize:12,color:th.text2}}>Platform overview · Tawaslo · May 2026</p>
+          <h1 style={{margin:0,fontSize:21,fontWeight:700,letterSpacing:-0.5}}>Tawaslo HQ</h1>
+          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>Platform overview · everything across your clients</p>
+        </div>
+        <div style={{display:"flex",gap:9}}>
+          <button onClick={()=>setPage("revenue")} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 15px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:"pointer"}}><PieChart size={14}/>Revenue</button>
+          <button onClick={()=>setPage("clients")} style={{display:"flex",alignItems:"center",gap:6,padding:"9px 15px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}><Building2 size={14}/>Manage clients</button>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:13,marginBottom:22}}>
-        {[
-          {label:"Monthly Revenue",   value:"$1,994",change:"+12%",up:true, Icon:DollarSign,color:"success"},
-          {label:"Active Clients",    value:"5",     change:"+1",  up:true, Icon:Building2, color:"accent" },
-          {label:"Posts Published",   value:"1,742", change:"+23%",up:true, Icon:Send,      color:"accent2"},
-          {label:"Total Reach",       value:"8.7M",  change:"+41%",up:true, Icon:Eye,       color:"info"   },
-          {label:"Accounts",          value:"88",    change:"+14", up:true, Icon:Link,      color:"orange" },
-          {label:"API Usage",         value:"74%",   change:"+8%", up:false,Icon:Activity,  color:"warning"},
-        ].map((s,i)=><StatCard key={i} {...s}/>)}
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:13,marginBottom:20}}>
+        {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
-      <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontWeight:700,fontSize:14,display:"flex",alignItems:"center",gap:8}}><Building2 size={15} color={th.accent}/>All Clients</div>
-          <button style={{display:"flex",alignItems:"center",gap:5,padding:"5px 11px",borderRadius:7,background:th.gradient,border:"none",color:"#fff",fontSize:11,fontWeight:600,cursor:"pointer"}}>
-            <UserPlus size={11}/>Add Client
-          </button>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr 1fr 80px",padding:"9px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10,fontWeight:700,color:th.text3,textTransform:"uppercase",letterSpacing:0.7}}>
-          {["Client","Plan","Status","Accounts","Posts","Revenue","Health"].map(h=><div key={h}>{h}</div>)}
-        </div>
-        {CLIENTS.map((cl,i)=>(
-          <div key={cl.id} onClick={()=>{setSelClient(cl);setMode("agency");setPage("dashboard");}} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr 1fr 80px",padding:"13px 20px",borderBottom:i<CLIENTS.length-1?`1px solid ${th.border}`:"none",alignItems:"center",cursor:"pointer",transition:"background 0.15s"}}>
-            <div>
-              <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}>
-                {cl.name}{cl.free&&<Badge color="success" size="xs">Free</Badge>}
-              </div>
-              <div style={{fontSize:10,color:th.text2,marginTop:1}}>{cl.reach} reach</div>
-            </div>
-            <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
-            <Badge color={cl.status==="active"?"success":"danger"}>{cl.status}</Badge>
-            <div style={{fontSize:13,fontWeight:600}}>{cl.accounts}</div>
-            <div style={{fontSize:13,fontWeight:600}}>{cl.posts}</div>
-            <div style={{fontSize:13,fontWeight:700,color:cl.free?th.success:th.text}}>{cl.free?"Free":"$"+cl.spend}</div>
-            <div>
-              <div style={{height:4,background:th.border,borderRadius:2,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${cl.health}%`,background:cl.health>=80?th.success:cl.health>=50?th.warning:th.danger,borderRadius:2}}/>
-              </div>
-              <div style={{fontSize:10,color:th.text2,marginTop:2}}>{cl.health}%</div>
-            </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:20}}>
+        <div style={{...card,padding:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:7}}><TrendingUp size={15} color={th.accent}/>Revenue · last 12 months</div>
+            <div style={{fontSize:11,color:th.success,fontWeight:700}}>▲ +251% YoY</div>
           </div>
-        ))}
+          <div style={{fontSize:26,fontWeight:800,marginBottom:10}}>$2,180<span style={{fontSize:12,color:th.text2,fontWeight:400}}> this month</span></div>
+          <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:150,overflow:"visible"}}>
+            <defs><linearGradient id="revg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.35"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
+            <path d={area} fill="url(#revg)"/>
+            <path d={line} fill="none" stroke={th.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            {pts.map((pt,i)=><circle key={i} cx={pt[0]} cy={pt[1]} r={i===pts.length-1?4:0} fill={th.accent}/>)}
+          </svg>
+        </div>
+        <div style={{...card,padding:20}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:16,display:"flex",alignItems:"center",gap:7}}><PieChart size={15} color={th.accent}/>Plan mix</div>
+          {planMix.map((pl,i)=>(
+            <div key={pl.name} style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{pl.name}</span><span style={{color:th.text2}}>{pl.count}</span></div>
+              <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pl.count/planTotal*100}%`,background:pl.color,borderRadius:4}}/></div>
+            </div>
+          ))}
+          <div style={{fontSize:11,color:th.text2,marginTop:4}}>{planTotal} paying clients across 3 plans</div>
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16}}>
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><Building2 size={15} color={th.accent}/>Recent clients</div>
+            <button onClick={()=>setPage("clients")} style={{fontSize:11,color:th.accent,background:th.accentSoft,border:"none",borderRadius:8,padding:"5px 11px",cursor:"pointer"}}>View all</button>
+          </div>
+          {CLIENTS.slice(0,5).map((cl,i)=>(
+            <div key={cl.id} onClick={()=>{setSelClient(cl);setMode("agency");setPage("dashboard");}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 20px",borderBottom:i<4?`1px solid ${th.border}`:"none",cursor:"pointer"}}>
+              <div style={{display:"flex",alignItems:"center",gap:11}}>
+                <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{(cl.name||"?").slice(0,2).toUpperCase()}</div>
+                <div><div style={{fontSize:13,fontWeight:600}}>{cl.name}</div><div style={{fontSize:10.5,color:th.text2}}>{cl.accounts} accounts · {cl.reach} reach</div></div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
+                <span style={{fontSize:13,fontWeight:700,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><MessageCircle size={15} color={th.accent}/>Support inbox</div>
+          {support.map((sp,i)=>(
+            <div key={i} style={{padding:"13px 18px",borderBottom:i<support.length-1?`1px solid ${th.border}`:"none"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+                <span style={{fontSize:12.5,fontWeight:600}}>{sp.who}</span>
+                <span style={{fontSize:10,color:th.text3}}>{sp.ago}</span>
+              </div>
+              <div style={{fontSize:11.5,color:th.text2,display:"flex",alignItems:"center",gap:6}}>{sp.urgent&&<span style={{width:6,height:6,borderRadius:"50%",background:th.danger,flexShrink:0}}/>}{sp.msg}</div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
-function TrialBanner() {
-  const { dark, setPage } = useApp();
-  const th = dark ? DARK : LIGHT;
-  const [daysLeft, setDaysLeft] = useState(null);
-  const [hidden, setHidden] = useState(false);
-  const [paid, setPaid] = useState(false);
-  const TRIAL_DAYS = 30;
+// ───────────────────────── TAWASLO HQ · OWNER SUB-PAGES ─────────────────────────
 
-  useEffect(() => {
-    try { if (localStorage.getItem('tw_sub_active') === '1') { setPaid(true); return; } } catch (e) { /* ignore */ }
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || !user.created_at) return;
-      const start = new Date(user.created_at).getTime();
-      const end = start + TRIAL_DAYS * 24 * 3600 * 1000;
-      setDaysLeft(Math.ceil((end - Date.now()) / (24 * 3600 * 1000)));
-    })();
-  }, []);
-
-  if (paid || hidden || daysLeft === null) return null;
-  const ended = daysLeft <= 0;
-
+function OwnerPageHead({ Icon, title, subtitle, action }) {
+  const th = useTheme();
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : th.accentSoft, borderBottom:`1px solid ${ended ? th.danger + '33' : th.border}`, flexWrap:"wrap" }}>
-      <div style={{ display:"flex", alignItems:"center", gap:9, fontSize:12.5, color: ended ? th.danger : th.text }}>
-        <Sparkles size={14} color={ended ? th.danger : th.accent}/>
-        {ended
-          ? <span><strong>Your free trial has ended.</strong> Upgrade to keep publishing &amp; scheduling.</span>
-          : <span><strong>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</strong> in your free trial &middot; <span style={{ color:th.text2 }}>full access, no card needed</span></span>}
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22,flexWrap:"wrap",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:13}}>
+        <div style={{width:42,height:42,borderRadius:13,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 8px 22px rgba(79,110,247,0.35)"}}><Icon size={20} color="#fff"/></div>
+        <div>
+          <h1 style={{margin:0,fontSize:21,fontWeight:700,letterSpacing:-0.5}}>{title}</h1>
+          <p style={{margin:"4px 0 0",fontSize:12.5,color:th.text2}}>{subtitle}</p>
+        </div>
       </div>
-      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-        <button onClick={()=>setPage('billing')} style={{ padding:"7px 16px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Upgrade now</button>
-        {!ended && <button onClick={()=>setHidden(true)} title="Hide" style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><XCircle size={16}/></button>}
-      </div>
+      {action}
     </div>
   );
 }
 
-function OnboardingHero() {
-  const { selClient, dark, setPage } = useApp();
-  const th = dark ? DARK : LIGHT;
-  const [realClientId, setRealClientId] = useState(null);
-  const [accCount, setAccCount] = useState(0);
-  const [postCount, setPostCount] = useState(0);
-  const [seenAnalytics, setSeenAnalytics] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const [focus, setFocus] = useState(null); // manually focused step index
+const OWNER_CLIENTS = [
+  { id:"c1", name:"Marina Cafe",      email:"hi@marinacafe.bh",     plan:"Professional", status:"active",  accounts:3, mrr:99,  joined:"Mar 2026" },
+  { id:"c2", name:"Trio Restaurant",  email:"team@trio.bh",         plan:"Essential",    status:"active",  accounts:2, mrr:49,  joined:"Feb 2026" },
+  { id:"c3", name:"Lulwa Events",     email:"lulwa@events.bh",      plan:"Professional", status:"active",  accounts:4, mrr:99,  joined:"Jan 2026" },
+  { id:"c4", name:"Gulf Auto",        email:"info@gulfauto.bh",     plan:"Enterprise",   status:"active",  accounts:6, mrr:199, joined:"Dec 2025" },
+  { id:"c5", name:"Bayan Clinic",     email:"admin@bayan.bh",       plan:"Essential",    status:"trial",   accounts:1, mrr:0,   joined:"Jun 2026" },
+  { id:"c6", name:"Noor Designs",     email:"noor@designs.bh",      plan:"Professional", status:"past_due",accounts:2, mrr:99,  joined:"Nov 2025" },
+  { id:"c7", name:"Octo Fusion",      email:"theoctopus.bh@gmail.com", plan:"Internal",  status:"active",  accounts:4, mrr:0,   joined:"Jan 2025" },
+  { id:"c8", name:"Souq Online",      email:"hello@souq.bh",        plan:"Enterprise",   status:"suspended",accounts:5,mrr:199, joined:"Oct 2025" },
+];
 
-  useEffect(() => {
-    try { setDismissed(localStorage.getItem('tw_onboard_dismissed') === '1'); setSeenAnalytics(localStorage.getItem('tw_onb_analytics') === '1'); } catch (e) { /* ignore */ }
-  }, []);
-  useEffect(() => {
-    if (!selClient?.name) return;
-    supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setRealClientId(data[0].id); });
-  }, [selClient]);
-  useEffect(() => {
-    if (!realClientId) return;
-    supabase.from('social_accounts').select('id', { count: 'exact', head: true }).eq('client_id', realClientId).then(({ count }) => setAccCount(count || 0));
-    supabase.from('posts').select('id', { count: 'exact', head: true }).eq('client_id', realClientId).then(({ count }) => setPostCount(count || 0));
-  }, [realClientId]);
+const planColor = (th, p) => p==="Enterprise"?th.orange : p==="Professional"?th.accent : p==="Internal"?th.success : th.accent2;
+const statusMeta = (th, s) => ({
+  active:   { label:"Active",   c:th.success, bg:th.successSoft },
+  trial:    { label:"Trial",    c:th.info,    bg:th.infoSoft },
+  past_due: { label:"Past due", c:th.warning, bg:th.warningSoft },
+  suspended:{ label:"Suspended",c:th.danger,  bg:th.dangerSoft },
+}[s] || { label:s, c:th.text2, bg:th.card2 });
 
-  const steps = [
-    { key:'connect', label:'Connect', title:'Bring your channels in', narrative:"Plug in Instagram, Facebook or LinkedIn. It takes about 30 seconds — and it unlocks everything else.", icon:Link, done: accCount > 0, page:'social', cta:'Connect a channel' },
-    { key:'post', label:'Create', title:'Craft your first post', narrative:"Write it yourself, or let the AI draft a bilingual caption. Publish now, or schedule it for the perfect moment.", icon:Edit3, done: postCount > 0, page:'publisher', cta:'Open the composer' },
-    { key:'grow', label:'Grow', title:'Watch it take off', narrative:"Reach, engagement and your best-performing content — all in one beautiful view, updated in real time.", icon:BarChart2, done: seenAnalytics, page:'analytics', cta:'See my analytics' },
-  ];
-  const doneCount = steps.filter(s => s.done).length;
-  const pct = Math.round(doneCount / steps.length * 100);
-  const allDone = doneCount === steps.length;
-  if (dismissed) return null;
+function OwnerClientsPage() {
+  const { setMode, setPage, setSelClient } = useApp();
+  const th = useTheme();
+  const [rows, setRows] = useState(OWNER_CLIENTS);
+  const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [menu, setMenu] = useState(null);
 
-  const firstUndone = steps.findIndex(s => !s.done);
-  const current = focus != null ? focus : (firstUndone === -1 ? steps.length - 1 : firstUndone);
-  const step = steps[current];
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const filtered = rows.filter(r =>
+    (filter==="all" || r.status===filter) &&
+    (r.name.toLowerCase().includes(q.toLowerCase()) || r.email.toLowerCase().includes(q.toLowerCase()))
+  );
+  const totalMrr = rows.filter(r=>r.status==="active").reduce((s,r)=>s+r.mrr,0);
+  const toggleStatus = (id) => setRows(rs => rs.map(r => r.id===id ? { ...r, status: r.status==="suspended"?"active":"suspended" } : r));
+  const impersonate = (r) => { setSelClient({ id:r.id, name:r.name, plan:r.plan }); setMode("agency"); setPage("dashboard"); };
 
-  const go = (st) => { if (st.key === 'grow') { try { localStorage.setItem('tw_onb_analytics', '1'); } catch (e) { /* ignore */ } } setPage(st.page); };
-  const dismiss = () => { try { localStorage.setItem('tw_onboard_dismissed', '1'); } catch (e) { /* ignore */ } setDismissed(true); };
-
-  const stepVisual = (k) => {
-    if (k === 'connect') return (
-      <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-        {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["LinkedIn","#0A66C2",FaLinkedin]].map(([n,c,Ic],i)=>(
-          <div key={n} style={{ display:"flex", alignItems:"center", gap:10, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"10px 12px", boxShadow:"0 6px 16px rgba(0,0,0,0.25)" }}>
-            <div style={{ width:30, height:30, borderRadius:9, background:c+"22", display:"flex", alignItems:"center", justifyContent:"center" }}><Ic style={{ color:c, fontSize:16 }}/></div>
-            <div style={{ flex:1, fontSize:12, fontWeight:600 }}>{n}</div>
-            <div style={{ fontSize:9.5, fontWeight:700, color:i===0?th.success:th.accent, background:(i===0?th.success:th.accent)+"1f", borderRadius:999, padding:"3px 9px" }}>{i===0?"Linked":"Connect"}</div>
-          </div>
-        ))}
-      </div>
-    );
-    if (k === 'post') return (
-      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:13, boxShadow:"0 10px 26px rgba(0,0,0,0.3)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11 }}><div style={{ width:26, height:26, borderRadius:8, background:th.gradient }}/><div style={{ height:7, width:"55%", borderRadius:4, background:th.card2 }}/></div>
-        <div style={{ height:7, borderRadius:4, background:th.card2, marginBottom:6 }}/>
-        <div style={{ height:7, width:"82%", borderRadius:4, background:th.card2, marginBottom:6 }}/>
-        <div style={{ height:7, width:"40%", borderRadius:4, background:th.accentSoft, marginBottom:12 }}/>
-        <div style={{ height:70, borderRadius:10, background:th.gradient, opacity:0.22, marginBottom:11 }}/>
-        <div style={{ padding:"8px", borderRadius:9, background:th.gradient, color:"#fff", fontSize:11.5, fontWeight:600, textAlign:"center" }}>Publish</div>
-      </div>
-    );
-    return (
-      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:14, boxShadow:"0 10px 26px rgba(0,0,0,0.3)" }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:11, color:th.text2 }}>Reach this week</div><div style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"3px 8px" }}>+24%</div></div>
-        <div style={{ display:"flex", alignItems:"flex-end", gap:7, height:84 }}>
-          {[34,52,44,68,84,76,96].map((h,i)=><div key={i} style={{ flex:1, height:h+"%", borderRadius:5, background: i>=5?th.gradient:th.accent+"55" }}/>)}
-        </div>
-      </div>
-    );
-  };
+  const TABS = [["all","All"],["active","Active"],["trial","Trials"],["past_due","Past due"],["suspended","Suspended"]];
 
   return (
-    <div className="tw-jny" style={{ position:"relative", overflow:"hidden", background:`linear-gradient(135deg, ${th.accent}1c, ${th.accent2}12 50%, ${th.surface})`, border:`1px solid ${th.border}`, borderRadius:20, marginBottom:22, boxShadow:"0 18px 48px rgba(0,0,0,0.34)" }}>
-      <style>{`
-        .tw-jny{animation:jnyIn .55s cubic-bezier(.2,.7,.2,1) both;}
-        @keyframes jnyIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
-        .tw-jnode{transition:all .2s ease; cursor:pointer;}
-        .tw-jcurrent{animation:jpulse 2.4s ease-in-out infinite;}
-        @keyframes jpulse{0%,100%{box-shadow:0 0 0 0 ${th.accent}55;}50%{box-shadow:0 0 0 7px ${th.accent}00;}}
-        .tw-jcta{transition:transform .14s ease, filter .15s ease;}
-        .tw-jcta:hover{transform:translateY(-1px); filter:brightness(1.08);}
-        @keyframes jswap{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
-        .tw-jfocus{animation:jswap .35s ease both;}
-        @media(max-width:980px){.tw-jvis{display:none;}}
-      `}</style>
-      <div style={{ position:"absolute", top:-70, right:-30, width:340, height:240, background:`radial-gradient(ellipse, ${th.accent}33, transparent 70%)`, filter:"blur(34px)", pointerEvents:"none" }}/>
-      <div style={{ height:4, background:th.border }}><div style={{ height:"100%", width:`${pct}%`, background:th.gradient, transition:"width .6s ease" }}/></div>
-      <button onClick={dismiss} title="Dismiss" style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex", zIndex:3 }}><XCircle size={18}/></button>
+    <div onClick={()=>setMenu(null)}>
+      <OwnerPageHead Icon={Building2} title="All Clients" subtitle={`${rows.length} clients · $${totalMrr}/mo active revenue`}
+        action={<button style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}><Plus size={15}/>Add client</button>} />
 
-      <div style={{ position:"relative", zIndex:1, display:"flex", gap:30, padding:"22px 26px", flexWrap:"wrap" }}>
-        {/* LEFT — the path */}
-        <div style={{ width:260, flexShrink:0 }}>
-          <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:1.4, color:th.accent, textTransform:"uppercase", marginBottom:3 }}>Your setup journey</div>
-          <div style={{ fontSize:16, fontWeight:700, marginBottom:18 }}>{allDone ? "Complete 🎉" : `Step ${current + 1} of ${steps.length}`}</div>
-          {steps.map((s,i)=>{ const isCur = i === current && !allDone; const last = i === steps.length - 1; return (
-            <div key={s.key} className="tw-jnode" onClick={()=>setFocus(i)} style={{ display:"flex", gap:12, opacity: s.done || isCur ? 1 : 0.55 }}>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
-                <div className={isCur ? "tw-jcurrent" : ""} style={{ width:30, height:30, borderRadius:"50%", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", background: s.done ? th.success : (isCur ? th.gradient : th.card2), border:`1.5px solid ${s.done ? th.success : (isCur ? "transparent" : th.border)}`, color:"#fff", fontSize:12, fontWeight:700 }}>
-                  {s.done ? <CheckCircle size={16}/> : i + 1}
+      <div style={{display:"flex",gap:11,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"9px 13px",flex:"1 1 260px",maxWidth:340}}>
+          <Search size={14} color={th.text3}/>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search clients by name or email…" style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12.5,width:"100%",fontFamily:"inherit"}}/>
+        </div>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          {TABS.map(([k,l])=>(
+            <button key={k} onClick={()=>setFilter(k)} style={{padding:"8px 13px",borderRadius:9,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${filter===k?th.accent:th.border}`,background:filter===k?th.accentSoft:th.card,color:filter===k?th.accent:th.text2}}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{...card,overflow:"visible"}}>
+        <div style={{display:"grid",gridTemplateColumns:"2.2fr 1.1fr 1fr 0.8fr 0.9fr 44px",gap:12,padding:"13px 20px",borderBottom:`1px solid ${th.border}`,fontSize:11,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
+          <span>Client</span><span>Plan</span><span>Status</span><span>Accounts</span><span style={{textAlign:"right"}}>MRR</span><span/>
+        </div>
+        {filtered.map((r,i)=>{ const sm=statusMeta(th,r.status); return (
+          <div key={r.id} style={{display:"grid",gridTemplateColumns:"2.2fr 1.1fr 1fr 0.8fr 0.9fr 44px",gap:12,padding:"13px 20px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",alignItems:"center",position:"relative"}}>
+            <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
+              <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{r.name.slice(0,2).toUpperCase()}</div>
+              <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.email}</div></div>
+            </div>
+            <span><span style={{fontSize:10.5,fontWeight:700,color:planColor(th,r.plan),background:th.card2,borderRadius:999,padding:"3px 10px"}}>{r.plan}</span></span>
+            <span><span style={{fontSize:10.5,fontWeight:700,color:sm.c,background:sm.bg,borderRadius:999,padding:"3px 10px"}}>{sm.label}</span></span>
+            <span style={{fontSize:12.5,color:th.text2}}>{r.accounts}</span>
+            <span style={{fontSize:13,fontWeight:700,textAlign:"right",color:r.mrr?th.text:th.text3}}>{r.mrr?`$${r.mrr}`:"—"}</span>
+            <div style={{position:"relative",justifySelf:"end"}}>
+              <button onClick={(e)=>{e.stopPropagation();setMenu(menu===r.id?null:r.id);}} style={{width:30,height:30,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><MoreHorizontal size={15}/></button>
+              {menu===r.id && (
+                <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:36,zIndex:20,width:184,background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 16px 40px rgba(0,0,0,0.45)",overflow:"hidden",padding:5}}>
+                  {[
+                    { l:"Open dashboard", Icon:ArrowUpRight, fn:()=>impersonate(r) },
+                    { l:"Change plan", Icon:CreditCard, fn:()=>{} },
+                    { l:r.status==="suspended"?"Reactivate":"Suspend", Icon:r.status==="suspended"?Play:Pause, fn:()=>toggleStatus(r.id) },
+                    { l:"Delete", Icon:Trash2, danger:true, fn:()=>setRows(rs=>rs.filter(x=>x.id!==r.id)) },
+                  ].map((it,k)=>(
+                    <button key={k} onClick={()=>{it.fn();setMenu(null);}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 11px",borderRadius:8,background:"transparent",border:"none",color:it.danger?th.danger:th.text,fontSize:12.5,fontWeight:500,cursor:"pointer",textAlign:"left"}}><it.Icon size={14}/>{it.l}</button>
+                  ))}
                 </div>
-                {!last && <div style={{ width:2, flex:1, minHeight:26, background: steps[i].done ? th.success+"66" : th.border, margin:"3px 0" }}/>}
-              </div>
-              <div style={{ paddingBottom:last?0:6 }}>
-                <div style={{ fontSize:13, fontWeight:600, color: isCur ? th.text : (s.done ? th.text : th.text2) }}>{s.label}</div>
-                <div style={{ fontSize:11, color:th.text3, marginTop:1 }}>{s.done ? "Done" : isCur ? "In progress" : "Up next"}</div>
-              </div>
+              )}
             </div>
-          ); })}
+          </div>
+        );})}
+        {filtered.length===0 && <div style={{padding:"40px",textAlign:"center",fontSize:13,color:th.text3}}>No clients match your search.</div>}
+      </div>
+    </div>
+  );
+}
+
+function OwnerPromosPage() {
+  const th = useTheme();
+  const [codes, setCodes] = useState([
+    { id:"p1", code:"LAUNCH30", type:"percent", value:30, plans:"All plans", uses:14, limit:100, expiry:"2026-08-31", active:true },
+    { id:"p2", code:"BAHRAIN10", type:"fixed", value:10, plans:"Essential", uses:6, limit:50, expiry:"2026-07-15", active:true },
+    { id:"p3", code:"WELCOME", type:"percent", value:20, plans:"All plans", uses:38, limit:0, expiry:"—", active:true },
+    { id:"p4", code:"SUMMER25", type:"percent", value:25, plans:"Professional", uses:50, limit:50, expiry:"2026-06-01", active:false },
+  ]);
+  const [code, setCode] = useState("");
+  const [type, setType] = useState("percent");
+  const [value, setValue] = useState("");
+  const [plans, setPlans] = useState("All plans");
+  const [limit, setLimit] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [copied, setCopied] = useState(null);
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
+  const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
+
+  const create = () => {
+    if (!code.trim() || !value) return;
+    setCodes(cs => [{ id:"p"+Date.now(), code:code.toUpperCase().replace(/\s/g,""), type, value:Number(value), plans, uses:0, limit:Number(limit)||0, expiry:expiry||"—", active:true }, ...cs]);
+    setCode("");setValue("");setLimit("");setExpiry("");
+  };
+  const copy = (c) => { try{navigator.clipboard.writeText(c);}catch(e){} setCopied(c); setTimeout(()=>setCopied(null),1400); };
+  const toggle = (id) => setCodes(cs=>cs.map(c=>c.id===id?{...c,active:!c.active}:c));
+  const del = (id) => setCodes(cs=>cs.filter(c=>c.id!==id));
+
+  const totalRedemptions = codes.reduce((s,c)=>s+c.uses,0);
+
+  return (
+    <div>
+      <OwnerPageHead Icon={Tag} title="Promo Codes" subtitle={`${codes.filter(c=>c.active).length} active codes · ${totalRedemptions} total redemptions`} />
+      <div style={{display:"grid",gridTemplateColumns:"360px 1fr",gap:16,alignItems:"start"}}>
+        <div style={{...card,padding:20}}>
+          <div style={{fontSize:13.5,fontWeight:700,marginBottom:16}}>Create a code</div>
+          <label style={lbl}>Code</label>
+          <input value={code} onChange={e=>setCode(e.target.value)} placeholder="e.g. RAMADAN25" style={{...inp,marginBottom:14,textTransform:"uppercase",letterSpacing:1,fontWeight:700}}/>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+            <div><label style={lbl}>Type</label>
+              <select value={type} onChange={e=>setType(e.target.value)} style={inp}><option value="percent">% off</option><option value="fixed">$ off</option></select>
+            </div>
+            <div><label style={lbl}>Value</label>
+              <input value={value} onChange={e=>setValue(e.target.value.replace(/[^0-9]/g,""))} placeholder={type==="percent"?"30":"10"} style={inp}/>
+            </div>
+          </div>
+          <label style={lbl}>Applies to</label>
+          <select value={plans} onChange={e=>setPlans(e.target.value)} style={{...inp,marginBottom:14}}><option>All plans</option><option>Essential</option><option>Professional</option><option>Enterprise</option></select>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+            <div><label style={lbl}>Usage limit</label><input value={limit} onChange={e=>setLimit(e.target.value.replace(/[^0-9]/g,""))} placeholder="∞" style={inp}/></div>
+            <div><label style={lbl}>Expiry</label><input type="date" value={expiry} onChange={e=>setExpiry(e.target.value)} style={inp}/></div>
+          </div>
+          <button onClick={create} style={{width:"100%",padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Create code</button>
         </div>
 
-        {/* RIGHT — focused step */}
-        <div key={allDone ? 'done' : step.key} className="tw-jfocus" style={{ flex:1, minWidth:280, display:"flex", flexDirection:"column", justifyContent:"center" }}>
-          {allDone ? (
-            <>
-              <div style={{ width:56, height:56, borderRadius:16, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:`0 12px 30px ${th.accent}55` }}><Sparkles size={26} color="#fff"/></div>
-              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're all set, {selClient?.name || "let's grow"}! 🎉</div>
-              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.6, maxWidth:460, marginBottom:20 }}>Your workspace is ready. Channels connected, first post out, analytics live — now the fun part: growing your audience.</div>
-              <div style={{ display:"flex", gap:10 }}>
-                <button className="tw-jcta" onClick={()=>setPage('publisher')} style={{ padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Edit3 size={15}/>Create a post</button>
-                <button onClick={dismiss} style={{ padding:"11px 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Dismiss</button>
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Active &amp; past codes</div>
+          {codes.map((c,i)=>(
+            <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 20px",borderBottom:i<codes.length-1?`1px solid ${th.border}`:"none",opacity:c.active?1:0.55}}>
+              <div style={{display:"flex",alignItems:"center",gap:13,minWidth:0}}>
+                <div style={{width:40,height:40,borderRadius:11,background:c.active?th.accentSoft:th.card2,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Tag size={17} color={c.active?th.accent:th.text3}/></div>
+                <div style={{minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:13.5,fontWeight:800,letterSpacing:0.5,fontFamily:"monospace"}}>{c.code}</span>
+                    <span style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,borderRadius:999,padding:"2px 8px"}}>{c.type==="percent"?`${c.value}% off`:`$${c.value} off`}</span>
+                  </div>
+                  <div style={{fontSize:10.5,color:th.text2,marginTop:3}}>{c.plans} · {c.uses}{c.limit?`/${c.limit}`:""} used · exp {c.expiry}</div>
+                </div>
               </div>
+              <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
+                <button onClick={()=>copy(c.code)} title="Copy" style={{width:32,height:32,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:copied===c.code?th.success:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{copied===c.code?<CheckCircle size={14}/>:<Copy size={14}/>}</button>
+                <button onClick={()=>toggle(c.id)} title={c.active?"Pause":"Activate"} style={{width:32,height:32,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{c.active?<Pause size={14}/>:<Play size={14}/>}</button>
+                <button onClick={()=>del(c.id)} title="Delete" style={{width:32,height:32,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={14}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerGiftsPage() {
+  const th = useTheme();
+  const [cards, setCards] = useState([
+    { id:"g1", code:"GIFT-4F2A-9KL", amount:50, recipient:"sara@startup.bh", status:"redeemed", date:"May 2026" },
+    { id:"g2", code:"GIFT-7Y1C-3MQ", amount:100, recipient:"founder@bhtech.bh", status:"active", date:"Jun 2026" },
+    { id:"g3", code:"GIFT-2D8E-6RT", amount:25, recipient:"hello@cafe.bh", status:"active", date:"Jun 2026" },
+  ]);
+  const [tab, setTab] = useState("card");
+  const [amount, setAmount] = useState("50");
+  const [recipient, setRecipient] = useState("");
+  const [message, setMessage] = useState("");
+  const [giftClient, setGiftClient] = useState("Marina Cafe");
+  const [giftPlan, setGiftPlan] = useState("Professional");
+  const [giftMonths, setGiftMonths] = useState("1");
+  const [toast, setToast] = useState("");
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
+  const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
+  const flash = (m) => { setToast(m); setTimeout(()=>setToast(""),2200); };
+
+  const issueCard = () => {
+    if (!recipient.trim()||!amount) return;
+    const rnd = () => Math.random().toString(36).slice(2,6).toUpperCase();
+    setCards(cs => [{ id:"g"+Date.now(), code:`GIFT-${rnd()}-${rnd()}`, amount:Number(amount), recipient, status:"active", date:"Jun 2026" }, ...cs]);
+    flash(`Gift card for $${amount} sent to ${recipient}`); setRecipient("");setMessage("");
+  };
+  const giftPlanFn = () => { flash(`Gifted ${giftMonths} month(s) of ${giftPlan} to ${giftClient}`); };
+  const revoke = (id) => setCards(cs=>cs.map(c=>c.id===id?{...c,status:"revoked"}:c));
+
+  const totalIssued = cards.reduce((s,c)=>s+c.amount,0);
+  const tabBtn = (k,l,I) => (
+    <button onClick={()=>setTab(k)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"11px",borderRadius:10,fontSize:12.5,fontWeight:600,cursor:"pointer",border:`1px solid ${tab===k?th.accent:th.border}`,background:tab===k?th.accentSoft:th.card2,color:tab===k?th.accent:th.text2}}><I size={15}/>{l}</button>
+  );
+  const sMeta = { active:{c:th.success,bg:th.successSoft,l:"Active"}, redeemed:{c:th.text2,bg:th.card2,l:"Redeemed"}, revoked:{c:th.danger,bg:th.dangerSoft,l:"Revoked"} };
+
+  return (
+    <div>
+      <OwnerPageHead Icon={Gift} title="Gift Cards & Gifting" subtitle={`${cards.filter(c=>c.status==="active").length} active cards · $${totalIssued} issued`} />
+      {toast && <div style={{marginBottom:14,padding:"11px 16px",borderRadius:11,background:th.successSoft,border:`1px solid ${th.success}44`,color:th.success,fontSize:12.5,fontWeight:600,display:"flex",alignItems:"center",gap:8}}><CheckCircle size={15}/>{toast}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"360px 1fr",gap:16,alignItems:"start"}}>
+        <div style={{...card,padding:20}}>
+          <div style={{display:"flex",gap:8,marginBottom:18}}>{tabBtn("card","Gift card",Gift)}{tabBtn("plan","Gift a plan",Star)}</div>
+          {tab==="card" ? (
+            <>
+              <label style={lbl}>Amount (USD)</label>
+              <div style={{display:"flex",gap:8,marginBottom:14}}>
+                {[25,50,100].map(a=>(<button key={a} onClick={()=>setAmount(String(a))} style={{flex:1,padding:"10px",borderRadius:9,fontSize:12.5,fontWeight:700,cursor:"pointer",border:`1px solid ${String(a)===amount?th.accent:th.border}`,background:String(a)===amount?th.accentSoft:th.card2,color:String(a)===amount?th.accent:th.text}}>${a}</button>))}
+                <input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9]/g,""))} style={{...inp,width:64,textAlign:"center"}}/>
+              </div>
+              <label style={lbl}>Recipient email</label>
+              <input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="name@email.com" style={{...inp,marginBottom:14}}/>
+              <label style={lbl}>Message (optional)</label>
+              <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Enjoy Tawaslo on us 🎁" rows={3} style={{...inp,marginBottom:18,resize:"vertical"}}/>
+              <button onClick={issueCard} style={{width:"100%",padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><SendIcon size={15}/>Issue &amp; send</button>
             </>
           ) : (
-            <div style={{ display:"flex", gap:24, alignItems:"center", width:"100%" }}>
-              <div style={{ flex:1, minWidth:240 }}>
-                <div style={{ width:54, height:54, borderRadius:15, background:`linear-gradient(135deg, ${th.accent}33, ${th.accent2}1c)`, border:`1px solid ${th.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:15 }}><step.icon size={24} color={th.accent}/></div>
-                <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, color:th.accent, textTransform:"uppercase", marginBottom:6 }}>Step {current + 1} · {step.label}</div>
-                <div style={{ fontSize:23, fontWeight:700, letterSpacing:-0.4, marginBottom:9 }}>{step.title}</div>
-                <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.65, maxWidth:430, marginBottom:20 }}>{step.narrative}</div>
-                <div style={{ display:"flex", gap:14, alignItems:"center" }}>
-                  <button className="tw-jcta" onClick={()=>go(step)} style={{ padding:"12px 22px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:8, boxShadow:`0 8px 22px ${th.accent}44` }}>{step.cta}<ArrowUpRight size={16}/></button>
-                  {current < steps.length - 1 && <button onClick={()=>setFocus(current + 1)} style={{ background:"none", border:"none", color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>Skip for now</button>}
-                </div>
-              </div>
-              <div className="tw-jvis" style={{ width:236, flexShrink:0 }}>{stepVisual(step.key)}</div>
-            </div>
+            <>
+              <label style={lbl}>Client</label>
+              <select value={giftClient} onChange={e=>setGiftClient(e.target.value)} style={{...inp,marginBottom:14}}>{OWNER_CLIENTS.map(c=><option key={c.id}>{c.name}</option>)}</select>
+              <label style={lbl}>Plan</label>
+              <select value={giftPlan} onChange={e=>setGiftPlan(e.target.value)} style={{...inp,marginBottom:14}}><option>Essential</option><option>Professional</option><option>Enterprise</option></select>
+              <label style={lbl}>Free months</label>
+              <select value={giftMonths} onChange={e=>setGiftMonths(e.target.value)} style={{...inp,marginBottom:18}}>{[1,2,3,6,12].map(m=><option key={m}>{m}</option>)}</select>
+              <button onClick={giftPlanFn} style={{width:"100%",padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Gift size={15}/>Gift this plan</button>
+            </>
           )}
         </div>
+
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Issued gift cards</div>
+          {cards.map((c,i)=>{ const m=sMeta[c.status]||sMeta.active; return (
+            <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 20px",borderBottom:i<cards.length-1?`1px solid ${th.border}`:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:13,minWidth:0}}>
+                <div style={{width:44,height:44,borderRadius:12,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Gift size={19} color="#fff"/></div>
+                <div style={{minWidth:0}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13.5,fontWeight:800}}>${c.amount}</span><span style={{fontSize:11.5,fontFamily:"monospace",color:th.text2}}>{c.code}</span></div>
+                  <div style={{fontSize:10.5,color:th.text2,marginTop:3}}>{c.recipient} · {c.date}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                <span style={{fontSize:10.5,fontWeight:700,color:m.c,background:m.bg,borderRadius:999,padding:"3px 10px"}}>{m.l}</span>
+                {c.status==="active" && <button onClick={()=>revoke(c.id)} style={{fontSize:11.5,fontWeight:600,color:th.danger,background:"transparent",border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 11px",cursor:"pointer"}}>Revoke</button>}
+              </div>
+            </div>
+          );})}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerSupportPage() {
+  const th = useTheme();
+  const [tickets, setTickets] = useState([
+    { id:"t1", who:"Marina Cafe", email:"hi@marinacafe.bh", subject:"How do I connect a second Instagram?", status:"open", urgent:false, ago:"12m", msgs:[{ from:"them", text:"Hi! I added one Instagram but I run two accounts. How do I connect the second one?", time:"12m" }] },
+    { id:"t2", who:"Trio Restaurant", email:"team@trio.bh", subject:"Payment failed on renewal", status:"open", urgent:true, ago:"1h", msgs:[{ from:"them", text:"My card was charged but it says payment failed and my account is locked. Please help, we have posts scheduled today!", time:"1h" }] },
+    { id:"t3", who:"Lulwa Events", email:"lulwa@events.bh", subject:"Can I get an invoice for March?", status:"open", urgent:false, ago:"3h", msgs:[{ from:"them", text:"Our finance team needs a tax invoice for the March subscription. Can you send it?", time:"3h" }] },
+    { id:"t4", who:"Gulf Auto", email:"info@gulfauto.bh", subject:"Reels not publishing", status:"resolved", urgent:false, ago:"1d", msgs:[{ from:"them", text:"My reels are stuck on 'publishing'.", time:"1d" },{ from:"us", text:"That was a token refresh issue — fixed now. Please reconnect Instagram and try again.", time:"22h" }] },
+  ]);
+  const [sel, setSel] = useState("t1");
+  const [filter, setFilter] = useState("open");
+  const [reply, setReply] = useState("");
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const filtered = tickets.filter(t => filter==="all" ? true : filter==="urgent" ? (t.urgent && t.status==="open") : t.status===filter);
+  const active = tickets.find(t=>t.id===sel) || filtered[0];
+  const openCount = tickets.filter(t=>t.status==="open").length;
+  const urgentCount = tickets.filter(t=>t.urgent && t.status==="open").length;
+
+  const send = () => {
+    if (!reply.trim()||!active) return;
+    setTickets(ts => ts.map(t => t.id===active.id ? { ...t, msgs:[...t.msgs,{from:"us",text:reply,time:"now"}] } : t));
+    setReply("");
+  };
+  const resolve = (id) => setTickets(ts=>ts.map(t=>t.id===id?{...t,status:t.status==="resolved"?"open":"resolved"}:t));
+  const TABS = [["open",`Open · ${openCount}`],["urgent",`Urgent · ${urgentCount}`],["resolved","Resolved"],["all","All"]];
+
+  return (
+    <div>
+      <OwnerPageHead Icon={LifeBuoy} title="Support Inbox" subtitle={`${openCount} open · ${urgentCount} urgent`}
+        action={<a href="mailto:support@tawaslo.com" style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,textDecoration:"none"}}><Mail size={15}/>support@tawaslo.com</a>} />
+      <div style={{display:"flex",gap:7,marginBottom:16,flexWrap:"wrap"}}>
+        {TABS.map(([k,l])=>(<button key={k} onClick={()=>setFilter(k)} style={{padding:"8px 13px",borderRadius:9,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${filter===k?th.accent:th.border}`,background:filter===k?th.accentSoft:th.card,color:filter===k?th.accent:th.text2}}>{l}</button>))}
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"330px 1fr",gap:16,alignItems:"start"}}>
+        <div style={{...card,overflow:"hidden"}}>
+          {filtered.length===0 && <div style={{padding:"36px",textAlign:"center",fontSize:13,color:th.text3}}>Nothing here 🎉</div>}
+          {filtered.map((t,i)=>(
+            <div key={t.id} onClick={()=>setSel(t.id)} style={{padding:"14px 18px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",cursor:"pointer",background:active&&active.id===t.id?th.accentSoft:"transparent",borderLeft:`3px solid ${active&&active.id===t.id?th.accent:"transparent"}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <span style={{fontSize:13,fontWeight:700,display:"flex",alignItems:"center",gap:7}}>{t.urgent&&t.status==="open"&&<span style={{width:7,height:7,borderRadius:"50%",background:th.danger}}/>}{t.who}</span>
+                <span style={{fontSize:10,color:th.text3}}>{t.ago}</span>
+              </div>
+              <div style={{fontSize:11.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.subject}</div>
+              {t.status==="resolved" && <span style={{fontSize:9.5,fontWeight:700,color:th.success,marginTop:5,display:"inline-block"}}>✓ RESOLVED</span>}
+            </div>
+          ))}
+        </div>
+
+        {active ? (
+          <div style={{...card,display:"flex",flexDirection:"column",minHeight:440}}>
+            <div style={{padding:"15px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700}}>{active.subject}</div>
+                <div style={{fontSize:11,color:th.text2,marginTop:2}}>{active.who} · {active.email}</div>
+              </div>
+              <button onClick={()=>resolve(active.id)} style={{flexShrink:0,display:"flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:10,fontSize:12,fontWeight:600,cursor:"pointer",border:`1px solid ${active.status==="resolved"?th.border:th.success+"44"}`,background:active.status==="resolved"?th.card2:th.successSoft,color:active.status==="resolved"?th.text2:th.success}}><CheckCircle size={14}/>{active.status==="resolved"?"Reopen":"Mark resolved"}</button>
+            </div>
+            <div style={{flex:1,padding:20,display:"flex",flexDirection:"column",gap:12,overflowY:"auto"}}>
+              {active.msgs.map((m,i)=>(
+                <div key={i} style={{alignSelf:m.from==="us"?"flex-end":"flex-start",maxWidth:"75%"}}>
+                  <div style={{padding:"11px 14px",borderRadius:14,fontSize:12.5,lineHeight:1.5,background:m.from==="us"?th.gradient:th.card2,color:m.from==="us"?"#fff":th.text,border:m.from==="us"?"none":`1px solid ${th.border}`}}>{m.text}</div>
+                  <div style={{fontSize:10,color:th.text3,marginTop:4,textAlign:m.from==="us"?"right":"left"}}>{m.from==="us"?"Tawaslo Support":active.who} · {m.time}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{padding:"14px 16px",borderTop:`1px solid ${th.border}`,display:"flex",gap:10,alignItems:"flex-end"}}>
+              <textarea value={reply} onChange={e=>setReply(e.target.value)} placeholder="Type your reply…" rows={1} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}} style={{flex:1,background:th.card2,border:`1px solid ${th.border}`,borderRadius:11,padding:"11px 13px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",resize:"none",boxSizing:"border-box"}}/>
+              <button onClick={send} style={{flexShrink:0,width:44,height:44,borderRadius:11,background:th.gradient,border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><SendIcon size={17}/></button>
+            </div>
+          </div>
+        ) : <div style={{...card,padding:60,textAlign:"center",fontSize:13,color:th.text3}}>Select a ticket to view the conversation.</div>}
       </div>
     </div>
   );
@@ -4253,6 +4494,10 @@ export default function TawasloApp() {
   const renderPage = () => {
     if (mode==="owner") {
       if (page==="overview") return <OwnerDashboard/>;
+      if (page==="clients")  return <OwnerClientsPage/>;
+      if (page==="promos")   return <OwnerPromosPage/>;
+      if (page==="gifts")    return <OwnerGiftsPage/>;
+      if (page==="support")  return <OwnerSupportPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (page==="dashboard") return <AgencyDashboard/>;

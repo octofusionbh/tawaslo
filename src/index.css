@@ -23,6 +23,27 @@ code {
     monospace;
 }
 
+/* ── Premium icon refinement ───────────────────────────────
+   Lucide ships a heavy 2px stroke that reads generic. A lighter
+   1.7px stroke with round caps/joins gives the whole UI a more
+   refined, high-end feel (the look Linear / Vercel use). CSS
+   overrides Lucide's inline stroke-width attribute. */
+svg.lucide {
+  stroke-width: 1.7px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  shape-rendering: geometricPrecision;
+}
+/* Tiny icons (<=14px) keep a hair more weight so they don't disappear */
+svg.lucide[width="12"], svg.lucide[width="13"] {
+  stroke-width: 1.85px;
+}
+/* Brand glyphs (react-icons) render crisp and slightly softened */
+svg[class*="fa-"], .platform-glyph svg {
+  shape-rendering: geometricPrecision;
+}
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
