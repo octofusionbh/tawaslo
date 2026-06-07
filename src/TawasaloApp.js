@@ -1192,8 +1192,9 @@ function PublisherPage() {
         out.push({ account: acc.account_name, success: data.success, error: data.error });
       }
     }
-    setResults(out); setPosting(false);
+    setPosting(false);
     if (out.every(r => r.success)) { if (editingDraftId) await supabase.from('posts').delete().eq('id', editingDraftId); resetComposer(); loadDrafts(); }
+    setResults(out);
   };
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
@@ -1481,6 +1482,23 @@ function SocialAccountsPage() {
     setLoading(false);
   };
 
+  const resolveClientId = async (preferred) => {
+    if (preferred && preferred !== 'null') return preferred;
+    if (realClientId) return realClientId;
+    try {
+      if (selClient?.name) {
+        const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+        if (data && data[0]) return data[0].id;
+      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from('clients').select('id').eq('owner_id', user.id).order('created_at', { ascending: true }).limit(1);
+        if (data && data[0]) return data[0].id;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  };
+
   const connectInstagram = () => {
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
@@ -1494,9 +1512,10 @@ function SocialAccountsPage() {
   const handleInstagramCallback = async (code) => {
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const storedId = sessionStorage.getItem('ig_redirect_client');
-    const clientId = (storedId && storedId !== 'null') ? storedId : realClientId;
     sessionStorage.removeItem('ig_redirect_client');
     setConnecting(true);
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError('Could not find your workspace to save the account. Refresh and try again.'); setConnecting(false); return; }
     try {
       const res = await fetch('/api/instagram-oauth', {
         method: 'POST',
@@ -1568,11 +1587,14 @@ function SocialAccountsPage() {
           console.log('META OAUTH RESPONSE:', JSON.stringify(data, null, 2));
           if (!res.ok) throw new Error(data.error);
 
+          const clientId = await resolveClientId(realClientId);
+          if (!clientId) { setError('Could not find your workspace to save accounts. Refresh and try again.'); setConnecting(false); return; }
+
           // Save each account to Supabase
           let saveErrors = [];
           for (const acc of data.accounts) {
             const { error: upsertErr } = await supabase.from('social_accounts').upsert({
-              client_id: realClientId,
+              client_id: clientId,
               platform: acc.platform,
               account_id: acc.account_id,
               account_name: acc.account_name,
@@ -1593,7 +1615,7 @@ function SocialAccountsPage() {
 
           setSuccess(`Connected ${data.accounts.length} account(s) successfully!`);
           setConnecting(false);
-          loadAccounts(realClientId);
+          loadAccounts(clientId);
         }
       } catch (e) {
         // Popup still navigating — keep waiting
@@ -1608,8 +1630,9 @@ function SocialAccountsPage() {
 
   const connectLiAccount = async (acc) => {
     const storedId = sessionStorage.getItem('li_redirect_client');
-    const clientId = (storedId && storedId !== 'null') ? storedId : realClientId;
     sessionStorage.removeItem('li_redirect_client');
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError('Could not find your workspace to save the account. Refresh and try again.'); return; }
     const { error: upsertErr } = await supabase.from('social_accounts').upsert({
       client_id: clientId, platform: 'li', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
