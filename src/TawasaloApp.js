@@ -1026,6 +1026,210 @@ function OwnerSupportPage() {
   );
 }
 
+function OwnerRevenuePage() {
+  const th = useTheme();
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
+  const max = Math.max(...rev), min = Math.min(...rev), W = 760, H = 180, rng = (max-min)||1;
+  const pts = rev.map((v,i)=>[ (i/(rev.length-1))*W, H - ((v-min)/rng)*(H-20) - 10 ]);
+  const line = "M" + pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L");
+  const area = line + ` L${W},${H} L0,${H} Z`;
+  const months = ["Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun"];
+
+  const [txns, setTxns] = useState([
+    { id:"tx1", who:"Marina Cafe", plan:"Professional", amount:99, date:"Jun 6, 2026", status:"paid" },
+    { id:"tx2", who:"Gulf Auto", plan:"Enterprise", amount:199, date:"Jun 5, 2026", status:"paid" },
+    { id:"tx3", who:"Trio Restaurant", plan:"Essential", amount:49, date:"Jun 3, 2026", status:"paid" },
+    { id:"tx4", who:"Lulwa Events", plan:"Professional", amount:99, date:"Jun 1, 2026", status:"paid" },
+    { id:"tx5", who:"Noor Designs", plan:"Professional", amount:99, date:"May 28, 2026", status:"refunded" },
+  ]);
+  const refund = (id) => setTxns(ts=>ts.map(t=>t.id===id?{...t,status:"refunded"}:t));
+  const collected = txns.filter(t=>t.status==="paid").reduce((s,t)=>s+t.amount,0);
+
+  const kpis = [
+    { label:"Collected this month", value:"$2,180", Icon:DollarSign, color:"success" },
+    { label:"MRR", value:"$2,180", Icon:RefreshCw, color:"accent" },
+    { label:"ARR (run-rate)", value:"$26,160", Icon:TrendingUp, color:"accent2" },
+    { label:"Refunded", value:"$99", Icon:ArrowDownRight, color:"danger" },
+  ];
+
+  return (
+    <div>
+      <OwnerPageHead Icon={DollarSign} title="Revenue" subtitle="Money in, refunds, and run-rate across all clients"
+        action={<button style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:"pointer"}}><Download size={14}/>Export CSV</button>} />
+
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13,marginBottom:18}}>
+        {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
+      </div>
+
+      <div style={{...card,padding:22,marginBottom:18}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:13.5,fontWeight:700,display:"flex",alignItems:"center",gap:8}}><TrendingUp size={16} color={th.accent}/>Revenue · last 12 months</div>
+          <div style={{fontSize:11.5,color:th.success,fontWeight:700}}>▲ +251% YoY</div>
+        </div>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:180,overflow:"visible"}}>
+          <defs><linearGradient id="orevg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.32"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
+          <path d={area} fill="url(#orevg)"/>
+          <path d={line} fill="none" stroke={th.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          {pts.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={i===pts.length-1?4:0} fill={th.accent}/>)}
+        </svg>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:9.5,color:th.text3}}>{months.map(m=><span key={m}>{m}</span>)}</div>
+      </div>
+
+      <div style={{...card,overflow:"hidden"}}>
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><CreditCard size={15} color={th.accent}/>Recent transactions <span style={{fontSize:11,color:th.text2,fontWeight:400}}>· ${collected} collected</span></div>
+        <div style={{display:"grid",gridTemplateColumns:"1.6fr 1.1fr 0.8fr 1fr 0.9fr",gap:12,padding:"11px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
+          <span>Client</span><span>Plan</span><span style={{textAlign:"right"}}>Amount</span><span style={{textAlign:"right"}}>Date</span><span style={{textAlign:"right"}}>Status</span>
+        </div>
+        {txns.map((t,i)=>(
+          <div key={t.id} style={{display:"grid",gridTemplateColumns:"1.6fr 1.1fr 0.8fr 1fr 0.9fr",gap:12,padding:"12px 20px",borderBottom:i<txns.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+              <div style={{width:30,height:30,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{t.who.slice(0,2).toUpperCase()}</div>
+              <span style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.who}</span>
+            </div>
+            <span style={{fontSize:11.5,color:th.text2}}>{t.plan}</span>
+            <span style={{fontSize:13,fontWeight:700,textAlign:"right"}}>${t.amount}</span>
+            <span style={{fontSize:11,color:th.text3,textAlign:"right"}}>{t.date}</span>
+            <div style={{display:"flex",justifyContent:"flex-end"}}>
+              {t.status==="paid"
+                ? <button onClick={()=>refund(t.id)} style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,border:"none",borderRadius:999,padding:"4px 11px",cursor:"pointer"}}>Paid</button>
+                : <span style={{fontSize:10.5,fontWeight:700,color:th.danger,background:th.dangerSoft,borderRadius:999,padding:"4px 11px"}}>Refunded</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OwnerApiUsagePage() {
+  const th = useTheme();
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+
+  const integrations = [
+    { name:"Meta · Instagram + Facebook", note:"Publishing live · comments/insights in review", status:"live" },
+    { name:"Tap Payments", note:"Test mode · add live key to go live", status:"test" },
+    { name:"Anthropic (AI captions)", note:"Connected", status:"live" },
+    { name:"EnsembleData (Trends)", note:"Free tier · 50 calls/day", status:"limited" },
+    { name:"LinkedIn", note:"Code ready · awaiting app + API review", status:"pending" },
+    { name:"TikTok", note:"Not connected yet", status:"off" },
+  ];
+  const sMeta = {
+    live:    { c:th.success, bg:th.successSoft, l:"Live" },
+    test:    { c:th.warning, bg:th.warningSoft, l:"Test" },
+    limited: { c:th.info,    bg:th.infoSoft,    l:"Limited" },
+    pending: { c:th.accent,  bg:th.accentSoft,  l:"Pending" },
+    off:     { c:th.text3,   bg:th.card2,       l:"Off" },
+  };
+  const usage = [
+    { label:"Posts published", value:128, cap:1000, unit:"this month" },
+    { label:"AI captions generated", value:342, cap:2000, unit:"this month" },
+    { label:"Trends lookups", value:46, cap:50, unit:"today" },
+    { label:"Media storage", value:1.8, cap:5, unit:"GB used" },
+  ];
+
+  return (
+    <div>
+      <OwnerPageHead Icon={Activity} title="API & Usage" subtitle="Integration health and platform usage at a glance" />
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Integrations</div>
+          {integrations.map((it,i)=>{ const m=sMeta[it.status]; return (
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:i<integrations.length-1?`1px solid ${th.border}`:"none"}}>
+              <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{it.name}</div><div style={{fontSize:10.5,color:th.text2,marginTop:2}}>{it.note}</div></div>
+              <span style={{fontSize:10,fontWeight:700,color:m.c,background:m.bg,borderRadius:999,padding:"3px 10px",flexShrink:0}}>{m.l}</span>
+            </div>
+          );})}
+        </div>
+        <div style={{...card,padding:20}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:18}}>Usage</div>
+          {usage.map((u,i)=>{ const pct=Math.min(100,Math.round(u.value/u.cap*100)); const hot=pct>=90; return (
+            <div key={i} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{u.label}</span><span style={{color:th.text2}}>{u.value} / {u.cap} <span style={{color:th.text3}}>{u.unit}</span></span></div>
+              <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:hot?th.warning:th.accent,borderRadius:4}}/></div>
+            </div>
+          );})}
+          <div style={{fontSize:11,color:th.text3,marginTop:6}}>Caps reflect your current plan limits.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerTeamPage() {
+  const th = useTheme();
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const [team, setTeam] = useState([
+    { id:"u1", name:"Abdulla Al-Nahas", email:"octofusionbh@gmail.com", role:"Owner", initials:"AA" },
+    { id:"u2", name:"Support Desk", email:"support@tawaslo.com", role:"Support", initials:"SD" },
+  ]);
+  const [showInvite, setShowInvite] = useState(false);
+  const [invEmail, setInvEmail] = useState("");
+  const [invRole, setInvRole] = useState("Support");
+
+  const roleColor = (r) => r==="Owner"?th.accent : r==="Admin"?th.accent2 : th.success;
+  const invite = () => {
+    if (!invEmail.trim()) return;
+    const nm = invEmail.split("@")[0];
+    setTeam(t => [...t, { id:"u"+Date.now(), name:nm, email:invEmail, role:invRole, initials:nm.slice(0,2).toUpperCase() }]);
+    setInvEmail(""); setShowInvite(false);
+  };
+
+  const PERMS = [
+    { role:"Owner", desc:"Full access — billing, team, all client data, settings." },
+    { role:"Admin", desc:"Manage clients, promos, gifts, and support. No billing/team changes." },
+    { role:"Support", desc:"Reply to and resolve support tickets only." },
+  ];
+
+  return (
+    <div>
+      <OwnerPageHead Icon={Users} title="Team" subtitle="Tawaslo staff and their access levels"
+        action={<button onClick={()=>setShowInvite(s=>!s)} style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}><UserPlus size={15}/>Invite member</button>} />
+
+      {showInvite && (
+        <div style={{...card,padding:18,marginBottom:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{flex:"1 1 240px"}}>
+            <label style={{fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block"}}>Email</label>
+            <input value={invEmail} onChange={e=>setInvEmail(e.target.value)} placeholder="name@tawaslo.com" style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
+          <div style={{flex:"0 1 160px"}}>
+            <label style={{fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block"}}>Role</label>
+            <select value={invRole} onChange={e=>setInvRole(e.target.value)} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}><option>Admin</option><option>Support</option></select>
+          </div>
+          <button onClick={invite} style={{padding:"11px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}>Send invite</button>
+        </div>
+      )}
+
+      <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:16,alignItems:"start"}}>
+        <div style={{...card,overflow:"hidden"}}>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Members</div>
+          {team.map((u,i)=>(
+            <div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:i<team.length-1?`1px solid ${th.border}`:"none"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+                <div style={{width:38,height:38,borderRadius:11,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12.5,fontWeight:700,color:"#fff",flexShrink:0}}>{u.initials}</div>
+                <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.name}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div></div>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                <span style={{fontSize:10.5,fontWeight:700,color:roleColor(u.role),background:`${roleColor(u.role)}1c`,borderRadius:999,padding:"3px 11px"}}>{u.role}</span>
+                {u.role!=="Owner" && <button onClick={()=>setTeam(t=>t.filter(x=>x.id!==u.id))} style={{width:30,height:30,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={14}/></button>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{...card,padding:20}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:14,display:"flex",alignItems:"center",gap:8}}><Shield size={15} color={th.accent}/>Roles &amp; permissions</div>
+          {PERMS.map((p,i)=>(
+            <div key={i} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:roleColor(p.role),marginBottom:3}}>{p.role}</div>
+              <div style={{fontSize:11,color:th.text2,lineHeight:1.5}}>{p.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AgencyDashboard() {
   const { selClient, setPage, clients, setSelClient } = useApp();
   const th = useTheme();
@@ -4821,6 +5025,9 @@ export default function TawasloApp() {
       if (page==="promos")   return <OwnerPromosPage/>;
       if (page==="gifts")    return <OwnerGiftsPage/>;
       if (page==="support")  return <OwnerSupportPage/>;
+      if (page==="revenue")  return <OwnerRevenuePage/>;
+      if (page==="apiusage") return <OwnerApiUsagePage/>;
+      if (page==="team")     return <OwnerTeamPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (page==="dashboard") return <AgencyDashboard/>;
