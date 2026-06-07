@@ -2,7 +2,7 @@ import { useState, useEffect, createContext, useContext } from "react";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
-  getSupportTickets, updateSupportTicket, getSupportMessages, addSupportMessage } from './supabase';
+  getSupportTickets, createSupportTicket, updateSupportTicket, getSupportMessages, addSupportMessage } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -3659,6 +3659,33 @@ function SettingsPage() {
   const [website, setWebsite] = useState("");
   const [notif, setNotif] = useState({ email:true, published:true, weekly:true, engagement:true });
 
+  // Contact-support ticket form
+  const [tkSubject, setTkSubject] = useState("");
+  const [tkMessage, setTkMessage] = useState("");
+  const [tkSending, setTkSending] = useState(false);
+  const [tkSent, setTkSent] = useState(false);
+  const [tkErr, setTkErr] = useState("");
+
+  const submitTicket = async () => {
+    if (!tkSubject.trim() || !tkMessage.trim()) { setTkErr("Add a subject and a message."); return; }
+    setTkErr(""); setTkSending(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: ticket, error } = await createSupportTicket({
+        user_id: user ? user.id : null,
+        client_name: agencyName || (contactEmail||"").split("@")[0],
+        email: contactEmail || (user && user.email) || "",
+        subject: tkSubject.trim(),
+      });
+      if (error || !ticket) throw new Error(error ? error.message : "Could not send");
+      await addSupportMessage(ticket.id, "them", tkMessage.trim());
+      setTkSent(true); setTkSubject(""); setTkMessage("");
+      setTimeout(() => setTkSent(false), 5000);
+    } catch (e) {
+      setTkErr("Couldn't send right now — please email support@tawaslo.com.");
+    } finally { setTkSending(false); }
+  };
+
   useEffect(() => {
     let active = true;
     try { const n = JSON.parse(localStorage.getItem('tw_notify')||'null'); if (n) setNotif(prev=>({ ...prev, ...n })); } catch (e) { /* ignore */ }
@@ -3767,14 +3794,30 @@ function SettingsPage() {
 
         <div style={card}>
           {secTitle(MessageCircle, "Support & help")}
-          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>Questions, issues, or a feature idea? Our team is here to help. We typically reply within one business day.</div>
-          <div style={{display:"flex", alignItems:"center", gap:10, background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", marginBottom:12}}>
-            <div style={{width:38, height:38, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0}}><Mail size={17} color={th.accent}/></div>
-            <div style={{flex:1, minWidth:0}}><div style={{fontSize:11, color:th.text2}}>Support email</div><div style={{fontSize:13, fontWeight:600}}>support@tawaslo.com</div></div>
+          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>Questions, issues, or a feature idea? Send us a message below and it lands straight with our team. We typically reply within one business day.</div>
+
+          {tkSent && (
+            <div style={{display:"flex", alignItems:"center", gap:9, background:th.successSoft, border:`1px solid ${th.success}40`, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12.5, color:th.success, fontWeight:600}}>
+              <CheckCircle size={16}/> Message sent — we'll get back to you at {contactEmail || "your email"}.
+            </div>
+          )}
+          {tkErr && (
+            <div style={{background:th.dangerSoft, border:`1px solid ${th.danger}40`, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12, color:th.danger}}>{tkErr}</div>
+          )}
+
+          <div style={{marginBottom:11}}>
+            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>Subject</label>
+            <input value={tkSubject} onChange={e=>{setTkSubject(e.target.value); setTkErr("");}} placeholder="e.g. Can't connect my Instagram"
+              style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", boxSizing:"border-box"}}/>
           </div>
-          <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
-            <a href="mailto:support@tawaslo.com" style={{display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12.5, fontWeight:600, textDecoration:"none"}}><Mail size={14}/>Email support</a>
-            <a href="mailto:support@tawaslo.com?subject=Feature%20request" style={{display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, textDecoration:"none"}}><Sparkles size={14}/>Request a feature</a>
+          <div style={{marginBottom:14}}>
+            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>Message</label>
+            <textarea value={tkMessage} onChange={e=>{setTkMessage(e.target.value); setTkErr("");}} placeholder="Tell us what's going on…" rows={4}
+              style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box"}}/>
+          </div>
+          <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"center"}}>
+            <button onClick={submitTicket} disabled={tkSending} style={{display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:tkSending?"not-allowed":"pointer", opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?"Sending…":"Send message"}</button>
+            <a href="mailto:support@tawaslo.com" style={{fontSize:12, color:th.text2, textDecoration:"none"}}>or email support@tawaslo.com</a>
           </div>
         </div>
 
