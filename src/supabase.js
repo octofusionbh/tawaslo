@@ -218,6 +218,12 @@ export const resetPassword = async (email) => {
   return { data, error };
 };
 
+// AUTH — set a new password (used after clicking the reset link)
+export const updatePassword = async (newPassword) => {
+  const { data, error } = await supabase.auth.updateUser({ password: newPassword });
+  return { data, error };
+};
+
 // INVOICES
 export const getInvoices = async (clientId) => {
   const { data, error } = await supabase

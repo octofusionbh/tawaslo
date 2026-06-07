@@ -1,5 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, ensureOctoFusionClient, getProfile, updateProfile, getClients } from './supabase';
+import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -414,6 +414,114 @@ function OwnerDashboard() {
   );
 }
 
+function OnboardingHero() {
+  const { selClient, dark, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [realClientId, setRealClientId] = useState(null);
+  const [accCount, setAccCount] = useState(0);
+  const [postCount, setPostCount] = useState(0);
+  const [seenAnalytics, setSeenAnalytics] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [focus, setFocus] = useState(null); // manually focused step index
+
+  useEffect(() => {
+    try { setDismissed(localStorage.getItem('tw_onboard_dismissed') === '1'); setSeenAnalytics(localStorage.getItem('tw_onb_analytics') === '1'); } catch (e) { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setRealClientId(data[0].id); });
+  }, [selClient]);
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('social_accounts').select('id', { count: 'exact', head: true }).eq('client_id', realClientId).then(({ count }) => setAccCount(count || 0));
+    supabase.from('posts').select('id', { count: 'exact', head: true }).eq('client_id', realClientId).then(({ count }) => setPostCount(count || 0));
+  }, [realClientId]);
+
+  const steps = [
+    { key:'connect', label:'Connect', title:'Bring your channels in', narrative:"Plug in Instagram, Facebook or LinkedIn. It takes about 30 seconds — and it unlocks everything else.", icon:Link, done: accCount > 0, page:'social', cta:'Connect a channel' },
+    { key:'post', label:'Create', title:'Craft your first post', narrative:"Write it yourself, or let the AI draft a bilingual caption. Publish now, or schedule it for the perfect moment.", icon:Edit3, done: postCount > 0, page:'publisher', cta:'Open the composer' },
+    { key:'grow', label:'Grow', title:'Watch it take off', narrative:"Reach, engagement and your best-performing content — all in one beautiful view, updated in real time.", icon:BarChart2, done: seenAnalytics, page:'analytics', cta:'See my analytics' },
+  ];
+  const doneCount = steps.filter(s => s.done).length;
+  const pct = Math.round(doneCount / steps.length * 100);
+  const allDone = doneCount === steps.length;
+  if (dismissed) return null;
+
+  const firstUndone = steps.findIndex(s => !s.done);
+  const current = focus != null ? focus : (firstUndone === -1 ? steps.length - 1 : firstUndone);
+  const step = steps[current];
+
+  const go = (st) => { if (st.key === 'grow') { try { localStorage.setItem('tw_onb_analytics', '1'); } catch (e) { /* ignore */ } } setPage(st.page); };
+  const dismiss = () => { try { localStorage.setItem('tw_onboard_dismissed', '1'); } catch (e) { /* ignore */ } setDismissed(true); };
+
+  return (
+    <div className="tw-jny" style={{ position:"relative", overflow:"hidden", background:`linear-gradient(135deg, ${th.accent}1c, ${th.accent2}12 50%, ${th.surface})`, border:`1px solid ${th.border}`, borderRadius:20, marginBottom:22, boxShadow:"0 18px 48px rgba(0,0,0,0.34)" }}>
+      <style>{`
+        .tw-jny{animation:jnyIn .55s cubic-bezier(.2,.7,.2,1) both;}
+        @keyframes jnyIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+        .tw-jnode{transition:all .2s ease; cursor:pointer;}
+        .tw-jcurrent{animation:jpulse 2.4s ease-in-out infinite;}
+        @keyframes jpulse{0%,100%{box-shadow:0 0 0 0 ${th.accent}55;}50%{box-shadow:0 0 0 7px ${th.accent}00;}}
+        .tw-jcta{transition:transform .14s ease, filter .15s ease;}
+        .tw-jcta:hover{transform:translateY(-1px); filter:brightness(1.08);}
+        @keyframes jswap{from{opacity:0;transform:translateX(8px);}to{opacity:1;transform:none;}}
+        .tw-jfocus{animation:jswap .35s ease both;}
+      `}</style>
+      <div style={{ position:"absolute", top:-70, right:-30, width:340, height:240, background:`radial-gradient(ellipse, ${th.accent}33, transparent 70%)`, filter:"blur(34px)", pointerEvents:"none" }}/>
+      <div style={{ height:4, background:th.border }}><div style={{ height:"100%", width:`${pct}%`, background:th.gradient, transition:"width .6s ease" }}/></div>
+      <button onClick={dismiss} title="Dismiss" style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex", zIndex:3 }}><XCircle size={18}/></button>
+
+      <div style={{ position:"relative", zIndex:1, display:"flex", gap:30, padding:"22px 26px", flexWrap:"wrap" }}>
+        {/* LEFT — the path */}
+        <div style={{ width:260, flexShrink:0 }}>
+          <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:1.4, color:th.accent, textTransform:"uppercase", marginBottom:3 }}>Your setup journey</div>
+          <div style={{ fontSize:16, fontWeight:700, marginBottom:18 }}>{allDone ? "Complete 🎉" : `Step ${current + 1} of ${steps.length}`}</div>
+          {steps.map((s,i)=>{ const isCur = i === current && !allDone; const last = i === steps.length - 1; return (
+            <div key={s.key} className="tw-jnode" onClick={()=>setFocus(i)} style={{ display:"flex", gap:12, opacity: s.done || isCur ? 1 : 0.55 }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+                <div className={isCur ? "tw-jcurrent" : ""} style={{ width:30, height:30, borderRadius:"50%", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", background: s.done ? th.success : (isCur ? th.gradient : th.card2), border:`1.5px solid ${s.done ? th.success : (isCur ? "transparent" : th.border)}`, color:"#fff", fontSize:12, fontWeight:700 }}>
+                  {s.done ? <CheckCircle size={16}/> : i + 1}
+                </div>
+                {!last && <div style={{ width:2, flex:1, minHeight:26, background: steps[i].done ? th.success+"66" : th.border, margin:"3px 0" }}/>}
+              </div>
+              <div style={{ paddingBottom:last?0:6 }}>
+                <div style={{ fontSize:13, fontWeight:600, color: isCur ? th.text : (s.done ? th.text : th.text2) }}>{s.label}</div>
+                <div style={{ fontSize:11, color:th.text3, marginTop:1 }}>{s.done ? "Done" : isCur ? "In progress" : "Up next"}</div>
+              </div>
+            </div>
+          ); })}
+        </div>
+
+        {/* RIGHT — focused step */}
+        <div key={allDone ? 'done' : step.key} className="tw-jfocus" style={{ flex:1, minWidth:280, display:"flex", flexDirection:"column", justifyContent:"center" }}>
+          {allDone ? (
+            <>
+              <div style={{ width:56, height:56, borderRadius:16, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:`0 12px 30px ${th.accent}55` }}><Sparkles size={26} color="#fff"/></div>
+              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're all set, {selClient?.name || "let's grow"}! 🎉</div>
+              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.6, maxWidth:460, marginBottom:20 }}>Your workspace is ready. Channels connected, first post out, analytics live — now the fun part: growing your audience.</div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button className="tw-jcta" onClick={()=>setPage('publisher')} style={{ padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Edit3 size={15}/>Create a post</button>
+                <button onClick={dismiss} style={{ padding:"11px 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Dismiss</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ width:56, height:56, borderRadius:16, background:`linear-gradient(135deg, ${th.accent}33, ${th.accent2}1c)`, border:`1px solid ${th.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}><step.icon size={25} color={th.accent}/></div>
+              <div style={{ fontSize:11, fontWeight:700, letterSpacing:1, color:th.accent, textTransform:"uppercase", marginBottom:6 }}>Step {current + 1} · {step.label}</div>
+              <div style={{ fontSize:23, fontWeight:700, letterSpacing:-0.4, marginBottom:9 }}>{step.title}</div>
+              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.65, maxWidth:470, marginBottom:20 }}>{step.narrative}</div>
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <button className="tw-jcta" onClick={()=>go(step)} style={{ padding:"12px 22px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:8, boxShadow:`0 8px 22px ${th.accent}44` }}>{step.cta}<ArrowUpRight size={16}/></button>
+                {current < steps.length - 1 && <button onClick={()=>setFocus(current + 1)} style={{ background:"none", border:"none", color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>Skip for now</button>}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AgencyDashboard() {
   const { selClient, setPage, clients, setSelClient } = useApp();
   const th = useTheme();
@@ -463,6 +571,7 @@ function AgencyDashboard() {
   };
   return (
     <div>
+      <OnboardingHero/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{position:"relative"}}>
@@ -2910,9 +3019,14 @@ function BillingPage() {
   const [notice, setNotice] = useState("");
   const [paid, setPaid] = useState(false);
   const [period, setPeriod] = useState("annual");
+  const [showCancel, setShowCancel] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
 
   useEffect(() => {
-    try { if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay'); } } catch (e) { /* ignore */ }
+    try {
+      if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay'); }
+      if (localStorage.getItem('tw_sub_status') === 'cancelled') setCancelled(true);
+    } catch (e) { /* ignore */ }
   }, []);
 
   const plans = [
@@ -2941,7 +3055,11 @@ function BillingPage() {
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22, flexWrap:"wrap", gap:14}}>
         <div>
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Plans &amp; billing</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · renews July 1, 2026</p>
+          {cancelled ? (
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Your <span style={{color:th.accent, fontWeight:600}}>Essential</span> plan ends <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>Reactivate</span></p>
+          ) : (
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · renews July 1, 2026 · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>Cancel subscription</span></p>
+          )}
         </div>
         <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
           {[["monthly","Monthly"],["annual","Yearly"]].map(([k,l])=>(
@@ -3004,6 +3122,22 @@ function BillingPage() {
         })}
       </div>
       <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
+
+      {showCancel && (
+        <div onClick={()=>setShowCancel(false)} style={{position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex", alignItems:"center", gap:11, marginBottom:14}}>
+              <div style={{width:40, height:40, borderRadius:11, background:th.dangerSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><XCircle size={20} color={th.danger}/></div>
+              <span style={{fontSize:16, fontWeight:700}}>Cancel subscription?</span>
+            </div>
+            <div style={{fontSize:13, color:th.text2, lineHeight:1.65, marginBottom:20}}>Your plan stays active until <strong style={{color:th.text}}>July 1, 2026</strong>. After that you'll move to the free tier and lose paid features. You can reactivate anytime before then.</div>
+            <div style={{display:"flex", gap:10}}>
+              <button onClick={()=>setShowCancel(false)} style={{flex:1, padding:"11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, fontWeight:600, cursor:"pointer"}}>Keep my plan</button>
+              <button onClick={()=>{ setCancelled(true); try{localStorage.setItem('tw_sub_status','cancelled');}catch(e){} setShowCancel(false); }} style={{flex:1, padding:"11px", borderRadius:10, background:th.danger, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer"}}>Cancel subscription</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3616,7 +3750,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 }
 
 function AuthPage() {
-  const { authPage, setAuthPage, setIsAuthed } = useApp();
+  const { authPage, setAuthPage, setIsAuthed, setRecovery } = useApp();
   const [showPw,  setShowPw]  = useState(false);
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
@@ -3669,6 +3803,16 @@ function AuthPage() {
     setLoading(false);
     if (err) { setError(err.message); return; }
     setSuccess("Reset link sent — check your email.");
+  };
+
+  const handleUpdatePassword = async () => {
+    if (pw.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setError(""); setLoading(true);
+    const { error: err } = await updatePassword(pw);
+    setLoading(false);
+    if (err) { setError(err.message); return; }
+    setSuccess("Password updated! Taking you in…");
+    setTimeout(() => { try { window.history.replaceState({}, '', '/'); } catch (e) {} if (setRecovery) setRecovery(false); setIsAuthed(true); }, 1200);
   };
 
   const inp = (placeholder, value, onChange, type="text") => (
@@ -3922,6 +4066,19 @@ function AuthPage() {
               </button>
             </>
           )}
+
+          {authPage==="recovery"&&(
+            <>
+              <div style={{marginBottom:28}}>
+                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Set a new password</h1>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Choose a new password for your Tawaslo account</p>
+              </div>
+              {inp("New password (min 6 characters)",pw,e=>{setPw(e.target.value);setError("");},"password")}
+              <button onClick={handleUpdatePassword} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                {loading?"Updating…":"Update password"} {!loading&&<ChevronRight size={15}/>}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -3934,6 +4091,7 @@ export default function TawasloApp() {
   const [showLanding, setShowLanding] = useState(true);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
+  const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
   const [mode,      setMode]      = useState("agency");
   const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
   const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
@@ -3976,12 +4134,15 @@ export default function TawasloApp() {
       setAuthReady(true);
     });
     // Listen for auth changes (e.g. email confirmation callback)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setAuthPage('recovery'); setAuthReady(true); return; }
       setIsAuthed(!!session?.user);
       if (session?.user) loadWorkspace(session.user);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => { if (recovery) setAuthPage('recovery'); }, [recovery]);
 
   useEffect(() => {
     try {
@@ -4005,6 +4166,7 @@ export default function TawasloApp() {
     dark, setDark, lang, setLang,
     t: (k, fb) => (TR[lang] && TR[lang][k]) || TR.en[k] || fb || k,
     isAuthed, setIsAuthed,
+    recovery, setRecovery,
     authPage, setAuthPage,
     mode, setMode: saveMode,
     page, setPage: savePage,
@@ -4043,6 +4205,11 @@ export default function TawasloApp() {
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
+
+  // Password reset link → show the set-new-password screen
+  if (recovery) {
+    return (<AppCtx.Provider value={ctx}><AuthPage/></AppCtx.Provider>);
+  }
 
   // admin.tawaslo.com is the private Super Admin console — only the admin email may enter
   if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
