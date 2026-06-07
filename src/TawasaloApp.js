@@ -885,7 +885,6 @@ function CalendarPage() {
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
   const [realClientId, setRealClientId] = useState(null);
-  const [liOptions, setLiOptions] = useState(null);
   const [busy, setBusy] = useState("");
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
@@ -1428,6 +1427,7 @@ function SocialAccountsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [realClientId, setRealClientId] = useState(null);
+  const [liOptions, setLiOptions] = useState(null);
 
   // Resolve real Supabase UUID for the selected client
   useEffect(() => {
