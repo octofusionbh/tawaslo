@@ -80,7 +80,9 @@ export default async function handler(req, res) {
         try { await post(`${igBase}/${published.id}/comments`, { message: firstComment, access_token: accessToken }); } catch (e) { /* non-fatal */ }
       }
 
-      return res.status(200).json({ success: true, postId: published.id, platform: 'ig' });
+      let igLink = null;
+      try { const pl = await fetch(`${igBase}/${published.id}?fields=permalink&access_token=${accessToken}`).then(r => r.json()); igLink = pl.permalink || null; } catch (e) { /* non-fatal */ }
+      return res.status(200).json({ success: true, postId: published.id, permalink: igLink, platform: 'ig' });
 
     } else if (platform === 'fb') {
       let result;
@@ -108,7 +110,10 @@ export default async function handler(req, res) {
         try { await post(`https://graph.facebook.com/v19.0/${result.id || result.post_id}/comments`, { message: firstComment, access_token: accessToken }); } catch (e) { /* non-fatal */ }
       }
 
-      return res.status(200).json({ success: true, postId: result.id || result.post_id, platform: 'fb' });
+      const fbId = result.id || result.post_id;
+      let fbLink = null;
+      try { const pl = await fetch(`https://graph.facebook.com/v19.0/${fbId}?fields=permalink_url&access_token=${accessToken}`).then(r => r.json()); fbLink = pl.permalink_url || null; } catch (e) { /* non-fatal */ }
+      return res.status(200).json({ success: true, postId: fbId, permalink: fbLink, platform: 'fb' });
 
     } else if (platform === 'li') {
       // LinkedIn — text + optional single image via REST Posts API. Requires a connected token + API approval.
@@ -152,7 +157,8 @@ export default async function handler(req, res) {
       const liRes = await fetch('https://api.linkedin.com/rest/posts', { method: 'POST', headers: liHeaders, body: JSON.stringify(liBody) });
       if (!liRes.ok) { const err = await liRes.json().catch(() => ({})); return res.status(400).json({ error: err.message || 'LinkedIn publish failed', details: err }); }
       const postUrn = liRes.headers.get('x-restli-id') || liRes.headers.get('x-linkedin-id');
-      return res.status(200).json({ success: true, postId: postUrn, platform: 'li' });
+      const liLink = postUrn ? `https://www.linkedin.com/feed/update/${postUrn}` : null;
+      return res.status(200).json({ success: true, postId: postUrn, permalink: liLink, platform: 'li' });
     }
 
     return res.status(400).json({ error: 'Unsupported platform' });

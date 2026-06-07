@@ -88,10 +88,18 @@ export default async function handler(req, res) {
         });
         const pub = await pubRes.json();
         const ok = !!pub.success;
+        // Always update status (works even before the link columns exist).
         await sb(`posts?id=eq.${post.id}`, {
           method: 'PATCH',
           body: JSON.stringify({ status: ok ? 'published' : 'failed' }),
         });
+        // Then record the live link + platform id (no-ops harmlessly if columns not added yet).
+        if (ok) {
+          await sb(`posts?id=eq.${post.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ external_id: pub.postId || null, permalink: pub.permalink || null, published_at: new Date().toISOString() }),
+          });
+        }
         results.push({ id: post.id, ok, error: ok ? undefined : (pub.error || 'publish failed') });
       } catch (e) {
         await sb(`posts?id=eq.${post.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'failed' }) });

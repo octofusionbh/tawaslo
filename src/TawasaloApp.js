@@ -2006,7 +2006,14 @@ function PublisherPage() {
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
             altText: altText || null, firstComment: firstComment || null, igFormat }) });
         const data = await res.json();
-        out.push({ account: acc.account_name, success: data.success, error: data.error });
+        // Record the published post (with its live link) so it shows in history & reports.
+        if (data.success) {
+          try {
+            const { data: ins } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published' }]).select();
+            if (ins && ins[0]) await supabase.from('posts').update({ external_id: data.postId || null, permalink: data.permalink || null, published_at: new Date().toISOString() }).eq('id', ins[0].id);
+          } catch (e) { /* link columns may not exist yet — non-fatal */ }
+        }
+        out.push({ account: acc.account_name, success: data.success, error: data.error, permalink: data.permalink });
       }
     }
     setPosting(false);
@@ -2199,7 +2206,7 @@ function PublisherPage() {
             )}
           </div>
 
-          {results.length>0 && <div>{results.map((r,i)=><div key={i} style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>{r.success?<CheckCircle size={14}/>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span></div>)}</div>}
+          {results.length>0 && <div>{results.map((r,i)=><div key={i} style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>{r.success?<CheckCircle size={14}/>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span>{r.success&&r.permalink&&<a href={r.permalink} target="_blank" rel="noreferrer" style={{ marginLeft:"auto", color:th.success, fontWeight:600, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>View post <ArrowUpRight size={13}/></a>}</div>)}</div>}
 
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?"Update draft":"Save draft"}</button>
@@ -2208,25 +2215,79 @@ function PublisherPage() {
         </div>
 
         <div style={{ position:"sticky", top:0 }}>
-          <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:10 }}>
-            {[["ig","IG",FaInstagram],["fb","FB",FaFacebook]].map(([k,lab,Ic])=>(
-              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:1, padding:"6px", borderRadius:999, border:"none", background:previewPlatform===k?th.gradient:"transparent", color:previewPlatform===k?"#fff":th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><Ic style={{ fontSize:13 }}/>{lab}</button>
+          <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>Live preview</div>
+          <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
+            {[["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]].map(([k,lab,Ic])=>(
+              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:previewPlatform===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:previewPlatform===k?th.gradient:"transparent", color:previewPlatform===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{previewPlatform===k && <span>{lab}</span>}</button>
             ))}
           </div>
-          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.45)" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
-              <div style={{ width:32, height:32, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:600 }}>{selClient?.name?.[0]||"T"}</div>
-              <div><div style={{ fontSize:12, fontWeight:600 }}>{selClient?.name||"Your brand"}</div><div style={{ fontSize:10, color:th.text2 }}>Just now</div></div>
-            </div>
-            <div style={{ position:"relative", height:(igFormat==="story"||igFormat==="reel")&&previewPlatform==="ig"?320:200, background:firstImg?"#000":th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.85)" }}>
-              {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : video ? <Send size={30}/> : <Image size={30}/>}
-              {images.length>1 && <><span style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.5)", borderRadius:8, padding:"2px 8px", fontSize:10, color:"#fff" }}>1/{images.length}</span><div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:5 }}>{images.map((m,i)=><span key={m.id} style={{ width:6, height:6, borderRadius:"50%", background:i===0?"#fff":"rgba(255,255,255,0.45)" }}/>)}</div></>}
-            </div>
-            <div style={{ padding:"10px 13px" }}>
-              <div style={{ display:"flex", gap:14, marginBottom:7, color:th.text, fontSize:17 }}><Heart size={17}/><MessageCircle size={17}/><Send size={17}/><Bookmark size={17} style={{ marginLeft:"auto" }}/></div>
-              <div style={{ fontSize:11.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word" }}><span style={{ fontWeight:600 }}>{selClient?.name?.toLowerCase().replace(/\s+/g,"")||"yourbrand"}</span> {caption || <span style={{ color:th.text3 }}>Your caption will appear here…</span>}</div>
-            </div>
-          </div>
+
+          {(() => {
+            const brand = selClient?.name || "Your brand";
+            const handle = (selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
+            const av = (selClient?.name?.[0] || "T").toUpperCase();
+            const hasCap = !!caption;
+            const cap = caption || "Your caption will appear here as you type…";
+            const capCol = hasCap ? "#1a1a1a" : "#aab2bd";
+            const grey = "#65676b";
+            const isStory = (igFormat === "story" || igFormat === "reel") && previewPlatform === "ig";
+            const avatar = (s) => <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
+            const media = (radius) => (
+              <div style={{ position:"relative", height:isStory?330:210, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+                {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ textAlign:"center" }}>{video ? <Send size={24}/> : <Image size={24}/>}<div style={{ fontSize:10, marginTop:6 }}>{video ? "Video" : "Add media →"}</div></div>}
+                {images.length>1 && <><span style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.55)", borderRadius:8, padding:"2px 8px", fontSize:10, color:"#fff" }}>1/{images.length}</span><div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:5 }}>{images.map((m,i)=><span key={m.id} style={{ width:6, height:6, borderRadius:"50%", background:i===0?"#fff":"rgba(255,255,255,0.45)" }}/>)}</div></>}
+              </div>
+            );
+            const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
+
+            if (previewPlatform === "ig") {
+              return (
+                <div style={shell}>
+                  <div style={{ display:"flex", alignItems:"center", gap:9, padding:"10px 12px" }}>{avatar(30)}<div style={{ fontSize:12.5, fontWeight:600 }}>{handle}</div><MoreHorizontal size={16} style={{ marginLeft:"auto" }}/></div>
+                  {media()}
+                  <div style={{ padding:"9px 12px" }}>
+                    <div style={{ display:"flex", gap:14, marginBottom:8 }}><Heart size={20}/><MessageCircle size={20}/><Send size={20}/><Bookmark size={20} style={{ marginLeft:"auto" }}/></div>
+                    <div style={{ fontWeight:600, fontSize:12, marginBottom:4 }}>1,248 likes</div>
+                    <div style={{ fontSize:12, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}><span style={{ fontWeight:600, color:"#1a1a1a" }}>{handle}</span> {cap}</div>
+                  </div>
+                </div>
+              );
+            }
+            if (previewPlatform === "fb") {
+              return (
+                <div style={shell}>
+                  <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(38)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div><MoreHorizontal size={16} style={{ marginLeft:"auto", color:grey }}/></div>
+                  <div style={{ padding:"0 12px 10px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}>{cap}</div>
+                  {media()}
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Share",Send]].map(([l,Ic])=>(<div key={l} style={{ flex:1, padding:"9px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:6, color:grey, fontSize:12, fontWeight:600 }}><Ic size={16}/>{l}</div>))}</div>
+                </div>
+              );
+            }
+            if (previewPlatform === "li") {
+              return (
+                <div style={shell}>
+                  <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(40)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey }}>Social media management</div><div style={{ fontSize:10, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div></div>
+                  <div style={{ padding:"2px 12px 10px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}>{cap}</div>
+                  {media()}
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Repost",Send],["Send",Bookmark]].map(([l,Ic],i)=>(<div key={i} style={{ flex:1, padding:"9px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:5, color:grey, fontSize:11.5, fontWeight:600 }}><Ic size={15}/>{l}</div>))}</div>
+                </div>
+              );
+            }
+            // X / Twitter
+            return (
+              <div style={shell}>
+                <div style={{ display:"flex", gap:10, padding:"12px" }}>
+                  {avatar(40)}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:12.5 }}><span style={{ fontWeight:700 }}>{brand}</span> <span style={{ color:grey }}>@{handle} · now</span></div>
+                    <div style={{ fontSize:13, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol, margin:"3px 0 9px" }}>{cap}</div>
+                    {media(14)}
+                    <div style={{ display:"flex", justifyContent:"space-between", marginTop:10, color:grey, fontSize:12 }}><span style={{ display:"flex", alignItems:"center", gap:5 }}><MessageCircle size={15}/>24</span><span style={{ display:"flex", alignItems:"center", gap:5 }}><Send size={15}/>112</span><span style={{ display:"flex", alignItems:"center", gap:5 }}><Heart size={15}/>843</span><span style={{ display:"flex", alignItems:"center", gap:5 }}><Eye size={15}/>12k</span></div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
       )}
