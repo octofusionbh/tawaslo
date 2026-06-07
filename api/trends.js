@@ -30,7 +30,7 @@ async function getJson(url, ms = 7000) {
 
 function mapTiktok(data, tag) {
   const out = [];
-  const posts = data?.data?.aweme_list || data?.data?.posts || data?.posts || (Array.isArray(data?.data) ? data.data : []) || [];
+  const posts = data?.data?.data || data?.data?.aweme_list || data?.data?.posts || data?.posts || (Array.isArray(data?.data) ? data.data : []) || [];
   for (const p of posts) {
     const a = p.aweme_info || p;
     const stats = a.statistics || a;
@@ -56,7 +56,7 @@ function mapTiktok(data, tag) {
 
 function mapInstagram(data, tag) {
   const out = [];
-  const posts = data?.data?.posts || data?.data?.items || data?.posts || (Array.isArray(data?.data) ? data.data : []) || [];
+  const posts = data?.data?.top_posts || data?.data?.posts || data?.data?.items || data?.posts || (Array.isArray(data?.data) ? data.data : []) || [];
   for (const p of posts) {
     const n = p.node || p;
     const code = n.shortcode || n.code;
@@ -64,11 +64,12 @@ function mapInstagram(data, tag) {
     const caption = n.caption?.text || n.edge_media_to_caption?.edges?.[0]?.node?.text || (typeof n.caption === "string" ? n.caption : "");
     const likes = n.like_count || n.edge_liked_by?.count || n.edge_media_preview_like?.count || 0;
     const uname = n.owner?.username || n.user?.username || "";
+    const fullName = n.owner?.full_name || n.user?.full_name || "";
     out.push({
       platform: "instagram",
       id: String(n.id || code || Math.random()),
       caption,
-      author: uname ? "@" + uname : "",
+      author: uname ? "@" + uname : (fullName || ""),
       thumbnail: typeof cover === "string" ? cover : null,
       url: code ? `https://www.instagram.com/p/${code}/` : "",
       views: n.video_view_count || n.view_count || 0,
