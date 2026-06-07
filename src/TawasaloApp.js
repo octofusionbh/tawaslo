@@ -3458,10 +3458,10 @@ function InboxPage() {
     if (!acc) return;
     setReplying(true); setReplyError(''); setReplySuccess(false);
     try {
-      const res = await fetch('/api/instagram-reply', {
+      const res = await fetch('/api/instagram-inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commentId: selected.id, message: reply, accessToken: acc.access_token }),
+        body: JSON.stringify({ type: 'reply', commentId: selected.id, message: reply, accessToken: acc.access_token }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

@@ -1,13 +1,33 @@
-// api/instagram-inbox.js — Fetch real Instagram comments and DMs
+// api/instagram-inbox.js — Fetch real Instagram comments and DMs, and reply to a comment.
+// type: 'comments' | 'messages' | 'reply'
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { accountId, accessToken, type } = req.body;
-  if (!accountId || !accessToken) return res.status(400).json({ error: 'Missing required fields' });
+  const { accountId, accessToken, type, commentId, message } = req.body;
+  if (!accessToken) return res.status(400).json({ error: 'Missing accessToken' });
 
   const base = accessToken.startsWith('IGAA') || accessToken.startsWith('IGQ')
     ? 'https://graph.instagram.com/v21.0'
     : 'https://graph.facebook.com/v19.0';
+
+  // Reply to a comment (merged from the old instagram-reply endpoint).
+  if (type === 'reply') {
+    if (!commentId || !message) return res.status(400).json({ error: 'Missing commentId or message' });
+    try {
+      const replyRes = await fetch(`${base}/${commentId}/replies`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, access_token: accessToken }),
+      });
+      const data = await replyRes.json();
+      if (data.error) return res.status(400).json({ error: data.error.message, code: data.error.code });
+      return res.status(200).json({ success: true, id: data.id });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to post reply', details: err.message });
+    }
+  }
+
+  if (!accountId) return res.status(400).json({ error: 'Missing accountId' });
 
   try {
     if (type === 'comments') {
