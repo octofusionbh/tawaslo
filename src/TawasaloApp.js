@@ -4418,6 +4418,37 @@ function LandingPage({ onGetStarted, onLogin }) {
           </div>
         ))}
       </div>
+
+      <div style={{marginTop:56}}>
+        <div style={{textAlign:"center",marginBottom:6}}><h2 style={{fontSize:28,fontWeight:900,letterSpacing:-0.5}}>How Tawaslo compares</h2></div>
+        <p style={{textAlign:"center",color:"#7A8BA8",fontSize:13.5,marginBottom:26}}>The power of the global tools — built for the region, at a fraction of the price.</p>
+        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1.5fr 1fr 1fr 1fr":"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #1C2D45",fontSize:13,fontWeight:800,alignItems:"center"}}>
+            <div/>
+            <div style={{textAlign:"center",color:"#fff",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><img src="/logo-transparent.png" alt="" style={{width:20,height:20,objectFit:"contain"}}/>Tawaslo</div>
+            <div style={{textAlign:"center",color:"#7A8BA8"}}>Hootsuite</div>
+            <div style={{textAlign:"center",color:"#7A8BA8"}}>Sprout Social</div>
+          </div>
+          {[
+            ["Starting price","From $49/mo","From ~$99/mo","From ~$249/mo"],
+            ["Native Arabic & RTL","✓","✕","✕"],
+            ["AI captions (Arabic + English)","✓","Add-on","Limited"],
+            ["GCC payments (Benefit, local cards)","✓","✕","✕"],
+            ["Flat pricing — no per-seat fees","✓","✕","✕"],
+            ["Free trial","30 days","30 days","30 days"],
+            ["Multi-client / agency workspace","✓","✓","✓"],
+            ["Unified comments & DM inbox","✓","✓","✓"],
+          ].map(([feat,tw,ho,sp],i,arr)=>(
+            <div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"1.5fr 1fr 1fr 1fr":"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #1C2D4530":"none",fontSize:12.5,alignItems:"center"}}>
+              <div style={{color:"#E8EFF8",fontWeight:500}}>{feat}</div>
+              <div style={{textAlign:"center",fontWeight:700,background:"rgba(79,110,247,0.09)",borderLeft:"1px solid #1C2D45",borderRight:"1px solid #1C2D45",padding:"7px 0",color:tw==="✓"?"#10B981":tw==="✕"?"#EF4444":"#fff"}}>{tw}</div>
+              <div style={{textAlign:"center",color:ho==="✓"?"#10B981":ho==="✕"?"#5b6b85":"#7A8BA8"}}>{ho}</div>
+              <div style={{textAlign:"center",color:sp==="✓"?"#10B981":sp==="✕"?"#5b6b85":"#7A8BA8"}}>{sp}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{textAlign:"center",color:"#3D5068",fontSize:10.5,marginTop:12,lineHeight:1.5}}>Competitor pricing is approximate, based on publicly listed entry plans; features compared at time of writing.</p>
+      </div>
     </div>
   );
 
