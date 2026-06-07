@@ -224,6 +224,61 @@ export const updatePassword = async (newPassword) => {
   return { data, error };
 };
 
+// ───────────────────────── TAWASLO HQ (admin) ─────────────────────────
+// PROMO CODES
+export const getPromoCodes = async () => {
+  const { data, error } = await supabase.from('promo_codes').select('*').order('created_at', { ascending: false });
+  return { data, error };
+};
+export const createPromoCode = async (row) => {
+  const { data, error } = await supabase.from('promo_codes').insert([row]).select();
+  return { data, error };
+};
+export const updatePromoCode = async (id, updates) => {
+  const { data, error } = await supabase.from('promo_codes').update(updates).eq('id', id).select();
+  return { data, error };
+};
+export const deletePromoCode = async (id) => {
+  const { error } = await supabase.from('promo_codes').delete().eq('id', id);
+  return { error };
+};
+
+// GIFT CARDS
+export const getGiftCards = async () => {
+  const { data, error } = await supabase.from('gift_cards').select('*').order('created_at', { ascending: false });
+  return { data, error };
+};
+export const createGiftCard = async (row) => {
+  const { data, error } = await supabase.from('gift_cards').insert([row]).select();
+  return { data, error };
+};
+export const updateGiftCard = async (id, updates) => {
+  const { data, error } = await supabase.from('gift_cards').update(updates).eq('id', id).select();
+  return { data, error };
+};
+
+// SUPPORT TICKETS + MESSAGES
+export const getSupportTickets = async () => {
+  const { data, error } = await supabase.from('support_tickets').select('*').order('created_at', { ascending: false });
+  return { data, error };
+};
+export const createSupportTicket = async (row) => {
+  const { data, error } = await supabase.from('support_tickets').insert([row]).select().single();
+  return { data, error };
+};
+export const updateSupportTicket = async (id, updates) => {
+  const { data, error } = await supabase.from('support_tickets').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).select();
+  return { data, error };
+};
+export const getSupportMessages = async (ticketId) => {
+  const { data, error } = await supabase.from('support_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+  return { data, error };
+};
+export const addSupportMessage = async (ticketId, sender, body) => {
+  const { data, error } = await supabase.from('support_messages').insert([{ ticket_id: ticketId, sender, body }]).select();
+  return { data, error };
+};
+
 // INVOICES
 export const getInvoices = async (clientId) => {
   const { data, error } = await supabase

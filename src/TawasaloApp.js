@@ -1,5 +1,8 @@
 import { useState, useEffect, createContext, useContext } from "react";
-import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients } from './supabase';
+import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
+  getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
+  getGiftCards, createGiftCard, updateGiftCard,
+  getSupportTickets, updateSupportTicket, getSupportMessages, addSupportMessage } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -677,14 +680,18 @@ function OwnerClientsPage() {
   );
 }
 
+const PROMO_DEMO = [
+  { id:"p1", code:"LAUNCH30", type:"percent", value:30, plans:"All plans", uses:14, limit:100, expiry:"2026-08-31", active:true },
+  { id:"p2", code:"BAHRAIN10", type:"fixed", value:10, plans:"Essential", uses:6, limit:50, expiry:"2026-07-15", active:true },
+  { id:"p3", code:"WELCOME", type:"percent", value:20, plans:"All plans", uses:38, limit:0, expiry:"—", active:true },
+];
+// DB row → UI shape
+const mapPromo = (r) => ({ id:r.id, code:r.code, type:r.discount_type, value:Number(r.discount_value), plans:r.applies_to, uses:r.uses||0, limit:r.usage_limit||0, expiry:r.expiry||"—", active:r.active });
+
 function OwnerPromosPage() {
   const th = useTheme();
-  const [codes, setCodes] = useState([
-    { id:"p1", code:"LAUNCH30", type:"percent", value:30, plans:"All plans", uses:14, limit:100, expiry:"2026-08-31", active:true },
-    { id:"p2", code:"BAHRAIN10", type:"fixed", value:10, plans:"Essential", uses:6, limit:50, expiry:"2026-07-15", active:true },
-    { id:"p3", code:"WELCOME", type:"percent", value:20, plans:"All plans", uses:38, limit:0, expiry:"—", active:true },
-    { id:"p4", code:"SUMMER25", type:"percent", value:25, plans:"Professional", uses:50, limit:50, expiry:"2026-06-01", active:false },
-  ]);
+  const [codes, setCodes] = useState(PROMO_DEMO);
+  const [live, setLive] = useState(false); // true once real rows load (so writes hit the DB)
   const [code, setCode] = useState("");
   const [type, setType] = useState("percent");
   const [value, setValue] = useState("");
@@ -693,18 +700,42 @@ function OwnerPromosPage() {
   const [expiry, setExpiry] = useState("");
   const [copied, setCopied] = useState(null);
 
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const { data, error } = await getPromoCodes();
+      if (!on) return;
+      if (!error && Array.isArray(data)) { setCodes(data.map(mapPromo)); setLive(true); }
+      // error → table not created yet → keep demo rows (read-only feel)
+    })();
+    return () => { on = false; };
+  }, []);
+
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
   const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
   const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
 
-  const create = () => {
+  const create = async () => {
     if (!code.trim() || !value) return;
-    setCodes(cs => [{ id:"p"+Date.now(), code:code.toUpperCase().replace(/\s/g,""), type, value:Number(value), plans, uses:0, limit:Number(limit)||0, expiry:expiry||"—", active:true }, ...cs]);
+    const clean = code.toUpperCase().replace(/\s/g,"");
+    if (live) {
+      const { data } = await createPromoCode({ code:clean, discount_type:type, discount_value:Number(value), applies_to:plans, usage_limit:Number(limit)||0, expiry:expiry||null });
+      if (data && data[0]) setCodes(cs => [mapPromo(data[0]), ...cs]);
+    } else {
+      setCodes(cs => [{ id:"p"+Date.now(), code:clean, type, value:Number(value), plans, uses:0, limit:Number(limit)||0, expiry:expiry||"—", active:true }, ...cs]);
+    }
     setCode("");setValue("");setLimit("");setExpiry("");
   };
   const copy = (c) => { try{navigator.clipboard.writeText(c);}catch(e){} setCopied(c); setTimeout(()=>setCopied(null),1400); };
-  const toggle = (id) => setCodes(cs=>cs.map(c=>c.id===id?{...c,active:!c.active}:c));
-  const del = (id) => setCodes(cs=>cs.filter(c=>c.id!==id));
+  const toggle = async (id) => {
+    const cur = codes.find(c=>c.id===id); if (!cur) return;
+    setCodes(cs=>cs.map(c=>c.id===id?{...c,active:!c.active}:c));
+    if (live) await updatePromoCode(id, { active: !cur.active });
+  };
+  const del = async (id) => {
+    setCodes(cs=>cs.filter(c=>c.id!==id));
+    if (live) await deletePromoCode(id);
+  };
 
   const totalRedemptions = codes.reduce((s,c)=>s+c.uses,0);
 
@@ -760,13 +791,17 @@ function OwnerPromosPage() {
   );
 }
 
+const GIFT_DEMO = [
+  { id:"g1", code:"GIFT-4F2A-9KL", amount:50, recipient:"sara@startup.bh", status:"redeemed", date:"May 2026" },
+  { id:"g2", code:"GIFT-7Y1C-3MQ", amount:100, recipient:"founder@bhtech.bh", status:"active", date:"Jun 2026" },
+  { id:"g3", code:"GIFT-2D8E-6RT", amount:25, recipient:"hello@cafe.bh", status:"active", date:"Jun 2026" },
+];
+const mapGift = (r) => ({ id:r.id, code:r.code, amount:Number(r.amount), recipient:r.recipient_email||"", status:r.status, date: r.created_at ? new Date(r.created_at).toLocaleDateString('en-US',{month:'short',year:'numeric'}) : "" });
+
 function OwnerGiftsPage() {
   const th = useTheme();
-  const [cards, setCards] = useState([
-    { id:"g1", code:"GIFT-4F2A-9KL", amount:50, recipient:"sara@startup.bh", status:"redeemed", date:"May 2026" },
-    { id:"g2", code:"GIFT-7Y1C-3MQ", amount:100, recipient:"founder@bhtech.bh", status:"active", date:"Jun 2026" },
-    { id:"g3", code:"GIFT-2D8E-6RT", amount:25, recipient:"hello@cafe.bh", status:"active", date:"Jun 2026" },
-  ]);
+  const [cards, setCards] = useState(GIFT_DEMO);
+  const [live, setLive] = useState(false);
   const [tab, setTab] = useState("card");
   const [amount, setAmount] = useState("50");
   const [recipient, setRecipient] = useState("");
@@ -776,19 +811,38 @@ function OwnerGiftsPage() {
   const [giftMonths, setGiftMonths] = useState("1");
   const [toast, setToast] = useState("");
 
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const { data, error } = await getGiftCards();
+      if (!on) return;
+      if (!error && Array.isArray(data)) { setCards(data.map(mapGift)); setLive(true); }
+    })();
+    return () => { on = false; };
+  }, []);
+
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
   const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
   const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
   const flash = (m) => { setToast(m); setTimeout(()=>setToast(""),2200); };
 
-  const issueCard = () => {
+  const issueCard = async () => {
     if (!recipient.trim()||!amount) return;
     const rnd = () => Math.random().toString(36).slice(2,6).toUpperCase();
-    setCards(cs => [{ id:"g"+Date.now(), code:`GIFT-${rnd()}-${rnd()}`, amount:Number(amount), recipient, status:"active", date:"Jun 2026" }, ...cs]);
+    const newCode = `GIFT-${rnd()}-${rnd()}`;
+    if (live) {
+      const { data } = await createGiftCard({ code:newCode, amount:Number(amount), recipient_email:recipient, message:message||null });
+      if (data && data[0]) setCards(cs => [mapGift(data[0]), ...cs]);
+    } else {
+      setCards(cs => [{ id:"g"+Date.now(), code:newCode, amount:Number(amount), recipient, status:"active", date:"Jun 2026" }, ...cs]);
+    }
     flash(`Gift card for $${amount} sent to ${recipient}`); setRecipient("");setMessage("");
   };
   const giftPlanFn = () => { flash(`Gifted ${giftMonths} month(s) of ${giftPlan} to ${giftClient}`); };
-  const revoke = (id) => setCards(cs=>cs.map(c=>c.id===id?{...c,status:"revoked"}:c));
+  const revoke = async (id) => {
+    setCards(cs=>cs.map(c=>c.id===id?{...c,status:"revoked"}:c));
+    if (live) await updateGiftCard(id, { status:"revoked" });
+  };
 
   const totalIssued = cards.reduce((s,c)=>s+c.amount,0);
   const tabBtn = (k,l,I) => (
@@ -852,17 +906,40 @@ function OwnerGiftsPage() {
   );
 }
 
+const SUPPORT_DEMO = [
+  { id:"t1", who:"Marina Cafe", email:"hi@marinacafe.bh", subject:"How do I connect a second Instagram?", status:"open", urgent:false, ago:"12m", msgs:[{ from:"them", text:"Hi! I added one Instagram but I run two accounts. How do I connect the second one?", time:"12m" }] },
+  { id:"t2", who:"Trio Restaurant", email:"team@trio.bh", subject:"Payment failed on renewal", status:"open", urgent:true, ago:"1h", msgs:[{ from:"them", text:"My card was charged but it says payment failed and my account is locked. Please help, we have posts scheduled today!", time:"1h" }] },
+  { id:"t3", who:"Lulwa Events", email:"lulwa@events.bh", subject:"Can I get an invoice for March?", status:"open", urgent:false, ago:"3h", msgs:[{ from:"them", text:"Our finance team needs a tax invoice for the March subscription. Can you send it?", time:"3h" }] },
+  { id:"t4", who:"Gulf Auto", email:"info@gulfauto.bh", subject:"Reels not publishing", status:"resolved", urgent:false, ago:"1d", msgs:[{ from:"them", text:"My reels are stuck on 'publishing'.", time:"1d" },{ from:"us", text:"That was a token refresh issue — fixed now. Please reconnect Instagram and try again.", time:"22h" }] },
+];
+const agoFrom = (ts) => {
+  if (!ts) return "";
+  const s = Math.floor((Date.now() - new Date(ts).getTime())/1000);
+  if (s < 60) return "now"; if (s < 3600) return Math.floor(s/60)+"m"; if (s < 86400) return Math.floor(s/3600)+"h"; return Math.floor(s/86400)+"d";
+};
+const mapTicket = (t) => ({ id:t.id, who:t.client_name||t.email||"Client", email:t.email||"", subject:t.subject, status:t.status, urgent:!!t.urgent, ago:agoFrom(t.created_at), msgs:[], loaded:false });
+
 function OwnerSupportPage() {
   const th = useTheme();
-  const [tickets, setTickets] = useState([
-    { id:"t1", who:"Marina Cafe", email:"hi@marinacafe.bh", subject:"How do I connect a second Instagram?", status:"open", urgent:false, ago:"12m", msgs:[{ from:"them", text:"Hi! I added one Instagram but I run two accounts. How do I connect the second one?", time:"12m" }] },
-    { id:"t2", who:"Trio Restaurant", email:"team@trio.bh", subject:"Payment failed on renewal", status:"open", urgent:true, ago:"1h", msgs:[{ from:"them", text:"My card was charged but it says payment failed and my account is locked. Please help, we have posts scheduled today!", time:"1h" }] },
-    { id:"t3", who:"Lulwa Events", email:"lulwa@events.bh", subject:"Can I get an invoice for March?", status:"open", urgent:false, ago:"3h", msgs:[{ from:"them", text:"Our finance team needs a tax invoice for the March subscription. Can you send it?", time:"3h" }] },
-    { id:"t4", who:"Gulf Auto", email:"info@gulfauto.bh", subject:"Reels not publishing", status:"resolved", urgent:false, ago:"1d", msgs:[{ from:"them", text:"My reels are stuck on 'publishing'.", time:"1d" },{ from:"us", text:"That was a token refresh issue — fixed now. Please reconnect Instagram and try again.", time:"22h" }] },
-  ]);
+  const [tickets, setTickets] = useState(SUPPORT_DEMO);
+  const [live, setLive] = useState(false);
   const [sel, setSel] = useState("t1");
   const [filter, setFilter] = useState("open");
   const [reply, setReply] = useState("");
+
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const { data, error } = await getSupportTickets();
+      if (!on) return;
+      if (!error && Array.isArray(data)) {
+        const mapped = data.map(mapTicket);
+        setTickets(mapped); setLive(true);
+        if (mapped[0]) setSel(mapped[0].id);
+      }
+    })();
+    return () => { on = false; };
+  }, []);
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
   const filtered = tickets.filter(t => filter==="all" ? true : filter==="urgent" ? (t.urgent && t.status==="open") : t.status===filter);
@@ -870,12 +947,32 @@ function OwnerSupportPage() {
   const openCount = tickets.filter(t=>t.status==="open").length;
   const urgentCount = tickets.filter(t=>t.urgent && t.status==="open").length;
 
-  const send = () => {
+  // Load a ticket's messages from the DB the first time it's opened.
+  useEffect(() => {
+    if (!live || !active || active.loaded) return;
+    let on = true;
+    (async () => {
+      const { data } = await getSupportMessages(active.id);
+      if (!on) return;
+      const msgs = (data || []).map(m => ({ from:m.sender, text:m.body, time:agoFrom(m.created_at) }));
+      setTickets(ts => ts.map(t => t.id===active.id ? { ...t, msgs, loaded:true } : t));
+    })();
+    return () => { on = false; };
+  }, [sel, live, active]);
+
+  const send = async () => {
     if (!reply.trim()||!active) return;
-    setTickets(ts => ts.map(t => t.id===active.id ? { ...t, msgs:[...t.msgs,{from:"us",text:reply,time:"now"}] } : t));
+    const text = reply;
+    setTickets(ts => ts.map(t => t.id===active.id ? { ...t, msgs:[...t.msgs,{from:"us",text,time:"now"}] } : t));
     setReply("");
+    if (live) await addSupportMessage(active.id, "us", text);
   };
-  const resolve = (id) => setTickets(ts=>ts.map(t=>t.id===id?{...t,status:t.status==="resolved"?"open":"resolved"}:t));
+  const resolve = async (id) => {
+    const cur = tickets.find(t=>t.id===id); if (!cur) return;
+    const next = cur.status==="resolved" ? "open" : "resolved";
+    setTickets(ts=>ts.map(t=>t.id===id?{...t,status:next}:t));
+    if (live) await updateSupportTicket(id, { status: next });
+  };
   const TABS = [["open",`Open · ${openCount}`],["urgent",`Urgent · ${urgentCount}`],["resolved","Resolved"],["all","All"]];
 
   return (
