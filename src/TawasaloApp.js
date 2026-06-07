@@ -1869,6 +1869,22 @@ function CalendarPage() {
   );
 }
 
+// Reusable polished empty state — gradient-glow icon, title, body, optional CTA.
+function EmptyState({ Icon, title, body, cta, onCta, compact }) {
+  const th = useTheme();
+  return (
+    <div style={{ textAlign:"center", padding: compact ? "30px 20px" : "54px 24px", display:"flex", flexDirection:"column", alignItems:"center" }}>
+      <div style={{ position:"relative", width:64, height:64, borderRadius:20, background:th.accentSoft, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:18 }}>
+        <div style={{ position:"absolute", inset:-8, borderRadius:26, background:`radial-gradient(circle, ${th.accent}26, transparent 70%)`, pointerEvents:"none" }}/>
+        <Icon size={28} color={th.accent} strokeWidth={1.7}/>
+      </div>
+      <div style={{ fontSize:15.5, fontWeight:700, marginBottom:6 }}>{title}</div>
+      <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.65, maxWidth:340, marginBottom: cta ? 18 : 0 }}>{body}</div>
+      {cta && <button onClick={onCta} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 22px rgba(79,110,247,0.32)" }}>{cta}<ArrowUpRight size={14}/></button>}
+    </div>
+  );
+}
+
 function PublisherPage() {
   const { selClient, dark, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -2057,7 +2073,7 @@ function PublisherPage() {
         <div style={{ ...card, padding:0, overflow:"hidden", maxWidth:760 }}>
           <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600 }}>Saved drafts</div>
           {drafts.length === 0 ? (
-            <div style={{ padding:28, textAlign:"center", color:th.text2, fontSize:12.5 }}>No drafts yet. Compose a post and hit <strong style={{color:th.text}}>Save draft</strong>.</div>
+            <EmptyState compact Icon={Edit3} title="No drafts yet" body={<>Compose a post and hit <strong style={{color:th.text}}>Save draft</strong> to keep it here for later.</>} cta="Compose a post" onCta={()=>setTab("compose")} />
           ) : drafts.map((d,i) => (
             <div key={d.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderBottom:i<drafts.length-1?`1px solid ${th.border}`:"none" }}>
               <div style={{ width:46, height:46, borderRadius:10, flexShrink:0, background:th.card2, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.image_url ? <img src={d.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <Image size={16} color={th.text3}/>}</div>
@@ -3038,7 +3054,7 @@ function AnalyticsPage() {
           <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
             <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontSize:13,fontWeight:600}}>Top performing posts</div>
             {topPosts.length===0 ? (
-              <div style={{padding:20,fontSize:12.5,color:th.text2}}>No posts found.</div>
+              <EmptyState compact Icon={BarChart2} title="No posts to analyze yet" body="Once this account has published posts, your top performers will rank here by engagement." />
             ) : (
               <>
                 <div style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"9px 18px",borderBottom:`1px solid ${th.border}`,fontSize:10,color:th.text3,letterSpacing:0.5,textTransform:"uppercase"}}>
@@ -4418,9 +4434,16 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,marginBottom:28}}>
         <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",letterSpacing:1,marginBottom:16}}>WHAT MAKES US DIFFERENT</div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
-          {[["🌍","Truly global platform","Works for any brand anywhere in the world. No geographic limits."],["🇸🇦","Native Arabic support","Full Arabic dashboard and AI captions. RTL interface. Built in, not bolted on."],["🏢","Agency-ready","Manage dozens of clients and brands from one clean workspace."],["💰","Priced fairly","Fraction of the cost of Hootsuite or Sprout Social. No per-user nonsense."]].map(([icon,title,desc])=>(
-            <div key={title} style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-              <div style={{fontSize:20,marginTop:2}}>{icon}</div>
+          {[
+            [Globe,"Truly global platform","Works for any brand anywhere in the world. No geographic limits."],
+            [Languages,"Native Arabic support","Full Arabic dashboard and AI captions. RTL interface. Built in, not bolted on."],
+            [Building2,"Agency-ready","Manage dozens of clients and brands from one clean workspace."],
+            [Tag,"Priced fairly","A fraction of the cost of Hootsuite or Sprout Social. No per-user nonsense."],
+            [Wand2,"AI content, EN & AR","Generate on-brand captions, hashtags and ideas in seconds — in both languages."],
+            [Calendar,"Schedule & auto-publish","Plan your whole month and let Tawaslo post automatically at the perfect time."],
+          ].map(([Ic,title,desc])=>(
+            <div key={title} style={{display:"flex",gap:13,alignItems:"flex-start"}}>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(79,110,247,0.11)",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ic size={18} color="#4F6EF7"/></div>
               <div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{desc}</div></div>
             </div>
           ))}
