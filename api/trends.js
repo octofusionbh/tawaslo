@@ -124,9 +124,18 @@ export default async function handler(req, res) {
     items = items.filter(i => (seen.has(i.id) ? false : (seen.add(i.id), true)));
     items.sort((a, b) => (b.views + b.likes) - (a.views + a.likes));
     items = items.slice(0, 24);
-    res.setHeader("Cache-Control", "s-maxage=43200, stale-while-revalidate=86400");
+    if (items.length > 0) {
+      // Good data: keep it fresh 24h, then serve the last good set (stale) for up to 7 days
+      // while revalidating in the background — so users always see trends and we only spend
+      // ~1 upstream call per region per day against the free quota.
+      res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=604800");
+    } else {
+      // Empty (e.g. daily quota hit): retry sooner so it recovers quickly after reset.
+      res.setHeader("Cache-Control", "s-maxage=600");
+    }
     return res.status(200).json({ connected: true, region, platform, items, updatedAt: Date.now() });
   } catch (e) {
+    res.setHeader("Cache-Control", "s-maxage=600");
     return res.status(200).json({ connected: true, items: [], error: e.message });
   }
 }
