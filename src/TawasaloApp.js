@@ -3221,39 +3221,50 @@ function AdsPage() {
 }
 
 function ReportsPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, clients } = useApp();
   const th = dark ? DARK : LIGHT;
-  const [accounts, setAccounts] = useState([]);
-  const [realClientId, setRealClientId] = useState(null);
+  const [allAccounts, setAllAccounts] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [rClient, setRClient] = useState("all");
+  const [rPlat, setRPlat] = useState("all");
 
-  useEffect(() => {
-    if (!selClient?.name) return;
-    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data && data.length > 0) setRealClientId(data[0].id); });
-  }, [selClient]);
+  const cName = (id) => (clients.find(c=>String(c.id)===String(id))||{}).name || "";
+  const platLabel = (p) => ({ ig:"Instagram", fb:"Facebook", li:"LinkedIn", tt:"TikTok", tw:"X", yt:"YouTube" }[p] || p);
 
+  // Load every connected account across all of this user's clients.
   useEffect(() => {
-    if (!realClientId) return;
-    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data }) => {
-        if (data) {
-          setAccounts(data);
-          const igAcc = data.find(a => a.platform === 'ig');
-          if (igAcc) {
-            fetch('/api/instagram-analytics', {
-              method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ accountId: igAcc.account_id, accessToken: igAcc.access_token }),
-            }).then(r => r.json()).then(d => { if (!d.error) setAnalyticsData(d); });
-          }
-        }
-      });
-  }, [realClientId]);
+    const ids = (clients||[]).map(c=>c.id).filter(Boolean);
+    if (!ids.length) { setAllAccounts([]); return; }
+    supabase.from('social_accounts').select('*').in('client_id', ids).neq('is_active', false)
+      .then(({ data }) => setAllAccounts(data || []));
+  }, [clients]);
+
+  // Default the picker to the currently-selected client when possible.
+  useEffect(() => {
+    if (selClient && selClient.id && (clients||[]).some(c=>String(c.id)===String(selClient.id))) setRClient(String(selClient.id));
+  }, [selClient, clients]);
+
+  const accounts = allAccounts.filter(a =>
+    (rClient === "all" || String(a.client_id) === String(rClient)) &&
+    (rPlat === "all" || a.platform === rPlat)
+  );
+
+  // Pull Instagram analytics for the first IG account in the current view.
+  useEffect(() => {
+    const ig = accounts.find(a => a.platform === 'ig');
+    if (!ig) { setAnalyticsData(null); return; }
+    fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: ig.account_id, accessToken: ig.access_token }) })
+      .then(r => r.json()).then(d => setAnalyticsData(d && !d.error ? d : null)).catch(()=>setAnalyticsData(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rClient, rPlat, allAccounts.length]);
 
   const now = new Date();
   const month = now.toLocaleString('default', { month: 'long', year: 'numeric' });
   const totalFollowers = accounts.reduce((s,a)=>s+(a.followers_count||0),0);
   const platforms = [...new Set(accounts.map(a=>a.platform))];
+  const allPlatforms = [...new Set(allAccounts.map(a=>a.platform))];
+  const reportName = rClient === "all" ? "All clients" : (cName(rClient) || selClient?.name || "Report");
+  const scopeLabel = reportName + (rPlat !== "all" ? " · " + platLabel(rPlat) : "");
 
   const exportPDF = () => {
 
@@ -3294,7 +3305,7 @@ function ReportsPage() {
 <html>
 <head>
 <meta charset="UTF-8">
-<title>${selClient?.name} — ${month} Social Media Report</title>
+<title>${reportName} — ${month} Social Media Report</title>
 <style>
   @page{margin:0;size:A4}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -3359,8 +3370,8 @@ function ReportsPage() {
   </div>
   <div>
     <div class="cover-label">Monthly Social Media Report</div>
-    <div class="cover-client">${selClient?.name}</div>
-    <div class="cover-sub">Performance Analysis &amp; Insights</div>
+    <div class="cover-client">${reportName}</div>
+    <div class="cover-sub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}Performance Analysis &amp; Insights</div>
     <div class="cover-pill">&#128197; ${month}</div>
   </div>
   <div class="cover-ft">
@@ -3375,7 +3386,7 @@ function ReportsPage() {
 <div class="page">
   <div class="ph">
     <div class="ph-logo"><img src="https://www.tawaslo.com/logo-transparent.png" alt=""/>Tawaslo</div>
-    <div class="ph-info">${selClient?.name}<br/>${month} &middot; Performance Overview</div>
+    <div class="ph-info">${reportName}<br/>${month} &middot; Performance Overview</div>
   </div>
 
   <div class="sec">
@@ -3408,14 +3419,14 @@ function ReportsPage() {
 
   <div class="ft">
     <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
-    <div>Confidential &middot; ${selClient?.name}</div>
+    <div>Confidential &middot; ${reportName}</div>
   </div>
 </div>
 
 ${topPosts.length > 0 ? `<div class="page">
   <div class="ph">
     <div class="ph-logo"><img src="https://www.tawaslo.com/logo-transparent.png" alt=""/>Tawaslo</div>
-    <div class="ph-info">${selClient?.name}<br/>${month} &middot; Top Performing Posts</div>
+    <div class="ph-info">${reportName}<br/>${month} &middot; Top Performing Posts</div>
   </div>
   <div class="sec">
     <div class="sec-title">Top Posts &mdash; Last 30 Days</div>
@@ -3423,7 +3434,7 @@ ${topPosts.length > 0 ? `<div class="page">
   </div>
   <div class="ft">
     <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
-    <div>Confidential &middot; ${selClient?.name}</div>
+    <div>Confidential &middot; ${reportName}</div>
   </div>
 </div>` : ''}
 
@@ -3435,37 +3446,90 @@ ${topPosts.length > 0 ? `<div class="page">
     w.document.close();
   };
 
+  const PMETA = { ig:{n:"Instagram",c:"#E1306C",I:FaInstagram}, fb:{n:"Facebook",c:"#1877F2",I:FaFacebook}, tw:{n:"X",c:th.text,I:FaTwitter}, li:{n:"LinkedIn",c:"#0A66C2",I:FaLinkedin}, tt:{n:"TikTok",c:th.text2,I:FaTiktok}, yt:{n:"YouTube",c:"#FF0000",I:FaYoutube} };
+  const byPlat = platforms.map(p => { const accs = accounts.filter(a=>a.platform===p); return { p, meta:PMETA[p]||{n:p,c:th.accent,I:Globe}, followers:accs.reduce((s,a)=>s+(a.followers_count||0),0), count:accs.length }; }).sort((a,b)=>b.followers-a.followers);
+  const maxF = Math.max(1, ...accounts.map(a=>a.followers_count||0));
+  const er = analyticsData && analyticsData.summary ? analyticsData.summary.engagementRate : null;
+  const chart = (analyticsData && analyticsData.chartData) ? analyticsData.chartData : [];
+  const rcard = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const kpis = [
+    { label:"Total followers", value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
+    { label:"Connected accounts", value: String(accounts.length), Icon:Link, color:"accent" },
+    { label:"Platforms", value: String(platforms.length), Icon:Globe, color:"warning" },
+    { label:"Engagement rate", value: er != null ? er+"%" : "—", Icon:Heart, color:"accent2" },
+  ];
+
   return (
-    <div style={{padding:"28px 32px", maxWidth:900}}>
-      <div style={{marginBottom:24, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-        <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Reports</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Monthly summary for {selClient?.name}</p>
-        </div>
-        <button onClick={exportPDF} style={{padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-          <Download size={14}/> Export PDF
-        </button>
-      </div>
-      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:24, marginBottom:16}}>
-        <div style={{fontSize:14, fontWeight:700, marginBottom:4}}>{month} Report</div>
-        <div style={{fontSize:12, color:th.text2, marginBottom:20}}>Social media performance summary</div>
-        <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16}}>
-          {[["Connected Accounts", accounts.length, th.accent],["Total Followers", accounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString(), th.success],["Platforms", [...new Set(accounts.map(a=>a.platform))].length, th.warning]].map(([label,val,color])=>(
-            <div key={label} style={{background:th.card2, borderRadius:10, padding:16, textAlign:"center"}}>
-              <div style={{fontSize:24, fontWeight:900, color}}>{val}</div>
-              <div style={{fontSize:11, color:th.text2, marginTop:4}}>{label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20}}>
-        <div style={{fontSize:13, fontWeight:700, marginBottom:12}}>Account Breakdown</div>
-        {accounts.length === 0 ? <div style={{fontSize:13, color:th.text2}}>No accounts connected.</div> : accounts.map(acc => (
-          <div key={acc.id} style={{display:"flex", justifyContent:"space-between", padding:"10px 0", borderBottom:`1px solid ${th.border}`}}>
-            <div style={{fontSize:13}}>{acc.account_name}</div>
-            <div style={{fontSize:13, fontWeight:700, color:acc.platform==='ig'?"#E1306C":"#1877F2"}}>{(acc.followers_count||0).toLocaleString()} followers</div>
+    <div style={{padding:"26px 30px", maxWidth:1060}}>
+      <div style={{marginBottom:18}}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:14}}>
+          <div>
+            <h2 style={{margin:0, fontSize:22, fontWeight:800, letterSpacing:-0.4}}>Reports</h2>
+            <p style={{margin:"6px 0 0", fontSize:12.5, color:th.text2}}>Performance summary · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
           </div>
-        ))}
+          <button onClick={exportPDF} style={{padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(79,110,247,0.32)"}}>
+            <Download size={15}/> Export PDF
+          </button>
+        </div>
+        <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"center"}}>
+          <span style={{fontSize:11, color:th.text3, fontWeight:600}}>Showing</span>
+          <select value={rClient} onChange={e=>setRClient(e.target.value)} style={{padding:"9px 13px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card, color:th.text, fontSize:12.5, fontWeight:600, outline:"none", fontFamily:"inherit", cursor:"pointer"}}>
+            <option value="all">All clients</option>
+            {clients.map(c=><option key={c.id} value={String(c.id)}>{c.name}</option>)}
+          </select>
+          <select value={rPlat} onChange={e=>setRPlat(e.target.value)} style={{padding:"9px 13px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card, color:th.text, fontSize:12.5, fontWeight:600, outline:"none", fontFamily:"inherit", cursor:"pointer"}}>
+            <option value="all">All platforms</option>
+            {allPlatforms.map(p=><option key={p} value={p}>{platLabel(p)}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:13, marginBottom:16}}>
+        {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
+      </div>
+
+      <div style={{display:"grid", gridTemplateColumns: chart.length ? "1.4fr 1fr" : "1fr", gap:16, marginBottom:16}}>
+        <div style={{...rcard, padding:20}}>
+          <div style={{fontSize:13, fontWeight:600, marginBottom:16, display:"flex", alignItems:"center", gap:8}}><PieChart size={15} color={th.accent}/>Followers by platform</div>
+          {byPlat.length === 0 ? <div style={{fontSize:12.5, color:th.text3, padding:"10px 0"}}>Connect an account to see your reach by platform.</div> : byPlat.map(b => { const pct = totalFollowers>0 ? Math.round(b.followers/totalFollowers*100) : 0; const Ic=b.meta.I; return (
+            <div key={b.p} style={{marginBottom:14}}>
+              <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6}}>
+                <span style={{display:"flex", alignItems:"center", gap:8, fontSize:12.5, fontWeight:600}}><Ic style={{color:b.meta.c, fontSize:15}}/>{b.meta.n} <span style={{color:th.text3, fontWeight:400}}>· {b.count} {b.count===1?"account":"accounts"}</span></span>
+                <span style={{fontSize:12.5, color:th.text2}}>{b.followers.toLocaleString()} <span style={{color:th.text3}}>({pct}%)</span></span>
+              </div>
+              <div style={{height:8, background:th.card2, borderRadius:5, overflow:"hidden"}}><div style={{height:"100%", width:pct+"%", background:b.meta.c, borderRadius:5}}/></div>
+            </div>
+          ); })}
+        </div>
+        {chart.length > 0 && (
+          <div style={{...rcard, padding:20}}>
+            <div style={{fontSize:13, fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:8}}><TrendingUp size={15} color={th.accent}/>Reach · last 30 days</div>
+            <div style={{fontSize:24, fontWeight:800, marginBottom:8}}>{((analyticsData.summary&&analyticsData.summary.totalReach)||0).toLocaleString()}</div>
+            {(() => { const vals=chart.map(c=>c.reach||0); const mx=Math.max(1,...vals); const W=300,H=90; const pts=vals.map((v,i)=>[(i/(Math.max(1,vals.length-1)))*W, H-(v/mx)*(H-8)-4]); const line="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L"); return (
+              <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%", height:90, overflow:"visible"}}>
+                <defs><linearGradient id="rptr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.3"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
+                <path d={`${line} L${W},${H} L0,${H} Z`} fill="url(#rptr)"/>
+                <path d={line} fill="none" stroke={th.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            ); })()}
+          </div>
+        )}
+      </div>
+
+      <div style={{...rcard, overflow:"hidden"}}>
+        <div style={{padding:"14px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8}}><Users size={15} color={th.accent}/>Account breakdown</div>
+        {accounts.length === 0 ? (
+          <EmptyState compact Icon={Link} title="No accounts connected" body="Connect your social accounts to see a full performance breakdown here." />
+        ) : accounts.map((acc,i) => { const meta=PMETA[acc.platform]||{n:acc.platform,c:th.accent,I:Globe}; const Ic=meta.I; const f=acc.followers_count||0; const pct=Math.round(f/maxF*100); return (
+          <div key={acc.id} style={{display:"flex", alignItems:"center", gap:14, padding:"13px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none"}}>
+            <div style={{position:"relative", width:38, height:38, borderRadius:11, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff", flexShrink:0}}>{(acc.account_name||"?").slice(0,2).toUpperCase()}<div style={{position:"absolute", right:-4, bottom:-4, width:18, height:18, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><Ic style={{color:meta.c, fontSize:10}}/></div></div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{acc.account_name}{acc.username && <span style={{color:th.text3, fontWeight:400}}> · @{acc.username}</span>}</div>
+              <div style={{height:6, background:th.card2, borderRadius:4, overflow:"hidden", marginTop:6, maxWidth:280}}><div style={{height:"100%", width:pct+"%", background:meta.c, borderRadius:4}}/></div>
+            </div>
+            <div style={{textAlign:"right", flexShrink:0}}><div style={{fontSize:14, fontWeight:700}}>{f.toLocaleString()}</div><div style={{fontSize:10.5, color:th.text3}}>followers</div></div>
+          </div>
+        ); })}
       </div>
     </div>
   );
@@ -3733,10 +3797,11 @@ function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Admin");
   const [sent, setSent] = useState(false);
-  const team = [
-    { name:"Abdulla Al-Nahas", email:"theoctopus.bh@gmail.com", role:"Owner", joined:"Jan 2025", avatar:"A" },
+  const [editIdx, setEditIdx] = useState(null);
+  const [team, setTeam] = useState([
+    { name:"Abdulla Alnahash", email:"octofusionbh@gmail.com", role:"Owner", joined:"Jan 2025", avatar:"A" },
     { name:"Agency Manager", email:"manager@octofusion.bh", role:"Admin", joined:"Mar 2025", avatar:"M" },
-  ];
+  ]);
   const SEATS = 5;
   const roleColor = (r) => r === "Owner" ? th.accent : r === "Admin" ? th.accent2 : r === "Editor" ? th.success : th.text2;
   const inp = { padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" };
@@ -3783,11 +3848,20 @@ function TeamPage() {
                 <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{m.email}</div>
               </div>
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:14 }}>
-              <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{m.role}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              {editIdx===i && m.role!=="Owner" ? (
+                <select value={m.role} onChange={e=>setTeam(t=>t.map((x,j)=>j===i?{...x,role:e.target.value}:x))} style={{ fontSize:11.5, fontWeight:600, padding:"5px 9px", borderRadius:9, border:`1px solid ${th.accent}`, background:th.card2, color:th.text, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+                  <option>Admin</option><option>Editor</option><option>Viewer</option>
+                </select>
+              ) : (
+                <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{m.role}</span>
+              )}
               <span style={{ fontSize:11.5, color:th.text2, minWidth:74, textAlign:"right" }}>{m.joined}</span>
               {m.role !== "Owner" ? (
-                <button style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>Remove</button>
+                <div style={{ display:"flex", gap:7 }}>
+                  <button onClick={()=>setEditIdx(editIdx===i?null:i)} style={{ fontSize:11.5, fontWeight:600, color:editIdx===i?th.success:th.accent, background:"none", border:`1px solid ${editIdx===i?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editIdx===i?<><CheckCircle size={13}/>Done</>:<><Edit3 size={13}/>Edit</>}</button>
+                  <button onClick={()=>{ setTeam(t=>t.filter((_,j)=>j!==i)); setEditIdx(null); }} style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>Remove</button>
+                </div>
               ) : <span style={{ width:62 }}/>}
             </div>
           </div>
@@ -3908,6 +3982,34 @@ function BillingPage() {
       </div>
       <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
 
+      <div style={{marginTop:44}}>
+        <div style={{textAlign:"center", marginBottom:5}}><h3 style={{fontSize:18, fontWeight:800, margin:0, letterSpacing:-0.3}}>You're getting more, for less</h3></div>
+        <p style={{textAlign:"center", color:th.text2, fontSize:12.5, marginBottom:20}}>The same power as the global tools — built for the region, at a fraction of the price.</p>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", maxWidth:720, margin:"0 auto"}}>
+          <div style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"13px 18px", borderBottom:`1px solid ${th.border}`, fontSize:12, fontWeight:700, alignItems:"center"}}>
+            <div/>
+            <div style={{textAlign:"center", color:th.text}}>Tawaslo</div>
+            <div style={{textAlign:"center", color:th.text2}}>Hootsuite</div>
+            <div style={{textAlign:"center", color:th.text2}}>Sprout</div>
+          </div>
+          {[
+            ["Starting price","From $49/mo","~$99/mo","~$249/mo"],
+            ["Native Arabic & RTL","✓","✕","✕"],
+            ["AI captions (AR + EN)","✓","Add-on","Limited"],
+            ["GCC payments (Benefit)","✓","✕","✕"],
+            ["Flat pricing, no per-seat","✓","✕","✕"],
+          ].map(([feat,tw,ho,sp],i,arr)=>(
+            <div key={i} style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"11px 18px", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none", fontSize:12, alignItems:"center"}}>
+              <div style={{color:th.text}}>{feat}</div>
+              <div style={{textAlign:"center", fontWeight:700, background:th.accentSoft, borderRadius:8, padding:"6px 0", color:tw==="✓"?th.success:tw==="✕"?th.danger:th.text}}>{tw}</div>
+              <div style={{textAlign:"center", color:ho==="✓"?th.success:ho==="✕"?th.text3:th.text2}}>{ho}</div>
+              <div style={{textAlign:"center", color:sp==="✓"?th.success:sp==="✕"?th.text3:th.text2}}>{sp}</div>
+            </div>
+          ))}
+        </div>
+        <p style={{textAlign:"center", color:th.text3, fontSize:10, marginTop:10}}>Competitor pricing is approximate, based on publicly listed entry plans.</p>
+      </div>
+
       {showCancel && (
         <div onClick={()=>setShowCancel(false)} style={{position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
@@ -3939,6 +4041,13 @@ function SettingsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [website, setWebsite] = useState("");
   const [notif, setNotif] = useState({ email:true, published:true, weekly:true, engagement:true });
+  // Personal profile (your own name + login email)
+  const [fullName, setFullName] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [origEmail, setOrigEmail] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileMsg, setProfileMsg] = useState("");
 
   // Contact-support ticket form
   const [tkSubject, setTkSubject] = useState("");
@@ -3979,6 +4088,9 @@ function SettingsPage() {
       setAgencyName(profile?.company_name || profile?.name || "");
       setContactEmail(profile?.email || user.email || "");
       setWebsite(profile?.website || "");
+      setFullName(profile?.name || (user.user_metadata && user.user_metadata.name) || "");
+      setLoginEmail(user.email || "");
+      setOrigEmail(user.email || "");
       setLoading(false);
     })();
     return () => { active = false; };
@@ -3992,6 +4104,21 @@ function SettingsPage() {
     setSaving(false);
     if (error) { setErr(error.message || "Could not save. Please try again."); return; }
     setSaved(true); setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const saveProfile = async () => {
+    if (!userId || savingProfile) return;
+    setSavingProfile(true); setProfileMsg("");
+    try {
+      await updateProfile(userId, { name: fullName });
+      if (loginEmail && loginEmail !== origEmail) {
+        const { error } = await supabase.auth.updateUser({ email: loginEmail });
+        if (error) { setProfileMsg(error.message || "Could not update email."); setSavingProfile(false); return; }
+        setProfileMsg("Almost done — we sent a confirmation link to your new email. Click it to finish the change.");
+      }
+      setProfileSaved(true); setTimeout(()=>setProfileSaved(false), 2200);
+    } catch (e) { setProfileMsg("Could not save right now. Please try again."); }
+    finally { setSavingProfile(false); }
   };
 
   const toggleNotif = (k) => setNotif(prev => { const next = { ...prev, [k]: !prev[k] }; try { localStorage.setItem('tw_notify', JSON.stringify(next)); } catch (e) { /* ignore */ } return next; });
@@ -4019,6 +4146,25 @@ function SettingsPage() {
         <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Manage your account, preferences and support</p>
       </div>
       <div style={{display:"flex", flexDirection:"column", gap:16}}>
+
+        <div style={card}>
+          {secTitle(User, "Your profile")}
+          <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Full name</div>
+              <input value={fullName} disabled={loading} onChange={e=>setFullName(e.target.value)} placeholder={loading?"Loading…":"Your name"} style={fieldStyle}/>
+            </div>
+            <div>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Login email</div>
+              <input type="email" value={loginEmail} disabled={loading} onChange={e=>setLoginEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
+              {loginEmail!==origEmail && loginEmail && <div style={{fontSize:10.5, color:th.text3, marginTop:5}}>You'll get a confirmation link at the new address to finish the change.</div>}
+            </div>
+          </div>
+          {profileMsg && <div style={{marginTop:10, fontSize:11.5, color:profileMsg.indexOf("Almost")===0?th.accent:th.danger, lineHeight:1.5}}>{profileMsg}</div>}
+          <button onClick={saveProfile} disabled={savingProfile||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:profileSaved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(savingProfile||loading)?"not-allowed":"pointer", opacity:(savingProfile||loading)?0.7:1}}>
+            {profileSaved?"✓ Saved":savingProfile?"Saving…":"Update profile"}
+          </button>
+        </div>
 
         <div style={card}>
           {secTitle(Building2, "Agency profile")}
