@@ -44,6 +44,15 @@ svg[class*="fa-"], .platform-glyph svg {
   shape-rendering: geometricPrecision;
 }
 
+/* Smooth page entrance — content fades up when you switch pages */
+.tw-page-in {
+  animation: twPageIn 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes twPageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
