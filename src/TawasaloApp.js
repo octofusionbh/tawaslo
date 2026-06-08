@@ -4388,11 +4388,16 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Footer = () => (
-    <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"24px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:30,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
+    <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"20px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:28,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
-      <div style={{display:"flex",gap:20}}>
-        {['Privacy','Terms','Contact'].map(l=><span key={l} onClick={()=>setLandingPage(l.toLowerCase())} style={{fontSize:11,color:"#3D5068",cursor:"pointer"}}>{l}</span>)}
+      <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
+        {[["Privacy","privacy"],["Terms","terms"],["Contact","contact"]].map(([l,p])=><span key={l} onClick={()=>setLandingPage(p)} style={{fontSize:11.5,color:"#7A8BA8",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color="#E8EFF8"} onMouseLeave={e=>e.currentTarget.style.color="#7A8BA8"}>{l}</span>)}
+        <div style={{display:"flex",gap:8}}>
+          {[["https://www.instagram.com/tawaslo",FaInstagram],["https://www.linkedin.com/company/tawaslo",FaLinkedin]].map(([href,Ic],i)=>(
+            <a key={i} href={href} target="_blank" rel="noreferrer" style={{width:30,height:30,borderRadius:8,background:"#101828",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",color:"#7A8BA8",textDecoration:"none",transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#4F6EF7";}} onMouseLeave={e=>{e.currentTarget.style.color="#7A8BA8";e.currentTarget.style.borderColor="#1C2D45";}}><Ic style={{fontSize:14}}/></a>
+          ))}
+        </div>
       </div>
     </div>
   );
