@@ -5136,7 +5136,7 @@ function AdminLogin() {
 }
 
 function AuthPage() {
-  const { authPage, setAuthPage, setIsAuthed, setRecovery } = useApp();
+  const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding } = useApp();
   const [showPw,  setShowPw]  = useState(false);
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
@@ -5223,10 +5223,8 @@ function AuthPage() {
   return (
     <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden"}}>
       <div style={{width:420,flexShrink:0,background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,display:"flex",flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:60}}>
-          <div style={{width:42,height:42,borderRadius:12,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center"}}>
-            <Link size={20} color="#fff" strokeWidth={2.5}/>
-          </div>
+        <div onClick={()=>setShowLanding(true)} title="Back to homepage" style={{display:"flex",alignItems:"center",gap:12,marginBottom:60,cursor:"pointer"}}>
+          <img src="/logo-transparent.png" alt="Tawaslo" style={{width:42,height:42,objectFit:"contain",flexShrink:0}}/>
           <div>
             <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawaslo</div>
             <div style={{fontSize:10,color:th.text2,letterSpacing:0.5,textTransform:"uppercase"}}>Social Intelligence</div>
@@ -5797,6 +5795,7 @@ export default function TawasloApp() {
     selClient, setSelClient,
     clients, setClients,
     accountType, userEmail,
+    setShowLanding,
   };
 
   const renderPage = () => {
