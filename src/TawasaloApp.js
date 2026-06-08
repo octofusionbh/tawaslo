@@ -1039,7 +1039,7 @@ function OwnerSupportPage() {
 
       <div style={{display:"grid",gridTemplateColumns:"330px 1fr",gap:16,alignItems:"start"}}>
         <div style={{...card,overflow:"hidden"}}>
-          {filtered.length===0 && <div style={{padding:"36px",textAlign:"center",fontSize:13,color:th.text3}}>Nothing here 🎉</div>}
+          {filtered.length===0 && <div style={{padding:"36px",textAlign:"center",fontSize:13,color:th.text3}}>All caught up — no tickets here.</div>}
           {filtered.map((t,i)=>(
             <div key={t.id} onClick={()=>setSel(t.id)} style={{padding:"14px 18px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",cursor:"pointer",background:active&&active.id===t.id?th.accentSoft:"transparent",borderLeft:`3px solid ${active&&active.id===t.id?th.accent:"transparent"}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -3361,7 +3361,7 @@ function ReportsPage() {
       const pct = Math.round((eng / maxEng) * 100);
       const thumbHtml = p.thumbnail
         ? '<img class="post-thumb" src="' + p.thumbnail + '" alt="" onerror="this.style.display=\'none\'"/>'
-        : '<div class="post-thumb-placeholder">📸</div>';
+        : '<div class="post-thumb-placeholder"></div>';
       const cap = (p.caption || '(No caption)').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       const reachHtml = p.reach > 0 ? '<div class="ps"><div class="psv">' + p.reach.toLocaleString() + '</div><div class="psl">Reach</div></div>' : '';
       const savedHtml = (p.saved||0) > 0 ? '<div class="ps"><div class="psv">' + p.saved.toLocaleString() + '</div><div class="psl">Saved</div></div>' : '';
@@ -3805,7 +3805,7 @@ function InboxPage() {
                     {msg.type === 'dm' ? 'DM' : 'Comment'}
                   </span>
                   {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:4}}>Sample</span>}
-                  {msg.likeCount > 0 && <span style={{fontSize:9, color:th.text2}}>❤️ {msg.likeCount}</span>}
+                  {msg.likeCount > 0 && <span style={{fontSize:9, color:th.text2, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9} color={th.text2}/> {msg.likeCount}</span>}
                 </div>
               </div>
             ))}
@@ -4372,7 +4372,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       </div>
       <div style={{display:isMobile?"none":"flex",gap:10}}>
         <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
-        <button onClick={onGetStarted} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+        <button onClick={()=>setLandingPage('trial')} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
       </div>
       {isMobile && navOpen && (
         <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1120",borderBottom:"1px solid #1C2D45",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
@@ -4381,7 +4381,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           ))}
           <div style={{height:1,background:"#1C2D45",margin:"6px 0"}}/>
           <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
-          <button onClick={()=>{onGetStarted();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+          <button onClick={()=>{setLandingPage('trial');setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
         </div>
       )}
     </nav>
@@ -4565,6 +4565,54 @@ function LandingPage({ onGetStarted, onLogin }) {
     </div>
   );
 
+  const TrialPage = () => (
+    <div>
+      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F",padding:isMobile?"56px 18px 40px":"80px 32px 56px",textAlign:"center"}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:11,fontWeight:700,marginBottom:22}}>✦ 30 days free &middot; No credit card</div>
+        <h1 style={{fontSize:isMobile?30:46,fontWeight:900,lineHeight:1.1,marginBottom:18,letterSpacing:-1.2,maxWidth:720,margin:"0 auto 18px"}}>Start your <span style={grad}>free trial</span> today</h1>
+        <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 30px",lineHeight:1.7}}>Full access to every feature for 30 days. Connect your brands, publish with AI, and see the results — no credit card, cancel anytime.</p>
+        <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Create your free account →</button>
+        <div style={{fontSize:12,color:"#3D5068",marginTop:14}}>Takes about 30 seconds &middot; No card required</div>
+      </div>
+      <div style={{background:"#0C1120",padding:isMobile?"44px 18px":"56px 32px",borderTop:"1px solid #1C2D45"}}>
+        <div style={{maxWidth:1000,margin:"0 auto",display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:16}}>
+          {[
+            [CheckCircle,"30 days free","Full access, completely free for a month."],
+            [Shield,"No credit card","Sign up with just your email — no payment upfront."],
+            [Sparkles,"Every feature","All platforms, AI captions, analytics, multi-brand."],
+            [XCircle,"Cancel anytime","No lock-in. Leave whenever you like, no questions."],
+          ].map(([Ic,t,d],i)=>(
+            <div key={i} style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:20,textAlign:"center"}}>
+              <div style={{width:44,height:44,borderRadius:13,background:"rgba(79,110,247,0.11)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Ic size={20} color="#4F6EF7"/></div>
+              <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{t}</div>
+              <div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{background:"#07090F",padding:isMobile?"44px 18px":"64px 32px"}}>
+        <div style={{maxWidth:760,margin:"0 auto"}}>
+          <h2 style={{fontSize:26,fontWeight:900,textAlign:"center",marginBottom:32}}>Everything unlocked from day one</h2>
+          {[
+            ["Connect unlimited brands","Manage all your clients and pages in one clean workspace."],
+            ["Publish & schedule everywhere","Instagram, Facebook, LinkedIn and TikTok — from one composer."],
+            ["AI captions in Arabic & English","Generate on-brand posts, hashtags and ideas in seconds."],
+            ["Full analytics & reports","Track growth and export client-ready reports."],
+          ].map(([t,d],i)=>(
+            <div key={i} style={{display:"flex",gap:14,alignItems:"flex-start",marginBottom:18}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:"rgba(16,185,129,0.13)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}><CheckCircle size={15} color="#10B981"/></div>
+              <div><div style={{fontSize:14.5,fontWeight:700,marginBottom:3}}>{t}</div><div style={{fontSize:13,color:"#7A8BA8",lineHeight:1.6}}>{d}</div></div>
+            </div>
+          ))}
+          <div style={{textAlign:"center",marginTop:32}}>
+            <button onClick={onGetStarted} style={{padding:"13px 32px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start my free trial →</button>
+            <div style={{fontSize:12,color:"#3D5068",marginTop:12}}>From $49/mo after the trial. Cancel before it ends and you pay nothing.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const FeaturesPage = () => (
     <div style={{padding:"60px 32px",maxWidth:1000,margin:"0 auto"}}>
       <div style={{textAlign:"center",marginBottom:48}}>
@@ -4594,8 +4642,8 @@ function LandingPage({ onGetStarted, onLogin }) {
                 <div key={n} style={{fontSize:10,padding:4,borderRadius:4,background:active?`${c}30`:"transparent",color:active?c:"#7A8BA8",fontWeight:active?700:400}}>{n}</div>
               ))}
             </div>
-            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between"}}><span>🚀 Product launch post</span><span style={{color:"#4F6EF7",fontSize:10}}>Tue 9:00am</span></div>
-            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between"}}><span>✨ Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
+            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#4F6EF7",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#4F6EF7",fontSize:10}}>Tue 9:00am</span></div>
+            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#E1306C",display:"inline-block",flexShrink:0}}/>Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
           </div>
         </div>
 
@@ -4609,11 +4657,11 @@ function LandingPage({ onGetStarted, onLogin }) {
               <span style={{padding:"4px 10px",borderRadius:20,background:"#7C3AED30",fontSize:10,color:"#7C3AED"}}>Exciting tone</span>
             </div>
             <div style={{border:"1px solid #1C2D45",borderRadius:8,padding:10,marginBottom:8}}>
-              <div style={{fontSize:9,color:"#4F6EF7",fontWeight:700,marginBottom:4}}>🇬🇧 ENGLISH</div>
+              <div style={{fontSize:9,color:"#4F6EF7",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ENGLISH</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6}}>Summer is here & so is our new collection! ☀️ Fresh styles made for you. Shop now and shine! ✨ #SummerVibes #NewCollection</div>
             </div>
             <div style={{border:"1px solid #1C2D45",borderRadius:8,padding:10}}>
-              <div style={{fontSize:9,color:"#7C3AED",fontWeight:700,marginBottom:4}}>🇸🇦 ARABIC</div>
+              <div style={{fontSize:9,color:"#7C3AED",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ARABIC</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6,direction:"rtl",textAlign:"right"}}>الصيف هنا ومعه مجموعتنا الجديدة! ☀️ أزياء عصرية صُممت لك. تسوق الآن! ✨ #أزياء_الصيف #مجموعة_جديدة</div>
             </div>
           </div>
@@ -4900,6 +4948,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh",paddingBottom:isMobile?74:0}}>
       <Nav/>
       {landingPage==='home'&&<HomePage/>}
+      {landingPage==='trial'&&<TrialPage/>}
       {landingPage==='features'&&<FeaturesPage/>}
       {landingPage==='pricing'&&<PricingPage/>}
       {landingPage==='about'&&<AboutPage/>}
@@ -5028,6 +5077,9 @@ function AuthPage() {
   };
 
   const [signupStep,    setSignupStep]    = useState(1);
+  const [trialGoal,     setTrialGoal]     = useState("");
+  const [trialPlatforms,setTrialPlatforms]= useState([]);
+  const [trialBrands,   setTrialBrands]   = useState("");
   const [accountType,   setAccountType]   = useState("agency");
   const [selectedPlan,  setSelectedPlan]  = useState("professional");
   const [billingPeriod, setBillingPeriod] = useState("monthly");
@@ -5213,7 +5265,7 @@ function AuthPage() {
                       </div>
                     ))}
                   </div>
-                  <button onClick={()=>setSignupStep(2)} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
+                  <button onClick={()=>setSignupStep(5)} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
                     Continue <ChevronRight size={15}/>
                   </button>
                   <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
@@ -5223,12 +5275,67 @@ function AuthPage() {
                 </>
               )}
 
+              {/* STEP 5 — Your goal (trial journey) */}
+              {signupStep===5&&(
+                <>
+                  <div style={{marginBottom:22}}>
+                    <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>What's your main goal?</h1>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>We'll tailor your workspace around it.</p>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                    {[
+                      ["grow","Grow my audience",TrendingUp],
+                      ["time","Save time on posting",Clock],
+                      ["clients","Manage multiple clients",Users],
+                      ["analytics","Understand my analytics",BarChart2],
+                    ].map(([id,label,Ic])=>(
+                      <div key={id} onClick={()=>setTrialGoal(id)} style={{display:"flex",alignItems:"center",gap:13,padding:"14px 16px",borderRadius:12,border:`1.5px solid ${trialGoal===id?th.accent:th.border}`,background:trialGoal===id?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:13.5,fontWeight:600,color:th.text,transition:"all 0.15s"}}>
+                        <div style={{width:34,height:34,borderRadius:9,background:trialGoal===id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={17} color={trialGoal===id?"#fff":th.text2}/></div>
+                        <span style={{flex:1}}>{label}</span>
+                        <div style={{width:18,height:18,borderRadius:"50%",border:`1.5px solid ${trialGoal===id?th.accent:th.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{trialGoal===id&&<div style={{width:9,height:9,borderRadius:"50%",background:th.accent}}/>}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setSignupStep(1)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
+                    <button onClick={()=>trialGoal&&setSignupStep(6)} disabled={!trialGoal} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:trialGoal?"pointer":"not-allowed",opacity:trialGoal?1:0.55,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 6 — Platforms + brands (trial journey) */}
+              {signupStep===6&&(
+                <>
+                  <div style={{marginBottom:20}}>
+                    <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>Tell us about your social</h1>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>So we can set you up for the perfect start.</p>
+                  </div>
+                  <div style={{fontSize:11.5,fontWeight:700,color:th.text2,marginBottom:9,textTransform:"uppercase",letterSpacing:0.5}}>Which platforms do you post on?</div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:22}}>
+                    {[["ig","Instagram",FaInstagram,"#E1306C"],["fb","Facebook",FaFacebook,"#1877F2"],["li","LinkedIn",FaLinkedin,"#0A66C2"],["tt","TikTok",FaTiktok,th.text],["tw","X",FaTwitter,th.text]].map(([id,label,Ic,c])=>{
+                      const on=trialPlatforms.includes(id);
+                      return <div key={id} onClick={()=>setTrialPlatforms(p=>on?p.filter(x=>x!==id):[...p,id])} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:999,border:`1.5px solid ${on?th.accent:th.border}`,background:on?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}><Ic style={{color:c,fontSize:15}}/>{label}{on&&<CheckCircle size={13} color={th.accent}/>}</div>;
+                    })}
+                  </div>
+                  <div style={{fontSize:11.5,fontWeight:700,color:th.text2,marginBottom:9,textTransform:"uppercase",letterSpacing:0.5}}>How many brands do you manage?</div>
+                  <div style={{display:"flex",gap:8,marginBottom:24}}>
+                    {[["1","Just one"],["2-5","2 – 5"],["6+","6 or more"]].map(([id,label])=>(
+                      <div key={id} onClick={()=>setTrialBrands(id)} style={{flex:1,textAlign:"center",padding:"12px",borderRadius:11,border:`1.5px solid ${trialBrands===id?th.accent:th.border}`,background:trialBrands===id?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}>{label}</div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setSignupStep(5)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
+                    <button onClick={()=>setSignupStep(2)} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
+                  </div>
+                </>
+              )}
+
               {/* STEP 2 — Plan */}
               {signupStep===2&&(
                 <>
                   <div style={{marginBottom:24}}>
                     <h1 style={{margin:0,fontSize:22,fontWeight:900,letterSpacing:-0.5}}>Choose your plan</h1>
-                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>7-day free trial included. No credit card required.</p>
+                    <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>30-day free trial included. No credit card required.</p>
                   </div>
                   <div style={{display:"flex",justifyContent:"center",gap:4,background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:3,width:"fit-content",margin:"0 auto 16px"}}>
                     {[["monthly","Monthly"],["annual","Annual"]].map(([b,lbl])=>(
@@ -5677,7 +5784,10 @@ export default function TawasloApp() {
   if (showLanding && !isAdminHost) {
     return (
       <AppCtx.Provider value={ctx}>
-        <LandingPage onGetStarted={()=>{ if(isAuthed){ savePage("dashboard"); } setShowLanding(false); }} onLogin={()=>{ if(isAuthed){ savePage("dashboard"); } setShowLanding(false); }}/>
+        <LandingPage
+          onGetStarted={async ()=>{ if(isAuthed){ try{ await signOut(); }catch(e){} setIsAuthed(false); } setAuthPage('register'); setShowLanding(false); }}
+          onLogin={()=>{ if(isAuthed){ savePage("dashboard"); setShowLanding(false); } else { setAuthPage('login'); setShowLanding(false); } }}
+        />
       </AppCtx.Provider>
     );
   }
