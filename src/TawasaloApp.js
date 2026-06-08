@@ -4481,7 +4481,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             </div>
             <div style={{display:"flex"}}>
               <div style={{width:162,borderRight:"1px solid #1C2D45",padding:"14px 12px",background:"#07090F"}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><div style={{width:22,height:22,borderRadius:7,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><img src="/logo-transparent.png" alt="" style={{width:22,height:22,objectFit:"contain"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
                 {[["Dashboard",true],["Publisher",false],["Planner",false],["Analytics",false],["Inbox",false]].map(([n,a],i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(79,110,247,0.12)":"transparent",color:a?"#4F6EF7":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#4F6EF7":"#1C2D45"}}/>{n}</div>
                 ))}
