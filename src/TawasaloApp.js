@@ -4469,7 +4469,77 @@ function LandingPage({ onGetStarted, onLogin }) {
             <div key={v} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:12,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
           ))}
         </div>
+
+        {/* Hero product preview — shows it's a real, polished product, not just copy */}
+        {!isMobile && (
+        <div style={{maxWidth:900,margin:"60px auto 0",position:"relative"}}>
+          <div style={{position:"absolute",inset:"-30px -10px 0",background:"radial-gradient(ellipse at 50% 22%, rgba(79,110,247,0.30), transparent 62%)",filter:"blur(8px)",pointerEvents:"none"}}/>
+          <div style={{position:"relative",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.65)",textAlign:"left"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,padding:"10px 14px",borderBottom:"1px solid #1C2D45",background:"#07090F"}}>
+              <span style={{width:10,height:10,borderRadius:"50%",background:"#EF4444"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#F59E0B"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#10B981"}}/>
+              <div style={{marginLeft:12,fontSize:11,color:"#3D5068",background:"#101828",borderRadius:7,padding:"4px 14px"}}>tawaslo.com/dashboard</div>
+            </div>
+            <div style={{display:"flex"}}>
+              <div style={{width:162,borderRight:"1px solid #1C2D45",padding:"14px 12px",background:"#07090F"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><div style={{width:22,height:22,borderRadius:7,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
+                {[["Dashboard",true],["Publisher",false],["Planner",false],["Analytics",false],["Inbox",false]].map(([n,a],i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(79,110,247,0.12)":"transparent",color:a?"#4F6EF7":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#4F6EF7":"#1C2D45"}}/>{n}</div>
+                ))}
+              </div>
+              <div style={{flex:1,padding:16}}>
+                <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Marina Café &amp; Bistro</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:14}}>
+                  {[["Followers","77.6K","#10B981"],["Reach","1.5M","#4F6EF7"],["Posts","128","#A78BFA"],["Engage","6.4%","#F59E0B"]].map(([l,v,c],i)=>(
+                    <div key={i} style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:10,padding:"10px 11px"}}><div style={{fontSize:9,color:"#7A8BA8",marginBottom:5}}>{l}</div><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div></div>
+                  ))}
+                </div>
+                <div style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:10,padding:13}}>
+                  <div style={{fontSize:10.5,color:"#7A8BA8",marginBottom:10}}>Reach &middot; last 30 days</div>
+                  <svg viewBox="0 0 400 80" style={{width:"100%",height:80,display:"block"}}>
+                    <defs><linearGradient id="heroSpark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
+                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10 L400,80 L0,80 Z" fill="url(#heroSpark)"/>
+                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        )}
       </div>
+
+      {/* Platform strip */}
+      <div style={{padding:"30px 32px",borderTop:"1px solid #1C2D45",borderBottom:"1px solid #1C2D45",background:"#07090F"}}>
+        <div style={{textAlign:"center",fontSize:11,color:"#3D5068",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:18}}>Publish &amp; manage across every network</div>
+        <div style={{display:"flex",gap:isMobile?20:40,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
+          {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["TikTok","#E8EFF8",FaTiktok],["LinkedIn","#0A66C2",FaLinkedin],["X","#E8EFF8",FaTwitter],["YouTube","#FF0000",FaYoutube]].map(([n,c,Ic])=>(
+            <div key={n} style={{display:"flex",alignItems:"center",gap:8,color:"#7A8BA8",fontSize:14,fontWeight:600}}><Ic style={{color:c,fontSize:20}}/>{n}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div style={{padding:isMobile?"56px 18px":"72px 32px",background:"#07090F"}}>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Up and running in minutes</h2>
+          <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:44}}>Three steps from sign-up to growing your audience.</p>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:18}}>
+            {[
+              ["01","Connect your channels",Link,"Link Instagram, Facebook, LinkedIn and more in about 30 seconds."],
+              ["02","Create with AI",Wand2,"Write posts yourself or let the AI draft bilingual captions, hashtags and ideas."],
+              ["03","Schedule & grow",Calendar,"Plan your whole month, auto-publish at the perfect time, and track what works."],
+            ].map(([num,title,Ic,desc])=>(
+              <div key={num} style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:24,position:"relative",overflow:"hidden"}}>
+                <div style={{position:"absolute",top:14,right:18,fontSize:38,fontWeight:900,color:"#141E2E"}}>{num}</div>
+                <div style={{width:44,height:44,borderRadius:13,background:"rgba(79,110,247,0.11)",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16,position:"relative"}}><Ic size={20} color="#4F6EF7"/></div>
+                <div style={{fontSize:15,fontWeight:800,marginBottom:7}}>{title}</div>
+                <div style={{fontSize:12.5,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div style={{background:"#0C1120",padding:"72px 32px"}}>
         <div style={{maxWidth:1000,margin:"0 auto"}}>
           <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Everything your brand needs</h2>
