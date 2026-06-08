@@ -341,8 +341,11 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail } = useApp();
   const th = useTheme();
+  const uName = userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User";
+  const uSub = (mode==="owner") ? "Tawaslo HQ" : (selClient?.name && selClient.name!=="Workspace" ? selClient.name : (accountLabelOf(accountType)||"Workspace"));
+  const uInit = uName.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() || "U";
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
   const NOTIFS = [
@@ -405,10 +408,10 @@ function Topbar() {
           )}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-          <div style={{width:32,height:32,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>OF</div>
-          <div style={{lineHeight:1}}>
-            <div style={{fontSize:12,fontWeight:700}}>Abdulla</div>
-            <div style={{fontSize:9,color:th.text2}}>Octo Fusion</div>
+          <div style={{width:32,height:32,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>{uInit}</div>
+          <div style={{lineHeight:1.3}}>
+            <div style={{fontSize:12,fontWeight:700}}>{uName}</div>
+            <div style={{fontSize:9,color:th.text2}}>{uSub}</div>
           </div>
         </div>
       </div>
@@ -5465,7 +5468,8 @@ export default function TawasloApp() {
     setUserEmail(user.email || null);
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
-    await ensureOctoFusionClient(user.id);
+    // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
+    if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
     const { data: rows } = await getClients(user.id);
     const norm = (rows || []).map(c => ({
       ...c,
@@ -5531,7 +5535,7 @@ export default function TawasloApp() {
     page, setPage: savePage,
     selClient, setSelClient,
     clients, setClients,
-    accountType,
+    accountType, userEmail,
   };
 
   const renderPage = () => {
@@ -5546,7 +5550,7 @@ export default function TawasloApp() {
       if (page==="team")     return <OwnerTeamPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
-    if (page==="dashboard") return <AgencyDashboard/>;
+    if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
@@ -5592,11 +5596,13 @@ export default function TawasloApp() {
     );
   }
 
-  // The admin console subdomain never shows the marketing site — go straight to login.
-  if (showLanding && !isAuthed && !isAdminHost) {
+  // The public site is always the entry point — even with a saved session, visitors
+  // land on the marketing page and choose to enter (never auto-dropped into an account).
+  // Admin console subdomain skips it and goes straight to its own login.
+  if (showLanding && !isAdminHost) {
     return (
       <AppCtx.Provider value={ctx}>
-        <LandingPage onGetStarted={()=>setShowLanding(false)} onLogin={()=>setShowLanding(false)}/>
+        <LandingPage onGetStarted={()=>{ if(isAuthed){ savePage("dashboard"); } setShowLanding(false); }} onLogin={()=>{ if(isAuthed){ savePage("dashboard"); } setShowLanding(false); }}/>
       </AppCtx.Provider>
     );
   }
