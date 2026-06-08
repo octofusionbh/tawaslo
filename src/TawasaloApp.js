@@ -318,8 +318,16 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t } = useApp();
+  const { mode, page, selClient, accountType, t, setPage } = useApp();
   const th = useTheme();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [dotSeen, setDotSeen] = useState(false);
+  const NOTIFS = [
+    { Icon:Send, color:th.success, title:"Post published", body:"Your scheduled post went live on Facebook.", ago:"12m" },
+    { Icon:MessageCircle, color:th.accent, title:"New comment", body:"Someone commented on your Instagram post.", ago:"1h" },
+    { Icon:FileText, color:th.accent2, title:"Report ready", body:"Your weekly performance report is ready.", ago:"1d" },
+    { Icon:Sparkles, color:th.warning, title:"Trial reminder", body:"You have 23 days left on your free trial.", ago:"2d" },
+  ];
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
     promos:"Promo Codes", gifts:"Gift Cards & Gifting", support:"Support Inbox",
@@ -346,13 +354,33 @@ function Topbar() {
         </div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
-        <button style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,cursor:"pointer"}}>
+        <button onClick={()=>{ try { window.print(); } catch(e) { /* ignore */ } }} title="Print / save this page as PDF" style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,cursor:"pointer"}}>
           <Download size={12}/> {t("btn.export","Export")}
         </button>
-        <button style={{width:32,height:32,borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-          <Bell size={14} color={th.text2}/>
-          <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>
-        </button>
+        <div style={{position:"relative"}}>
+          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+            <Bell size={14} color={notifOpen?th.accent:th.text2}/>
+            {!dotSeen && <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>}
+          </button>
+          {notifOpen && (
+            <>
+              <div onClick={()=>setNotifOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
+              <div style={{position:"absolute",right:0,top:40,zIndex:50,width:330,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <span style={{fontSize:13,fontWeight:700}}>Notifications</span>
+                  <span onClick={()=>setNotifOpen(false)} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>
+                </div>
+                {NOTIFS.map((n,i)=>(
+                  <div key={i} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none"}}>
+                    <div style={{width:30,height:30,borderRadius:9,background:n.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><n.Icon size={14} color={n.color}/></div>
+                    <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.title} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {n.ago}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.body}</div></div>
+                  </div>
+                ))}
+                <div onClick={()=>{ setNotifOpen(false); setPage("reports"); }} style={{padding:"11px 16px",textAlign:"center",fontSize:12,color:th.accent,fontWeight:600,cursor:"pointer"}}>View all activity</div>
+              </div>
+            </>
+          )}
+        </div>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
           <div style={{width:32,height:32,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>OF</div>
           <div style={{lineHeight:1}}>

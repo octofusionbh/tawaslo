@@ -1,0 +1,1 @@
+module.exports={parser:'@babel/eslint-parser',parserOptions:{requireConfigFile:false,ecmaVersion:2021,sourceType:'module',ecmaFeatures:{jsx:true},babelOptions:{presets:['babel-preset-react-app']}},plugins:['react'],rules:{'no-undef':'error','react/jsx-no-undef':'error'},settings:{react:{version:'detect'}},env:{browser:true,es2021:true}};
