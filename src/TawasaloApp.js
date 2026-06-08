@@ -56,6 +56,47 @@ const LIGHT = {
   insta:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#FF0050", yt:"#FF0000",
 };
 
+// ── Free-trial limits ──────────────────────────────────────────────
+// Trial users get the full product for 30 days, but with caps that nudge
+// them to upgrade: AI is the headline paid feature (5 free generations,
+// then locked), up to 3 connected accounts, and a capped post volume.
+// Tracked in localStorage so it works before billing is wired. The demo
+// and owner accounts are always full-access so the product shows complete.
+const TRIAL = { ai: 5, accounts: 3, posts: 10 };
+const FULL_ACCESS_EMAILS = ["demo@tawaslo.com", "octofusionbh@gmail.com"];
+function isTrialUser(email) {
+  if (!email) return false;
+  const e = String(email).toLowerCase();
+  if (FULL_ACCESS_EMAILS.includes(e)) return false;
+  if (localStorage.getItem("tw_paid_" + e) === "1") return false;
+  return true;
+}
+function aiUsesOf(email) { return parseInt(localStorage.getItem("tw_aiuses_" + String(email).toLowerCase()) || "0", 10); }
+function bumpAiUses(email) { const n = aiUsesOf(email) + 1; localStorage.setItem("tw_aiuses_" + String(email).toLowerCase(), String(n)); return n; }
+function postsOf(email) { return parseInt(localStorage.getItem("tw_posts_" + String(email).toLowerCase()) || "0", 10); }
+function bumpPosts(email, by = 1) { const n = postsOf(email) + by; localStorage.setItem("tw_posts_" + String(email).toLowerCase(), String(n)); return n; }
+function markTrialStart(email) {
+  const e = String(email).toLowerCase();
+  if (!localStorage.getItem("tw_trial_start_" + e)) localStorage.setItem("tw_trial_start_" + e, String(Date.now()));
+}
+
+// Reusable upgrade prompt — shown when a trial user hits a cap.
+function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
+  if (!open) return null;
+  const I = Icon || (()=>null);
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:28,textAlign:"center",boxShadow:th.shadow}}>
+        <div style={{width:60,height:60,borderRadius:16,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><I size={28} color="#fff"/></div>
+        <h2 style={{margin:"0 0 8px",fontSize:20,fontWeight:800,color:th.text,letterSpacing:-0.4}}>{title}</h2>
+        <p style={{margin:"0 0 22px",fontSize:13.5,color:th.text2,lineHeight:1.65}}>{detail}</p>
+        <button onClick={onUpgrade} style={{width:"100%",padding:"13px",borderRadius:12,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:10}}>Upgrade to unlock</button>
+        <button onClick={onClose} style={{width:"100%",padding:"11px",borderRadius:12,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>Maybe later</button>
+      </div>
+    </div>
+  );
+}
+
 const PLATFORMS = [
   {id:"ig",name:"Instagram",color:"insta"},
   {id:"fb",name:"Facebook", color:"fb"  },
@@ -1285,8 +1326,9 @@ function OwnerTeamPage() {
 }
 
 function AgencyDashboard() {
-  const { selClient, setPage, clients, setSelClient } = useApp();
+  const { selClient, setPage, clients, setSelClient, userEmail } = useApp();
   const th = useTheme();
+  const [upgrade, setUpgrade] = useState(null);
   const [caption, setCaption] = useState("");
   const [selPl, setSelPl] = useState(["ig","fb"]);
 
@@ -1317,6 +1359,10 @@ function AgencyDashboard() {
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
+    if (isTrialUser(userEmail) && aiUsesOf(userEmail) >= TRIAL.ai) {
+      setUpgrade({ title:"You've used all 5 free AI generations", detail:"AI captions are a paid feature. You've experienced what the AI can do — upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.", Icon:Wand2 });
+      return;
+    }
     setAiLoading(true); setAiError(""); setAiResult(null);
     try {
       const res = await fetch('/api/generate-caption', {
@@ -1331,6 +1377,7 @@ function AgencyDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
       setAiResult(data);
+      if (isTrialUser(userEmail)) bumpAiUses(userEmail);
     } catch (e) {
       setAiError(e.message);
     } finally {
@@ -1358,6 +1405,7 @@ function AgencyDashboard() {
   ];
   return (
     <div>
+      <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
       <OnboardingHero/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1954,8 +2002,9 @@ function EmptyState({ Icon, title, body, cta, onCta, compact }) {
 }
 
 function PublisherPage() {
-  const { selClient, dark, setPage } = useApp();
+  const { selClient, dark, setPage, userEmail } = useApp();
   const th = dark ? DARK : LIGHT;
+  const [upgrade, setUpgrade] = useState(null);
   const [tab, setTab] = useState("compose");
   const [accounts, setAccounts] = useState([]);
   const [selectedAccounts, setSelectedAccounts] = useState([]);
@@ -2051,12 +2100,17 @@ function PublisherPage() {
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
+    if (isTrialUser(userEmail) && aiUsesOf(userEmail) >= TRIAL.ai) {
+      setUpgrade({ title:"You've used all 5 free AI generations", detail:`AI captions are a paid feature. You've experienced what the AI can do — upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.`, Icon:Wand2 });
+      return;
+    }
     setAiLoading(true); setAiResult(null);
     try {
       const res = await fetch('/api/generate-caption', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: aiTopic, tone: aiTone, audience: aiAudience, details: aiDetails, lang: aiLang, platform: selPlats[0] || 'ig', brand: selClient?.name }) });
       const data = await res.json();
       setAiResult(data);
+      if (isTrialUser(userEmail) && !data.error) bumpAiUses(userEmail);
     } catch (e) { setAiResult({ error: 'Could not generate.' }); }
     setAiLoading(false);
   };
@@ -2075,6 +2129,10 @@ function PublisherPage() {
 
   const handlePost = async () => {
     if (!caption.trim() || selectedAccounts.length === 0) return;
+    if (isTrialUser(userEmail) && postsOf(userEmail) >= TRIAL.posts) {
+      setUpgrade({ title:`You've reached your ${TRIAL.posts}-post trial limit`, detail:`Your free trial includes ${TRIAL.posts} posts so you can feel the full workflow. Upgrade for unlimited publishing and scheduling across all your brands.`, Icon:Send });
+      return;
+    }
     setPosting(true); setResults([]);
     const imgs = images.map(m => m.url);
     const out = [];
@@ -2101,6 +2159,8 @@ function PublisherPage() {
       }
     }
     setPosting(false);
+    const okCount = out.filter(r => r.success).length;
+    if (okCount && isTrialUser(userEmail)) bumpPosts(userEmail, okCount);
     if (out.every(r => r.success)) { if (editingDraftId) await supabase.from('posts').delete().eq('id', editingDraftId); resetComposer(); loadDrafts(); }
     setResults(out);
   };
@@ -2125,6 +2185,7 @@ function PublisherPage() {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
+      <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Create post</h2>
@@ -2208,7 +2269,10 @@ function PublisherPage() {
                       <button key={k} onClick={()=>setAiLang(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", background:aiLang===k?th.gradient:"transparent", color:aiLang===k?"#fff":th.text2, fontSize:11, fontWeight:aiLang===k?600:400, cursor:"pointer" }}>{t}</button>
                     ))}
                   </div>
-                  <button onClick={generateCaption} disabled={aiLoading||!aiTopic.trim()} style={{ padding:"9px 16px", borderRadius:9, background:th.accent, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", opacity:(aiLoading||!aiTopic.trim())?0.6:1 }}>{aiLoading?"Writing…":"Generate"}</button>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    {isTrialUser(userEmail) && <span style={{ fontSize:10.5, fontWeight:600, color:Math.max(0,TRIAL.ai-aiUsesOf(userEmail))<=1?th.warning:th.text2 }}>{Math.max(0,TRIAL.ai-aiUsesOf(userEmail))} of {TRIAL.ai} free AI left</span>}
+                    <button onClick={generateCaption} disabled={aiLoading||!aiTopic.trim()} style={{ padding:"9px 16px", borderRadius:9, background:th.accent, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", opacity:(aiLoading||!aiTopic.trim())?0.6:1 }}>{aiLoading?"Writing…":"Generate"}</button>
+                  </div>
                 </div>
                 {aiResult && !aiResult.error && (
                   <div style={{ marginTop:11, background:th.card, border:`1px solid ${th.border}`, borderRadius:10, padding:12 }}>
@@ -2380,10 +2444,11 @@ function PublisherPage() {
 }
 
 function SocialAccountsPage() {
-  const { selClient } = useApp();
+  const { selClient, userEmail, setPage } = useApp();
   const th = useTheme();
   const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
   const LINKEDIN_CLIENT_ID = process.env.REACT_APP_LINKEDIN_CLIENT_ID || "";
+  const [upgrade, setUpgrade] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -2391,6 +2456,15 @@ function SocialAccountsPage() {
   const [success, setSuccess] = useState("");
   const [realClientId, setRealClientId] = useState(null);
   const [liOptions, setLiOptions] = useState(null);
+
+  // Trial cap: limit connected accounts. Returns false (and prompts upgrade) when at the cap.
+  const guardConnect = () => {
+    if (isTrialUser(userEmail) && accounts.length >= TRIAL.accounts) {
+      setUpgrade({ title:`Trial limit: ${TRIAL.accounts} connected accounts`, detail:`Your free trial lets you connect up to ${TRIAL.accounts} social accounts so you can feel the multi-account workflow. Upgrade to connect unlimited accounts across all your brands.`, Icon:Plus });
+      return false;
+    }
+    return true;
+  };
 
   // Resolve real Supabase UUID for the selected client
   useEffect(() => {
@@ -2462,6 +2536,7 @@ function SocialAccountsPage() {
   };
 
   const connectInstagram = () => {
+    if (!guardConnect()) return;
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
     const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights';
@@ -2510,6 +2585,7 @@ function SocialAccountsPage() {
   };
 
   const connectMeta = () => {
+    if (!guardConnect()) return;
     const redirectUri = `https://tawaslo.com/api/meta-oauth`;
     const scope = [
       "pages_show_list",
@@ -2625,6 +2701,7 @@ function SocialAccountsPage() {
   };
 
   const connectLinkedin = () => {
+    if (!guardConnect()) return;
     if (!LINKEDIN_CLIENT_ID) { setError("LinkedIn isn't configured yet — add your LinkedIn Client ID (REACT_APP_LINKEDIN_CLIENT_ID in Vercel) to enable connecting."); return; }
     const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
     const scope = 'openid profile email w_member_social r_organization_admin w_organization_social';
@@ -2653,6 +2730,7 @@ function SocialAccountsPage() {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1000, position:"relative" }}>
+      <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
       <style>{`
         .tw-net{transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;}
         .tw-net:hover{transform:translateY(-4px); box-shadow:0 20px 46px rgba(0,0,0,0.45); border-color:${th.accent}66;}
@@ -5094,6 +5172,7 @@ function AuthPage() {
     setLoading(false);
     if (err) { setError(err.message); return; }
     if (data?.user) {
+      try { markTrialStart(email); } catch(e) {}
       await createProfile(data.user.id, name, email, selectedPlan, accountType, companyName);
       await createInitialClient(data.user.id, companyName || name, selectedPlan, accountType);
       // Send welcome email
