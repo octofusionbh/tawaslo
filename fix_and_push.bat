@@ -1,6 +1,10 @@
 @echo off
 cd /d "C:\Users\abdul\OneDrive\Desktop\tawaslo"
 
+echo Disabling git auto-cleanup (avoids OneDrive lock prompts)...
+git config gc.auto 0
+git config gc.autoDetach false
+
 echo Clearing stale git locks...
 del /f /q ".git\index.lock" 2>nul
 del /f /q ".git\HEAD.lock" 2>nul
