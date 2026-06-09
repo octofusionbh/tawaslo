@@ -3251,6 +3251,211 @@ function AnalyticsPage() {
   );
 }
 
+// ── Campaigns ─────────────────────────────────────────────────────────
+function CampaignsPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [realClientId, setRealClientId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [usingSample, setUsingSample] = useState(false);
+  const [form, setForm] = useState({ name:"", goal:"", start:"", end:"", platform:"all" });
+
+  const sampleCampaigns = () => ([
+    { id:'s1', name:'Summer Collection Launch', goal:'Reach 100K accounts', status:'active',    start_date:'2026-06-01', end_date:'2026-06-30', posts:12, reach:84200,  engagement:6.4 },
+    { id:'s2', name:'Ramadan Greetings',        goal:'Brand awareness',     status:'completed', start_date:'2026-03-01', end_date:'2026-03-30', posts:18, reach:142000, engagement:7.8 },
+    { id:'s3', name:'Weekend Brunch Push',      goal:'Drive bookings',      status:'scheduled', start_date:'2026-06-15', end_date:'2026-06-22', posts:6,  reach:0,      engagement:0   },
+  ]);
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setCampaigns(sampleCampaigns()); setUsingSample(true); setLoading(false); return; }
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => {
+      const cid = data && data[0] && data[0].id;
+      if (active) setRealClientId(cid || null);
+      supabase.from('campaigns').select('*').eq('client_id', cid).order('created_at', { ascending:false }).then(({ data, error }) => {
+        if (!active) return;
+        if (error || !data || data.length === 0) { setCampaigns(sampleCampaigns()); setUsingSample(true); }
+        else { setCampaigns(data.map(c => ({ ...c, posts:c.post_count||0, reach:c.reach||0, engagement:c.engagement||0 }))); setUsingSample(false); }
+        setLoading(false);
+      });
+    });
+    return () => { active = false; };
+  }, [selClient]);
+
+  const createCampaign = async () => {
+    if (!form.name.trim()) return;
+    const row = { client_id: realClientId, name: form.name.trim(), goal: form.goal.trim(), status:'active', start_date: form.start || null, end_date: form.end || null, platform: form.platform };
+    const local = { id:'local_'+Date.now(), ...row, posts:0, reach:0, engagement:0 };
+    setCampaigns(c => [local, ...(usingSample ? [] : c)]); setUsingSample(false);
+    setShowCreate(false); setForm({ name:"", goal:"", start:"", end:"", platform:"all" });
+    try { if (realClientId) await supabase.from('campaigns').insert([row]); } catch (e) {}
+  };
+
+  const fmt = (n) => n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1)+'K' : String(n || 0);
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : 'TBD';
+  const STATUS = { active:{ c:th.success, l:'Active' }, scheduled:{ c:th.warning, l:'Scheduled' }, completed:{ c:th.text2, l:'Completed' } };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+
+  return (
+    <div className="tw-page-in" style={{ padding:"28px 32px", maxWidth:1100 }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Campaigns</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>Group posts into campaigns and track them against a goal.</p>
+        </div>
+        <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>New campaign</button>
+      </div>
+
+      {loading ? <div style={{ color:th.text2, fontSize:13, padding:40, textAlign:"center" }}>Loading campaigns…</div> : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:16 }}>
+          {campaigns.map(c => {
+            const st = STATUS[c.status] || STATUS.active;
+            return (
+              <div key={c.id} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
+                  <div style={{ fontSize:15, fontWeight:700, color:th.text, lineHeight:1.3 }}>{c.name}</div>
+                  <span style={{ flexShrink:0, fontSize:10, fontWeight:700, color:st.c, background:st.c+'22', borderRadius:20, padding:"3px 10px" }}>{st.l}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:7 }}><Target size={13}/>{c.goal || 'No goal set'}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:14 }}><Calendar size={13}/>{fmtDate(c.start_date)} to {fmtDate(c.end_date)}</div>
+                <div style={{ display:"flex", gap:18, paddingTop:14, borderTop:`1px solid ${th.border}` }}>
+                  <div><div style={{ fontSize:17, fontWeight:800, color:th.text }}>{c.posts}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Posts</div></div>
+                  <div><div style={{ fontSize:17, fontWeight:800, color:th.text }}>{fmt(c.reach)}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Reach</div></div>
+                  <div><div style={{ fontSize:17, fontWeight:800, color:th.accent }}>{(c.engagement||0)}%</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Engagement</div></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreate && (
+        <div onClick={()=>setShowCreate(false)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:440, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:th.shadow }}>
+            <h3 style={{ margin:"0 0 16px", fontSize:18, fontWeight:800, color:th.text }}>New campaign</h3>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Campaign name</div>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Summer Collection Launch" style={{ ...inp, marginBottom:12 }}/>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Goal</div>
+            <input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="Reach 100K accounts" style={{ ...inp, marginBottom:12 }}/>
+            <div style={{ display:"flex", gap:10, marginBottom:18 }}>
+              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Start</div><input type="date" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} style={inp}/></div>
+              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>End</div><input type="date" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>setShowCreate(false)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
+              <button onClick={createCampaign} disabled={!form.name.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:form.name.trim()?"pointer":"not-allowed", opacity:form.name.trim()?1:0.6 }}>Create campaign</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Streams (live monitoring) ─────────────────────────────────────────
+function StreamsPage() {
+  const { selClient, dark } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const brand = selClient?.name || 'Your brand';
+  const [columns, setColumns] = useState([]);
+  const [newCol, setNewCol] = useState("");
+
+  useEffect(() => {
+    const slug = brand.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const tag = brand.replace(/[^A-Za-z0-9]/g, '');
+    setColumns([
+      { id:'c1', label:'@'+(slug || 'yourbrand'), kind:'Mentions' },
+      { id:'c2', label:'#'+(tag || 'YourBrand'), kind:'Hashtag' },
+      { id:'c3', label:'social media', kind:'Keyword' },
+    ]);
+  }, [selClient]);
+
+  const PLATS = [['ig','#E1306C'], ['fb','#1877F2'], ['li','#0A66C2'], ['tt', th.text2]];
+  const feedFor = (label) => {
+    const authors = ['mariam.q','gulf.foodie','khaleeji.style','the.daily.bh','noor.designs','urban.manama','adel.reviews','q8.trends'];
+    const texts = [
+      `Just discovered ${label} and honestly impressed so far.`,
+      `Has anyone tried ${label}? Looking for honest recommendations.`,
+      `${label} keeps showing up on my feed lately, curious about it.`,
+      `Loving what ${label} is doing this season.`,
+      `${label} got a mention in our latest weekly roundup.`,
+      `Quick shoutout to ${label}, smooth experience all round.`,
+    ];
+    let seed = label.length * 7 + 13;
+    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+    return Array.from({ length:6 }).map((_, i) => ({
+      author: authors[Math.floor(rnd() * authors.length)],
+      plat: PLATS[Math.floor(rnd() * PLATS.length)],
+      text: texts[i % texts.length],
+      time: `${1 + Math.floor(rnd() * 58)}m`,
+      likes: Math.floor(rnd() * 240),
+      comments: Math.floor(rnd() * 28),
+    }));
+  };
+
+  const addColumn = () => {
+    const v = newCol.trim(); if (!v) return;
+    const kind = v.startsWith('#') ? 'Hashtag' : v.startsWith('@') ? 'Mentions' : 'Keyword';
+    setColumns(c => [...c, { id:'c'+Date.now(), label:v, kind }]);
+    setNewCol("");
+  };
+  const removeColumn = (id) => setColumns(c => c.filter(x => x.id !== id));
+
+  return (
+    <div className="tw-page-in" style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Streams</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>A live, side by side pulse of every conversation about your brand.</p>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ position:"relative" }}>
+            <Search size={14} style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:th.text3 }}/>
+            <input value={newCol} onChange={e=>setNewCol(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addColumn()} placeholder="Add a keyword, #hashtag or @mention" style={{ width:280, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px 9px 32px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
+          </div>
+          <button onClick={addColumn} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer" }}><Plus size={14}/>Add</button>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:8 }}>
+        {columns.map(col => (
+          <div key={col.id} style={{ width:300, flexShrink:0, background:th.surface, border:`1px solid ${th.border}`, borderRadius:14, display:"flex", flexDirection:"column", maxHeight:"calc(100vh - 230px)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderBottom:`1px solid ${th.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background:th.success }}/>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{col.label}</div>
+                  <div style={{ fontSize:10, color:th.text2 }}>{col.kind}</div>
+                </div>
+              </div>
+              <button onClick={()=>removeColumn(col.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={16}/></button>
+            </div>
+            <div style={{ padding:12, overflowY:"auto" }}>
+              {feedFor(col.label).map((item, i) => (
+                <div key={i} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}>
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9.5, fontWeight:700, color:th.text2, flexShrink:0 }}>{item.author.slice(0,2).toUpperCase()}</div>
+                    <div style={{ flex:1, minWidth:0, fontSize:11.5, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>@{item.author}</div>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:item.plat[1], flexShrink:0 }}/>
+                    <span style={{ fontSize:10, color:th.text3, flexShrink:0 }}>{item.time}</span>
+                  </div>
+                  <div style={{ fontSize:12, color:th.text, lineHeight:1.5, marginBottom:8 }}>{item.text}</div>
+                  <div style={{ display:"flex", gap:14, fontSize:10.5, color:th.text2 }}>
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={11}/>{item.likes}</span>
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={11}/>{item.comments}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AdsPage() {
   const { selClient, dark } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -5815,6 +6020,8 @@ export default function TawasloApp() {
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="aistudio") return <AIStudioPage/>;
+    if (page==="campaigns") return <CampaignsPage/>;
+    if (page==="streams") return <StreamsPage/>;
     if (page==="media") return <MediaPage/>;
     if (page==="analytics") return <AnalyticsPage/>;
     if (page==="ads") return <AdsPage/>;
