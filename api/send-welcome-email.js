@@ -76,7 +76,7 @@ export default async function handler(req, res) {
           <td width="12"></td>
           <td valign="top" style="background:#0D1828;border-radius:8px;padding:12px;border:1px solid #1C2D45;">
             <div style="font-size:11px;font-weight:700;color:#E8EFF8;margin-bottom:10px;">Create a post</div>
-            <div style="background:#111827;border-radius:6px;padding:8px;font-size:8px;color:#7A8BA8;margin-bottom:8px;border:1px solid #1C2D45;line-height:1.5;">Introducing Tawaslo — built for agencies worldwide. Publish, schedule, and grow. 🚀</div>
+            <div style="background:#111827;border-radius:6px;padding:8px;font-size:8px;color:#7A8BA8;margin-bottom:8px;border:1px solid #1C2D45;line-height:1.5;">Introducing Tawaslo, built for agencies worldwide. Publish, schedule and grow.</div>
             <div style="background:#111827;border-radius:6px;height:32px;margin-bottom:8px;border:1px dashed #1C2D45;"></div>
             <table cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
               <td style="background:rgba(24,119,242,0.15);color:#1877F2;font-size:7px;font-weight:700;padding:3px 8px;border-radius:20px;margin-right:4px;">Facebook</td>
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
               <td style="background:rgba(225,48,108,0.15);color:#E1306C;font-size:7px;font-weight:700;padding:3px 8px;border-radius:20px;">Instagram</td>
             </tr></table>
             <div style="background:#4F6EF7;color:#fff;font-size:8px;font-weight:700;padding:5px 12px;border-radius:5px;display:inline-block;">Publish Now</div>
-            <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:5px;padding:4px 8px;font-size:7px;color:#10B981;margin-top:6px;">✓ Posted successfully!</div>
+            <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:5px;padding:4px 8px;font-size:7px;color:#10B981;margin-top:6px;">Posted successfully</div>
           </td>
         </tr></table>
       </td></tr>
@@ -166,7 +166,7 @@ export default async function handler(req, res) {
         </td>
         <td width="4%"></td>
         <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
-          <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Multi-client workspace</div>
+          <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">All brands, one workspace</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Manage all your brands from one dashboard</div>
         </td>
       </tr>
@@ -174,7 +174,7 @@ export default async function handler(req, res) {
       <tr>
         <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Campaigns</div>
-          <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Plan and run multi-platform campaigns for your clients</div>
+          <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Plan and run campaigns across every platform for your clients</div>
         </td>
         <td width="4%"></td>
         <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
@@ -221,34 +221,21 @@ export default async function handler(req, res) {
 
   <!-- FOOTER -->
   <tr><td style="background:#07090F;padding:22px 40px;text-align:center;border-top:1px solid #1C2D45;">
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 14px;">
+    <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px;"><tr>
+      <td style="padding:0 13px;"><a href="https://www.instagram.com/tawaslo" style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9FB0C8;text-decoration:none;">INSTAGRAM</a></td>
+      <td style="color:#243A57;font-size:12px;">&middot;</td>
+      <td style="padding:0 13px;"><a href="https://www.linkedin.com/company/tawaslo" style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9FB0C8;text-decoration:none;">LINKEDIN</a></td>
+      <td style="color:#243A57;font-size:12px;">&middot;</td>
+      <td style="padding:0 13px;"><a href="https://tawaslo.com" style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9FB0C8;text-decoration:none;">WEBSITE</a></td>
+    </tr></table>
+    <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 12px;">
       <tr>
-        <td style="padding:0 5px;">
-          <a href="https://tawaslo.com" style="display:block;width:36px;height:36px;border-radius:9px;background:#111827;border:1px solid #1C2D45;text-align:center;line-height:36px;text-decoration:none;">
-            <img src="https://img.icons8.com/ios/20/7A8BA8/globe--v1.png" width="16" height="16" alt="Website" style="margin-top:10px;"/>
-          </a>
-        </td>
-        <td style="padding:0 5px;">
-          <a href="https://instagram.com/tawaslo" style="display:block;width:36px;height:36px;border-radius:9px;background:#111827;border:1px solid #1C2D45;text-align:center;line-height:36px;text-decoration:none;">
-            <img src="https://img.icons8.com/ios/20/7A8BA8/instagram-new--v1.png" width="16" height="16" alt="Instagram" style="margin-top:10px;"/>
-          </a>
-        </td>
-        <td style="padding:0 5px;">
-          <a href="https://linkedin.com/company/tawaslo" style="display:block;width:36px;height:36px;border-radius:9px;background:#111827;border:1px solid #1C2D45;text-align:center;line-height:36px;text-decoration:none;">
-            <img src="https://img.icons8.com/ios/20/7A8BA8/linkedin--v1.png" width="16" height="16" alt="LinkedIn" style="margin-top:10px;"/>
-          </a>
-        </td>
+        <td style="padding:0 10px;"><a href="https://tawaslo.com/privacy.html" style="font-size:12px;color:#5A6B86;text-decoration:none;">Privacy</a></td>
+        <td style="padding:0 10px;"><a href="https://tawaslo.com/terms.html" style="font-size:12px;color:#5A6B86;text-decoration:none;">Terms</a></td>
+        <td style="padding:0 10px;"><a href="mailto:support@tawaslo.com" style="font-size:12px;color:#5A6B86;text-decoration:none;">Support</a></td>
       </tr>
     </table>
-    <table cellpadding="0" cellspacing="0" style="margin:0 auto 10px;">
-      <tr>
-        <td style="padding:0 10px;"><a href="https://tawaslo.com" style="font-size:12px;color:#3D5068;text-decoration:none;">Home</a></td>
-        <td style="padding:0 10px;"><a href="https://tawaslo.com/privacy.html" style="font-size:12px;color:#3D5068;text-decoration:none;">Privacy</a></td>
-        <td style="padding:0 10px;"><a href="https://tawaslo.com/terms.html" style="font-size:12px;color:#3D5068;text-decoration:none;">Terms</a></td>
-        <td style="padding:0 10px;"><a href="#" style="font-size:12px;color:#3D5068;text-decoration:none;">Unsubscribe</a></td>
-      </tr>
-    </table>
-    <div style="font-size:11px;color:#3D5068;">© 2026 Tawaslo. All rights reserved.</div>
+    <div style="font-size:11px;line-height:1.6;color:#3D5068;">© 2026 Tawaslo. All rights reserved.</div>
   </td></tr>
 
 </table>
@@ -267,7 +254,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: 'Tawaslo <support@tawaslo.com>',
         to: [email],
-        subject: `Welcome to Tawaslo — your workspace is live`,
+        subject: `Welcome to Tawaslo, your workspace is live`,
         html,
       }),
     });
