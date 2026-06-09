@@ -1,4 +1,5 @@
 import { useState, useEffect, createContext, useContext } from "react";
+import { createPortal } from "react-dom";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
@@ -313,7 +314,7 @@ function Sidebar() {
         <div style={{padding:"0 14px 12px"}}>
           <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",marginBottom:6}}>
             <div style={{fontSize:11,fontWeight:700}}>{selClient.name}</div>
-            <div style={{fontSize:9,color:th.text2,marginTop:1}}>{selClient.plan} · {selClient.accounts} accounts</div>
+            <div style={{fontSize:9,color:th.text2,marginTop:1}}>{selClient.accounts} connected account{selClient.accounts===1?"":"s"}</div>
           </div>
           {clients.length===0 && (
             <div style={{fontSize:10,color:th.text3,padding:"6px 9px"}}>No brands yet</div>
@@ -382,11 +383,12 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage, userEmail } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail, userName } = useApp();
   const th = useTheme();
-  const uName = userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User";
+  const uName = (userName && userName.trim())
+    ? userName.replace(/\b\w/g, c=>c.toUpperCase())
+    : (userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User");
   const uSub = (mode==="owner") ? "Tawaslo HQ" : (selClient?.name && selClient.name!=="Workspace" ? selClient.name : (accountLabelOf(accountType)||"Workspace"));
-  const uInit = uName.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() || "U";
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
   const NOTIFS = [
@@ -421,9 +423,6 @@ function Topbar() {
         </div>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
-        <button onClick={()=>{ try { window.print(); } catch(e) { /* ignore */ } }} title="Print / save this page as PDF" style={{display:"flex",alignItems:"center",gap:5,padding:"6px 12px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,cursor:"pointer"}}>
-          <Download size={12}/> {t("btn.export","Export")}
-        </button>
         <div style={{position:"relative"}}>
           <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
             <Bell size={14} color={notifOpen?th.accent:th.text2}/>
@@ -443,14 +442,12 @@ function Topbar() {
                     <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.title} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {n.ago}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.body}</div></div>
                   </div>
                 ))}
-                <div onClick={()=>{ setNotifOpen(false); setPage("reports"); }} style={{padding:"11px 16px",textAlign:"center",fontSize:12,color:th.accent,fontWeight:600,cursor:"pointer"}}>View all activity</div>
               </div>
             </>
           )}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-          <div style={{width:32,height:32,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"#fff"}}>{uInit}</div>
-          <div style={{lineHeight:1.3}}>
+          <div style={{lineHeight:1.3,textAlign:"right"}}>
             <div style={{fontSize:12,fontWeight:700}}>{uName}</div>
             <div style={{fontSize:9,color:th.text2}}>{uSub}</div>
           </div>
@@ -1398,7 +1395,7 @@ function AgencyDashboard() {
   const fmtWhen = (iso) => { const d=new Date(iso); const now=new Date(); const sameDay=d.toDateString()===now.toDateString(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (sameDay?"Today":d.toLocaleDateString([], {weekday:'short'}))+" · "+tm; };
   const upcomingShown = upcoming.length ? upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status})) : UPCOMING_FALLBACK;
   const kpiStats = [
-    { label:"Total Posts", value: postCount > 0 ? String(postCount) : "—", change:"+12%", up:true, Icon:FileText, color:"accent" },
+    { label:"Total Posts", value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
     { label:"Total Reach", value: dashFollowers > 0 ? fmtN(dashReach) : "—", change:"+28%", up:true, Icon:Eye, color:"info" },
     { label:"Engagement",  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
     { label:"Followers",   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
@@ -2490,7 +2487,7 @@ function SocialAccountsPage() {
     const igCode = params.get('ig_code');
     const igError = params.get('ig_error');
     if (igError) {
-      setError('Instagram connection failed: ' + igError);
+      setError(friendlyConnectError(igError));
       window.history.replaceState({}, '', '/social');
     } else if (igCode && realClientId) {
       handleInstagramCallback(igCode);
@@ -2502,7 +2499,7 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const liCode = params.get('li_code');
     const liError = params.get('li_error');
-    if (liError) { setError('LinkedIn connection failed: ' + liError); window.history.replaceState({}, '', '/social'); }
+    if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/social'); }
     else if (liCode && realClientId) { handleLinkedinCallback(liCode); }
   }, [realClientId]);
 
@@ -2546,6 +2543,20 @@ function SocialAccountsPage() {
     window.location.href = authUrl;
   };
 
+  // Turn raw platform/API errors into calm, branded guidance — never show a raw error string.
+  const friendlyConnectError = (msg) => {
+    const m = String(msg || '').toLowerCase();
+    if (m.includes('not available') || m.includes('development mode') || m.includes('app not active') || m.includes('isn\'t active'))
+      return "This account isn't enabled for Tawaslo yet. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com";
+    if (m.includes('nonexisting field') || m.includes('no instagram') || m.includes('no business') || m.includes('not linked') || m.includes('no pages'))
+      return "We couldn't find a Business Instagram account linked to a Facebook Page on this login. Switch the account to Business or Creator and link it to a Page, then reconnect.";
+    if (m.includes('permission') || m.includes('scope') || m.includes('denied'))
+      return "Some permissions weren't granted. Please reconnect and accept all of the requested permissions so we can manage the account for you.";
+    if (m.includes('token') || m.includes('expired') || m.includes('session'))
+      return "Your session with the platform expired. Please reconnect to continue.";
+    return "We couldn't connect that account just now. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com";
+  };
+
   const handleInstagramCallback = async (code) => {
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const storedId = sessionStorage.getItem('ig_redirect_client');
@@ -2577,7 +2588,7 @@ function SocialAccountsPage() {
       setSuccess(`Instagram @${acc.username} connected!`);
       loadAccounts(clientId);
     } catch (err) {
-      setError('Instagram save failed: ' + err.message);
+      setError(friendlyConnectError(err.message));
     }
     setConnecting(false);
     // Clean URL
@@ -2646,7 +2657,7 @@ function SocialAccountsPage() {
           }
 
           if (saveErrors.length > 0) {
-            setError(`Save failed: ${saveErrors.join('; ')}`);
+            setError(friendlyConnectError(saveErrors.join('; ')));
             setConnecting(false);
             return;
           }
@@ -2676,7 +2687,7 @@ function SocialAccountsPage() {
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
     }, { onConflict: 'client_id,account_id' });
-    if (upsertErr) { setError('LinkedIn save failed: ' + upsertErr.message); return; }
+    if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(`LinkedIn ${acc.kind === 'organization' ? 'Page' : 'profile'} "${acc.account_name}" connected!`);
     setLiOptions(null);
     loadAccounts(clientId);
@@ -2695,14 +2706,14 @@ function SocialAccountsPage() {
       if (opts.length === 1) await connectLiAccount(opts[0]);
       else if (opts.length > 1) setLiOptions(opts);
       else setError('No LinkedIn profile or Pages found to connect.');
-    } catch (err) { setError('LinkedIn connect failed: ' + err.message); }
+    } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
     window.history.replaceState({}, '', '/social');
   };
 
   const connectLinkedin = () => {
     if (!guardConnect()) return;
-    if (!LINKEDIN_CLIENT_ID) { setError("LinkedIn isn't configured yet — add your LinkedIn Client ID (REACT_APP_LINKEDIN_CLIENT_ID in Vercel) to enable connecting."); return; }
+    if (!LINKEDIN_CLIENT_ID) { setError("LinkedIn isn't available yet. We're finishing its setup and it will be ready soon."); return; }
     const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
     const scope = 'openid profile email w_member_social r_organization_admin w_organization_social';
     if (realClientId) sessionStorage.setItem('li_redirect_client', realClientId);
@@ -3532,7 +3543,7 @@ function AdsPage() {
       {loading ? (
         <div style={{ textAlign:"center", padding:60, color:th.text2, fontSize:13 }}>Loading ads data…</div>
       ) : error ? (
-        emptyState(Megaphone, "Could not load ads data", <>Ads performance needs the <strong style={{color:th.text}}>ads_read</strong> permission from Meta App Review. Connect a Facebook account with ads access to see campaigns. <span style={{ color:th.danger }}>({error})</span></>)
+        emptyState(Megaphone, "Ads insights are on the way", <>Connect a Facebook account that has ad account access to see your campaign performance here, including spend, reach and results, all in one place.</>)
       ) : !adsData ? (
         emptyState(BarChart2, "No ad account connected", "Connect a Facebook account that has ad-account access (via Social Accounts), then reconnect to see campaign performance here.")
       ) : adsData.campaigns.length === 0 ? (
@@ -3820,7 +3831,7 @@ ${topPosts.length > 0 ? `<div class="page">
     { label:"Total followers", value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
     { label:"Connected accounts", value: String(accounts.length), Icon:Link, color:"accent" },
     { label:"Platforms", value: String(platforms.length), Icon:Globe, color:"warning" },
-    { label:"Engagement rate", value: er != null ? er+"%" : "—", Icon:Heart, color:"accent2" },
+    { label:"Engagement rate", value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2" },
   ];
 
   return (
@@ -4252,10 +4263,13 @@ function BillingPage() {
     } catch (e) { /* ignore */ }
   }, []);
 
+  // The plan and billing cycle the user is actually subscribed to.
+  const currentPlanName = "Essential";
+  const currentPeriod = "annual";
   const plans = [
-    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", current:true, popular:false, tag:"For small businesses" },
-    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", current:false, popular:true, tag:"For growing brands" },
-    { name:"Enterprise", m:199, y:159, accounts:"Unlimited", users:"20", posts:"Unlimited", current:false, popular:false, tag:"For agencies" },
+    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:"For small businesses" },
+    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:"For growing brands" },
+    { name:"Enterprise", m:199, y:159, accounts:"Unlimited", users:"20", posts:"Unlimited", popular:false, tag:"For agencies" },
   ];
 
   const startCheckout = async (planName) => {
@@ -4281,7 +4295,7 @@ function BillingPage() {
           {cancelled ? (
             <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Your <span style={{color:th.accent, fontWeight:600}}>Essential</span> plan ends <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>Reactivate</span></p>
           ) : (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · renews July 1, 2026 · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>Cancel subscription</span></p>
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · billed {currentPeriod==="annual"?"yearly":"monthly"} · renews July 1, 2026 · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>Cancel subscription</span></p>
           )}
         </div>
         <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
@@ -4304,25 +4318,29 @@ function BillingPage() {
         </div>
       )}
 
-      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, alignItems:"start"}}>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, alignItems:"stretch"}}>
         {plans.map(plan => {
           const price = period==="annual" ? plan.y : plan.m;
           const save = (plan.m - plan.y) * 12;
           const featured = plan.popular;
+          const isYourTier = plan.name === currentPlanName;
+          const isCurrent = isYourTier && period === currentPeriod;     // the exact plan + cycle you pay for
+          const otherCycle = isYourTier && period !== currentPeriod;    // your tier, viewed on the other cycle
+          const highlight = featured || isCurrent;
           return (
             <div key={plan.name} style={{
               background:featured?th.card2:th.card,
-              border:`2px solid ${featured?th.accent:(plan.current?th.accent+"66":th.border)}`,
+              border:`2px solid ${isCurrent?th.accent:(featured?th.accent:(isYourTier?th.accent+"66":th.border))}`,
               borderRadius:16, padding:"26px 22px 22px", position:"relative",
+              display:"flex", flexDirection:"column",
               boxShadow:featured?"0 16px 44px rgba(79,110,247,0.28)":"0 8px 24px rgba(0,0,0,0.22)",
-              transform:featured?"translateY(-6px)":"none",
             }}>
               {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(79,110,247,0.5)"}}>MOST POPULAR</div>}
-              {plan.current && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>CURRENT</div>}
+              {isCurrent && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>CURRENT</div>}
               <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
               <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
               <div style={{display:"flex", alignItems:"baseline", gap:6}}>
-                <span style={{fontSize:34, fontWeight:900, color:featured||plan.current?th.accent:th.text}}>${price}</span>
+                <span style={{fontSize:34, fontWeight:900, color:highlight?th.accent:th.text}}>${price}</span>
                 <span style={{fontSize:12, color:th.text2}}>/mo</span>
               </div>
               <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>
@@ -4333,13 +4351,19 @@ function BillingPage() {
                 <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>AI captions (EN + AR)</div>
                 <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>Analytics dashboard</div>
               </div>
-              {plan.current ? (
-                <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center"}}>Your current plan</div>
-              ) : (
-                <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1}}>
-                  {busy===plan.name?"Starting checkout…":`Upgrade to ${plan.name}`}
-                </button>
-              )}
+              <div style={{marginTop:"auto"}}>
+                {isCurrent ? (
+                  <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center", boxSizing:"border-box"}}>Your current plan</div>
+                ) : otherCycle ? (
+                  <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
+                    {busy===plan.name?"Starting checkout…":`Switch to ${period==="annual"?"yearly":"monthly"} billing`}
+                  </button>
+                ) : (
+                  <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
+                    {busy===plan.name?"Starting checkout…":`Upgrade to ${plan.name}`}
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -4374,8 +4398,8 @@ function BillingPage() {
         <p style={{textAlign:"center", color:th.text3, fontSize:10, marginTop:10}}>Competitor pricing is approximate, based on publicly listed entry plans.</p>
       </div>
 
-      {showCancel && (
-        <div onClick={()=>setShowCancel(false)} style={{position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
+      {showCancel && createPortal((
+        <div onClick={()=>setShowCancel(false)} style={{position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
             <div style={{display:"flex", alignItems:"center", gap:11, marginBottom:14}}>
               <div style={{width:40, height:40, borderRadius:11, background:th.dangerSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><XCircle size={20} color={th.danger}/></div>
@@ -4388,13 +4412,13 @@ function BillingPage() {
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }
 
 function SettingsPage() {
-  const { dark, setDark, lang, setLang } = useApp();
+  const { dark, setDark, lang, setLang, setUserName } = useApp();
   const th = dark ? DARK : LIGHT;
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -4475,6 +4499,7 @@ function SettingsPage() {
     setSavingProfile(true); setProfileMsg("");
     try {
       await updateProfile(userId, { name: fullName });
+      try { setUserName(fullName); } catch (e) { /* ignore */ }
       if (loginEmail && loginEmail !== origEmail) {
         const { error } = await supabase.auth.updateUser({ email: loginEmail });
         if (error) { setProfileMsg(error.message || "Could not update email."); setSavingProfile(false); return; }
@@ -5954,9 +5979,12 @@ function TrialBanner() {
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : "rgba(79,110,247,0.08)", borderBottom:`1px solid ${th.border}`, flexShrink:0 }}>
       <div style={{ fontSize:12.5, color: ended ? th.danger : th.text, display:"flex", alignItems:"center", gap:8 }}>
         <Sparkles size={14} color={ended ? th.danger : th.accent}/>
-        {ended ? "Your free trial has ended — upgrade to keep publishing." : <>You're on a free trial — <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"} left</strong> of full access.</>}
+        {ended ? "Your free trial has ended. Upgrade to keep publishing." : <>You're on a free trial. <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"} left</strong> of full access.</>}
       </div>
-      <button onClick={()=>setPage("billing")} style={{ padding:"7px 15px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}>Upgrade</button>
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+        <button onClick={()=>setPage("billing")} style={{ padding:"7px 15px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Upgrade</button>
+        <button onClick={()=>setHidden(true)} title="Dismiss" aria-label="Dismiss" style={{ width:26, height:26, borderRadius:7, background:"transparent", border:"none", color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={16}/></button>
+      </div>
     </div>
   );
 }
@@ -5973,6 +6001,7 @@ export default function TawasloApp() {
   const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
   const [userEmail, setUserEmail] = useState(null);
+  const [userName,  setUserName]  = useState("");
   const [clients,   setClients]   = useState([]);
   const [accountType, setAccountType] = useState("agency");
   const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
@@ -5983,13 +6012,23 @@ export default function TawasloApp() {
     setUserEmail(user.email || null);
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
+    setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
     // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
     if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
     const { data: rows } = await getClients(user.id);
+    // Count the real connected accounts per brand so the sidebar shows a true number, not 0.
+    const ids = (rows || []).map(c => c.id).filter(Boolean);
+    let countByClient = {};
+    if (ids.length) {
+      try {
+        const { data: accs } = await supabase.from('social_accounts').select('client_id').in('client_id', ids).neq('is_active', false);
+        (accs || []).forEach(a => { countByClient[a.client_id] = (countByClient[a.client_id] || 0) + 1; });
+      } catch (e) { /* ignore */ }
+    }
     const norm = (rows || []).map(c => ({
       ...c,
       free: c.is_free ?? false,
-      accounts: c.accounts ?? 0,
+      accounts: countByClient[c.id] ?? (c.accounts ?? 0),
       posts: c.posts ?? 0,
       reach: c.reach ?? "—",
       health: c.health ?? 100,
@@ -6051,6 +6090,7 @@ export default function TawasloApp() {
     selClient, setSelClient,
     clients, setClients,
     accountType, userEmail,
+    userName, setUserName,
     setShowLanding,
   };
 
