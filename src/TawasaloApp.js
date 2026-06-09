@@ -4625,6 +4625,7 @@ function SettingsPage() {
 
 function LandingPage({ onGetStarted, onLogin }) {
   const [landingPage, setLandingPage] = useState('home');
+  const [openFaq, setOpenFaq] = useState(0);
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
   const [billing, setBilling] = useState('monthly');
@@ -4675,7 +4676,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:28,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
-        {[["Privacy","privacy"],["Terms","terms"],["Contact","contact"]].map(([l,p])=><span key={l} onClick={()=>setLandingPage(p)} style={{fontSize:11.5,color:"#7A8BA8",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color="#E8EFF8"} onMouseLeave={e=>e.currentTarget.style.color="#7A8BA8"}>{l}</span>)}
+        {[["FAQ","faq"],["Privacy","privacy"],["Terms","terms"],["Contact","contact"]].map(([l,p])=><span key={l} onClick={()=>setLandingPage(p)} style={{fontSize:11.5,color:"#7A8BA8",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color="#E8EFF8"} onMouseLeave={e=>e.currentTarget.style.color="#7A8BA8"}>{l}</span>)}
         <div style={{display:"flex",gap:8}}>
           {[["https://www.instagram.com/tawaslo",FaInstagram],["https://www.linkedin.com/company/tawaslo",FaLinkedin]].map(([href,Ic],i)=>(
             <a key={i} href={href} target="_blank" rel="noreferrer" style={{width:30,height:30,borderRadius:8,background:"#101828",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",color:"#7A8BA8",textDecoration:"none",transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#4F6EF7";}} onMouseLeave={e=>{e.currentTarget.style.color="#7A8BA8";e.currentTarget.style.borderColor="#1C2D45";}}><Ic style={{fontSize:14}}/></a>
@@ -5138,6 +5139,55 @@ function LandingPage({ onGetStarted, onLogin }) {
     </div>
   );
 
+  const FAQS = [
+    ["What is Tawaslo?", "Tawaslo is a social media management platform that lets you publish, schedule, reply, and analyze across all your accounts from one place. It is built for agencies and brands across the Gulf and beyond."],
+    ["Which platforms does Tawaslo support?", "Instagram, Facebook, and LinkedIn today, with TikTok, X, and YouTube on the way."],
+    ["Does Tawaslo work in Arabic?", "Yes. Tawaslo has native Arabic and right to left support, and the AI writes captions in both Arabic and English."],
+    ["Is there a free trial?", "Yes. You get 30 days free with no credit card. The full workspace is unlocked, with a few trial limits: AI is capped at five generations and you can connect up to three accounts."],
+    ["How does the AI work?", "Give it a topic and it generates on brand captions and hashtags in seconds, in Arabic and English, tuned to each brand voice. AI is a paid feature, with five free generations during your trial."],
+    ["Can I manage more than one brand?", "Yes. Each brand gets its own workspace, connected accounts, and reports. You switch between them in one click."],
+    ["How does pricing work?", "Flat monthly plans with no per seat fees. You can see current plans on the pricing page."],
+    ["Is my data secure?", "Your data is stored securely and you control which accounts are connected. You can disconnect any account at any time."],
+    ["How do I get started?", "Start your free trial, answer a few quick questions, connect an account, and publish your first post. It takes only a few minutes."],
+    ["How do I connect my social accounts?", "Open Social Accounts in your dashboard and connect each network in a few clicks. Instagram needs a Business or Creator account linked to a Facebook Page, and LinkedIn needs admin access to your company Page."],
+    ["Can I schedule posts in advance?", "Yes. Plan and schedule posts to every network from one composer, and see everything laid out on a visual calendar in the Planner."],
+    ["Can my team work together in Tawaslo?", "Yes. Invite team members to your workspace so they can draft, schedule, and reply alongside you, with roles that fit how you work."],
+    ["What analytics do I get?", "Track followers, reach, impressions, and engagement for every account, then turn it into clean monthly reports your clients are proud to receive."],
+    ["Can I reply to comments and messages?", "Yes. The unified inbox brings comments and direct messages from your connected networks into one place, so nothing slips through."],
+    ["Can I group posts into a campaign?", "Yes. Bundle related posts into a campaign, track them together against a goal, and measure performance in one view."],
+    ["Can I cancel anytime?", "Yes. There are no long term contracts. Cancel whenever you like and keep access until the end of your billing period."],
+    ["What payment methods do you accept?", "Local cards and regional payment methods, billed securely. See the pricing page for current plans."],
+    ["Is there a mobile app?", "Tawaslo runs in any browser on desktop and mobile. A dedicated app is on our roadmap."],
+    ["How do I get support?", "Email support@tawaslo.com, or reply to any Tawaslo email. We answer quickly."],
+  ];
+  const FAQPage = () => (
+    <div style={{padding:"60px 32px",maxWidth:760,margin:"0 auto"}}>
+      <div style={{textAlign:"center",marginBottom:40}}>
+        <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Frequently asked questions</h1>
+        <p style={{color:"#7A8BA8",fontSize:14}}>Everything you need to know about Tawaslo. Still curious? Email support@tawaslo.com.</p>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {FAQS.map(([q,a],i)=>{
+          const open = openFaq===i;
+          return (
+            <div key={i} style={{background:"#0C1120",border:`1px solid ${open?"#4F6EF7":"#1C2D45"}`,borderRadius:14,overflow:"hidden",transition:"border-color .15s"}}>
+              <button onClick={()=>setOpenFaq(open?null:i)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,padding:"18px 22px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:15,fontWeight:700,color:"#E8EFF8"}}>{q}</span>
+                <ChevronDown size={18} color={open?"#4F6EF7":"#7A8BA8"} style={{flexShrink:0,transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}/>
+              </button>
+              {open && <div style={{padding:"0 22px 20px",fontSize:13.5,lineHeight:1.75,color:"#A8B9CE"}}>{a}</div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{marginTop:40,textAlign:"center",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:"28px"}}>
+        <div style={{fontSize:18,fontWeight:800,color:"#E8EFF8",marginBottom:8}}>Still have a question?</div>
+        <div style={{fontSize:13,color:"#7A8BA8",marginBottom:18}}>Our team is happy to help. We usually reply within a few hours.</div>
+        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start your free trial</button>
+      </div>
+    </div>
+  );
+
   const sectionStyle = { fontSize:13, color:"#A8B9CE", lineHeight:1.75, marginBottom:12 };
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#4F6EF7", marginBottom:8, marginTop:0 };
   const dividerStyle = { border:"none", borderTop:"1px solid #1C2D45", margin:"24px 0" };
@@ -5236,6 +5286,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       {landingPage==='pricing'&&<PricingPage/>}
       {landingPage==='about'&&<AboutPage/>}
       {landingPage==='contact'&&<ContactPage/>}
+      {landingPage==='faq'&&<FAQPage/>}
       {landingPage==='privacy'&&<PrivacyPage/>}
       {landingPage==='terms'&&<TermsPage/>}
       <Footer/>
