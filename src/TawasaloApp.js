@@ -15,6 +15,7 @@ import {
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
+  Monitor,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -233,9 +234,12 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
 
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
-          selClient, setSelClient, setIsAuthed, clients, t } = useApp();
+          selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
+  const isMobile = useIsMobile();
+  // On mobile, navigating closes the slide-out drawer.
+  useEffect(() => { if (isMobile && setMobileNav) setMobileNav(false); }, [page]); // eslint-disable-line
 
   const OWNER_NAV = [
     {key:"overview", Icon:LayoutDashboard, label:"Overview"     },
@@ -294,13 +298,21 @@ function Sidebar() {
     </div>
   );
 
+  const drawer = isMobile ? {
+    position:"fixed", top:0, [isAR?"right":"left"]:0, height:"100vh",
+    transform: mobileNav ? "none" : (isAR ? "translateX(101%)" : "translateX(-101%)"),
+    transition:"transform 0.28s cubic-bezier(0.2,0.7,0.2,1)", zIndex:200,
+  } : {};
   return (
+    <>
+    {isMobile && mobileNav && <div onClick={()=>setMobileNav(false)} style={{position:"fixed",inset:0,background:"rgba(3,5,10,0.6)",backdropFilter:"blur(2px)",zIndex:190}}/>}
     <aside style={{
       width:230, flexShrink:0, background:th.surface,
       borderRight:!isAR?`1px solid ${th.border}`:"none",
       borderLeft:isAR?`1px solid ${th.border}`:"none",
       display:"flex", flexDirection:"column",
       boxShadow:th.shadow, zIndex:30, overflow:"hidden",
+      ...drawer,
     }}>
       <div style={{padding:"20px 18px 14px",display:"flex",alignItems:"center",gap:10}}>
         <img src="/logo-transparent.png" alt="Tawaslo" style={{width:38,height:38,objectFit:"contain",flexShrink:0}}/>
@@ -336,8 +348,9 @@ function Sidebar() {
         </div>
       )}
 
+      {!isMobile && (
       <div style={{padding:"0 14px 14px"}}>
-        <button style={{
+        <button onClick={()=>{ if(mode!=="owner") setPage("publisher"); }} style={{
           width:"100%",padding:"9px 0",borderRadius:10,
           background:th.gradient,border:"none",
           color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",
@@ -348,6 +361,7 @@ function Sidebar() {
           {mode==="owner"?t("btn.newCampaign","New Campaign"):t("btn.createPost","Create Post")}
         </button>
       </div>
+      )}
 
       <nav style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
@@ -356,7 +370,7 @@ function Sidebar() {
           AGENCY_NAV.map((sec,si)=>(
             <div key={si} style={{marginBottom:16}}>
               <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>
-              {sec.items.map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),badge,page===key,()=>setPage(key)))}
+              {sec.items.filter(it=>!(isMobile&&it.key==="publisher")).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),badge,page===key,()=>setPage(key)))}
             </div>
           ))
         )}
@@ -379,12 +393,14 @@ function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage, userEmail, userName } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, setMobileNav } = useApp();
   const th = useTheme();
+  const isMobile = useIsMobile();
   const uName = (userName && userName.trim())
     ? userName.replace(/\b\w/g, c=>c.toUpperCase())
     : (userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User");
@@ -408,12 +424,13 @@ function Topbar() {
   };
   return (
     <header style={{height:58,flexShrink:0,background:th.surface,borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 22px"}}>
-      <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:7,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"6px 12px",width:220}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+        {isMobile && <button onClick={()=>setMobileNav&&setMobileNav(true)} aria-label="Menu" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text,display:"flex",alignItems:"center",padding:4,flexShrink:0}}><Menu size={22}/></button>}
+        {!isMobile && <div style={{display:"flex",alignItems:"center",gap:7,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"6px 12px",width:220}}>
           <Search size={13} color={th.text3}/>
           <input placeholder={t("common.search","Search...")} style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12,width:"100%",fontFamily:"inherit"}}/>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2}}>
+        </div>}
+        <div style={{display:isMobile?"none":"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2}}>
           <span style={{padding:"4px 10px",borderRadius:7,background:mode==="owner"?th.accentSoft:th.accent2Soft,color:mode==="owner"?th.accent:th.accent2,fontWeight:700,fontSize:11}}>
             {mode==="owner"?t("btn.owner","Owner"):accountLabelOf(accountType)}
           </span>
@@ -2054,6 +2071,7 @@ function PublisherPage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const isMobile = useIsMobile();
   const [upgrade, setUpgrade] = useState(null);
   const [tab, setTab] = useState("compose");
   const [accounts, setAccounts] = useState([]);
@@ -2237,6 +2255,24 @@ function PublisherPage() {
     const h12 = hh % 12 || 12; const ap = hh >= 12 ? "PM" : "AM";
     return { dateStr, time: t, blab, when: `${sameDayNow ? "Today" : "Tomorrow"} ${h12}:${String(mm).padStart(2,'0')} ${ap}` };
   });
+
+  if (isMobile) {
+    return (
+      <div className="tw-page-in" style={{ padding:"40px 22px", maxWidth:480 }}>
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:20, padding:"34px 26px", textAlign:"center" }}>
+          <div style={{ width:62, height:62, margin:"0 auto 20px", borderRadius:16, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Monitor size={28} color="#fff"/>
+          </div>
+          <div style={{ fontSize:19, fontWeight:800, color:th.text, marginBottom:10, letterSpacing:"-0.3px" }}>{L("Composing is on desktop","الإنشاء على سطح المكتب")}</div>
+          <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.7, marginBottom:22 }}>{L("Creating and scheduling posts is built for the desktop, where you get the full editor, live previews and media tools. Open tawaslo.com on a computer to publish.","إنشاء المنشورات وجدولتها مصمم لسطح المكتب، حيث تحصل على المحرر الكامل والمعاينة المباشرة وأدوات الوسائط. افتح tawaslo.com على الكمبيوتر للنشر.")}</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <button onClick={()=>setPage("calendar")} style={{ padding:"13px", borderRadius:12, background:th.gradient, color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer" }}>{L("View the planner","عرض المخطط")}</button>
+            <button onClick={()=>setPage("analytics")} style={{ padding:"13px", borderRadius:12, background:th.card2, color:th.text, border:`1px solid ${th.border}`, fontSize:13.5, fontWeight:600, cursor:"pointer" }}>{L("See analytics","عرض التحليلات")}</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
@@ -6104,6 +6140,7 @@ export default function TawasloApp() {
   const [dark,      setDark]      = useState(true);
   const [lang,      setLang]      = useState("en");
   const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
+  const [mobileNav, setMobileNav] = useState(false);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
   const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
@@ -6211,6 +6248,7 @@ export default function TawasloApp() {
     accountType, userEmail,
     userName, setUserName,
     setShowLanding,
+    mobileNav, setMobileNav,
   };
 
   const renderPage = () => {
@@ -6304,32 +6342,6 @@ export default function TawasloApp() {
     );
   }
 
-  if (isMobile) {
-    const planName = selClient?.plan || accountLabelOf(accountType) || "Active membership";
-    return (
-      <AppCtx.Provider value={ctx}>
-        <div style={{minHeight:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",direction:"ltr",padding:"26px 20px"}}>
-          <div style={{maxWidth:420,margin:"0 auto"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22}}>
-              <img src="/logo-transparent.png" alt="Tawaslo" style={{width:36,height:36,objectFit:"contain"}}/>
-              <div style={{fontSize:17,fontWeight:800}}>Tawaslo</div>
-            </div>
-            <div style={{fontSize:18,fontWeight:700,marginBottom:8}}>Manage your account</div>
-            <div style={{fontSize:12.5,color:th.text2,lineHeight:1.65,marginBottom:20}}>You can manage your membership here. The full dashboard \u2014 publishing, planner, analytics \u2014 is built for desktop, so open <strong style={{color:th.text}}>tawaslo.com</strong> on a computer to create &amp; schedule posts.</div>
-            <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:18,marginBottom:14}}>
-              <div style={{fontSize:11,color:th.text2,marginBottom:4}}>Current plan</div>
-              <div style={{fontSize:20,fontWeight:700,marginBottom:2}}>{planName}</div>
-              <div style={{fontSize:12,color:th.text2}}>{userEmail}</div>
-            </div>
-            <a href="mailto:support@tawaslo.com?subject=Change%20my%20Tawaslo%20plan" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"12px",borderRadius:11,background:th.gradient,color:"#fff",fontSize:13,fontWeight:600,textDecoration:"none",marginBottom:10}}>Change plan</a>
-            <button onClick={()=>{ if(window.confirm("Cancel your Tawaslo membership? Our team will process your request.")){ window.location.href="mailto:support@tawaslo.com?subject=Cancel%20my%20membership"; } }} style={{width:"100%",padding:"12px",borderRadius:11,background:th.dangerSoft,border:`1px solid ${th.danger}33`,color:th.danger,fontSize:13,fontWeight:600,cursor:"pointer",marginBottom:10}}>Cancel membership</button>
-            <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{width:"100%",padding:"12px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,fontWeight:600,cursor:"pointer"}}>Log out</button>
-          </div>
-        </div>
-      </AppCtx.Provider>
-    );
-  }
-
   return (
     <AppCtx.Provider value={ctx}>
       <div style={{
@@ -6343,7 +6355,7 @@ export default function TawasloApp() {
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <Topbar/>
           {mode==="agency" && <TrialBanner/>}
-          <div style={{flex:1,overflowY:"auto",padding:22}}>
+          <div className="tw-scroll-area" style={{flex:1,overflowY:"auto",padding:22}}>
             <div key={mode+page} className="tw-page-in">{renderPage()}</div>
           </div>
         </div>

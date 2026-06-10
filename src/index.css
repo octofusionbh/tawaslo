@@ -66,3 +66,27 @@ input:-webkit-autofill:active {
   caret-color: #E8EFF8;
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* ── Mobile reflow ─────────────────────────────────────────────
+   The app is built with inline styles, so multi-column grids and
+   the generous desktop page padding can't be overridden by class.
+   On real phones we collapse every grid to a single column (cards
+   stack) and trim the page gutters. Scoped to <=560px so tablets
+   keep their multi-column layouts. !important beats inline styles. */
+@media (max-width: 560px) {
+  .tw-page-in [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+  .tw-page-in > div[style*="padding"] {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .tw-scroll-area { padding: 14px 6px !important; }
+  /* let horizontal tab/chip rows scroll instead of squashing */
+  .tw-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap !important;
+  }
+  .tw-scroll-x::-webkit-scrollbar { display: none; }
+}
