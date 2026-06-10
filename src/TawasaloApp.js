@@ -5559,7 +5559,9 @@ function AdminLogin() {
 }
 
 function AuthPage() {
-  const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding } = useApp();
+  const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding, lang, setLang } = useApp();
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [showPw,  setShowPw]  = useState(false);
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
@@ -5644,7 +5646,7 @@ function AuthPage() {
   );
 
   return (
-    <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden"}}>
+    <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden",direction:isAR?"rtl":"ltr"}}>
       <div style={{width:420,flexShrink:0,background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,display:"flex",flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
         <div onClick={()=>setShowLanding(true)} title="Back to homepage" style={{display:"flex",alignItems:"center",gap:12,marginBottom:60,cursor:"pointer"}}>
           <img src="/logo-transparent.png" alt="Tawaslo" style={{width:42,height:42,objectFit:"contain",flexShrink:0}}/>
@@ -5655,18 +5657,24 @@ function AuthPage() {
         </div>
         <div style={{flex:1}}>
           <div style={{fontSize:32,fontWeight:900,letterSpacing:-1,lineHeight:1.2,marginBottom:16}}>
-            Manage every<br/>
-            <span style={{background:th.gradient,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>social account</span><br/>
-            from one place.
+            {isAR ? (<>
+              أدِر كل<br/>
+              <span style={{background:th.gradient,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>حساباتك الاجتماعية</span><br/>
+              من مكان واحد.
+            </>) : (<>
+              Manage every<br/>
+              <span style={{background:th.gradient,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>social account</span><br/>
+              from one place.
+            </>)}
           </div>
           <div style={{fontSize:13,color:th.text2,lineHeight:1.7,marginBottom:36,maxWidth:320}}>
-            Schedule, analyse, respond, and grow — one platform built for agencies and brands worldwide.
+            {L("Schedule, analyse, respond, and grow — one platform built for agencies and brands worldwide.","جدوِل وحلِّل ورُد وانمُ، منصة واحدة مبنية للوكالات والعلامات التجارية حول العالم.")}
           </div>
           {[
-            {Icon:BarChart2,     label:"Real-time analytics across all platforms"},
-            {Icon:Sparkles,      label:"AI captions in Arabic and English"},
-            {Icon:MessageCircle, label:"Unified inbox for all comments and DMs"},
-            {Icon:Shield,        label:"Enterprise security and team controls"},
+            {Icon:BarChart2,     label:L("Real-time analytics across all platforms","تحليلات لحظية عبر كل المنصات")},
+            {Icon:Sparkles,      label:L("AI captions in Arabic and English","تعليقات بالذكاء الاصطناعي بالعربية والإنجليزية")},
+            {Icon:MessageCircle, label:L("Unified inbox for all comments and DMs","صندوق وارد موحّد لكل التعليقات والرسائل")},
+            {Icon:Shield,        label:L("Enterprise security and team controls","أمان مؤسسي وضوابط للفريق")},
           ].map(({Icon:I,label},i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <div style={{width:28,height:28,borderRadius:7,background:th.accentSoft,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -5689,6 +5697,11 @@ function AuthPage() {
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40,overflowY:"auto"}}>
         <div style={{width:"100%",maxWidth:400}}>
+          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+            <button onClick={()=>setLang&&setLang(l=>l==="en"?"ar":"en")} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:11.5,fontWeight:600,borderRadius:8,padding:"6px 11px",cursor:"pointer"}}>
+              <Languages size={13}/>{isAR?"English":"عربي"}
+            </button>
+          </div>
           {/* Error / Success banners */}
           {error&&(
             <div style={{background:th.dangerSoft,border:`1px solid ${th.danger}40`,borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:th.danger}}>
@@ -5708,23 +5721,23 @@ function AuthPage() {
                   <img src="/logo-transparent.png" alt="Tawaslo" style={{width:44,height:44,objectFit:"contain"}}/>
                   <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawaslo</div>
                 </div>
-                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Welcome back</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Sign in to your Tawaslo workspace</p>
+                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>{L("Welcome back","مرحباً بعودتك")}</h1>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>{L("Sign in to your Tawaslo workspace","سجّل الدخول إلى مساحة عملك في تواصلو")}</p>
               </div>
-              {inp("Email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
-              {inp("Password",pw,e=>{setPw(e.target.value);setError("");},"password")}
+              {inp(L("Email address","البريد الإلكتروني"),email,e=>{setEmail(e.target.value);setError("");},"email")}
+              {inp(L("Password","كلمة المرور"),pw,e=>{setPw(e.target.value);setError("");},"password")}
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
                 <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2,cursor:"pointer"}}>
-                  <input type="checkbox" style={{accentColor:th.accent}}/>Remember me
+                  <input type="checkbox" style={{accentColor:th.accent}}/>{L("Remember me","تذكّرني")}
                 </label>
-                <button onClick={()=>{setAuthPage("forgot");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>Forgot password?</button>
+                <button onClick={()=>{setAuthPage("forgot");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{L("Forgot password?","نسيت كلمة المرور؟")}</button>
               </div>
               <button onClick={handleSignIn} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
-                {loading?"Signing in…":"Sign in"} {!loading&&<ChevronRight size={15}/>}
+                {loading?L("Signing in…","جارٍ تسجيل الدخول…"):L("Sign in","تسجيل الدخول")} {!loading&&<ChevronRight size={15} style={{transform:isAR?"scaleX(-1)":"none"}}/>}
               </button>
               <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
-                Don't have an account?{" "}
-                <button onClick={()=>{setAuthPage("register");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>Sign up free</button>
+                {L("Don't have an account?","ليس لديك حساب؟")}{" "}
+                <button onClick={()=>{setAuthPage("register");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontWeight:700,cursor:"pointer",fontSize:12}}>{L("Sign up free","سجّل مجاناً")}</button>
               </div>
             </>
           )}
@@ -5920,15 +5933,15 @@ function AuthPage() {
           {authPage==="forgot"&&(
             <>
               <div style={{marginBottom:28}}>
-                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Reset password</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>We'll send a reset link to your email</p>
+                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>{L("Reset password","إعادة تعيين كلمة المرور")}</h1>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>{L("We'll send a reset link to your email","سنرسل رابط إعادة التعيين إلى بريدك الإلكتروني")}</p>
               </div>
-              {inp("Your email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
+              {inp(L("Your email address","بريدك الإلكتروني"),email,e=>{setEmail(e.target.value);setError("");},"email")}
               <button onClick={handleReset} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
-                {loading?"Sending…":"Send reset link"} {!loading&&<ChevronRight size={15}/>}
+                {loading?L("Sending…","جارٍ الإرسال…"):L("Send reset link","إرسال رابط إعادة التعيين")} {!loading&&<ChevronRight size={15} style={{transform:isAR?"scaleX(-1)":"none"}}/>}
               </button>
               <button onClick={()=>{setAuthPage("login");setError("");setSuccess("");}} style={{width:"100%",padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                <ArrowLeft size={13}/>Back to sign in
+                <ArrowLeft size={13} style={{transform:isAR?"scaleX(-1)":"none"}}/>{L("Back to sign in","العودة لتسجيل الدخول")}
               </button>
             </>
           )}
@@ -5936,12 +5949,12 @@ function AuthPage() {
           {authPage==="recovery"&&(
             <>
               <div style={{marginBottom:28}}>
-                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>Set a new password</h1>
-                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>Choose a new password for your Tawaslo account</p>
+                <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>{L("Set a new password","تعيين كلمة مرور جديدة")}</h1>
+                <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>{L("Choose a new password for your Tawaslo account","اختر كلمة مرور جديدة لحسابك في تواصلو")}</p>
               </div>
-              {inp("New password (min 6 characters)",pw,e=>{setPw(e.target.value);setError("");},"password")}
+              {inp(L("New password (min 6 characters)","كلمة مرور جديدة (٦ أحرف على الأقل)"),pw,e=>{setPw(e.target.value);setError("");},"password")}
               <button onClick={handleUpdatePassword} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
-                {loading?"Updating…":"Update password"} {!loading&&<ChevronRight size={15}/>}
+                {loading?L("Updating…","جارٍ التحديث…"):L("Update password","تحديث كلمة المرور")} {!loading&&<ChevronRight size={15} style={{transform:isAR?"scaleX(-1)":"none"}}/>}
               </button>
             </>
           )}
