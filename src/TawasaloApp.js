@@ -1323,8 +1323,10 @@ function OwnerTeamPage() {
 }
 
 function AgencyDashboard() {
-  const { selClient, setPage, clients, setSelClient, setClients, userEmail } = useApp();
+  const { selClient, setPage, clients, setSelClient, setClients, userEmail, lang } = useApp();
   const th = useTheme();
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [upgrade, setUpgrade] = useState(null);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
@@ -1427,13 +1429,13 @@ function AgencyDashboard() {
       {addClientOpen && createPortal((
         <div onClick={()=>setAddClientOpen(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
-            <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>Add a client</h3>
-            <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>Each client is its own workspace with its own connected accounts, posts and reports. You can switch between them any time.</p>
-            <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>Client name</div>
-            <input value={newClientName} autoFocus onChange={e=>setNewClientName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder="e.g. Trio Restaurant & Cafe" style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+            <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","إضافة عميل")}</h3>
+            <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports. You can switch between them any time.","كل عميل هو مساحة عمل مستقلة بحساباته ومنشوراته وتقاريره الخاصة. يمكنك التبديل بينهم في أي وقت.")}</p>
+            <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Client name","اسم العميل")}</div>
+            <input value={newClientName} autoFocus onChange={e=>setNewClientName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","مثال: مطعم تريو")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setAddClientOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>Cancel</button>
-              <button onClick={createClient} disabled={!newClientName.trim()||creatingClient} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newClientName.trim()?"pointer":"not-allowed",opacity:newClientName.trim()?1:0.6}}>{creatingClient?"Creating…":"Create client"}</button>
+              <button onClick={()=>setAddClientOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+              <button onClick={createClient} disabled={!newClientName.trim()||creatingClient} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newClientName.trim()?"pointer":"not-allowed",opacity:newClientName.trim()?1:0.6}}>{creatingClient?L("Creating…","جارٍ الإنشاء…"):L("Create client","إنشاء عميل")}</button>
             </div>
           </div>
         </div>
@@ -1451,8 +1453,8 @@ function AgencyDashboard() {
               <>
               <div onClick={()=>setBrandOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
               <div style={{position:"absolute",top:"115%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 14px 40px rgba(0,0,0,0.55)",padding:6,minWidth:240}}>
-                <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"6px 10px"}}>Switch client</div>
-                {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>No clients yet</div>}
+                <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"6px 10px"}}>{L("Switch client","تبديل العميل")}</div>
+                {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>{L("No clients yet","لا يوجد عملاء بعد")}</div>}
                 {clients.map(c=>(
                   <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent"}}>
                     <span style={{width:26,height:26,borderRadius:7,background:selClient.id===c.id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:selClient.id===c.id?"#fff":th.text2,flexShrink:0}}>{(c.name||"?").slice(0,2).toUpperCase()}</span>
@@ -1462,7 +1464,7 @@ function AgencyDashboard() {
                 ))}
                 <div onClick={()=>{setBrandOpen(false);setAddClientOpen(true);}} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:9,cursor:"pointer",borderTop:`1px solid ${th.border}`,marginTop:4,color:th.accent,fontSize:12.5,fontWeight:600}}>
                   <span style={{width:26,height:26,borderRadius:7,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={14} color={th.accent}/></span>
-                  Add client
+                  {L("Add client","إضافة عميل")}
                 </div>
               </div>
               </>
@@ -1472,8 +1474,8 @@ function AgencyDashboard() {
           <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>Last 30 days</div>
-          <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>New post</button>
+          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>{L("Last 30 days","آخر ٣٠ يوماً")}</div>
+          <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>{L("New post","منشور جديد")}</button>
         </div>
       </div>
 
@@ -4498,6 +4500,8 @@ function BillingPage() {
 function SettingsPage() {
   const { dark, setDark, lang, setLang, setUserName } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -4600,63 +4604,63 @@ function SettingsPage() {
   );
 
   const NOTIFS = [
-    ["email","Email notifications","Receive important account updates by email"],
-    ["published","Post published alerts","Get notified when a scheduled post goes live"],
-    ["engagement","Comments & DM alerts","Know when someone engages with your posts"],
-    ["weekly","Weekly report","A performance summary every Monday"],
+    ["email",L("Email notifications","إشعارات البريد"),L("Receive important account updates by email","استقبل تحديثات حسابك المهمة عبر البريد")],
+    ["published",L("Post published alerts","تنبيهات نشر المنشورات"),L("Get notified when a scheduled post goes live","تنبيه عند نشر منشور مجدول")],
+    ["engagement",L("Comments & DM alerts","تنبيهات التعليقات والرسائل"),L("Know when someone engages with your posts","اعرف عند تفاعل أحدهم مع منشوراتك")],
+    ["weekly",L("Weekly report","التقرير الأسبوعي"),L("A performance summary every Monday","ملخص أداء كل يوم اثنين")],
   ];
 
   return (
     <div style={{padding:"28px 32px", maxWidth:720}}>
       <div style={{marginBottom:22}}>
-        <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Settings</h2>
-        <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Manage your account, preferences and support</p>
+        <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Settings","الإعدادات")}</h2>
+        <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Manage your account, preferences and support","إدارة حسابك وتفضيلاتك والدعم")}</p>
       </div>
       <div style={{display:"flex", flexDirection:"column", gap:16}}>
 
         <div style={card}>
-          {secTitle(User, "Your profile")}
+          {secTitle(User, L("Your profile","ملفك الشخصي"))}
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
             <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Full name</div>
-              <input value={fullName} disabled={loading} onChange={e=>setFullName(e.target.value)} placeholder={loading?"Loading…":"Your name"} style={fieldStyle}/>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Full name","الاسم الكامل")}</div>
+              <input value={fullName} disabled={loading} onChange={e=>setFullName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your name","اسمك")} style={fieldStyle}/>
             </div>
             <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Login email</div>
-              <input type="email" value={loginEmail} disabled={loading} onChange={e=>setLoginEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
-              {loginEmail!==origEmail && loginEmail && <div style={{fontSize:10.5, color:th.text3, marginTop:5}}>You'll get a confirmation link at the new address to finish the change.</div>}
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Login email","بريد تسجيل الدخول")}</div>
+              <input type="email" value={loginEmail} disabled={loading} onChange={e=>setLoginEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/>
+              {loginEmail!==origEmail && loginEmail && <div style={{fontSize:10.5, color:th.text3, marginTop:5}}>{L("You'll get a confirmation link at the new address to finish the change.","سنرسل رابط تأكيد إلى البريد الجديد لإتمام التغيير.")}</div>}
             </div>
           </div>
           {profileMsg && <div style={{marginTop:10, fontSize:11.5, color:profileMsg.indexOf("Almost")===0?th.accent:th.danger, lineHeight:1.5}}>{profileMsg}</div>}
           <button onClick={saveProfile} disabled={savingProfile||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:profileSaved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(savingProfile||loading)?"not-allowed":"pointer", opacity:(savingProfile||loading)?0.7:1}}>
-            {profileSaved?"✓ Saved":savingProfile?"Saving…":"Update profile"}
+            {profileSaved?L("Saved","تم الحفظ"):savingProfile?L("Saving…","جارٍ الحفظ…"):L("Update profile","تحديث الملف")}
           </button>
         </div>
 
         <div style={card}>
-          {secTitle(Building2, "Agency profile")}
+          {secTitle(Building2, L("Agency profile","ملف الوكالة"))}
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
             <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Agency name</div>
-              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?"Loading…":"Your agency name"} style={fieldStyle}/>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Agency name","اسم الوكالة")}</div>
+              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your agency name","اسم وكالتك")} style={fieldStyle}/>
             </div>
             <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Contact email</div>
-              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?"Loading…":"you@example.com"} style={fieldStyle}/>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Contact email","بريد التواصل")}</div>
+              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/>
             </div>
             <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>Website</div>
-              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?"Loading…":"yoursite.com"} style={fieldStyle}/>
+              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Website","الموقع الإلكتروني")}</div>
+              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"yoursite.com"} style={fieldStyle}/>
             </div>
           </div>
           {err && <div style={{marginTop:10, fontSize:12, color:th.danger}}>{err}</div>}
           <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
-            {saved?"✓ Saved":saving?"Saving…":"Save changes"}
+            {saved?L("Saved","تم الحفظ"):saving?L("Saving…","جارٍ الحفظ…"):L("Save changes","حفظ التغييرات")}
           </button>
         </div>
 
         <div style={card}>
-          {secTitle(Bell, "Notifications")}
+          {secTitle(Bell, L("Notifications","الإشعارات"))}
           <div style={{display:"flex", flexDirection:"column", gap:14}}>
             {NOTIFS.map(([k,title,sub])=>(
               <div key={k} style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12}}>
@@ -4668,15 +4672,15 @@ function SettingsPage() {
         </div>
 
         <div style={card}>
-          {secTitle(dark?Moon:Sun, "Appearance")}
+          {secTitle(dark?Moon:Sun, L("Appearance","المظهر"))}
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-            <div><div style={{fontSize:12.5}}>Dark mode</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>Switch between dark and light theme</div></div>
+            <div><div style={{fontSize:12.5}}>{L("Dark mode","الوضع الداكن")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Switch between dark and light theme","التبديل بين الوضع الداكن والفاتح")}</div></div>
             <Sw on={dark} onClick={()=>setDark(!dark)}/>
           </div>
         </div>
 
         <div style={card}>
-          {secTitle(Languages, "Language")}
+          {secTitle(Languages, L("Language","اللغة"))}
           <div style={{display:"flex", gap:8}}>
             {["en","ar"].map(l => (
               <button key={l} onClick={()=>setLang(l)} style={{padding:"8px 22px", borderRadius:9, border:`1.5px solid ${lang===l?th.accent:th.border}`, background:lang===l?th.accentSoft:"transparent", color:lang===l?th.accent:th.text2, fontSize:13, fontWeight:600, cursor:"pointer"}}>
@@ -4687,12 +4691,12 @@ function SettingsPage() {
         </div>
 
         <div style={card}>
-          {secTitle(MessageCircle, "Support & help")}
-          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>Questions, issues, or a feature idea? Send us a message below and it lands straight with our team. We typically reply within one business day.</div>
+          {secTitle(MessageCircle, L("Support & help","الدعم والمساعدة"))}
+          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>{L("Questions, issues, or a feature idea? Send us a message below and it lands straight with our team. We typically reply within one business day.","سؤال أو مشكلة أو فكرة لميزة جديدة؟ أرسل لنا رسالة وتصل مباشرة إلى فريقنا. نرد عادةً خلال يوم عمل واحد.")}</div>
 
           {tkSent && (
             <div style={{display:"flex", alignItems:"center", gap:9, background:th.successSoft, border:`1px solid ${th.success}40`, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12.5, color:th.success, fontWeight:600}}>
-              <CheckCircle size={16}/> Message sent — we'll get back to you at {contactEmail || "your email"}.
+              <CheckCircle size={16}/> {L("Message sent. We'll get back to you at","تم إرسال الرسالة. سنعاود التواصل معك على")} {contactEmail || L("your email","بريدك")}.
             </div>
           )}
           {tkErr && (
@@ -4700,25 +4704,25 @@ function SettingsPage() {
           )}
 
           <div style={{marginBottom:11}}>
-            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>Subject</label>
-            <input value={tkSubject} onChange={e=>{setTkSubject(e.target.value); setTkErr("");}} placeholder="e.g. Can't connect my Instagram"
+            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>{L("Subject","الموضوع")}</label>
+            <input value={tkSubject} onChange={e=>{setTkSubject(e.target.value); setTkErr("");}} placeholder={L("e.g. Can't connect my Instagram","مثال: لا أستطيع ربط حساب إنستغرام")}
               style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", boxSizing:"border-box"}}/>
           </div>
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>Message</label>
-            <textarea value={tkMessage} onChange={e=>{setTkMessage(e.target.value); setTkErr("");}} placeholder="Tell us what's going on…" rows={4}
+            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>{L("Message","الرسالة")}</label>
+            <textarea value={tkMessage} onChange={e=>{setTkMessage(e.target.value); setTkErr("");}} placeholder={L("Tell us what's going on…","أخبرنا بما يحدث…")} rows={4}
               style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box"}}/>
           </div>
           <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"center"}}>
-            <button onClick={submitTicket} disabled={tkSending} style={{display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:tkSending?"not-allowed":"pointer", opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?"Sending…":"Send message"}</button>
-            <a href="mailto:support@tawaslo.com" style={{fontSize:12, color:th.text2, textDecoration:"none"}}>or email support@tawaslo.com</a>
+            <button onClick={submitTicket} disabled={tkSending} style={{display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:tkSending?"not-allowed":"pointer", opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?L("Sending…","جارٍ الإرسال…"):L("Send message","إرسال الرسالة")}</button>
+            <a href="mailto:support@tawaslo.com" style={{fontSize:12, color:th.text2, textDecoration:"none"}}>{L("or email support@tawaslo.com","أو راسلنا على support@tawaslo.com")}</a>
           </div>
         </div>
 
         <div style={{...card, border:`1px solid ${th.danger}33`}}>
-          {secTitle(Shield, "Danger zone")}
-          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>These actions are permanent and cannot be undone.</div>
-          <button style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>Delete account</button>
+          {secTitle(Shield, L("Danger zone","منطقة الخطر"))}
+          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>{L("These actions are permanent and cannot be undone.","هذه الإجراءات نهائية ولا يمكن التراجع عنها.")}</div>
+          <button style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>{L("Delete account","حذف الحساب")}</button>
         </div>
 
       </div>
@@ -6033,7 +6037,8 @@ function OnboardingHero() {
 
 // Free-trial banner — shows days left in the 30-day trial; hides once subscribed.
 function TrialBanner() {
-  const { setPage } = useApp();
+  const { setPage, lang } = useApp();
+  const isAR = lang === "ar";
   const th = useTheme();
   const [daysLeft, setDaysLeft] = useState(null);
   const [hidden, setHidden] = useState(false);
@@ -6057,10 +6062,14 @@ function TrialBanner() {
     <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : "rgba(79,110,247,0.08)", borderBottom:`1px solid ${th.border}`, flexShrink:0 }}>
       <div style={{ fontSize:12.5, color: ended ? th.danger : th.text, display:"flex", alignItems:"center", gap:8 }}>
         <Sparkles size={14} color={ended ? th.danger : th.accent}/>
-        {ended ? "Your free trial has ended. Upgrade to keep publishing." : <>You're on a free trial. <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"} left</strong> of full access.</>}
+        {ended
+          ? (isAR ? "انتهت فترتك التجريبية المجانية. قم بالترقية لمواصلة النشر." : "Your free trial has ended. Upgrade to keep publishing.")
+          : (isAR
+              ? <>أنت في فترة تجريبية مجانية. <strong>متبقٍ {daysLeft} يوم</strong> من الوصول الكامل.</>
+              : <>You're on a free trial. <strong>{daysLeft} day{daysLeft === 1 ? "" : "s"} left</strong> of full access.</>)}
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-        <button onClick={()=>setPage("billing")} style={{ padding:"7px 15px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Upgrade</button>
+        <button onClick={()=>setPage("billing")} style={{ padding:"7px 15px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>{isAR ? "ترقية" : "Upgrade"}</button>
         <button onClick={()=>setHidden(true)} title="Dismiss" aria-label="Dismiss" style={{ width:26, height:26, borderRadius:7, background:"transparent", border:"none", color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={16}/></button>
       </div>
     </div>
