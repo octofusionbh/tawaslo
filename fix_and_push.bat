@@ -20,13 +20,31 @@ del /f /q "api\instagram-reply.js" 2>nul
 echo Staging all changes...
 git add -A
 
+echo Checking for changes...
+git diff --cached --quiet
+if %errorlevel%==0 (
+  echo.
+  echo ====================================================
+  echo  Nothing new to deploy - your last push already has
+  echo  all your changes. No need to run this again.
+  echo ====================================================
+  echo.
+  pause
+  exit /b 0
+)
+
 echo Committing...
 git commit -m "deploy: latest changes"
 
 echo.
 echo Pushing to Vercel...
-git push --force origin main
+git push origin main
 
 echo.
-echo Done! Vercel will start a new deploy. Give it ~1 minute, then refresh tawaslo.com.
+echo ====================================================
+echo  Done! ONE new deploy was triggered.
+echo  Free plan builds one at a time - if others are
+echo  queued, just wait for them to finish (about 30s each).
+echo ====================================================
+echo.
 pause

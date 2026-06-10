@@ -4389,6 +4389,7 @@ function BillingPage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const isMobile = useIsMobile();
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [paid, setPaid] = useState(false);
@@ -4510,6 +4511,7 @@ function BillingPage() {
       </div>
       <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
 
+      {!isMobile && (
       <div style={{marginTop:44}}>
         <div style={{textAlign:"center", marginBottom:5}}><h3 style={{fontSize:18, fontWeight:800, margin:0, letterSpacing:-0.3}}>You're getting more, for less</h3></div>
         <p style={{textAlign:"center", color:th.text2, fontSize:12.5, marginBottom:20}}>The same power as the global tools — built for the region, at a fraction of the price.</p>
@@ -4537,6 +4539,7 @@ function BillingPage() {
         </div>
         <p style={{textAlign:"center", color:th.text3, fontSize:10, marginTop:10}}>Competitor pricing is approximate, based on publicly listed entry plans.</p>
       </div>
+      )}
 
       {showCancel && createPortal((
         <div onClick={()=>setShowCancel(false)} style={{position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20}}>
