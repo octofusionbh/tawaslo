@@ -1077,7 +1077,7 @@ function OwnerSupportPage() {
 
       <div style={{display:"grid",gridTemplateColumns:"330px 1fr",gap:16,alignItems:"start"}}>
         <div style={{...card,overflow:"hidden"}}>
-          {filtered.length===0 && <div style={{padding:"36px",textAlign:"center",fontSize:13,color:th.text3}}>All caught up — no tickets here.</div>}
+          {filtered.length===0 && <div style={{padding:"36px",textAlign:"center",fontSize:13,color:th.text3}}>All caught up. No tickets here.</div>}
           {filtered.map((t,i)=>(
             <div key={t.id} onClick={()=>setSel(t.id)} style={{padding:"14px 18px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",cursor:"pointer",background:active&&active.id===t.id?th.accentSoft:"transparent",borderLeft:`3px solid ${active&&active.id===t.id?th.accent:"transparent"}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -1380,7 +1380,7 @@ function AgencyDashboard() {
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
     if (isTrialUser(userEmail) && aiUsesOf(userEmail) >= TRIAL.ai) {
-      setUpgrade({ title:"You've used all 5 free AI generations", detail:"AI captions are a paid feature. You've experienced what the AI can do — upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.", Icon:Wand2 });
+      setUpgrade({ title:"You've used all 5 free AI generations", detail:"AI captions are a paid feature. You've experienced what the AI can do. Upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.", Icon:Wand2 });
       return;
     }
     setAiLoading(true); setAiError(""); setAiResult(null);
@@ -1407,7 +1407,7 @@ function AgencyDashboard() {
   const fmtN = (n) => n>=1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,"")+"M" : n>=1000 ? (n/1000).toFixed(1).replace(/\.0$/,"")+"K" : String(n);
   const dashFollowers = accounts.reduce((s,a)=>s+(a.followers_count||0),0);
   const dashReach = Math.round(dashFollowers * 8.4);
-  const dashEng = dashFollowers > 0 ? (3.8 + (dashFollowers % 30) / 10).toFixed(1) + "%" : "—";
+  const dashEng = dashFollowers > 0 ? (3.8 + (dashFollowers % 30) / 10).toFixed(1) + "%" : "0%";
   const UPCOMING_FALLBACK = [
     {platform:"ig",time:"Today · 3:00 PM",  caption:"New collection drop",         status:"scheduled"},
     {platform:"fb",time:"Today · 5:30 PM",  caption:"Behind the scenes",           status:"scheduled"},
@@ -1419,7 +1419,7 @@ function AgencyDashboard() {
   const upcomingShown = upcoming.length ? upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status})) : UPCOMING_FALLBACK;
   const kpiStats = [
     { label:"Total Posts", value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
-    { label:"Total Reach", value: dashFollowers > 0 ? fmtN(dashReach) : "—", change:"+28%", up:true, Icon:Eye, color:"info" },
+    { label:"Total Reach", value: dashFollowers > 0 ? fmtN(dashReach) : "0", change:"+28%", up:true, Icon:Eye, color:"info" },
     { label:"Engagement",  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
     { label:"Followers",   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
   ];
@@ -2156,7 +2156,7 @@ function PublisherPage() {
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
     if (isTrialUser(userEmail) && aiUsesOf(userEmail) >= TRIAL.ai) {
-      setUpgrade({ title:"You've used all 5 free AI generations", detail:`AI captions are a paid feature. You've experienced what the AI can do — upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.`, Icon:Wand2 });
+      setUpgrade({ title:"You've used all 5 free AI generations", detail:`AI captions are a paid feature. You've experienced what the AI can do. Upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.`, Icon:Wand2 });
       return;
     }
     setAiLoading(true); setAiResult(null);
@@ -4493,9 +4493,9 @@ function BillingPage() {
           ].map(([feat,tw,ho,sp],i,arr)=>(
             <div key={i} style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"11px 18px", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none", fontSize:12, alignItems:"center"}}>
               <div style={{color:th.text}}>{feat}</div>
-              <div style={{textAlign:"center", fontWeight:700, background:th.accentSoft, borderRadius:8, padding:"6px 0", color:tw==="✓"?th.success:tw==="✕"?th.danger:th.text}}>{tw}</div>
-              <div style={{textAlign:"center", color:ho==="✓"?th.success:ho==="✕"?th.text3:th.text2}}>{ho}</div>
-              <div style={{textAlign:"center", color:sp==="✓"?th.success:sp==="✕"?th.text3:th.text2}}>{sp}</div>
+              <div style={{display:"flex", justifyContent:"center", fontWeight:700, background:th.accentSoft, borderRadius:8, padding:"6px 0", color:th.text}}>{tw==="✓"?<CheckCircle size={14} color={th.success}/>:tw==="✕"?<XCircle size={14} color={th.danger}/>:tw}</div>
+              <div style={{display:"flex", justifyContent:"center", color:th.text2}}>{ho==="✓"?<CheckCircle size={14} color={th.success}/>:ho==="✕"?<XCircle size={14} color={th.text3}/>:ho}</div>
+              <div style={{display:"flex", justifyContent:"center", color:th.text2}}>{sp==="✓"?<CheckCircle size={14} color={th.success}/>:sp==="✕"?<XCircle size={14} color={th.text3}/>:sp}</div>
             </div>
           ))}
         </div>
@@ -5199,16 +5199,16 @@ function LandingPage({ onGetStarted, onLogin }) {
             ["Native Arabic & RTL","✓","✕","✕"],
             ["AI captions (Arabic + English)","✓","Add-on","Limited"],
             ["GCC payments (Benefit, local cards)","✓","✕","✕"],
-            ["Flat pricing — no per-seat fees","✓","✕","✕"],
+            ["Flat pricing, no per-seat fees","✓","✕","✕"],
             ["Free trial","30 days","30 days","30 days"],
             ["Multi-client / agency workspace","✓","✓","✓"],
             ["Unified comments & DM inbox","✓","✓","✓"],
           ].map(([feat,tw,ho,sp],i,arr)=>(
             <div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"1.5fr 1fr 1fr 1fr":"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #1C2D4530":"none",fontSize:12.5,alignItems:"center"}}>
               <div style={{color:"#E8EFF8",fontWeight:500}}>{feat}</div>
-              <div style={{textAlign:"center",fontWeight:700,background:"rgba(79,110,247,0.09)",borderLeft:"1px solid #1C2D45",borderRight:"1px solid #1C2D45",padding:"7px 0",color:tw==="✓"?"#10B981":tw==="✕"?"#EF4444":"#fff"}}>{tw}</div>
-              <div style={{textAlign:"center",color:ho==="✓"?"#10B981":ho==="✕"?"#5b6b85":"#7A8BA8"}}>{ho}</div>
-              <div style={{textAlign:"center",color:sp==="✓"?"#10B981":sp==="✕"?"#5b6b85":"#7A8BA8"}}>{sp}</div>
+              <div style={{display:"flex",justifyContent:"center",fontWeight:700,background:"rgba(79,110,247,0.09)",borderLeft:"1px solid #1C2D45",borderRight:"1px solid #1C2D45",padding:"7px 0",color:"#fff"}}>{tw==="✓"?<CheckCircle size={15} color="#10B981"/>:tw==="✕"?<XCircle size={15} color="#EF4444"/>:tw}</div>
+              <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{ho==="✓"?<CheckCircle size={15} color="#10B981"/>:ho==="✕"?<XCircle size={15} color="#5b6b85"/>:ho}</div>
+              <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{sp==="✓"?<CheckCircle size={15} color="#10B981"/>:sp==="✕"?<XCircle size={15} color="#5b6b85"/>:sp}</div>
             </div>
           ))}
         </div>

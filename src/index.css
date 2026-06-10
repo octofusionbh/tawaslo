@@ -48,6 +48,10 @@ svg[class*="fa-"], .platform-glyph svg {
 .tw-page-in {
   animation: twPageIn 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
+/* Center each page's content on wide screens so it never hugs the left
+   with a big empty gap on the right. Pages set their own max-width; this
+   just balances the leftover space. (No effect on full-bleed pages.) */
+.tw-page-in > div { margin-left: auto; margin-right: auto; }
 @keyframes twPageIn {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
