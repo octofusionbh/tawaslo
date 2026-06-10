@@ -4796,6 +4796,14 @@ function LandingPage({ onGetStarted, onLogin }) {
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
   const [billing, setBilling] = useState('monthly');
+  const [contact, setContact] = useState({name:'',email:'',company:'',message:''});
+  const [contactSent, setContactSent] = useState(false);
+  const sendContact = () => {
+    const subject = encodeURIComponent(`Tawaslo enquiry${contact.name?` from ${contact.name}`:''}`);
+    const body = encodeURIComponent(`Name: ${contact.name}\nEmail: ${contact.email}\nCompany: ${contact.company}\n\n${contact.message}`);
+    window.location.href = `mailto:support@tawaslo.com?subject=${subject}&body=${body}`;
+    setContactSent(true);
+  };
   const prices = { monthly:{starter:49,pro:99,agency:199}, yearly:{starter:39,pro:79,agency:159} };
   const p = prices[billing];
 
@@ -4912,25 +4920,42 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const HomePage = () => (
     <div>
-      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F", padding:isMobile?"64px 18px 48px":"88px 32px 72px", textAlign:"center"}}>
-        <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(79,110,247,0.1)",border:"1px solid rgba(79,110,247,0.3)",color:"#4F6EF7",fontSize:11,fontWeight:700,marginBottom:24}}>✦ Social media management, reimagined</div>
-        <h1 style={{fontSize:isMobile?32:52,fontWeight:900,lineHeight:1.1,marginBottom:20,letterSpacing:isMobile?-0.8:-1.5,maxWidth:760,margin:"0 auto 20px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
-        <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 36px",lineHeight:1.75}}>Tawaslo is the social media management platform for agencies and brands worldwide. Publish, schedule, analyze, and grow — with full Arabic and English support.</p>
-        <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:56,flexWrap:"wrap"}}>
-          <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free trial →</button>
-          <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 30px",borderRadius:10,background:"transparent",border:"1px solid #1C2D45",color:"#7A8BA8",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
+      <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(ellipse 70% 55% at 50% -5%, rgba(79,110,247,0.22) 0%, transparent 62%), #07090F", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 15px",borderRadius:20,background:"rgba(79,110,247,0.1)",border:"1px solid rgba(79,110,247,0.32)",color:"#7FA0FF",fontSize:11,fontWeight:700,marginBottom:22}}><Sparkles size={13}/> Social media management, reimagined for every brand</div>
+        <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:700,margin:"0 auto 18px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
+        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:500,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — with full Arabic and English support, built for agencies and brands.</p>
+        <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
+          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Start free trial →</button>
+          <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
         </div>
-        <div style={{display:"flex",gap:48,justifyContent:"center",flexWrap:"wrap"}}>
-          {[["English + Arabic","AI caption generator"],["All-in-one","Publish, inbox, analytics"],["Multi-brand","Agency-ready platform"]].map(([v,l])=>(
-            <div key={v} style={{textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:12,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
+        <div style={{display:"flex",gap:20,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
+          {["30-day free trial","No credit card","Arabic + English AI"].map(tx=>(
+            <span key={tx} style={{color:"#6B7C99",fontSize:11.5,display:"inline-flex",alignItems:"center",gap:5}}><CheckCircle size={13} color="#10B981"/>{tx}</span>
           ))}
         </div>
 
-        {/* Hero product preview — shows it's a real, polished product, not just copy */}
+        {/* Hero product preview — floating cards add depth, show it's a real product */}
         {!isMobile && (
-        <div style={{maxWidth:900,margin:"60px auto 0",position:"relative"}}>
-          <div style={{position:"absolute",inset:"-30px -10px 0",background:"radial-gradient(ellipse at 50% 22%, rgba(79,110,247,0.30), transparent 62%)",filter:"blur(8px)",pointerEvents:"none"}}/>
-          <div style={{position:"relative",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.65)",textAlign:"left"}}>
+        <div style={{maxWidth:820,margin:"44px auto 0",position:"relative"}}>
+          <div style={{position:"absolute",inset:"-26px -10px 0",background:"radial-gradient(ellipse at 50% 18%, rgba(124,58,237,0.26), transparent 60%)",filter:"blur(7px)",pointerEvents:"none"}}/>
+          <div style={{position:"absolute",left:-46,top:80,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:13,padding:"12px 14px",width:190,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
+              <div style={{width:22,height:22,borderRadius:6,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={12} color="#fff"/></div>
+              <span style={{color:"#E8EFF8",fontSize:11,fontWeight:700}}>AI caption</span>
+            </div>
+            <div style={{color:"#9FB0C8",fontSize:10,lineHeight:1.55,direction:"rtl"}}>حفلة إطلاق هذا الأسبوع، انضموا إلينا #تواصلو</div>
+          </div>
+          <div style={{position:"absolute",right:-40,top:40,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:12,padding:"11px 13px",width:172,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <div style={{width:24,height:24,borderRadius:"50%",background:"rgba(16,185,129,0.16)",display:"flex",alignItems:"center",justifyContent:"center"}}><SendIcon size={13} color="#10B981"/></div>
+              <div><div style={{color:"#E8EFF8",fontSize:10.5,fontWeight:700}}>Post published</div><div style={{color:"#7A8BA8",fontSize:9}}>Instagram · just now</div></div>
+            </div>
+          </div>
+          <div style={{position:"absolute",right:-26,bottom:-18,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:11,padding:"9px 13px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 18px 44px rgba(0,0,0,0.6)"}}>
+            <Calendar size={15} color="#4F6EF7"/>
+            <div style={{textAlign:"left"}}><div style={{color:"#E8EFF8",fontSize:10.5,fontWeight:700}}>14 posts scheduled</div><div style={{color:"#7A8BA8",fontSize:9}}>this week</div></div>
+          </div>
+          <div style={{position:"relative",zIndex:2,background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.7)",textAlign:"left"}}>
             <div style={{display:"flex",alignItems:"center",gap:7,padding:"10px 14px",borderBottom:"1px solid #1C2D45",background:"#07090F"}}>
               <span style={{width:10,height:10,borderRadius:"50%",background:"#EF4444"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#F59E0B"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#10B981"}}/>
               <div style={{marginLeft:12,fontSize:11,color:"#3D5068",background:"#101828",borderRadius:7,padding:"4px 14px"}}>tawaslo.com/dashboard</div>
