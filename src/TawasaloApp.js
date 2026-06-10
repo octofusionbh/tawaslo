@@ -5212,19 +5212,22 @@ function LandingPage({ onGetStarted, onLogin }) {
       </div>
       <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #1C2D45"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
+        <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?460:"auto"}}>
         {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
+          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
             <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
           </div>
         ))}
+        </div></div>
       </div>
 
       <div style={{marginTop:56}}>
         <div style={{textAlign:"center",marginBottom:6}}><h2 style={{fontSize:28,fontWeight:900,letterSpacing:-0.5}}>How Tawaslo compares</h2></div>
         <p style={{textAlign:"center",color:"#7A8BA8",fontSize:13.5,marginBottom:26}}>The power of the global tools — built for the region, at a fraction of the price.</p>
         <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1.5fr 1fr 1fr 1fr":"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #1C2D45",fontSize:13,fontWeight:800,alignItems:"center"}}>
+          <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?520:"auto"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #1C2D45",fontSize:13,fontWeight:800,alignItems:"center"}}>
             <div/>
             <div style={{textAlign:"center",color:"#fff",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><img src="/logo-transparent.png" alt="" style={{width:20,height:20,objectFit:"contain"}}/>Tawaslo</div>
             <div style={{textAlign:"center",color:"#7A8BA8"}}>Hootsuite</div>
@@ -5240,13 +5243,14 @@ function LandingPage({ onGetStarted, onLogin }) {
             ["Multi-client / agency workspace","✓","✓","✓"],
             ["Unified comments & DM inbox","✓","✓","✓"],
           ].map(([feat,tw,ho,sp],i,arr)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:isMobile?"1.5fr 1fr 1fr 1fr":"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #1C2D4530":"none",fontSize:12.5,alignItems:"center"}}>
+            <div key={i} style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #1C2D4530":"none",fontSize:12.5,alignItems:"center"}}>
               <div style={{color:"#E8EFF8",fontWeight:500}}>{feat}</div>
               <div style={{display:"flex",justifyContent:"center",fontWeight:700,background:"rgba(79,110,247,0.09)",borderLeft:"1px solid #1C2D45",borderRight:"1px solid #1C2D45",padding:"7px 0",color:"#fff"}}>{tw==="✓"?<CheckCircle size={15} color="#10B981"/>:tw==="✕"?<XCircle size={15} color="#EF4444"/>:tw}</div>
               <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{ho==="✓"?<CheckCircle size={15} color="#10B981"/>:ho==="✕"?<XCircle size={15} color="#5b6b85"/>:ho}</div>
               <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{sp==="✓"?<CheckCircle size={15} color="#10B981"/>:sp==="✕"?<XCircle size={15} color="#5b6b85"/>:sp}</div>
             </div>
           ))}
+        </div></div>
         </div>
         <p style={{textAlign:"center",color:"#3D5068",fontSize:10.5,marginTop:12,lineHeight:1.5}}>Competitor pricing is approximate, based on publicly listed entry plans; features compared at time of writing.</p>
       </div>
