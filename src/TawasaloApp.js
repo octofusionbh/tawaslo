@@ -2329,6 +2329,7 @@ function PublisherPage() {
                       {aiResult.english && <button onClick={()=>setCaption(aiResult.english)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use English</button>}
                       {aiResult.arabic && <button onClick={()=>setCaption(aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use Arabic</button>}
                       {aiResult.english && aiResult.arabic && <button onClick={()=>setCaption(aiResult.english+"\n\n"+aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.accentSoft, border:`1px solid ${th.accent}`, color:th.accent, fontSize:11, cursor:"pointer" }}>Use both</button>}
+                      {(aiResult.english||aiResult.arabic) && <button onClick={()=>{ try{ navigator.clipboard.writeText([aiResult.english,aiResult.arabic].filter(Boolean).join("\n\n")); }catch(e){} }} title="Copy to clipboard" style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Copy size={12}/>Copy</button>}
                     </div>
                   </div>
                 )}
@@ -3327,7 +3328,8 @@ function CampaignsPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [usingSample, setUsingSample] = useState(false);
-  const [form, setForm] = useState({ name:"", goal:"", start:"", end:"", platform:"all" });
+  const [form, setForm] = useState({ name:"", goal:"", start:"", end:"", platform:"all", accts:[] });
+  const [accounts, setAccounts] = useState([]);
 
   const sampleCampaigns = () => ([
     { id:'s1', name:'Summer Collection Launch', goal:'Reach 100K accounts', status:'active',    start_date:'2026-06-01', end_date:'2026-06-30', posts:12, reach:84200,  engagement:6.4 },
@@ -3351,12 +3353,23 @@ function CampaignsPage() {
     return () => { active = false; };
   }, [selClient]);
 
+  useEffect(() => {
+    if (!realClientId) { setAccounts([]); return; }
+    let active = true;
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
+      .then(({ data }) => { if (active) setAccounts(data || []); });
+    return () => { active = false; };
+  }, [realClientId]);
+
+  const toggleAcct = (id) => setForm(f => ({ ...f, accts: f.accts.includes(id) ? f.accts.filter(x=>x!==id) : [...f.accts, id] }));
+
   const createCampaign = async () => {
     if (!form.name.trim()) return;
-    const row = { client_id: realClientId, name: form.name.trim(), goal: form.goal.trim(), status:'active', start_date: form.start || null, end_date: form.end || null, platform: form.platform };
-    const local = { id:'local_'+Date.now(), ...row, posts:0, reach:0, engagement:0 };
+    const platforms = [...new Set(accounts.filter(a=>form.accts.includes(a.id)).map(a=>a.platform))];
+    const row = { client_id: realClientId, name: form.name.trim(), goal: form.goal.trim(), status:'active', start_date: form.start || null, end_date: form.end || null, platform: platforms.join(',') || form.platform };
+    const local = { id:'local_'+Date.now(), ...row, accts: form.accts, posts:0, reach:0, engagement:0 };
     setCampaigns(c => [local, ...(usingSample ? [] : c)]); setUsingSample(false);
-    setShowCreate(false); setForm({ name:"", goal:"", start:"", end:"", platform:"all" });
+    setShowCreate(false); setForm({ name:"", goal:"", start:"", end:"", platform:"all", accts:[] });
     try { if (realClientId) await supabase.from('campaigns').insert([row]); } catch (e) {}
   };
 
@@ -3409,6 +3422,15 @@ function CampaignsPage() {
             <div style={{ display:"flex", gap:10, marginBottom:18 }}>
               <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Start</div><input type="date" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} style={inp}/></div>
               <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>End</div><input type="date" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))} style={inp}/></div>
+            </div>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:8 }}>Which accounts does this campaign run on?</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:18 }}>
+              {accounts.length===0 && <div style={{ fontSize:11.5, color:th.text3 }}>No connected accounts for this client yet.</div>}
+              {accounts.map(a=>{ const on=form.accts.includes(a.id); const PI=PlatformIcons[a.platform]; return (
+                <div key={a.id} onClick={()=>toggleAcct(a.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:999, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.accent:th.text2, cursor:"pointer", fontSize:11.5, fontWeight:600 }}>
+                  {PI?<PI/>:<Globe size={13}/>}{a.account_name||a.username}{on&&<CheckCircle size={12}/>}
+                </div>
+              ); })}
             </div>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={()=>setShowCreate(false)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
