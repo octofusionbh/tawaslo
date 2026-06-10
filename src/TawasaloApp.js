@@ -5562,6 +5562,7 @@ function AuthPage() {
   const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding, lang, setLang } = useApp();
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const isMobile = useIsMobile();
   const [showPw,  setShowPw]  = useState(false);
   const [email,   setEmail]   = useState("");
   const [pw,      setPw]      = useState("");
@@ -5647,7 +5648,7 @@ function AuthPage() {
 
   return (
     <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden",direction:isAR?"rtl":"ltr"}}>
-      <div style={{width:420,flexShrink:0,background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,display:"flex",flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
+      <div style={{width:420,flexShrink:0,display:isMobile?"none":"flex",background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
         <div onClick={()=>setShowLanding(true)} title="Back to homepage" style={{display:"flex",alignItems:"center",gap:12,marginBottom:60,cursor:"pointer"}}>
           <img src="/logo-transparent.png" alt="Tawaslo" style={{width:42,height:42,objectFit:"contain",flexShrink:0}}/>
           <div>
@@ -5695,7 +5696,7 @@ function AuthPage() {
           })}
         </div>
       </div>
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:40,overflowY:"auto"}}>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:isMobile?"24px 18px":40,overflowY:"auto"}}>
         <div style={{width:"100%",maxWidth:400}}>
           <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
             <button onClick={()=>setLang&&setLang(l=>l==="en"?"ar":"en")} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:11.5,fontWeight:600,borderRadius:8,padding:"6px 11px",cursor:"pointer"}}>
