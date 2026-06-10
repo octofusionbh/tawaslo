@@ -1586,8 +1586,10 @@ function AgencyDashboard() {
 }
 
 function MediaPage() {
-  const { dark, setPage, selClient, clients } = useApp();
+  const { dark, setPage, selClient, clients, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [uid, setUid] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1646,8 +1648,8 @@ function MediaPage() {
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Media Library</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{shown.length} {shown.length===1?"asset":"assets"} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Media Library","مكتبة الوسائط")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{shown.length} {isAR?"ملف":(shown.length===1?"asset":"assets")} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
         </div>
         <label style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:11, background:th.gradient, color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>
           <Plus size={14}/>{uploading?"Uploading…":"Upload"}
@@ -1688,7 +1690,7 @@ function MediaPage() {
           <input type="file" id="media-file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>upload(e.target.files)}/>
           <Image size={34} color={th.accent} style={{ marginBottom:12 }}/>
           <div style={{ fontSize:14, fontWeight:600, marginBottom:5 }}>No assets for {clientName}{plat!=="all"?" · "+PNAME[plat]:""} yet</div>
-          <div style={{ fontSize:12.5, color:th.text2 }}>Drag &amp; drop or click to upload images and videos for this client.</div>
+          <div style={{ fontSize:12.5, color:th.text2 }}>{L("Drag & drop or click to upload images and videos for this client.","اسحب وأفلت أو انقر لرفع الصور والفيديوهات لهذا العميل.")}</div>
         </div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))", gap:14 }}>
@@ -1855,8 +1857,10 @@ function AIStudioPage() {
 }
 
 function CalendarPage() {
-  const { selClient, dark, setPage } = useApp();
+  const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [view, setView] = useState("month");
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
@@ -1938,16 +1942,16 @@ function CalendarPage() {
     <div style={{ padding:"28px 32px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Planner</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || "Your brand"} &middot; {posts.length} scheduled {posts.length===1?"post":"posts"} &middot; <span style={{ color:th.text3 }}>drag a post to reschedule</span></p>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Planner","المخطط")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {posts.length} {L("scheduled","مجدول")} {isAR?"منشور":(posts.length===1?"post":"posts")} &middot; <span style={{ color:th.text3 }}>{L("drag a post to reschedule","اسحب منشوراً لإعادة جدولته")}</span></p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
-            {[["month","Month"],["week","Week"]].map(([k,t])=>(
+            {[["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
-          <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>New post</button>
+          <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>{L("New post","منشور جديد")}</button>
         </div>
       </div>
 
@@ -3087,8 +3091,10 @@ function TrendingPage() {
 }
 
 function AnalyticsPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState({});
@@ -3195,8 +3201,8 @@ function AnalyticsPage() {
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12}}>
         <div>
-          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>Analytics{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>SAMPLE PREVIEW</span>}</h2>
-          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Performance overview &middot; {selClient?.name}</p>
+          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>{L("Analytics","التحليلات")}{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>{L("SAMPLE PREVIEW","معاينة عينة")}</span>}</h2>
+          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Performance overview","نظرة عامة على الأداء")} &middot; {selClient?.name}</p>
         </div>
         {accounts.length > 0 && (
           <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
@@ -3220,10 +3226,10 @@ function AnalyticsPage() {
       ) : data ? (
         <>
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
-            {metric("Followers", (selectedAcc?.followers_count||totalFollowers).toLocaleString(), null, null)}
-            {metric("Reach (30d)", data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7")}
-            {metric("Impressions (30d)", data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA")}
-            {metric("Engagement", engRate+"%", null, null)}
+            {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||totalFollowers).toLocaleString(), null, null)}
+            {metric(L("Reach (30d)","الوصول (٣٠ يوم)"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7")}
+            {metric(L("Impressions (30d)","الظهور (٣٠ يوم)"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA")}
+            {metric(L("Engagement","التفاعل"), engRate+"%", null, null)}
           </div>
 
           <div style={{display:"grid", gridTemplateColumns:"1.7fr 1fr", gap:16, marginBottom:14}}>
@@ -3449,9 +3455,11 @@ function CampaignsPage() {
 
 // ── Streams (live monitoring) ─────────────────────────────────────────
 function StreamsPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
-  const brand = selClient?.name || 'Your brand';
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
+  const brand = selClient?.name || (isAR ? 'علامتك' : 'Your brand');
   const [columns, setColumns] = useState([]);
   const [newCol, setNewCol] = useState("");
 
@@ -3510,15 +3518,15 @@ function StreamsPage() {
     <div className="tw-page-in" style={{ padding:"28px 32px" }}>
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Streams</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>A live, side by side pulse of every conversation about your brand.</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4, display:"flex", alignItems:"center", gap:10 }}>{L("Streams","التدفقات")}<span style={{ fontSize:10, fontWeight:700, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3 }}>{L("PREVIEW","معاينة")}</span></h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("A live, side by side pulse of every conversation about your brand.","نبض مباشر جنباً إلى جنب لكل محادثة عن علامتك التجارية.")}</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <div style={{ position:"relative" }}>
             <Search size={14} style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:th.text3 }}/>
-            <input value={newCol} onChange={e=>setNewCol(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addColumn()} placeholder="Add a keyword, #hashtag or @mention" style={{ width:280, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px 9px 32px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
+            <input value={newCol} onChange={e=>setNewCol(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addColumn()} placeholder={L("Add a keyword, #hashtag or @mention","أضف كلمة مفتاحية أو وسماً أو إشارة")} style={{ width:280, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px 9px 32px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
           </div>
-          <button onClick={addColumn} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer" }}><Plus size={14}/>Add</button>
+          <button onClick={addColumn} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer" }}><Plus size={14}/>{L("Add","إضافة")}</button>
         </div>
       </div>
 
@@ -3530,7 +3538,7 @@ function StreamsPage() {
                 <div style={{ width:8, height:8, borderRadius:"50%", background:th.success }}/>
                 <div>
                   <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{col.label}</div>
-                  <div style={{ fontSize:10, color:th.text2 }}>{col.kind}</div>
+                  <div style={{ fontSize:10, color:th.text2 }}>{isAR ? ({Mentions:"إشارات",Hashtag:"وسم",Keyword:"كلمة مفتاحية"}[col.kind]||col.kind) : col.kind}</div>
                 </div>
               </div>
               <button onClick={()=>removeColumn(col.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={16}/></button>
@@ -4003,8 +4011,10 @@ ${topPosts.length > 0 ? `<div class="page">
 }
 
 function InboxPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
   const platOf = (m) => PLAT[m && m.platform] || PLAT.ig;
   const [accounts, setAccounts] = useState([]);
@@ -4122,27 +4132,27 @@ function InboxPage() {
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
         <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>Inbox</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Real-time comments and messages for {selClient?.name}</p>
+          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>{L("Inbox","الوارد")}</h2>
+          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Real-time comments and messages for","التعليقات والرسائل الفورية لـ")} {selClient?.name}</p>
         </div>
         <div style={{display:"flex", gap:8}}>
           {['all','comment','dm'].map(f => (
             <button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer"}}>
-              {f==='all'?'All':f==='comment'?'Comments':'DMs'}
+              {f==='all'?L("All","الكل"):f==='comment'?L("Comments","التعليقات"):L("DMs","الرسائل")}
             </button>
           ))}
           <button onClick={fetchInbox} disabled={loading} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
-            <RefreshCw size={11}/>{loading?'Loading…':'Refresh'}
+            <RefreshCw size={11}/>{loading?L("Loading…","جارٍ التحميل…"):L("Refresh","تحديث")}
           </button>
           <button onClick={sampleMode?exitSample:loadSample} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
-            <Eye size={11}/>{sampleMode?'Exit preview':'Preview sample'}
+            <Eye size={11}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview sample","معاينة عينة")}
           </button>
         </div>
       </div>
 
       {sampleMode && (
         <div style={{marginBottom:14, padding:"10px 14px", borderRadius:10, background:th.accentSoft, border:`1px solid ${th.accent}55`, fontSize:12, color:th.accent, display:"flex", alignItems:"center", gap:8}}>
-          <Eye size={13}/> Showing <strong>sample data</strong> for preview. Real comments &amp; DMs appear here automatically once Meta approves your app.
+          <Eye size={13}/> {isAR ? <>تُعرض <strong>بيانات تجريبية</strong> للمعاينة. ستظهر التعليقات والرسائل الحقيقية هنا تلقائياً بعد اعتماد تطبيقك من Meta.</> : <>Showing <strong>sample data</strong> for preview. Real comments &amp; DMs appear here automatically once Meta approves your app.</>}
         </div>
       )}
       {loading ? (
@@ -4226,14 +4236,14 @@ function InboxPage() {
                     </div>
                   )}
                 </div>
-                {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600}}>✓ Reply posted successfully!</div>}
+                {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600}}>{L("Reply posted successfully","تم نشر الرد بنجاح")}</div>}
                 {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
                 <div style={{display:"flex", gap:8}}>
                   <input
                     value={reply}
                     onChange={e=>{setReply(e.target.value); setReplyError('');}}
                     onKeyDown={e=>e.key==='Enter'&&sendReply()}
-                    placeholder={selected.type==='dm'?"DM replies coming soon…":"Type a reply…"}
+                    placeholder={selected.type==='dm'?L("DM replies coming soon…","الرد على الرسائل قريباً…"):L("Type a reply…","اكتب رداً…")}
                     disabled={selected.type==='dm'||replying}
                     style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", opacity:selected.type==='dm'?0.5:1}}
                   />
@@ -4248,7 +4258,7 @@ function InboxPage() {
                 </div>
               </>
             ) : (
-              <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:th.text2, fontSize:13}}>Select a message to view</div>
+              <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:th.text2, fontSize:13}}>{L("Select a message to view","اختر رسالة لعرضها")}</div>
             )}
           </div>
         </div>
