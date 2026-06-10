@@ -1339,6 +1339,7 @@ function AgencyDashboard() {
   const [brandOpen, setBrandOpen] = useState(false);
   const [platOpen, setPlatOpen]   = useState(false);
   const [platform, setPlatform]   = useState("All platforms");
+  const [viewingAccount, setViewingAccount] = useState(null);
   const [accounts, setAccounts]   = useState([]);
   const [postCount, setPostCount] = useState(0);
   const [upcoming, setUpcoming]   = useState([]);
@@ -1437,7 +1438,7 @@ function AgencyDashboard() {
 
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
         <div style={{fontSize:11,color:th.text2}}>{accounts.length>0?(accounts.length+" connected account"+(accounts.length>1?"s":"")):"Connected accounts"}</div>
-        {accounts.length>0&&<button onClick={()=>setPlatform("All platforms")} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${platform==="All platforms"?th.accent:th.border}`,background:platform==="All platforms"?th.accentSoft:"transparent",color:platform==="All platforms"?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>All platforms</button>}
+        {accounts.length>0&&<button onClick={()=>{ setPlatform("All platforms"); setViewingAccount(null); }} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${(platform==="All platforms"&&!viewingAccount)?th.accent:th.border}`,background:(platform==="All platforms"&&!viewingAccount)?th.accentSoft:"transparent",color:(platform==="All platforms"&&!viewingAccount)?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>All platforms</button>}
       </div>
       {accounts.length===0?(
         <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:16,padding:22,textAlign:"center",marginBottom:18}}>
@@ -1449,9 +1450,9 @@ function AgencyDashboard() {
         <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(accounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
           {accounts.slice(0,8).map((acc,i)=>{
             const PI = PlatformIcons[acc.platform];
-            const sel = platform===acc.platform;
+            const sel = viewingAccount===(acc.id||i);
             return (
-              <div key={acc.id||i} onClick={()=>setPlatform(acc.platform)} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",cursor:"pointer"}}>
+              <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                   <div style={{width:32,height:32,borderRadius:9,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={15} color={th.text2}/>}</div>
                   {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>viewing</span>}
@@ -2059,6 +2060,11 @@ function PublisherPage() {
   const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
+  // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
+  const PREVIEW_TABS = [["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]];
+  const previewTabs = selPlats.length ? PREVIEW_TABS.filter(([k]) => selPlats.includes(k)) : PREVIEW_TABS;
+  const effPreviewPlat = previewTabs.some(([k]) => k === previewPlatform) ? previewPlatform : (previewTabs[0] ? previewTabs[0][0] : "ig");
+  const previewAccount = accounts.find(a => selectedAccounts.includes(a.id) && a.platform === effPreviewPlat) || null;
   const images = media.filter(m => m.type === 'image' && m.url);
   const video = media.find(m => m.type === 'video' && m.url);
   const detected = video ? (igFormat === 'story' ? 'Story' : 'Reel / Video') : images.length > 1 ? ('Carousel · ' + images.length + ' images') : images.length === 1 ? 'Single photo' : null;
@@ -2362,21 +2368,24 @@ function PublisherPage() {
         <div style={{ position:"sticky", top:0 }}>
           <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>Live preview</div>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
-            {[["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]].map(([k,lab,Ic])=>(
-              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:previewPlatform===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:previewPlatform===k?th.gradient:"transparent", color:previewPlatform===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{previewPlatform===k && <span>{lab}</span>}</button>
+            {previewTabs.map(([k,lab,Ic])=>(
+              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:effPreviewPlat===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:effPreviewPlat===k?th.gradient:"transparent", color:effPreviewPlat===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{effPreviewPlat===k && <span>{lab}</span>}</button>
             ))}
           </div>
 
           {(() => {
-            const brand = selClient?.name || "Your brand";
-            const handle = (selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
-            const av = (selClient?.name?.[0] || "T").toUpperCase();
+            const brand = previewAccount?.account_name || selClient?.name || "Your brand";
+            const handle = (previewAccount?.username || previewAccount?.account_name || selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
+            const av = (brand[0] || "T").toUpperCase();
+            const pic = previewAccount?.picture || null;
             const hasCap = !!caption;
             const cap = caption || "Your caption will appear here as you type…";
             const capCol = hasCap ? "#1a1a1a" : "#aab2bd";
             const grey = "#65676b";
-            const isStory = (igFormat === "story" || igFormat === "reel") && previewPlatform === "ig";
-            const avatar = (s) => <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
+            const isStory = (igFormat === "story" || igFormat === "reel") && effPreviewPlat === "ig";
+            const avatar = (s) => pic
+              ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+              : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
               <div style={{ position:"relative", height:isStory?330:210, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ textAlign:"center" }}>{video ? <Send size={24}/> : <Image size={24}/>}<div style={{ fontSize:10, marginTop:6 }}>{video ? "Video" : "Add media →"}</div></div>}
@@ -2385,7 +2394,7 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
 
-            if (previewPlatform === "ig") {
+            if (effPreviewPlat === "ig") {
               return (
                 <div style={shell}>
                   <div style={{ display:"flex", alignItems:"center", gap:9, padding:"10px 12px" }}>{avatar(30)}<div style={{ fontSize:12.5, fontWeight:600 }}>{handle}</div><MoreHorizontal size={16} style={{ marginLeft:"auto" }}/></div>
@@ -2398,7 +2407,7 @@ function PublisherPage() {
                 </div>
               );
             }
-            if (previewPlatform === "fb") {
+            if (effPreviewPlat === "fb") {
               return (
                 <div style={shell}>
                   <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(38)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div><MoreHorizontal size={16} style={{ marginLeft:"auto", color:grey }}/></div>
@@ -2408,7 +2417,7 @@ function PublisherPage() {
                 </div>
               );
             }
-            if (previewPlatform === "li") {
+            if (effPreviewPlat === "li") {
               return (
                 <div style={shell}>
                   <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(40)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey }}>Social media management</div><div style={{ fontSize:10, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div></div>
@@ -6232,3 +6241,4 @@ export default function TawasloApp() {
     </AppCtx.Provider>
   );
 }
+// build integrity check
