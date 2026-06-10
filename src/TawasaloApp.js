@@ -2046,8 +2046,10 @@ function EmptyState({ Icon, title, body, cta, onCta, compact }) {
 }
 
 function PublisherPage() {
-  const { selClient, dark, setPage, userEmail } = useApp();
+  const { selClient, dark, setPage, userEmail, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [upgrade, setUpgrade] = useState(null);
   const [tab, setTab] = useState("compose");
   const [accounts, setAccounts] = useState([]);
@@ -2237,11 +2239,11 @@ function PublisherPage() {
       <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:10 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>Create post</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || "Your brand"} &middot; compose, schedule &amp; publish</p>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Create post","إنشاء منشور")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("compose, schedule & publish","اكتب وجدوِل وانشر")}</p>
         </div>
         <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
-          {[["compose","Compose"],["drafts","Drafts"+(drafts.length?" ("+drafts.length+")":"")]].map(([k,t])=>(
+          {[["compose",L("Compose","إنشاء")],["drafts",L("Drafts","المسودات")+(drafts.length?" ("+drafts.length+")":"")]].map(([k,t])=>(
             <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:tab===k?th.gradient:"transparent", color:tab===k?"#fff":th.text2, fontSize:12, fontWeight:tab===k?600:400, cursor:"pointer" }}>{t}</button>
           ))}
         </div>
@@ -2249,9 +2251,9 @@ function PublisherPage() {
 
       {tab === "drafts" ? (
         <div style={{ ...card, padding:0, overflow:"hidden", maxWidth:760 }}>
-          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600 }}>Saved drafts</div>
+          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600 }}>{L("Saved drafts","المسودات المحفوظة")}</div>
           {drafts.length === 0 ? (
-            <EmptyState compact Icon={Edit3} title="No drafts yet" body={<>Compose a post and hit <strong style={{color:th.text}}>Save draft</strong> to keep it here for later.</>} cta="Compose a post" onCta={()=>setTab("compose")} />
+            <EmptyState compact Icon={Edit3} title={L("No drafts yet","لا توجد مسودات بعد")} body={isAR ? <>اكتب منشوراً واضغط <strong style={{color:th.text}}>حفظ كمسودة</strong> للاحتفاظ به هنا.</> : <>Compose a post and hit <strong style={{color:th.text}}>Save draft</strong> to keep it here for later.</>} cta={L("Compose a post","اكتب منشوراً")} onCta={()=>setTab("compose")} />
           ) : drafts.map((d,i) => (
             <div key={d.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 18px", borderBottom:i<drafts.length-1?`1px solid ${th.border}`:"none" }}>
               <div style={{ width:46, height:46, borderRadius:10, flexShrink:0, background:th.card2, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.image_url ? <img src={d.image_url} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <Image size={16} color={th.text3}/>}</div>
@@ -2269,14 +2271,14 @@ function PublisherPage() {
         <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
 
           <div style={card}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}><div style={{ fontSize:12, color:th.text2 }}>Publish to</div></div>
-            {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>No connected accounts. <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>Connect accounts</span> to start.</div> : (
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}><div style={{ fontSize:12, color:th.text2 }}>{L("Publish to","النشر إلى")}</div></div>
+            {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>{L("No connected accounts.","لا توجد حسابات مرتبطة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect accounts","اربط الحسابات")}</span> {L("to start.","للبدء.")}</div> : (
               <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:9 }}>
                 {accounts.map(acc => { const info = PLAT[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe }; const sel = selectedAccounts.includes(acc.id);
                   return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text2, fontSize:11.5, cursor:"pointer" }}><info.Icon style={{ fontSize:14 }}/>{acc.account_name}</button>; })}
               </div>
             )}
-            <div style={{ fontSize:10, color:th.text3, marginBottom:6 }}>Connect to enable</div>
+            <div style={{ fontSize:10, color:th.text3, marginBottom:6 }}>{L("Connect to enable","اربط للتفعيل")}</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
               {["tw","li","tt","yt"].map(k => { const info = PLAT[k]; return <button key={k} onClick={()=>setPage("social")} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:999, border:`1px dashed ${th.border}`, background:"transparent", color:th.text3, fontSize:11, cursor:"pointer" }}><info.Icon style={{ fontSize:12 }}/>{info.name} <Plus size={11}/></button>; })}
             </div>
@@ -2284,9 +2286,9 @@ function PublisherPage() {
 
           {igSelected && (
             <div style={card}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:12, color:th.text2 }}>Instagram publishes as</span></div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:12, color:th.text2 }}>{L("Instagram publishes as","ينشر على إنستغرام كـ")}</span></div>
               <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3, width:"fit-content" }}>
-                {[["feed","Feed post"],["reel","Reel"],["story","Story (soon)"]].map(([k,t])=>(
+                {[["feed",L("Feed post","منشور")],["reel",L("Reel","ريل")],["story",L("Story (soon)","ستوري (قريباً)")]].map(([k,t])=>(
                   <button key={k} onClick={()=>setIgFormat(k)} style={{ padding:"6px 14px", borderRadius:8, border:"none", background:igFormat===k?th.gradient:"transparent", color:igFormat===k?"#fff":th.text2, fontSize:11.5, fontWeight:igFormat===k?600:400, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
@@ -2295,8 +2297,8 @@ function PublisherPage() {
 
           <div style={card}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
-              <div style={{ fontSize:12, color:th.text2 }}>Caption</div>
-              <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>AI write</button>
+              <div style={{ fontSize:12, color:th.text2 }}>{L("Caption","النص")}</div>
+              <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>{L("AI write","كتابة ذكية")}</button>
             </div>
             {showAI && (
               <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:13, marginBottom:11 }}>
@@ -2407,13 +2409,13 @@ function PublisherPage() {
           {results.length>0 && <div>{results.map((r,i)=><div key={i} style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>{r.success?<CheckCircle size={14}/>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span>{r.success&&r.permalink&&<a href={r.permalink} target="_blank" rel="noreferrer" style={{ marginLeft:"auto", color:th.success, fontWeight:600, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>View post <ArrowUpRight size={13}/></a>}</div>)}</div>}
 
           <div style={{ display:"flex", gap:10 }}>
-            <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?"Update draft":"Save draft"}</button>
-            <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?"Working…":scheduleType==="schedule"?<><Clock size={15}/>Schedule</>:<><Send size={15}/>Publish now</>}</button>
+            <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?L("Update draft","تحديث المسودة"):L("Save draft","حفظ كمسودة")}</button>
+            <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
           </div>
         </div>
 
         <div style={{ position:"sticky", top:0 }}>
-          <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>Live preview</div>
+          <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>{L("Live preview","معاينة مباشرة")}</div>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
             {previewTabs.map(([k,lab,Ic])=>(
               <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:effPreviewPlat===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:effPreviewPlat===k?th.gradient:"transparent", color:effPreviewPlat===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{effPreviewPlat===k && <span>{lab}</span>}</button>
@@ -3465,24 +3467,34 @@ function StreamsPage() {
 
   const PLATS = [['ig','#E1306C'], ['fb','#1877F2'], ['li','#0A66C2'], ['tt', th.text2]];
   const feedFor = (label) => {
-    const authors = ['mariam.q','gulf.foodie','khaleeji.style','the.daily.bh','noor.designs','urban.manama','adel.reviews','q8.trends'];
-    const texts = [
-      `Just discovered ${label} and honestly impressed so far.`,
-      `Has anyone tried ${label}? Looking for honest recommendations.`,
-      `${label} keeps showing up on my feed lately, curious about it.`,
-      `Loving what ${label} is doing this season.`,
-      `${label} got a mention in our latest weekly roundup.`,
-      `Quick shoutout to ${label}, smooth experience all round.`,
+    const authors = ['mariam.q','gulf.foodie','khaleeji.style','the.daily.bh','noor.designs','urban.manama','adel.reviews','q8.trends','sara.writes','manama.eats','the.gcc.scoop','layla.k','ahmed.shoots','bahrain.bites'];
+    const templates = [
+      `Honestly ${label} has been a pleasant surprise this week.`,
+      `Anyone else following ${label}? The content is on point lately.`,
+      `Saw ${label} pop up again, the hype might be real.`,
+      `${label} just keeps getting better. Genuinely impressed.`,
+      `We featured ${label} in this week's roundup, worth a look.`,
+      `Quick shoutout to ${label}, great experience all round.`,
+      `Not sponsored, but ${label} deserves more attention.`,
+      `${label} replied to my DM in minutes. Rare these days.`,
+      `Been comparing options and ${label} stands out for me.`,
+      `Tried ${label} on a friend's recommendation, no regrets.`,
+      `The way ${label} handled that launch was clean.`,
+      `${label} is quietly becoming my favorite this season.`,
+      `Okay ${label} understood the assignment with this one.`,
+      `Adding ${label} to my list, the reviews look solid.`,
     ];
-    let seed = label.length * 7 + 13;
+    let seed = (label.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) * 7 + 13;
     const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    return Array.from({ length:6 }).map((_, i) => ({
+    const used = new Set();
+    const pick = () => { let t, g=0; do { t = Math.floor(rnd()*templates.length); g++; } while (used.has(t) && g < 25); used.add(t); return templates[t]; };
+    return Array.from({ length:7 }).map(() => ({
       author: authors[Math.floor(rnd() * authors.length)],
       plat: PLATS[Math.floor(rnd() * PLATS.length)],
-      text: texts[i % texts.length],
-      time: `${1 + Math.floor(rnd() * 58)}m`,
-      likes: Math.floor(rnd() * 240),
-      comments: Math.floor(rnd() * 28),
+      text: pick(),
+      time: `${1 + Math.floor(rnd() * 110)}m`,
+      likes: Math.floor(rnd() * 320),
+      comments: Math.floor(rnd() * 40),
     }));
   };
 
@@ -4327,8 +4339,10 @@ function TeamPage() {
 }
 
 function BillingPage() {
-  const { dark } = useApp();
+  const { dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [paid, setPaid] = useState(false);
@@ -4371,17 +4385,17 @@ function BillingPage() {
     <div style={{padding:"28px 32px", maxWidth:960}}>
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22, flexWrap:"wrap", gap:14}}>
         <div>
-          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Plans &amp; billing</h2>
+          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Plans & billing","الخطط والفوترة")}</h2>
           {cancelled ? (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>Your <span style={{color:th.accent, fontWeight:600}}>Essential</span> plan ends <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>Reactivate</span></p>
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Your","خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> {L("plan ends","تنتهي في")} <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>{L("Reactivate","إعادة التفعيل")}</span></p>
           ) : (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>You're on <span style={{color:th.accent, fontWeight:600}}>Essential</span> · billed {currentPeriod==="annual"?"yearly":"monthly"} · renews July 1, 2026 · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>Cancel subscription</span></p>
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("You're on","أنت على خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> · {currentPeriod==="annual"?L("billed yearly","فوترة سنوية"):L("billed monthly","فوترة شهرية")} · {L("renews July 1, 2026","تتجدد في ١ يوليو ٢٠٢٦")} · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>{L("Cancel subscription","إلغاء الاشتراك")}</span></p>
           )}
         </div>
         <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
-          {[["monthly","Monthly"],["annual","Yearly"]].map(([k,l])=>(
+          {[["monthly",L("Monthly","شهري")],["annual",L("Yearly","سنوي")]].map(([k,l])=>(
             <button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px", borderRadius:999, border:"none", background:period===k?th.gradient:"transparent", color:period===k?"#fff":th.text2, fontSize:12.5, fontWeight:period===k?600:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-              {l}{k==="annual"&&<span style={{fontSize:10, fontWeight:700, color:period==="annual"?"#fff":th.success}}>save 20%</span>}
+              {l}{k==="annual"&&<span style={{fontSize:10, fontWeight:700, color:period==="annual"?"#fff":th.success}}>{L("save 20%","وفّر ٢٠٪")}</span>}
             </button>
           ))}
         </div>
@@ -6079,7 +6093,7 @@ function TrialBanner() {
 export default function TawasloApp() {
   const [dark,      setDark]      = useState(true);
   const [lang,      setLang]      = useState("en");
-  const [showLanding, setShowLanding] = useState(true);
+  const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [authPage,  setAuthPage]  = useState("login");
   const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
@@ -6144,6 +6158,14 @@ export default function TawasloApp() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Remember that the user is inside the app, so a refresh keeps them here instead of bouncing to the landing page.
+  useEffect(() => {
+    try {
+      if (isAuthed && !showLanding) sessionStorage.setItem('tw_in_app', '1');
+      else if (!isAuthed) sessionStorage.removeItem('tw_in_app');
+    } catch (e) { /* ignore */ }
+  }, [isAuthed, showLanding]);
 
   useEffect(() => { if (recovery) setAuthPage('recovery'); }, [recovery]);
 
