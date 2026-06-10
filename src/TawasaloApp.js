@@ -3103,10 +3103,10 @@ function AnalyticsPage() {
       .then(({ data }) => {
         if (data) {
           setAccounts(data);
-          const igAccs = data.filter(a => a.platform === 'ig');
-          if (igAccs.length > 0) {
-            setSelectedAcc(igAccs[0]);
-            fetchAnalytics(igAccs[0]);
+          const first = data.find(a => a.platform === 'ig') || data[0];
+          if (first) {
+            setSelectedAcc(first);
+            fetchAnalytics(first);
           } else {
             setLoading(false);
           }
@@ -3175,9 +3175,9 @@ function AnalyticsPage() {
   const maxEng = Math.max(1, ...topPosts.map(pp=>pp.likes+pp.comments));
 
   const metric = (label, value, series, scolor) => (
-    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"15px 17px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
-      <div style={{fontSize:11.5,color:th.text2,marginBottom:7}}>{label}</div>
-      <div style={{fontSize:23,fontWeight:600,letterSpacing:-0.5}}>{value}</div>
+    <div style={{background:`linear-gradient(160deg, ${th.card2}, ${th.card})`,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"0 12px 32px rgba(0,0,0,0.30)"}}>
+      <div style={{fontSize:11.5,color:th.text2,marginBottom:9,fontWeight:500}}>{label}</div>
+      <div style={{fontSize:25,fontWeight:700,letterSpacing:-0.6,color:th.text}}>{value}</div>
       {series && series.length>1 && (
         <svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none" style={{marginTop:8,display:"block"}}>
           <path d={sparkPath(series,100,26,true)} fill={(scolor||th.accent)+"22"}/>
@@ -3194,13 +3194,13 @@ function AnalyticsPage() {
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>Analytics{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>SAMPLE PREVIEW</span>}</h2>
           <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Performance overview &middot; {selClient?.name}</p>
         </div>
-        {igAccounts.length > 0 && (
+        {accounts.length > 0 && (
           <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-            {igAccounts.map(acc => (
-              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px", borderRadius:999, border:`1px solid ${selectedAcc?.id===acc.id?"#E1306C":th.border}`, background:selectedAcc?.id===acc.id?"rgba(225,48,108,0.1)":th.card, color:selectedAcc?.id===acc.id?"#E1306C":th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer"}}>
-                <FaInstagram/>@{acc.username || acc.account_name}
+            {accounts.map(acc => { const PI=PlatformIcons[acc.platform]; const on=selectedAcc?.id===acc.id; return (
+              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px", borderRadius:999, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card, color:on?th.accent:th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer"}}>
+                {PI?<PI/>:<Globe size={13}/>}{acc.username?("@"+acc.username):acc.account_name}
               </button>
-            ))}
+            ); })}
           </div>
         )}
       </div>
