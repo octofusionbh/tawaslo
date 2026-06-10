@@ -1,6 +1,13 @@
 @echo off
 cd /d "C:\dev\tawaslo"
 
+echo Disabling git auto-maintenance (stops the "Deletion of directory" prompts)...
+git config gc.auto 0
+git config gc.autoDetach false
+git config maintenance.auto false
+git config core.fscache true
+git config core.preloadIndex true
+
 echo Staging all changes...
 git add -A
 
@@ -8,14 +15,14 @@ echo Checking for new changes...
 git diff --cached --quiet
 if %errorlevel%==1 (
   echo Committing...
-  git commit -m "deploy: latest changes"
+  git -c gc.auto=0 -c maintenance.auto=false commit -m "deploy: latest changes"
 ) else (
   echo No new file changes - will still push any pending commits.
 )
 
 echo.
 echo Pushing to GitHub / Vercel...
-git push origin main
+git -c gc.auto=0 -c maintenance.auto=false push origin main
 
 echo.
 echo ====================================================
