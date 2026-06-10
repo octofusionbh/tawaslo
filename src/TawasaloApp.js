@@ -1323,9 +1323,29 @@ function OwnerTeamPage() {
 }
 
 function AgencyDashboard() {
-  const { selClient, setPage, clients, setSelClient, userEmail } = useApp();
+  const { selClient, setPage, clients, setSelClient, setClients, userEmail } = useApp();
   const th = useTheme();
   const [upgrade, setUpgrade] = useState(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
+  const createClient = async () => {
+    const name = newClientName.trim();
+    if (!name || creatingClient) return;
+    setCreatingClient(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase.from('clients').insert([{ owner_id: user.id, name, plan: 'trial', status: 'active', is_free: true }]).select();
+        if (!error && data && data[0]) {
+          const nc = { ...data[0], free: true, accounts: 0, posts: 0, reach: 0, health: 100, spend: 0 };
+          if (setClients) setClients(prev => [...prev, nc]);
+          setSelClient(nc);
+        }
+      }
+    } catch (e) { /* ignore */ }
+    setCreatingClient(false); setAddClientOpen(false); setNewClientName("");
+  };
   const [caption, setCaption] = useState("");
   const [selPl, setSelPl] = useState(["ig","fb"]);
 
@@ -1404,6 +1424,20 @@ function AgencyDashboard() {
   return (
     <div>
       <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
+      {addClientOpen && createPortal((
+        <div onClick={()=>setAddClientOpen(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+            <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>Add a client</h3>
+            <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>Each client is its own workspace with its own connected accounts, posts and reports. You can switch between them any time.</p>
+            <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>Client name</div>
+            <input value={newClientName} autoFocus onChange={e=>setNewClientName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder="e.g. Trio Restaurant & Cafe" style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setAddClientOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>Cancel</button>
+              <button onClick={createClient} disabled={!newClientName.trim()||creatingClient} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newClientName.trim()?"pointer":"not-allowed",opacity:newClientName.trim()?1:0.6}}>{creatingClient?"Creating…":"Create client"}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
       <OnboardingHero/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -1414,6 +1448,8 @@ function AgencyDashboard() {
               <ChevronDown size={16} color={th.text2}/>
             </button>
             {brandOpen&&(
+              <>
+              <div onClick={()=>setBrandOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
               <div style={{position:"absolute",top:"115%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 14px 40px rgba(0,0,0,0.55)",padding:6,minWidth:240}}>
                 <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"6px 10px"}}>Switch client</div>
                 {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>No clients yet</div>}
@@ -1424,7 +1460,12 @@ function AgencyDashboard() {
                     {c.free&&<span style={{marginLeft:"auto",fontSize:9,color:th.success,flexShrink:0}}>FREE</span>}
                   </div>
                 ))}
+                <div onClick={()=>{setBrandOpen(false);setAddClientOpen(true);}} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:9,cursor:"pointer",borderTop:`1px solid ${th.border}`,marginTop:4,color:th.accent,fontSize:12.5,fontWeight:600}}>
+                  <span style={{width:26,height:26,borderRadius:7,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={14} color={th.accent}/></span>
+                  Add client
+                </div>
               </div>
+              </>
             )}
           </div>
           <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
@@ -1618,11 +1659,14 @@ function MediaPage() {
             <Building2 size={13} color={th.accent}/>{clientName} <ChevronDown size={14} color={th.text2}/>
           </button>
           {clientOpen && (
+            <>
+            <div onClick={()=>setClientOpen(false)} style={{ position:"fixed", inset:0, zIndex:39 }}/>
             <div style={{ position:"absolute", top:"112%", left:0, zIndex:40, background:th.card, border:`1px solid ${th.border}`, borderRadius:11, boxShadow:"0 16px 44px rgba(0,0,0,0.5)", padding:6, minWidth:200, maxHeight:260, overflowY:"auto" }}>
               {clientOptions.map(c=>(
                 <div key={c.id} onClick={()=>{ setClientId(c.id); setClientOpen(false); }} style={{ padding:"8px 10px", borderRadius:8, cursor:"pointer", fontSize:12.5, background:clientId===c.id?th.accentSoft:"transparent", color:clientId===c.id?th.accent:th.text }}>{c.name}</div>
               ))}
             </div>
+            </>
           )}
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -2970,6 +3014,8 @@ function TrendingPage() {
             <span>{curRegion.flag}</span> {curRegion.label} <ChevronDown size={15} color={th.text2}/>
           </button>
           {regionOpen&&(
+            <>
+            <div onClick={()=>setRegionOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
             <div style={{position:"absolute",top:"115%",right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 16px 44px rgba(0,0,0,0.55)",padding:6,minWidth:220}}>
               {REGIONS.map(r=>(
                 <div key={r.id} onClick={()=>{setRegion(r.id);setRegionOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:region===r.id?th.accentSoft:"transparent",color:region===r.id?th.accent:th.text,fontSize:12.5}}>
@@ -2977,6 +3023,7 @@ function TrendingPage() {
                 </div>
               ))}
             </div>
+            </>
           )}
         </div>
       </div>
@@ -6171,7 +6218,7 @@ export default function TawasloApp() {
       <AppCtx.Provider value={ctx}>
         <LandingPage
           onGetStarted={async ()=>{ if(isAuthed){ try{ await signOut(); }catch(e){} setIsAuthed(false); } setAuthPage('register'); setShowLanding(false); }}
-          onLogin={()=>{ if(isAuthed){ savePage("dashboard"); setShowLanding(false); } else { setAuthPage('login'); setShowLanding(false); } }}
+          onLogin={async ()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); setAuthPage('login'); setShowLanding(false); }}
         />
       </AppCtx.Provider>
     );
