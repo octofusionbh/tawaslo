@@ -5578,7 +5578,7 @@ function AuthPage() {
 
   const handleSignIn = async () => {
     setError(""); setLoading(true);
-    const { data, error: err } = await signIn(email, pw);
+    const { data, error: err } = await signIn(email.trim().toLowerCase(), pw);
     setLoading(false);
     if (err) { setError(err.message); return; }
     if (data?.user) setIsAuthed(true);
@@ -5641,7 +5641,9 @@ function AuthPage() {
       {type==="password"&&<Lock size={15} color={th.text3}/>}
       {type==="text"&&<User size={15} color={th.text3}/>}
       <input type={showPw&&type==="password"?"text":type} value={value} onChange={onChange} placeholder={placeholder}
-        style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:13,width:"100%",fontFamily:"inherit"}}/>
+        autoCapitalize="none" autoCorrect="off" spellCheck={false}
+        autoComplete={type==="password"?"current-password":type==="email"?"email":"off"}
+        style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:16,width:"100%",fontFamily:"inherit",direction:"ltr",textAlign:isAR?"right":"left"}}/>
       {type==="password"&&(
         <button onClick={()=>setShowPw(!showPw)} style={{background:"none",border:"none",cursor:"pointer",display:"flex",alignItems:"center"}}>
           <Eye size={14} color={th.text3}/>
