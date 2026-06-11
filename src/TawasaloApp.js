@@ -492,6 +492,107 @@ function Topbar() {
   );
 }
 
+// Pinned client + platform context bar — appears on every data board so it's
+// always clear whose data is on screen, and lets you switch client/platform.
+function ContextBar() {
+  const { selClient, setSelClient, clients, setClients, lang, setPage, selPlatform, setSelPlatform } = useApp();
+  const th = useTheme();
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!selClient?.id) { setAccounts([]); return; }
+    supabase.from('social_accounts').select('platform').eq('client_id', selClient.id).neq('is_active', false)
+      .then(({ data }) => { if (active) setAccounts(data || []); });
+    return () => { active = false; };
+  }, [selClient]);
+
+  const PLAT_META = { ig:{label:"Instagram",Icon:FaInstagram,color:"#E1306C"}, fb:{label:"Facebook",Icon:FaFacebook,color:"#1877F2"}, li:{label:"LinkedIn",Icon:FaLinkedin,color:"#0A66C2"}, tt:{label:"TikTok",Icon:FaTiktok,color:th.text}, tw:{label:"X",Icon:FaTwitter,color:th.text}, yt:{label:"YouTube",Icon:FaYoutube,color:"#FF0000"} };
+  const present = Array.from(new Set((accounts||[]).map(a=>a.platform).filter(Boolean)));
+
+  const createClient = async () => {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error } = await supabase.from('clients').insert([{ owner_id: user.id, name, plan:'trial', status:'active', is_free:true }]).select();
+        if (!error && data && data[0]) {
+          const nc = { ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 };
+          if (setClients) setClients(prev => [...prev, nc]);
+          setSelClient(nc);
+        }
+      }
+    } catch(e){ /* ignore */ }
+    setCreating(false); setAddOpen(false); setNewName("");
+  };
+
+  const chip = (active, onClick, children, key) => (
+    <button key={key} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:6,borderRadius:999,padding:"6px 12px",fontSize:11.5,fontWeight:active?600:500,cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${active?th.accent:th.border}`,background:active?th.accent:th.card,color:active?(th===DARK?"#0B0E12":"#fff"):th.text2}}>{children}</button>
+  );
+
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:18,padding:"12px 22px",borderBottom:`1px solid ${th.border}`,background:th.surface,flexWrap:"wrap",direction:isAR?"rtl":"ltr"}}>
+      <div style={{position:"relative"}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:"1px",color:th.text3,marginBottom:5}}>{L("CLIENT","العميل")}</div>
+        <button onClick={()=>setBrandOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:9,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:"7px 12px",cursor:"pointer",color:th.text}}>
+          <span style={{width:22,height:22,borderRadius:6,background:th.gradient,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(selClient?.name||"?").slice(0,2).toUpperCase()}</span>
+          <span style={{fontSize:13,fontWeight:600}}>{selClient?.name||L("Workspace","المساحة")}</span>
+          <ChevronDown size={14} color={th.text2}/>
+        </button>
+        {brandOpen&&(<>
+          <div onClick={()=>setBrandOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
+          <div style={{position:"absolute",top:"100%",[isAR?"right":"left"]:0,marginTop:6,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 14px 40px rgba(0,0,0,0.4)",padding:6,minWidth:230}}>
+            {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>{L("No clients yet","لا يوجد عملاء")}</div>}
+            {clients.map(c=>(
+              <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:8,cursor:"pointer",background:selClient?.id===c.id?th.accentSoft:"transparent"}}>
+                <span style={{width:7,height:7,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>
+                <span style={{flex:1,fontSize:12.5,color:selClient?.id===c.id?th.accent:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                <span className="tw-num" style={{fontSize:10,color:th.text3}}>{c.accounts||0}</span>
+              </div>
+            ))}
+            <div onClick={()=>{setBrandOpen(false);setAddOpen(true);}} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:8,cursor:"pointer",borderTop:`1px solid ${th.border}`,marginTop:4,color:th.accent,fontSize:12.5,fontWeight:600}}>
+              <span style={{width:22,height:22,borderRadius:6,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}><Plus size={13} color={th.accent}/></span>{L("Add a client","إضافة عميل")}
+            </div>
+          </div>
+        </>)}
+      </div>
+
+      <div style={{width:1,height:34,background:th.border,alignSelf:"flex-end",marginBottom:1}}/>
+
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:9,fontWeight:700,letterSpacing:"1px",color:th.text3,marginBottom:5}}>{L("PLATFORM","المنصة")}</div>
+        <div className="tw-scroll-x" style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          {chip(selPlatform==="all", ()=>setSelPlatform("all"), L("All","الكل"), "all")}
+          {present.map(p=>{ const m=PLAT_META[p]; if(!m) return null; const PI=m.Icon; return chip(selPlatform===p, ()=>setSelPlatform(p), <><PI style={{color:m.color,fontSize:14}}/>{m.label}</>, p); })}
+          {present.length===0&&<span style={{fontSize:11,color:th.text3,padding:"6px 4px"}}>{L("No accounts connected","لا توجد حسابات مرتبطة")} · <span onClick={()=>setPage("social")} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("Connect","ربط")}</span></span>}
+        </div>
+      </div>
+
+      {addOpen && createPortal((
+        <div onClick={()=>setAddOpen(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+            <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","إضافة عميل")}</h3>
+            <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports.","كل عميل مساحة عمل مستقلة بحساباته ومنشوراته وتقاريره.")}</p>
+            <input value={newName} autoFocus onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","مثال: مطعم تريو")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setAddOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+              <button onClick={createClient} disabled={!newName.trim()||creating} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{creating?L("Creating…","جارٍ الإنشاء…"):L("Create client","إنشاء عميل")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
 function OwnerDashboard() {
   const { setMode, setPage, setSelClient } = useApp();
   const th = useTheme();
@@ -6234,6 +6335,7 @@ export default function TawasloApp() {
   const [userCompany, setUserCompany] = useState("");
   const [clients,   setClients]   = useState([]);
   const [accountType, setAccountType] = useState("agency");
+  const [selPlatform, setSelPlatform] = useState("all"); // shared client/platform context-bar filter
   const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
   const isAdminUser = userEmail === ADMIN_EMAIL;
 
@@ -6332,6 +6434,7 @@ export default function TawasloApp() {
     accountType, userEmail,
     userName, setUserName,
     userPlan, userCompany,
+    selPlatform, setSelPlatform,
     setShowLanding,
     mobileNav, setMobileNav,
   };
@@ -6440,6 +6543,7 @@ export default function TawasloApp() {
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <Topbar/>
           {mode==="agency" && <TrialBanner/>}
+          {mode==="agency" && !["social","agencyteam","billing","agencysets","settings","clients"].includes(page) && <ContextBar/>}
           <div className="tw-scroll-area" style={{flex:1,overflowY:"auto",padding:22}}>
             <div key={mode+page} className="tw-page-in">{renderPage()}</div>
           </div>
