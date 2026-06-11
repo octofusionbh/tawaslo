@@ -5340,38 +5340,112 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
       </div>
 
-      {/* How it works */}
-      <div style={{padding:isMobile?"56px 18px":"72px 32px",background:"#07090F"}}>
-        <div style={{maxWidth:1000,margin:"0 auto"}}>
-          <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Up and running in minutes</h2>
-          <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:44}}>Three steps from sign-up to growing your audience.</p>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:18}}>
+      {/* Journey */}
+      <div style={{padding:isMobile?"54px 18px":"72px 32px",background:"#080B11"}}>
+        <div style={{maxWidth:980,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:isMobile?28:36}}>
+            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.6,marginBottom:10}}>YOUR JOURNEY</div>
+            <h2 style={{fontSize:isMobile?23:30,fontWeight:800,letterSpacing:-0.7,margin:0}}>From sign-up to growth, <span style={grad}>in minutes.</span></h2>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?16:18,position:"relative"}}>
+            {!isMobile&&<div style={{position:"absolute",top:21,left:"12%",right:"12%",height:1,background:"#2A3650",zIndex:1}}/>}
             {[
-              ["01","Connect your channels",Link,"Link Instagram, Facebook, LinkedIn and more in about 30 seconds."],
-              ["02","Create with AI",Wand2,"Write posts yourself or let the AI draft bilingual captions, hashtags and ideas."],
-              ["03","Schedule & grow",Calendar,"Plan your whole month, auto-publish at the perfect time, and track what works."],
-            ].map(([num,title,Ic,desc])=>(
-              <div key={num} style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:24,position:"relative",overflow:"hidden"}}>
-                <div style={{position:"absolute",top:14,right:18,fontSize:38,fontWeight:900,color:"#141E2E"}}>{num}</div>
-                <div style={{width:44,height:44,borderRadius:13,background:"rgba(79,110,247,0.11)",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16,position:"relative"}}><Ic size={20} color="#4F6EF7"/></div>
-                <div style={{fontSize:15,fontWeight:800,marginBottom:7}}>{title}</div>
-                <div style={{fontSize:12.5,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div>
+              [Link,"01","Connect accounts","Link Instagram, Facebook and LinkedIn in seconds.",false],
+              [Sparkles,"02","Create with AI","Draft bilingual captions and ideas instantly.",false],
+              [Calendar,"03","Schedule the month","Plan everything, auto-publish at the best time.",false],
+              [TrendingUp,"04","Watch it grow","Track reach and engagement, and prove the results.",true],
+            ].map(([Ic,num,title,desc,hi])=>(
+              <div key={num} style={{position:"relative"}}>
+                <div style={{width:42,height:42,borderRadius:13,background:hi?"linear-gradient(135deg,rgba(110,140,171,0.18),#121826)":"#121826",border:`1px solid ${hi?"#3E5C7E":"#2A3650"}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:13,position:"relative",zIndex:2}}><Ic size={20} color={hi?"#9FC2E4":"#9DB6D6"}/></div>
+                <div className="tw-num" style={{color:"#3D4A60",fontSize:13,fontWeight:600,marginBottom:3}}>{num}</div>
+                <div style={{fontSize:13.5,fontWeight:600,marginBottom:5}}>{title}</div>
+                <div style={{fontSize:12,color:"#7E8A9C",lineHeight:1.55}}>{desc}</div>
               </div>
             ))}
+          </div>
+          <div style={{marginTop:isMobile?28:34,paddingTop:24,borderTop:"1px solid #161D29"}}>
+            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.4,marginBottom:14,textAlign:"center"}}>WHAT YOU GET</div>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
+              {[
+                [Clock,"Hours back weekly","Plan a whole month in one sitting.","#7FC9A8"],
+                [Users,"Grow your audience","Post at the right time, every time.","#9DB6D6"],
+                [Building2,"Every client, one place","Separate workspaces, instant switching.","#D9A45C"],
+                [Languages,"Arabic + English","Built bilingual from day one.","#9FC2E4"],
+              ].map(([Ic,t,d,col],i)=>(
+                <div key={i} style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:13,padding:15}}>
+                  <Ic size={18} color={col}/>
+                  <div style={{fontSize:12.5,fontWeight:600,margin:"9px 0 3px"}}>{t}</div>
+                  <div style={{fontSize:10.5,color:"#7E8A9C",lineHeight:1.5}}>{d}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
-      <div style={{background:"#0C1120",padding:"72px 32px"}}>
+      <div style={{background:"#0C1017",padding:isMobile?"54px 18px":"72px 32px"}}>
         <div style={{maxWidth:1000,margin:"0 auto"}}>
-          <h2 style={{fontSize:30,fontWeight:900,textAlign:"center",marginBottom:10}}>Everything your brand needs</h2>
-          <p style={{color:"#7A8BA8",fontSize:14,textAlign:"center",marginBottom:40}}>Built for agencies and brands managing social media at scale.</p>
-          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
-            {[["publisher","Smart Publisher","Schedule and publish to Instagram, Facebook, TikTok & LinkedIn. AI captions in English and Arabic."],["ai","AI Captions","Generate bilingual captions instantly. Hashtags, emojis, and tone — all customizable."],["analytics","Analytics","Track followers, engagement, and growth across all platforms in real time."],["inbox","Unified Inbox","All your DMs and comments from Instagram and Facebook in one place."],["multiclient","Multi-Client","Manage multiple brands under one agency workspace with team roles."],["reports","Reports","Monthly performance reports per client. Export-ready for presentations."]].map(([icon,title,desc])=>(
-              <div key={title} style={card}><FeatureIcon type={icon}/><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
-            ))}
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.6,marginBottom:9}}>EVERYTHING YOUR BRAND NEEDS</div>
+            <h2 style={{fontSize:isMobile?23:28,fontWeight:800,letterSpacing:-0.7,margin:0}}>Built to run social <span style={grad}>at scale.</span></h2>
           </div>
-          <div style={{textAlign:"center",marginTop:32}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
+
+            <div style={{gridColumn:isMobile?"auto":"span 2",background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Smart Publisher</div>
+              <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:14}}>Compose once, tailor per network, schedule or publish now.</div>
+              <div style={{background:"#121826",border:"1px solid #232B38",borderRadius:11,padding:12}}>
+                <div style={{color:"#C2CEDE",fontSize:11.5,marginBottom:10}}>Weekend special — two for one, all Friday ✦</div>
+                <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(225,48,108,0.12)",color:"#E1306C",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaInstagram style={{fontSize:13}}/>Instagram</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(24,119,242,0.12)",color:"#5B9BF5",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaFacebook style={{fontSize:13}}/>Facebook</span>
+                  <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:5,background:"#6E8CAB",color:"#0B0E12",fontSize:10,fontWeight:700,borderRadius:7,padding:"5px 10px"}}><Calendar size={12}/>Schedule</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:11}}>
+                <div style={{width:28,height:28,borderRadius:8,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={14} color="#08111A"/></div>
+                <div style={{fontSize:13.5,fontWeight:600}}>AI captions, EN + AR</div>
+              </div>
+              <div style={{background:"#121826",border:"1px solid #232B38",borderRadius:9,padding:"8px 11px",marginBottom:7,display:"flex",alignItems:"center",gap:9}}>
+                <div style={{flex:1}}><span style={{fontSize:8,fontWeight:700,color:"#7FC9A8",background:"rgba(127,201,168,0.12)",borderRadius:4,padding:"1px 5px"}}>EN</span><div style={{color:"#C2CEDE",fontSize:10,marginTop:3,lineHeight:1.4}}>Launch party this week — join us ✦</div></div>
+                <span style={{fontSize:9.5,fontWeight:700,color:"#0B0E12",background:"#6E8CAB",borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>Use</span>
+              </div>
+              <div style={{background:"#121826",border:"1px solid #232B38",borderRadius:9,padding:"8px 11px",marginBottom:11,display:"flex",alignItems:"center",gap:9}}>
+                <div style={{flex:1,textAlign:"right"}}><span style={{fontSize:8,fontWeight:700,color:"#9DB6D6",background:"rgba(157,182,214,0.12)",borderRadius:4,padding:"1px 5px"}}>AR</span><div style={{color:"#9FB0C8",fontSize:10,marginTop:3,direction:"rtl",lineHeight:1.5}}>حفلة إطلاق هذا الأسبوع، انضموا إلينا ✦</div></div>
+                <span style={{fontSize:9.5,fontWeight:700,color:"#0B0E12",background:"#6E8CAB",borderRadius:6,padding:"4px 10px",cursor:"pointer"}}>Use</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,border:"1px solid #2A3650",borderRadius:9,padding:8,color:"#C7D4E4",fontSize:11,fontWeight:600,cursor:"pointer"}}>Use both</div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Analytics</div>
+              <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:6}}>Reach, growth, engagement — live.</div>
+              <div className="tw-num" style={{color:"#fff",fontSize:24,fontWeight:600}}>1.24M</div>
+              <div style={{color:"#7FC9A8",fontSize:10,fontWeight:600,marginBottom:8}}>▲ 28% reach</div>
+              <svg viewBox="0 0 200 34" style={{width:"100%",height:30,display:"block"}}><path d="M0,28 L40,22 L80,25 L120,12 L160,16 L200,5" fill="none" stroke="#6E8CAB" strokeWidth="2" strokeLinecap="round"/></svg>
+            </div>
+
+            <div style={{gridColumn:isMobile?"auto":"span 2",background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Plan your whole month</div>
+              <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:13}}>Drag, drop, and see every client's calendar at a glance.</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}}>
+                {["M","T","W","T","F","S","S"].map((d,i)=><span key={"h"+i} style={{color:"#566173",fontSize:9,textAlign:"center"}}>{d}</span>)}
+                {[0,1,0,2,3,0,4].map((v,i)=>{ const bg=["#121826","rgba(225,48,108,0.18)","rgba(110,140,171,0.22)","rgba(24,119,242,0.18)","rgba(127,201,168,0.16)"][v]; const bd=["#232B38","rgba(225,48,108,0.35)","rgba(110,140,171,0.4)","rgba(24,119,242,0.35)","rgba(127,201,168,0.3)"][v]; return <div key={i} style={{height:26,borderRadius:6,background:bg,border:`1px solid ${bd}`}}/>; })}
+              </div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Unified inbox</div>
+              <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:11}}>Every comment and DM, one place.</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><div style={{width:24,height:24,borderRadius:"50%",background:"#1E2838",display:"flex",alignItems:"center",justifyContent:"center",color:"#9DB6D6",fontSize:9,fontWeight:700}}>MR</div><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Love this!</div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:24,height:24,borderRadius:"50%",background:"#1E2838",display:"flex",alignItems:"center",justifyContent:"center",color:"#9DB6D6",fontSize:9,fontWeight:700}}>AK</div><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Do you ship to Riffa?</div></div>
+            </div>
+
+          </div>
+          <div style={{textAlign:"center",marginTop:28}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
         </div>
       </div>
       <div style={{padding:"72px 32px",textAlign:"center",background:"#07090F",borderTop:"1px solid #1C2D45"}}>
