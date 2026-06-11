@@ -216,7 +216,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
   return (
     <div style={{
       background:th.card, borderRadius:18, border:`1px solid ${th.border}`,
-      padding:"18px 20px", boxShadow:"0 10px 30px rgba(0,0,0,0.28)",
+      padding:"18px 20px", boxShadow:"none",
     }}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
         <div style={{width:34,height:34,borderRadius:11,background:th[color+"Soft"]||th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -811,7 +811,7 @@ function OwnerDashboard() {
     { who:"Lulwa Events", msg:"Can I get an invoice for March?", ago:"3h", urgent:false },
   ];
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
 
   return (
     <div>
@@ -1002,7 +1002,7 @@ function OwnerClientsPage() {
   const [filter, setFilter] = useState("all");
   const [menu, setMenu] = useState(null);
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const filtered = rows.filter(r =>
     (filter==="all" || r.status===filter) &&
     (r.name.toLowerCase().includes(q.toLowerCase()) || r.email.toLowerCase().includes(q.toLowerCase()))
@@ -1098,7 +1098,7 @@ function OwnerPromosPage() {
     return () => { on = false; };
   }, []);
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
   const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
 
@@ -1208,7 +1208,7 @@ function OwnerGiftsPage() {
     return () => { on = false; };
   }, []);
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const inp = { width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box" };
   const lbl = { fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block" };
   const flash = (m) => { setToast(m); setTimeout(()=>setToast(""),2200); };
@@ -1328,7 +1328,7 @@ function OwnerSupportPage() {
     return () => { on = false; };
   }, []);
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const filtered = tickets.filter(t => filter==="all" ? true : filter==="urgent" ? (t.urgent && t.status==="open") : t.status===filter);
   const active = tickets.find(t=>t.id===sel) || filtered[0];
   const openCount = tickets.filter(t=>t.status==="open").length;
@@ -1415,7 +1415,7 @@ function OwnerSupportPage() {
 
 function OwnerRevenuePage() {
   const th = useTheme();
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
   const max = Math.max(...rev), min = Math.min(...rev), W = 760, H = 180, rng = (max-min)||1;
   const pts = rev.map((v,i)=>[ (i/(rev.length-1))*W, H - ((v-min)/rng)*(H-20) - 10 ]);
@@ -1491,7 +1491,7 @@ function OwnerRevenuePage() {
 
 function OwnerApiUsagePage() {
   const th = useTheme();
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
 
   const integrations = [
     { name:"Meta · Instagram + Facebook", note:"Publishing live · comments/insights in review", status:"live" },
@@ -1545,7 +1545,7 @@ function OwnerApiUsagePage() {
 
 function OwnerTeamPage() {
   const th = useTheme();
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const [team, setTeam] = useState([
     { id:"u1", name:"Abdulla Al-Nahas", email:"octofusionbh@gmail.com", role:"Owner", initials:"AA" },
     { id:"u2", name:"Support Desk", email:"support@tawaslo.com", role:"Support", initials:"SD" },
@@ -1737,36 +1737,7 @@ function AgencyDashboard() {
       ), document.body)}
       <OnboardingHero/>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{position:"relative"}}>
-            <button onClick={()=>setBrandOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:10,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"9px 14px",cursor:"pointer",color:th.text}}>
-              <span style={{width:28,height:28,borderRadius:8,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"#fff"}}>{(selClient.name||"?").slice(0,2).toUpperCase()}</span>
-              <span style={{fontSize:15,fontWeight:600,letterSpacing:-0.2}}>{selClient.name}</span>
-              <ChevronDown size={16} color={th.text2}/>
-            </button>
-            {brandOpen&&(
-              <>
-              <div onClick={()=>setBrandOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
-              <div style={{position:"absolute",top:"115%",left:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 14px 40px rgba(0,0,0,0.55)",padding:6,minWidth:240}}>
-                <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,padding:"6px 10px"}}>{L("Switch client","تبديل العميل")}</div>
-                {clients.length===0&&<div style={{padding:"8px 10px",fontSize:12,color:th.text3}}>{L("No clients yet","لا يوجد عملاء بعد")}</div>}
-                {clients.map(c=>(
-                  <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent"}}>
-                    <span style={{width:26,height:26,borderRadius:7,background:selClient.id===c.id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:selClient.id===c.id?"#fff":th.text2,flexShrink:0}}>{(c.name||"?").slice(0,2).toUpperCase()}</span>
-                    <span style={{fontSize:12.5,color:selClient.id===c.id?th.accent:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-                  </div>
-                ))}
-                <div onClick={()=>{setBrandOpen(false);setAddClientOpen(true);}} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:9,cursor:"pointer",borderTop:`1px solid ${th.border}`,marginTop:4,color:th.accent,fontSize:12.5,fontWeight:600}}>
-                  <span style={{width:26,height:26,borderRadius:7,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={14} color={th.accent}/></span>
-                  {L("Add client","إضافة عميل")}
-                </div>
-              </div>
-              </>
-            )}
-          </div>
-          <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status==="active"?L("active","نشط"):selClient.status}</Badge>
-          <Badge color={selClient.free?"success":"accent2"}>{selClient.free?L("Free","مجاني"):selClient.plan}</Badge>
-        </div>
+        <div/>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>{L("Last 30 days","آخر ٣٠ يوماً")}</div>
           <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>{L("New post","منشور جديد")}</button>
@@ -1789,7 +1760,7 @@ function AgencyDashboard() {
             const PI = PlatformIcons[acc.platform];
             const sel = viewingAccount===(acc.id||i);
             return (
-              <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",cursor:"pointer"}}>
+              <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"none",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                   <div style={{width:32,height:32,borderRadius:9,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={15} color={th.text2}/>}</div>
                   {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>{L("viewing","قيد العرض")}</span>}
@@ -1811,7 +1782,7 @@ function AgencyDashboard() {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
-        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",padding:"18px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={{fontSize:13.5,fontWeight:600}}>{L("Post performance","أداء المنشورات")}</div>
             <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
@@ -1830,7 +1801,7 @@ function AgencyDashboard() {
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:th.text3,marginTop:6}}><span>5 Feb</span><span>9 Feb</span><span>13 Feb</span><span>18 Feb</span></div>
         </div>
 
-        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",padding:"18px 20px"}}>
           <div style={{fontSize:13.5,fontWeight:600,marginBottom:16}}>{L("Reach by post type","الوصول حسب نوع المنشور")}</div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <svg viewBox="0 0 120 120" width="104" height="104">
@@ -1849,7 +1820,7 @@ function AgencyDashboard() {
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16}}>
-        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>{L("Upcoming posts","المنشورات القادمة")}</div>
             <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{L("View all","عرض الكل")}<ChevronRight size={12}/></button>
@@ -1869,7 +1840,7 @@ function AgencyDashboard() {
           })}
         </div>
 
-        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
+        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Sparkles size={14} color={th.accent}/>{L("Quick actions","إجراءات سريعة")}</div>
           <div style={{padding:18}}>
             <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}><Plus size={15}/>{L("New post","منشور جديد")}</button>
@@ -3535,7 +3506,7 @@ function AnalyticsPage() {
       {loading ? (
         <div style={{textAlign:"center", padding:48, color:th.text2, fontSize:13}}>Loading analytics&hellip;</div>
       ) : data?.error ? (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"none"}}>
           <div style={{fontSize:13, color:th.danger, marginBottom:8, fontWeight:600}}>Could not load Instagram insights</div>
           <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>{data.error}</div>
           <div style={{fontSize:12, color:th.text2, marginTop:8, lineHeight:1.6}}>Full analytics will be available after <strong style={{color:th.text}}>instagram_manage_insights</strong> is approved by Meta.</div>
@@ -3550,7 +3521,7 @@ function AnalyticsPage() {
           </div>
 
           <div style={{display:"grid", gridTemplateColumns:"1.7fr 1fr", gap:16, marginBottom:14}}>
-            <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+            <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"none"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div style={{fontSize:13.5,fontWeight:600}}>Reach &amp; impressions</div>
                 <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
@@ -3572,7 +3543,7 @@ function AnalyticsPage() {
               )}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
-              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"none"}}>
                 <div style={{fontSize:12,fontWeight:600,marginBottom:8}}>Engagement rate</div>
                 <div style={{display:"flex",alignItems:"center",gap:14}}>
                   <svg viewBox="0 0 80 80" width="68" height="68">
@@ -3582,7 +3553,7 @@ function AnalyticsPage() {
                   <div><div style={{fontSize:22,fontWeight:600}}>{engRate}%</div><div style={{fontSize:10.5,color:th.text2}}>per post avg</div></div>
                 </div>
               </div>
-              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+              <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"none"}}>
                 <div style={{fontSize:12,fontWeight:600,marginBottom:10}}>Content mix</div>
                 {mixTotal>0 ? (
                   <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -3605,7 +3576,7 @@ function AnalyticsPage() {
             </div>
           </div>
 
-          <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
+          <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"none",overflow:"hidden"}}>
             <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontSize:13,fontWeight:600}}>Top performing posts</div>
             {topPosts.length===0 ? (
               <EmptyState compact Icon={BarChart2} title="No posts to analyze yet" body="Once this account has published posts, your top performers will rank here by engagement." />
@@ -3637,7 +3608,7 @@ function AnalyticsPage() {
           </div>
         </>
       ) : (
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 10px 30px rgba(0,0,0,0.28)"}}>
+        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"none"}}>
           <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>Instagram Analytics</div>
           <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Connect an Instagram Business account to see reach, impressions, content mix, and post performance.</div>
         </div>
@@ -4243,7 +4214,7 @@ ${topPosts.length > 0 ? `<div class="page">
   const maxF = Math.max(1, ...accounts.map(a=>a.followers_count||0));
   const er = analyticsData && analyticsData.summary ? analyticsData.summary.engagementRate : null;
   const chart = (analyticsData && analyticsData.chartData) ? analyticsData.chartData : [];
-  const rcard = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" };
+  const rcard = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
   const kpis = [
     { label:"Total followers", value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
     { label:"Connected accounts", value: String(accounts.length), Icon:Link, color:"accent" },
@@ -4618,7 +4589,7 @@ function TeamPage() {
       </div>
 
       {showInvite && (
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, marginBottom:18, boxShadow:"0 10px 30px rgba(0,0,0,0.28)" }}>
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, marginBottom:18, boxShadow:"none" }}>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:13, display:"flex", alignItems:"center", gap:8 }}><UserPlus size={15} color={th.accent}/>Invite a team member</div>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
             <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" style={{ ...inp, flex:1, minWidth:200 }}/>
