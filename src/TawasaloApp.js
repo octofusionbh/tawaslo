@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
@@ -536,17 +536,17 @@ function ContextBar() {
   };
 
   const chip = (active, onClick, children, key) => (
-    <button key={key} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:6,borderRadius:999,padding:"6px 12px",fontSize:11.5,fontWeight:active?600:500,cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${active?th.accent:th.border}`,background:active?th.accent:th.card,color:active?(th===DARK?"#0B0E12":"#fff"):th.text2}}>{children}</button>
+    <button key={key} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:6,borderRadius:999,padding:"6px 13px",fontSize:12,fontWeight:active?600:500,cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${active?th.accent:"transparent"}`,background:active?th.accent:th.card2,color:active?(th===DARK?"#0B0E12":"#fff"):th.text2,transition:"all 0.12s"}}>{children}</button>
   );
 
   return (
-    <div style={{display:"flex",alignItems:"center",gap:18,padding:"12px 22px",borderBottom:`1px solid ${th.border}`,background:th.surface,flexWrap:"wrap",direction:isAR?"rtl":"ltr"}}>
+    <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 22px",borderBottom:`1px solid ${th.border}`,background:th.surface,flexWrap:"wrap",direction:isAR?"rtl":"ltr"}}>
+      <span style={{fontSize:11.5,color:th.text3,fontWeight:500}}>{L("Viewing","تعرض")}</span>
       <div style={{position:"relative"}}>
-        <div style={{fontSize:9,fontWeight:700,letterSpacing:"1px",color:th.text3,marginBottom:5}}>{L("CLIENT","العميل")}</div>
-        <button onClick={()=>setBrandOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:9,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:"7px 12px",cursor:"pointer",color:th.text}}>
-          <span style={{width:22,height:22,borderRadius:6,background:th.gradient,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(selClient?.name||"?").slice(0,2).toUpperCase()}</span>
-          <span style={{fontSize:13,fontWeight:600}}>{selClient?.name||L("Workspace","المساحة")}</span>
-          <ChevronDown size={14} color={th.text2}/>
+        <button onClick={()=>setBrandOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:9,background:"transparent",border:`1px solid ${th.border}`,borderRadius:10,padding:"6px 11px 6px 8px",cursor:"pointer",color:th.text}}>
+          <span style={{width:23,height:23,borderRadius:7,background:th.gradient,color:"#fff",fontSize:9.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{(selClient?.name||"?").slice(0,2).toUpperCase()}</span>
+          <span style={{fontSize:13.5,fontWeight:600,letterSpacing:"-0.1px"}}>{selClient?.name||L("Workspace","المساحة")}</span>
+          <ChevronDown size={15} color={th.text3}/>
         </button>
         {brandOpen&&(<>
           <div onClick={()=>setBrandOpen(false)} style={{position:"fixed",inset:0,zIndex:49}}/>
@@ -566,15 +566,12 @@ function ContextBar() {
         </>)}
       </div>
 
-      <div style={{width:1,height:34,background:th.border,alignSelf:"flex-end",marginBottom:1}}/>
+      {present.length>0 && <div style={{width:1,height:20,background:th.border}}/>}
 
-      <div style={{flex:1,minWidth:0}}>
-        <div style={{fontSize:9,fontWeight:700,letterSpacing:"1px",color:th.text3,marginBottom:5}}>{L("PLATFORM","المنصة")}</div>
-        <div className="tw-scroll-x" style={{display:"flex",gap:7,flexWrap:"wrap"}}>
-          {chip(selPlatform==="all", ()=>setSelPlatform("all"), L("All","الكل"), "all")}
-          {present.map(p=>{ const m=PLAT_META[p]; if(!m) return null; const PI=m.Icon; return chip(selPlatform===p, ()=>setSelPlatform(p), <><PI style={{color:m.color,fontSize:14}}/>{m.label}</>, p); })}
-          {present.length===0&&<span style={{fontSize:11,color:th.text3,padding:"6px 4px"}}>{L("No accounts connected","لا توجد حسابات مرتبطة")} · <span onClick={()=>setPage("social")} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("Connect","ربط")}</span></span>}
-        </div>
+      <div className="tw-scroll-x" style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
+        {chip(selPlatform==="all", ()=>setSelPlatform("all"), L("All","الكل"), "all")}
+        {present.map(p=>{ const m=PLAT_META[p]; if(!m) return null; const PI=m.Icon; return chip(selPlatform===p, ()=>setSelPlatform(p), <><PI style={{color:m.color,fontSize:14}}/>{m.label}</>, p); })}
+        {present.length===0&&<span style={{fontSize:11.5,color:th.text3}}>{L("No accounts connected","لا توجد حسابات مرتبطة")} · <span onClick={()=>setPage("social")} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("Connect","ربط")}</span></span>}
       </div>
 
       {addOpen && createPortal((
@@ -612,6 +609,61 @@ function ClientMonogram({ name, logo, size=38, radius=11 }) {
   return <span style={{width:size,height:size,borderRadius:radius,background:bg,border:`1px solid ${br}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span className="tw-num" style={{fontSize:Math.round(size*0.4),fontWeight:600,color:fg}}>{initials}</span></span>;
 }
 
+// Instagram-style crop: drag to position, slide to zoom, square output.
+function LogoCropper({ file, onCancel, onSave }) {
+  const th = useTheme();
+  const canvasRef = useRef(null);
+  const imgRef = useRef(null);
+  const off = useRef({x:0,y:0});
+  const drag = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [ready, setReady] = useState(false);
+  const F = 256;
+  const draw = () => {
+    const c = canvasRef.current, img = imgRef.current; if(!c||!img) return;
+    const ctx = c.getContext('2d'); ctx.clearRect(0,0,F,F);
+    const base = Math.max(F/img.width, F/img.height), s = base*zoom;
+    const dw = img.width*s, dh = img.height*s;
+    ctx.drawImage(img, F/2-dw/2+off.current.x, F/2-dh/2+off.current.y, dw, dh);
+  };
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => { imgRef.current = img; off.current = {x:0,y:0}; setReady(true); };
+    img.src = url;
+    return () => { try { URL.revokeObjectURL(url); } catch(e){} };
+  }, [file]);
+  useEffect(() => { draw(); }, [zoom, ready]); // eslint-disable-line
+  const pt = (e) => { const r = canvasRef.current.getBoundingClientRect(); const t = (e.touches&&e.touches[0])?e.touches[0]:e; return { x:t.clientX-r.left, y:t.clientY-r.top }; };
+  const onDown = (e) => { const p = pt(e); drag.current = { x:p.x, y:p.y, ox:off.current.x, oy:off.current.y }; };
+  const onMove = (e) => { if(!drag.current) return; const p = pt(e); off.current = { x:drag.current.ox+(p.x-drag.current.x), y:drag.current.oy+(p.y-drag.current.y) }; draw(); };
+  const onUp = () => { drag.current = null; };
+  const save = () => { const c = canvasRef.current; if(c) c.toBlob((b)=>{ if(b) onSave(b); }, 'image/png', 0.92); };
+  return createPortal((
+    <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.8)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:22,width:"100%",maxWidth:330,boxShadow:th.shadow}}>
+        <h3 style={{margin:"0 0 3px",fontSize:16,fontWeight:800,color:th.text}}>Position the logo</h3>
+        <p style={{margin:"0 0 14px",fontSize:11.5,color:th.text2}}>Drag to move, slide to zoom.</p>
+        <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
+          <canvas ref={canvasRef} width={F} height={F}
+            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
+            onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+            style={{width:F,height:F,borderRadius:16,border:`1px solid ${th.border}`,background:th.card2,cursor:"grab",touchAction:"none"}}/>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:18}}>
+          <span style={{color:th.text3,fontSize:13,fontWeight:700}}>−</span>
+          <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={e=>setZoom(parseFloat(e.target.value))} style={{flex:1,accentColor:th.accent}}/>
+          <span style={{color:th.text3,fontSize:15,fontWeight:700}}>+</span>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onCancel} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>Cancel</button>
+          <button onClick={save} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Use photo</button>
+        </div>
+      </div>
+    </div>
+  ), document.body);
+}
+
 function ClientsPage() {
   const { clients, setClients, selClient, setSelClient, setPage, lang } = useApp();
   const th = useTheme();
@@ -620,6 +672,9 @@ function ClientsPage() {
   const [newName,setNewName]=useState("");
   const [editClient,setEditClient]=useState(null);
   const [editName,setEditName]=useState("");
+  const [editLogo,setEditLogo]=useState("");
+  const [uploadingLogo,setUploadingLogo]=useState(false);
+  const [cropFile,setCropFile]=useState(null);
   const [menuFor,setMenuFor]=useState(null);
   const [delClient,setDelClient]=useState(null);
   const [busy,setBusy]=useState(false);
@@ -645,12 +700,27 @@ function ClientsPage() {
     } catch(e){ /* ignore */ }
     setBusy(false); setAddOpen(false); setNewName("");
   };
+  const putLogo = async (blob) => {
+    if(!blob||!editClient) return; setUploadingLogo(true);
+    try {
+      const { data:{ user } } = await supabase.auth.getUser();
+      if(user){
+        const path=`${user.id}/logos/${editClient.id}-${Date.now()}.png`;
+        const { error } = await supabase.storage.from('media').upload(path, blob, { upsert:true, contentType:'image/png' });
+        if(!error){ const { data:url } = supabase.storage.from('media').getPublicUrl(path); setEditLogo((url&&url.publicUrl)||""); }
+      }
+    } catch(e){ /* ignore */ }
+    setUploadingLogo(false);
+  };
   const saveEdit = async () => {
     const name=editName.trim(); if(!name||busy||!editClient) return; setBusy(true);
-    try { await supabase.from('clients').update({ name }).eq('id', editClient.id);
-      setClients(prev=>prev.map(c=>c.id===editClient.id?{...c,name}:c));
-      if(selClient?.id===editClient.id) setSelClient({...selClient,name});
-    } catch(e){ /* ignore */ }
+    try { await supabase.from('clients').update({ name }).eq('id', editClient.id); } catch(e){ /* ignore */ }
+    // logo_url is an additive column; update it separately so a missing column never blocks the rename
+    if (editLogo !== (editClient.logo_url||"")) {
+      try { await supabase.from('clients').update({ logo_url: editLogo||null }).eq('id', editClient.id); } catch(e){ /* column may not exist yet */ }
+    }
+    setClients(prev=>prev.map(c=>c.id===editClient.id?{...c,name,logo_url:editLogo||null}:c));
+    if(selClient?.id===editClient.id) setSelClient({...selClient,name,logo_url:editLogo||null});
     setBusy(false); setEditClient(null);
   };
   const doDelete = async () => {
@@ -688,12 +758,12 @@ function ClientsPage() {
                 <span className="tw-num" style={{color:th.text2,marginInlineStart:plats.length?3:0}}>{c.accounts||0}</span> {L("accounts","حسابات")} · {c.status==="active"?L("active","نشط"):c.status}
               </div>
             </div>
-            <button onClick={()=>{setEditClient(c);setEditName(c.name);}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
+            <button onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
             <button onClick={()=>setMenuFor(menuFor===c.id?null:c.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4}}><MoreHorizontal size={18}/></button>
             {menuFor===c.id&&(<>
               <div onClick={()=>setMenuFor(null)} style={{position:"fixed",inset:0,zIndex:49}}/>
               <div style={{position:"absolute",[isAR?"left":"right"]:6,top:54,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:5,width:170,boxShadow:"0 16px 36px rgba(0,0,0,0.4)"}}>
-                <div onClick={()=>{setEditClient(c);setEditName(c.name);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
+                <div onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
                 <div onClick={()=>{setSelClient(c);setPage("social");}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Link size={14}/>{L("Connections","الحسابات")}</div>
                 <div style={{height:1,background:th.border,margin:"3px 0"}}/>
                 <div onClick={()=>{setDelClient(c);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.danger,fontSize:12}}><Trash2 size={14}/>{L("Delete client","حذف العميل")}</div>
@@ -726,6 +796,17 @@ function ClientsPage() {
         <div onClick={()=>setEditClient(null)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
             <h3 style={{margin:"0 0 16px",fontSize:18,fontWeight:800,color:th.text}}>{L("Edit client","تعديل العميل")}</h3>
+            <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+              <ClientMonogram name={editName||(editClient&&editClient.name)} logo={editLogo} size={56} radius={14}/>
+              <div>
+                <label style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600,color:th.accent,cursor:"pointer",border:`1px solid ${th.border}`,borderRadius:9,padding:"7px 13px"}}>
+                  <Image size={14}/>{uploadingLogo?L("Uploading…","جارٍ الرفع…"):(editLogo?L("Change logo","تغيير الشعار"):L("Upload logo","رفع شعار"))}
+                  <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{ if(e.target.files&&e.target.files[0]) setCropFile(e.target.files[0]); e.target.value=''; }}/>
+                </label>
+                {editLogo&&<button onClick={()=>setEditLogo("")} style={{marginInlineStart:8,fontSize:11,color:th.text3,background:"none",border:"none",cursor:"pointer"}}>{L("Remove","إزالة")}</button>}
+                <div style={{fontSize:10.5,color:th.text3,marginTop:6}}>{L("PNG or JPG, optional. A monogram is used if empty.","PNG أو JPG، اختياري. يُستخدم الحرف إن تُرك فارغًا.")}</div>
+              </div>
+            </div>
             <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Client name","اسم العميل")}</div>
             <input value={editName} autoFocus onChange={e=>setEditName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveEdit()} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
             <div style={{display:"flex",gap:8}}>
@@ -748,6 +829,8 @@ function ClientsPage() {
           </div>
         </div>
       ), document.body)}
+
+      {cropFile && <LogoCropper file={cropFile} onCancel={()=>setCropFile(null)} onSave={(blob)=>{ setCropFile(null); putLogo(blob); }}/>}
     </div>
   );
 }
@@ -1618,7 +1701,7 @@ function OwnerTeamPage() {
 }
 
 function AgencyDashboard() {
-  const { selClient, setPage, clients, setSelClient, setClients, userEmail, lang } = useApp();
+  const { selClient, setPage, clients, setSelClient, setClients, userEmail, lang, selPlatform } = useApp();
   const th = useTheme();
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -1700,7 +1783,8 @@ function AgencyDashboard() {
     }
   };
   const fmtN = (n) => n>=1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,"")+"M" : n>=1000 ? (n/1000).toFixed(1).replace(/\.0$/,"")+"K" : String(n);
-  const dashFollowers = accounts.reduce((s,a)=>s+(a.followers_count||0),0);
+  const shownAccounts = (selPlatform && selPlatform!=="all") ? accounts.filter(a=>a.platform===selPlatform) : accounts;
+  const dashFollowers = shownAccounts.reduce((s,a)=>s+(a.followers_count||0),0);
   const dashReach = Math.round(dashFollowers * 8.4);
   const dashEng = dashFollowers > 0 ? (3.8 + (dashFollowers % 30) / 10).toFixed(1) + "%" : "0%";
   const UPCOMING_FALLBACK = [
@@ -1744,19 +1828,15 @@ function AgencyDashboard() {
         </div>
       </div>
 
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-        <div style={{fontSize:11,color:th.text2}}>{accounts.length>0?(isAR?(accounts.length+" حساب مرتبط"):(accounts.length+" connected account"+(accounts.length>1?"s":""))):L("Connected accounts","الحسابات المرتبطة")}</div>
-        {accounts.length>0&&<button onClick={()=>{ setPlatform("All platforms"); setViewingAccount(null); }} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${(platform==="All platforms"&&!viewingAccount)?th.accent:th.border}`,background:(platform==="All platforms"&&!viewingAccount)?th.accentSoft:"transparent",color:(platform==="All platforms"&&!viewingAccount)?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>{L("All platforms","كل المنصات")}</button>}
-      </div>
-      {accounts.length===0?(
+      {shownAccounts.length===0?(
         <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:16,padding:22,textAlign:"center",marginBottom:18}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>{L("No accounts connected yet","لا توجد حسابات مرتبطة بعد")}</div>
           <div style={{fontSize:12,color:th.text2,marginBottom:14}}>{L("Connect this client's social accounts to see their analytics here.","اربط حسابات هذا العميل الاجتماعية لرؤية تحليلاته هنا.")}</div>
           <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>{L("Connect accounts","ربط الحسابات")}</button>
         </div>
       ):(
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(accounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
-          {accounts.slice(0,8).map((acc,i)=>{
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
+          {shownAccounts.slice(0,8).map((acc,i)=>{
             const PI = PlatformIcons[acc.platform];
             const sel = viewingAccount===(acc.id||i);
             return (
@@ -1778,7 +1858,7 @@ function AgencyDashboard() {
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
           {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {L("engagement rate across","عبر")} <span className="tw-num">{postCount||0}</span> {L("posts.","منشورًا.")}
         </div>
-        <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{accounts.length} {accounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")} · {L("Last 30 days","آخر ٣٠ يومًا")}</div>
+        <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر ٣٠ يومًا")}</div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
