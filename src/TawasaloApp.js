@@ -286,6 +286,7 @@ function Sidebar() {
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
     ]},
     {section:"Account", items:[
+      {key:"clients",    Icon:Building2,       label:"Clients",   badge:null},
       {key:"social",     Icon:Link,           label:"Social Accounts", badge:null},
       {key:"agencyteam", Icon:Users,          label:"Team",      badge:null},
       {key:"billing",    Icon:CreditCard,     label:"Billing",   badge:null},
@@ -585,6 +586,164 @@ function ContextBar() {
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setAddOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
               <button onClick={createClient} disabled={!newName.trim()||creating} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{creating?L("Creating…","جارٍ الإنشاء…"):L("Create client","إنشاء عميل")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
+// Client identity: uploaded logo, else a crafted serif monogram with a quiet
+// per-client tint and hairline ring. Never a generic gradient box.
+function ClientMonogram({ name, logo, size=38, radius=11 }) {
+  const th = useTheme();
+  const initials = (name||"?").replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase() || "?";
+  const tints = [
+    ["rgba(110,140,171,0.14)","rgba(110,140,171,0.34)","#9DB6D6"],
+    ["rgba(111,191,155,0.12)","rgba(111,191,155,0.32)","#7FC9A8"],
+    ["rgba(224,164,92,0.12)","rgba(224,164,92,0.32)","#D9A45C"],
+    ["rgba(196,107,150,0.12)","rgba(196,107,150,0.32)","#D58BB0"],
+    ["rgba(138,160,190,0.14)","rgba(138,160,190,0.34)","#A6B8CF"],
+  ];
+  let h=0; const s=name||""; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
+  const [bg,br,fg]=tints[h%tints.length];
+  if (logo) return <span style={{width:size,height:size,borderRadius:radius,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}><img src={logo} alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/></span>;
+  return <span style={{width:size,height:size,borderRadius:radius,background:bg,border:`1px solid ${br}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span className="tw-num" style={{fontSize:Math.round(size*0.4),fontWeight:600,color:fg}}>{initials}</span></span>;
+}
+
+function ClientsPage() {
+  const { clients, setClients, selClient, setSelClient, setPage, lang } = useApp();
+  const th = useTheme();
+  const isAR = lang==="ar"; const L=(en,ar)=>isAR?ar:en;
+  const [addOpen,setAddOpen]=useState(false);
+  const [newName,setNewName]=useState("");
+  const [editClient,setEditClient]=useState(null);
+  const [editName,setEditName]=useState("");
+  const [menuFor,setMenuFor]=useState(null);
+  const [delClient,setDelClient]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [platsByClient,setPlatsByClient]=useState({});
+
+  const PLAT = { ig:{Icon:FaInstagram,color:"#E1306C"}, fb:{Icon:FaFacebook,color:"#1877F2"}, li:{Icon:FaLinkedin,color:"#0A66C2"}, tt:{Icon:FaTiktok,color:th.text}, tw:{Icon:FaTwitter,color:th.text}, yt:{Icon:FaYoutube,color:"#FF0000"} };
+
+  useEffect(()=>{ let active=true; const ids=clients.map(c=>c.id).filter(Boolean); if(!ids.length){setPlatsByClient({});return;}
+    supabase.from('social_accounts').select('client_id,platform').in('client_id',ids).neq('is_active',false).then(({data})=>{
+      if(!active) return; const m={}; (data||[]).forEach(a=>{ (m[a.client_id]=m[a.client_id]||new Set()).add(a.platform); });
+      const out={}; Object.keys(m).forEach(k=>out[k]=Array.from(m[k])); setPlatsByClient(out);
+    });
+    return ()=>{active=false;};
+  },[clients]);
+
+  const totalAccounts = clients.reduce((s,c)=>s+(c.accounts||0),0);
+
+  const createClient = async () => {
+    const name=newName.trim(); if(!name||busy) return; setBusy(true);
+    try { const { data:{ user } } = await supabase.auth.getUser();
+      if(user){ const { data, error } = await supabase.from('clients').insert([{ owner_id:user.id, name, plan:'trial', status:'active', is_free:true }]).select();
+        if(!error&&data&&data[0]){ const nc={ ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 }; setClients(prev=>[...prev,nc]); setSelClient(nc); } }
+    } catch(e){ /* ignore */ }
+    setBusy(false); setAddOpen(false); setNewName("");
+  };
+  const saveEdit = async () => {
+    const name=editName.trim(); if(!name||busy||!editClient) return; setBusy(true);
+    try { await supabase.from('clients').update({ name }).eq('id', editClient.id);
+      setClients(prev=>prev.map(c=>c.id===editClient.id?{...c,name}:c));
+      if(selClient?.id===editClient.id) setSelClient({...selClient,name});
+    } catch(e){ /* ignore */ }
+    setBusy(false); setEditClient(null);
+  };
+  const doDelete = async () => {
+    if(!delClient||busy) return; setBusy(true);
+    try { await supabase.from('clients').delete().eq('id', delClient.id);
+      const rest = clients.filter(c=>c.id!==delClient.id); setClients(rest);
+      if(selClient?.id===delClient.id) setSelClient(rest[0]||{ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0 });
+    } catch(e){ /* ignore */ }
+    setBusy(false); setDelClient(null); setMenuFor(null);
+  };
+
+  return (
+    <div className="tw-page-in" style={{padding:"24px 26px",maxWidth:920,margin:"0 auto",direction:isAR?"rtl":"ltr"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:6,flexWrap:"wrap"}}>
+        <div>
+          <h1 style={{margin:0,fontSize:21,fontWeight:700,letterSpacing:"-0.4px",color:th.text}}>{L("Clients","العملاء")}</h1>
+          <div style={{fontSize:12.5,color:th.text2,marginTop:3}}><span className="tw-num">{clients.length}</span> {clients.length===1?L("client","عميل"):L("clients","عملاء")} · <span className="tw-num">{totalAccounts}</span> {L("connected accounts","حسابات مرتبطة")}</div>
+        </div>
+        <button onClick={()=>setAddOpen(true)} style={{background:th.gradient,color:"#fff",fontSize:12.5,fontWeight:600,border:"none",borderRadius:10,padding:"10px 16px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Plus size={15}/>{L("Add client","إضافة عميل")}</button>
+      </div>
+
+      <div style={{marginTop:20}}>
+        {clients.map(c=>{
+          const plats = platsByClient[c.id]||[];
+          return (
+          <div key={c.id} style={{position:"relative",display:"flex",alignItems:"center",gap:14,padding:"15px 6px",borderBottom:`1px solid ${th.border}`}}>
+            <ClientMonogram name={c.name} logo={c.logo_url} size={40}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:14,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                <span style={{fontSize:9,color:c.free?th.success:th.text2,border:`1px solid ${c.free?th.success+"55":th.border}`,borderRadius:5,padding:"1px 6px"}}>{c.free?L("Free","مجاني"):(c.plan||L("Active","نشط"))}</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:5,color:th.text3,fontSize:11}}>
+                {plats.map(p=>{ const m=PLAT[p]; if(!m) return null; const PI=m.Icon; return <PI key={p} style={{color:m.color,fontSize:14}}/>; })}
+                <span className="tw-num" style={{color:th.text2,marginInlineStart:plats.length?3:0}}>{c.accounts||0}</span> {L("accounts","حسابات")} · {c.status==="active"?L("active","نشط"):c.status}
+              </div>
+            </div>
+            <button onClick={()=>{setEditClient(c);setEditName(c.name);}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
+            <button onClick={()=>setMenuFor(menuFor===c.id?null:c.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4}}><MoreHorizontal size={18}/></button>
+            {menuFor===c.id&&(<>
+              <div onClick={()=>setMenuFor(null)} style={{position:"fixed",inset:0,zIndex:49}}/>
+              <div style={{position:"absolute",[isAR?"left":"right"]:6,top:54,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:5,width:170,boxShadow:"0 16px 36px rgba(0,0,0,0.4)"}}>
+                <div onClick={()=>{setEditClient(c);setEditName(c.name);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
+                <div onClick={()=>{setSelClient(c);setPage("social");}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Link size={14}/>{L("Connections","الحسابات")}</div>
+                <div style={{height:1,background:th.border,margin:"3px 0"}}/>
+                <div onClick={()=>{setDelClient(c);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.danger,fontSize:12}}><Trash2 size={14}/>{L("Delete client","حذف العميل")}</div>
+              </div>
+            </>)}
+          </div>
+          );
+        })}
+        <div onClick={()=>setAddOpen(true)} style={{display:"flex",alignItems:"center",gap:12,padding:"16px 6px",color:th.text2,cursor:"pointer"}}>
+          <span style={{width:40,height:40,borderRadius:11,border:`1px dashed ${th.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={16} color={th.text3}/></span>
+          <span style={{fontSize:12.5}}>{L("Add another client workspace","إضافة مساحة عمل لعميل آخر")}</span>
+        </div>
+      </div>
+
+      {addOpen && createPortal((
+        <div onClick={()=>setAddOpen(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+            <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","إضافة عميل")}</h3>
+            <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports.","كل عميل مساحة عمل مستقلة بحساباته ومنشوراته وتقاريره.")}</p>
+            <input value={newName} autoFocus onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","مثال: مطعم تريو")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setAddOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+              <button onClick={createClient} disabled={!newName.trim()||busy} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{busy?L("Creating…","جارٍ الإنشاء…"):L("Create client","إنشاء عميل")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {editClient && createPortal((
+        <div onClick={()=>setEditClient(null)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+            <h3 style={{margin:"0 0 16px",fontSize:18,fontWeight:800,color:th.text}}>{L("Edit client","تعديل العميل")}</h3>
+            <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Client name","اسم العميل")}</div>
+            <input value={editName} autoFocus onChange={e=>setEditName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveEdit()} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setEditClient(null)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+              <button onClick={saveEdit} disabled={!editName.trim()||busy} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:editName.trim()?"pointer":"not-allowed",opacity:editName.trim()?1:0.6}}>{busy?L("Saving…","جارٍ الحفظ…"):L("Save","حفظ")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {delClient && createPortal((
+        <div onClick={()=>setDelClient(null)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:430,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+            <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14}}><div style={{width:40,height:40,borderRadius:11,background:th.dangerSoft,display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={19} color={th.danger}/></div><span style={{fontSize:16,fontWeight:700,color:th.text}}>{L("Delete client?","حذف العميل؟")}</span></div>
+            <div style={{fontSize:13,color:th.text2,lineHeight:1.65,marginBottom:20}}>{L("This permanently removes","سيؤدي هذا إلى حذف")} <strong style={{color:th.text}}>{delClient.name}</strong> {L("and its workspace. Connected accounts and posts for this client will be detached. This cannot be undone.","ومساحته. سيتم فصل الحسابات والمنشورات. لا يمكن التراجع.")}</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setDelClient(null)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Keep","الاحتفاظ")}</button>
+              <button onClick={doDelete} disabled={busy} style={{flex:1,padding:"11px",borderRadius:11,background:th.danger,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",opacity:busy?0.7:1}}>{busy?L("Deleting…","جارٍ الحذف…"):L("Delete","حذف")}</button>
             </div>
           </div>
         </div>
@@ -6452,6 +6611,7 @@ export default function TawasloApp() {
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
+    if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
