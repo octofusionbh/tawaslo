@@ -2806,7 +2806,7 @@ function PublisherPage() {
             const isStory = (igFormat === "story" || igFormat === "reel") && effPreviewPlat === "ig";
             const avatar = (s) => pic
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
-              : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
+              : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
               <div style={{ position:"relative", height:isStory?330:210, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ textAlign:"center" }}>{video ? <Send size={24}/> : <Image size={24}/>}<div style={{ fontSize:10, marginTop:6 }}>{video ? "Video" : "Add media →"}</div></div>}
@@ -5172,7 +5172,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       </div>
       <div style={{display:isMobile?"none":"flex",gap:10}}>
         <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
-        <button onClick={()=>setLandingPage('trial')} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+        <button onClick={()=>setLandingPage('trial')} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
       </div>
       {isMobile && navOpen && (
         <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1120",borderBottom:"1px solid #1C2D45",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
@@ -5181,7 +5181,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           ))}
           <div style={{height:1,background:"#1C2D45",margin:"6px 0"}}/>
           <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
-          <button onClick={()=>{setLandingPage('trial');setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
+          <button onClick={()=>{setLandingPage('trial');setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
         </div>
       )}
     </nav>
@@ -5202,18 +5202,18 @@ function LandingPage({ onGetStarted, onLogin }) {
     </div>
   );
 
-  const grad = {background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
+  const grad = {background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
   const card = {background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:22};
 
   const PlanCard = ({name,desc,price,features,popular,extra=[],planKey}) => (
     <div style={{background:"#101828",border:`2px solid ${popular?"#4F6EF7":"#1C2D45"}`,borderRadius:16,padding:24,position:"relative"}}>
-      {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
+      {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
       <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
       <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
       <div style={{marginBottom:8}}><span style={{fontSize:34,fontWeight:900,color:popular?"#4F6EF7":"#E8EFF8"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
       {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[planKey]-price)*12}/year</div>}
       <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
-      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#4F6EF7,#7C3AED)":"transparent",border:popular?"none":"1px solid #1C2D45",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
+      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #1C2D45",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
     </div>
   );
 
@@ -5246,13 +5246,13 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const s = {
     nav: { position:"fixed", top:0, left:0, right:0, zIndex:100, padding:"0 40px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", background: "rgba(7,9,15,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1C2D45", transition:"all 0.3s" },
-    logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
+    logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
     hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#07090F", position:"relative", overflow:"hidden" },
     heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
     badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(79,110,247,0.1)", border:"1px solid rgba(79,110,247,0.3)", color:"#4F6EF7", fontSize:12, fontWeight:700, marginBottom:24 },
     h1: { fontSize:isMobile?34:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
     sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
-    btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#4F6EF7,#7C3AED)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },
+    btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },
     btnSecondary: { padding:"14px 32px", borderRadius:12, background:"transparent", border:"1px solid #1C2D45", color:"#7A8BA8", fontSize:15, fontWeight:600, cursor:"pointer" },
     section: { padding:"80px 40px", maxWidth:1100, margin:"0 auto" },
     sectionTitle: { fontSize:36, fontWeight:900, color:"#E8EFF8", textAlign:"center", marginBottom:12, letterSpacing:-0.5 },
@@ -5261,12 +5261,12 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const HomePage = () => (
     <div>
-      <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(ellipse 70% 55% at 50% -5%, rgba(79,110,247,0.22) 0%, transparent 62%), #07090F", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
-        <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 15px",borderRadius:20,background:"rgba(79,110,247,0.1)",border:"1px solid rgba(79,110,247,0.32)",color:"#7FA0FF",fontSize:11,fontWeight:700,marginBottom:22}}><Sparkles size={13}/> Social media management, reimagined for every brand</div>
+      <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(circle, rgba(150,175,205,0.045) 1px, transparent 1px), radial-gradient(ellipse 60% 50% at 50% -6%, rgba(110,140,171,0.20), transparent 60%), #080B11", backgroundSize:"24px 24px, 100% 100%, 100% 100%", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
+        <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:20,background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",color:"#A6B8CF",fontSize:10.5,fontWeight:600,letterSpacing:0.3,marginBottom:22}}><span style={{width:5,height:5,borderRadius:"50%",background:"#7FC9A8",boxShadow:"0 0 0 3px rgba(127,201,168,0.18)"}}/>SOCIAL INTELLIGENCE, BUILT FOR EVERY BRAND</div>
         <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:700,margin:"0 auto 18px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
         <p style={{fontSize:16,color:"#8A9BB8",maxWidth:500,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — with full Arabic and English support, built for agencies and brands.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
-          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Start free trial →</button>
+          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Start free trial →</button>
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
         </div>
         <div style={{display:"flex",gap:20,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
@@ -5278,22 +5278,22 @@ function LandingPage({ onGetStarted, onLogin }) {
         {/* Hero product preview — floating cards add depth, show it's a real product */}
         {!isMobile && (
         <div style={{maxWidth:820,margin:"44px auto 0",position:"relative"}}>
-          <div style={{position:"absolute",inset:"-26px -10px 0",background:"radial-gradient(ellipse at 50% 18%, rgba(124,58,237,0.26), transparent 60%)",filter:"blur(7px)",pointerEvents:"none"}}/>
-          <div style={{position:"absolute",left:-46,top:80,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:13,padding:"12px 14px",width:190,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
+          <div style={{position:"absolute",inset:"-26px -10px 0",background:"radial-gradient(ellipse at 50% 18%, rgba(110,140,171,0.28), transparent 60%)",filter:"blur(8px)",pointerEvents:"none"}}/>
+          <div style={{position:"absolute",left:-46,top:80,zIndex:4,background:"#121826",border:"1px solid #2C3A56",borderRadius:13,padding:"12px 14px",width:190,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
             <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
-              <div style={{width:22,height:22,borderRadius:6,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={12} color="#fff"/></div>
+              <div style={{width:22,height:22,borderRadius:6,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={12} color="#fff"/></div>
               <span style={{color:"#E8EFF8",fontSize:11,fontWeight:700}}>AI caption</span>
             </div>
             <div style={{color:"#9FB0C8",fontSize:10,lineHeight:1.55,direction:"rtl"}}>حفلة إطلاق هذا الأسبوع، انضموا إلينا #تواصلو</div>
           </div>
-          <div style={{position:"absolute",right:-40,top:40,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:12,padding:"11px 13px",width:172,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
+          <div style={{position:"absolute",right:-40,top:40,zIndex:4,background:"#121826",border:"1px solid #2C3A56",borderRadius:12,padding:"11px 13px",width:172,textAlign:"left",boxShadow:"0 22px 50px rgba(0,0,0,0.6)"}}>
             <div style={{display:"flex",alignItems:"center",gap:7}}>
               <div style={{width:24,height:24,borderRadius:"50%",background:"rgba(16,185,129,0.16)",display:"flex",alignItems:"center",justifyContent:"center"}}><SendIcon size={13} color="#10B981"/></div>
               <div><div style={{color:"#E8EFF8",fontSize:10.5,fontWeight:700}}>Post published</div><div style={{color:"#7A8BA8",fontSize:9}}>Instagram · just now</div></div>
             </div>
           </div>
-          <div style={{position:"absolute",right:-26,bottom:-18,zIndex:4,background:"#101828",border:"1px solid #26354f",borderRadius:11,padding:"9px 13px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 18px 44px rgba(0,0,0,0.6)"}}>
-            <Calendar size={15} color="#4F6EF7"/>
+          <div style={{position:"absolute",right:-26,bottom:-18,zIndex:4,background:"#121826",border:"1px solid #2C3A56",borderRadius:11,padding:"9px 13px",display:"flex",alignItems:"center",gap:8,boxShadow:"0 18px 44px rgba(0,0,0,0.6)"}}>
+            <Calendar size={15} color="#9DB6D6"/>
             <div style={{textAlign:"left"}}><div style={{color:"#E8EFF8",fontSize:10.5,fontWeight:700}}>14 posts scheduled</div><div style={{color:"#7A8BA8",fontSize:9}}>this week</div></div>
           </div>
           <div style={{position:"relative",zIndex:2,background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.7)",textAlign:"left"}}>
@@ -5305,13 +5305,13 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{width:162,borderRight:"1px solid #1C2D45",padding:"14px 12px",background:"#07090F"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><img src="/logo-transparent.png" alt="" style={{width:22,height:22,objectFit:"contain"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
                 {[["Dashboard",true],["Publisher",false],["Planner",false],["Analytics",false],["Inbox",false]].map(([n,a],i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(79,110,247,0.12)":"transparent",color:a?"#4F6EF7":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#4F6EF7":"#1C2D45"}}/>{n}</div>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(110,140,171,0.14)":"transparent",color:a?"#9DB6D6":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#6E8CAB":"#1C2D45"}}/>{n}</div>
                 ))}
               </div>
               <div style={{flex:1,padding:16}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Marina Café &amp; Bistro</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:14}}>
-                  {[["Followers","77.6K","#10B981"],["Reach","1.5M","#4F6EF7"],["Posts","128","#A78BFA"],["Engage","6.4%","#F59E0B"]].map(([l,v,c],i)=>(
+                  {[["Followers","77.6K","#7FC9A8"],["Reach","1.5M","#9DB6D6"],["Posts","128","#A78BFA"],["Engage","6.4%","#D9A45C"]].map(([l,v,c],i)=>(
                     <div key={i} style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:10,padding:"10px 11px"}}><div style={{fontSize:9,color:"#7A8BA8",marginBottom:5}}>{l}</div><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div></div>
                   ))}
                 </div>
@@ -5371,13 +5371,13 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div key={title} style={card}><FeatureIcon type={icon}/><div style={{fontSize:13,fontWeight:700,marginBottom:6}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.7}}>{desc}</div></div>
             ))}
           </div>
-          <div style={{textAlign:"center",marginTop:32}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
+          <div style={{textAlign:"center",marginTop:32}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
         </div>
       </div>
       <div style={{padding:"72px 32px",textAlign:"center",background:"#07090F",borderTop:"1px solid #1C2D45"}}>
         <h2 style={{fontSize:30,fontWeight:900,marginBottom:12}}>Ready to grow your brand?</h2>
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:28}}>Join brands worldwide using Tawaslo to manage their social media.</p>
-        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free — no credit card needed</button>
+        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free — no credit card needed</button>
       </div>
     </div>
   );
@@ -5388,7 +5388,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:11,fontWeight:700,marginBottom:22}}>✦ 30 days free &middot; No credit card</div>
         <h1 style={{fontSize:isMobile?30:46,fontWeight:900,lineHeight:1.1,marginBottom:18,letterSpacing:-1.2,maxWidth:720,margin:"0 auto 18px"}}>Start your <span style={grad}>free trial</span> today</h1>
         <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 30px",lineHeight:1.7}}>Full access to every feature for 30 days. Connect your brands, publish with AI, and see the results — no credit card, cancel anytime.</p>
-        <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Create your free account →</button>
+        <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Create your free account →</button>
         <div style={{fontSize:12,color:"#3D5068",marginTop:14}}>Takes about 30 seconds &middot; No card required</div>
       </div>
       <div style={{background:"#0C1120",padding:isMobile?"44px 18px":"56px 32px",borderTop:"1px solid #1C2D45"}}>
@@ -5422,7 +5422,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             </div>
           ))}
           <div style={{textAlign:"center",marginTop:32}}>
-            <button onClick={onGetStarted} style={{padding:"13px 32px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start my free trial →</button>
+            <button onClick={onGetStarted} style={{padding:"13px 32px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start my free trial →</button>
             <div style={{fontSize:12,color:"#3D5068",marginTop:12}}>From $49/mo after the trial. Cancel before it ends and you pay nothing.</div>
           </div>
         </div>
@@ -5565,7 +5565,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:24}}>No hidden fees. Cancel anytime.</p>
         <div style={{display:"inline-flex",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:10,padding:4}}>
           {['monthly','yearly'].map(b=>(
-            <button key={b} onClick={()=>setBilling(b)} style={{padding:"7px 20px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:billing===b?"linear-gradient(135deg,#4F6EF7,#7C3AED)":"transparent",color:billing===b?"#fff":"#7A8BA8"}}>
+            <button key={b} onClick={()=>setBilling(b)} style={{padding:"7px 20px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:billing===b?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",color:billing===b?"#fff":"#7A8BA8"}}>
               {b==='monthly'?'Monthly':'Yearly '}{b==='yearly'&&<span style={{fontSize:10,color:billing==='yearly'?"#fff":"#10B981",fontWeight:700}}>save 20%</span>}
             </button>
           ))}
@@ -5673,7 +5673,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         {contactSent ? (
           <div style={{padding:13,borderRadius:10,background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:13,fontWeight:600,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><CheckCircle size={15}/>Thanks — your email is opening. We will be in touch shortly.</div>
         ) : (
-          <button onClick={sendContact} style={{padding:13,borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Send message</button>
+          <button onClick={sendContact} style={{padding:13,borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Send message</button>
         )}
       </div>
       <div style={{marginTop:24,textAlign:"center",fontSize:13,color:"#7A8BA8"}}>Or email us: <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span></div>
@@ -5724,7 +5724,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{marginTop:40,textAlign:"center",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:"28px"}}>
         <div style={{fontSize:18,fontWeight:800,color:"#E8EFF8",marginBottom:8}}>Still have a question?</div>
         <div style={{fontSize:13,color:"#7A8BA8",marginBottom:18}}>Our team is happy to help. We usually reply within a few hours.</div>
-        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start your free trial</button>
+        <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start your free trial</button>
       </div>
     </div>
   );
@@ -5834,7 +5834,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       {isMobile && landingPage!=='pricing' && (
         <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(12,17,32,0.96)",borderTop:"1px solid #1C2D45",backdropFilter:"blur(12px)",padding:"12px 16px",display:"flex",gap:10,alignItems:"center",boxShadow:"0 -8px 30px rgba(0,0,0,0.55)"}}>
           <button onClick={()=>setLandingPage('pricing')} style={{flex:1,padding:"12px",borderRadius:11,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>View pricing</button>
-          <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#4F6EF7,#7C3AED)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(79,110,247,0.45)"}}>Start free trial</button>
+          <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(79,110,247,0.45)"}}>Start free trial</button>
         </div>
       )}
     </div>
