@@ -27,34 +27,36 @@ const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSiz
 };
 
 const DARK = {
-  bg:"#07090F", surface:"#0C1120", card:"#101828", card2:"#141E2E",
-  border:"#1C2D45", text:"#E8EFF8", text2:"#7A8BA8", text3:"#3D5068",
-  accent:"#4F6EF7", accent2:"#7C3AED",
-  accentSoft:"rgba(79,110,247,0.11)", accent2Soft:"rgba(124,58,237,0.09)",
+  bg:"#090C10", surface:"#0A0D11", card:"#141923", card2:"#10141C",
+  border:"#232B38", text:"#F2F5F9", text2:"#8794A8", text3:"#5A6577",
+  accent:"#6E8CAB", accent2:"#8AA0BE",
+  accentSoft:"rgba(110,140,171,0.12)", accent2Soft:"rgba(138,160,190,0.10)",
   success:"#10B981", successSoft:"rgba(16,185,129,0.1)",
   warning:"#F59E0B", warningSoft:"rgba(245,158,11,0.1)",
   danger:"#EF4444", dangerSoft:"rgba(239,68,68,0.1)",
   info:"#06B6D4", infoSoft:"rgba(6,182,212,0.1)",
   orange:"#F97316", orangeSoft:"rgba(249,115,22,0.1)",
-  gradient:"linear-gradient(135deg,#4F6EF7,#7C3AED)",
-  gradientSoft:"linear-gradient(135deg,rgba(79,110,247,0.1),rgba(124,58,237,0.08))",
+  chart1:"#4F6EF7", chart2:"#7C3AED", chart3:"#2DD4BF",
+  gradient:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",
+  gradientSoft:"linear-gradient(135deg,rgba(110,140,171,0.12),rgba(79,107,140,0.08))",
   shadow:"0 4px 20px rgba(0,0,0,0.5)",
   insta:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#FF0050", yt:"#FF0000",
 };
 
 const LIGHT = {
-  bg:"#EEF2FC", surface:"#FFFFFF", card:"#FFFFFF", card2:"#F5F8FF",
-  border:"#DDE5F5", text:"#0D1526", text2:"#4A5C7A", text3:"#94A3B8",
-  accent:"#4F6EF7", accent2:"#7C3AED",
-  accentSoft:"rgba(79,110,247,0.07)", accent2Soft:"rgba(124,58,237,0.06)",
-  success:"#059669", successSoft:"rgba(5,150,105,0.07)",
-  warning:"#D97706", warningSoft:"rgba(217,119,6,0.07)",
-  danger:"#DC2626", dangerSoft:"rgba(220,38,38,0.07)",
-  info:"#0891B2", infoSoft:"rgba(8,145,178,0.07)",
-  orange:"#EA6B0A", orangeSoft:"rgba(234,107,10,0.07)",
-  gradient:"linear-gradient(135deg,#4F6EF7,#7C3AED)",
-  gradientSoft:"linear-gradient(135deg,rgba(79,110,247,0.06),rgba(124,58,237,0.05))",
-  shadow:"0 4px 20px rgba(79,110,247,0.07)",
+  bg:"#F6F8FA", surface:"#FFFFFF", card:"#FFFFFF", card2:"#F3F6F9",
+  border:"#E6E9EF", text:"#16181D", text2:"#5B6576", text3:"#9AA4B2",
+  accent:"#4F6B8C", accent2:"#3E5C7E",
+  accentSoft:"rgba(79,107,140,0.08)", accent2Soft:"rgba(62,92,126,0.07)",
+  success:"#16A34A", successSoft:"rgba(22,163,74,0.08)",
+  warning:"#D97706", warningSoft:"rgba(217,119,6,0.08)",
+  danger:"#DC2626", dangerSoft:"rgba(220,38,38,0.08)",
+  info:"#0891B2", infoSoft:"rgba(8,145,178,0.08)",
+  orange:"#EA6B0A", orangeSoft:"rgba(234,107,10,0.08)",
+  chart1:"#4F6EF7", chart2:"#7C3AED", chart3:"#0D9488",
+  gradient:"linear-gradient(135deg,#5E7A99,#42566F)",
+  gradientSoft:"linear-gradient(135deg,rgba(79,107,140,0.06),rgba(62,92,126,0.05))",
+  shadow:"0 4px 20px rgba(20,30,50,0.06)",
   insta:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#FF0050", yt:"#FF0000",
 };
 
@@ -1435,10 +1437,10 @@ function AgencyDashboard() {
   const fmtWhen = (iso) => { const d=new Date(iso); const now=new Date(); const sameDay=d.toDateString()===now.toDateString(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (sameDay?"Today":d.toLocaleDateString([], {weekday:'short'}))+" · "+tm; };
   const upcomingShown = upcoming.length ? upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status})) : UPCOMING_FALLBACK;
   const kpiStats = [
-    { label:"Total Posts", value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
-    { label:"Total Reach", value: dashFollowers > 0 ? fmtN(dashReach) : "0", change:"+28%", up:true, Icon:Eye, color:"info" },
-    { label:"Engagement",  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
-    { label:"Followers",   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
+    { label:L("Total Posts","إجمالي المنشورات"), value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
+    { label:L("Total Reach","إجمالي الوصول"), value: dashFollowers > 0 ? fmtN(dashReach) : "0", change:"+28%", up:true, Icon:Eye, color:"info" },
+    { label:L("Engagement","التفاعل"),  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
+    { label:L("Followers","المتابعون"),   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
   ];
   return (
     <div>
@@ -1487,8 +1489,8 @@ function AgencyDashboard() {
               </>
             )}
           </div>
-          <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status}</Badge>
-          <Badge color={selClient.free?"success":"accent2"}>{selClient.free?"Free":selClient.plan}</Badge>
+          <Badge color={selClient.status==="active"?"success":"danger"}>{selClient.status==="active"?L("active","نشط"):selClient.status}</Badge>
+          <Badge color={selClient.free?"success":"accent2"}>{selClient.free?L("Free","مجاني"):selClient.plan}</Badge>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>{L("Last 30 days","آخر ٣٠ يوماً")}</div>
@@ -1497,14 +1499,14 @@ function AgencyDashboard() {
       </div>
 
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-        <div style={{fontSize:11,color:th.text2}}>{accounts.length>0?(accounts.length+" connected account"+(accounts.length>1?"s":"")):"Connected accounts"}</div>
-        {accounts.length>0&&<button onClick={()=>{ setPlatform("All platforms"); setViewingAccount(null); }} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${(platform==="All platforms"&&!viewingAccount)?th.accent:th.border}`,background:(platform==="All platforms"&&!viewingAccount)?th.accentSoft:"transparent",color:(platform==="All platforms"&&!viewingAccount)?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>All platforms</button>}
+        <div style={{fontSize:11,color:th.text2}}>{accounts.length>0?(isAR?(accounts.length+" حساب مرتبط"):(accounts.length+" connected account"+(accounts.length>1?"s":""))):L("Connected accounts","الحسابات المرتبطة")}</div>
+        {accounts.length>0&&<button onClick={()=>{ setPlatform("All platforms"); setViewingAccount(null); }} style={{fontSize:11,padding:"4px 11px",borderRadius:999,border:`1px solid ${(platform==="All platforms"&&!viewingAccount)?th.accent:th.border}`,background:(platform==="All platforms"&&!viewingAccount)?th.accentSoft:"transparent",color:(platform==="All platforms"&&!viewingAccount)?th.accent:th.text2,cursor:"pointer",fontWeight:500}}>{L("All platforms","كل المنصات")}</button>}
       </div>
       {accounts.length===0?(
         <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:16,padding:22,textAlign:"center",marginBottom:18}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>No accounts connected yet</div>
-          <div style={{fontSize:12,color:th.text2,marginBottom:14}}>Connect this client's social accounts to see their analytics here.</div>
-          <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>Connect accounts</button>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>{L("No accounts connected yet","لا توجد حسابات مرتبطة بعد")}</div>
+          <div style={{fontSize:12,color:th.text2,marginBottom:14}}>{L("Connect this client's social accounts to see their analytics here.","اربط حسابات هذا العميل الاجتماعية لرؤية تحليلاته هنا.")}</div>
+          <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>{L("Connect accounts","ربط الحسابات")}</button>
         </div>
       ):(
         <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(accounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
@@ -1515,10 +1517,10 @@ function AgencyDashboard() {
               <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                   <div style={{width:32,height:32,borderRadius:9,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={15} color={th.text2}/>}</div>
-                  {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>viewing</span>}
+                  {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>{L("viewing","قيد العرض")}</span>}
                 </div>
                 <div style={{fontSize:11.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.username?("@"+acc.username):acc.account_name}</div>
-                <div style={{fontSize:18,fontWeight:600,marginTop:2}}>{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}<span style={{fontSize:11,color:th.text2,fontWeight:400}}> followers</span></div>
+                <div style={{fontSize:18,fontWeight:600,marginTop:2}}>{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}<span style={{fontSize:11,color:th.text2,fontWeight:400}}> {L("followers","\u0645\u062a\u0627\u0628\u0639")}</span></div>
               </div>
             );
           })}
@@ -1532,10 +1534,10 @@ function AgencyDashboard() {
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <div style={{fontSize:13.5,fontWeight:600}}>Post performance</div>
+            <div style={{fontSize:13.5,fontWeight:600}}>{L("Post performance","أداء المنشورات")}</div>
             <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>Reach</span>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#2DD4BF",display:"inline-block"}}/>Engagement</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>{L("Reach","الوصول")}</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#2DD4BF",display:"inline-block"}}/>{L("Engagement","التفاعل")}</span>
             </div>
           </div>
           <svg viewBox="0 0 540 180" style={{width:"100%",height:"auto",display:"block"}}>
@@ -1550,7 +1552,7 @@ function AgencyDashboard() {
         </div>
 
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",padding:"18px 20px"}}>
-          <div style={{fontSize:13.5,fontWeight:600,marginBottom:16}}>Reach by post type</div>
+          <div style={{fontSize:13.5,fontWeight:600,marginBottom:16}}>{L("Reach by post type","الوصول حسب نوع المنشور")}</div>
           <div style={{display:"flex",alignItems:"center",gap:16}}>
             <svg viewBox="0 0 120 120" width="104" height="104">
               <circle cx="60" cy="60" r="42" fill="none" stroke={th.border} strokeWidth="15"/>
@@ -1559,9 +1561,9 @@ function AgencyDashboard() {
               <circle cx="60" cy="60" r="42" fill="none" stroke="#2DD4BF" strokeWidth="15" strokeDasharray="60 203.9" strokeDashoffset="-202" transform="rotate(-90 60 60)" strokeLinecap="round"/>
             </svg>
             <div style={{fontSize:11.5,color:th.text2,lineHeight:2.1}}>
-              <div><span style={{color:"#4F6EF7"}}>&#9679;</span> Reels 45%</div>
-              <div><span style={{color:"#7C3AED"}}>&#9679;</span> Carousel 30%</div>
-              <div><span style={{color:"#2DD4BF"}}>&#9679;</span> Photo 25%</div>
+              <div><span style={{color:"#4F6EF7"}}>&#9679;</span> {L("Reels","ريلز")} 45%</div>
+              <div><span style={{color:"#7C3AED"}}>&#9679;</span> {L("Carousel","كاروسيل")} 30%</div>
+              <div><span style={{color:"#2DD4BF"}}>&#9679;</span> {L("Photo","صورة")} 25%</div>
             </div>
           </div>
         </div>
@@ -1570,8 +1572,8 @@ function AgencyDashboard() {
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16}}>
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>Upcoming posts</div>
-            <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>View all<ChevronRight size={12}/></button>
+            <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>{L("Upcoming posts","المنشورات القادمة")}</div>
+            <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{L("View all","عرض الكل")}<ChevronRight size={12}/></button>
           </div>
           {upcomingShown.map((p,i)=>{
             const PI = PlatformIcons[p.platform] || PlatformIcons.ig;
@@ -1582,17 +1584,17 @@ function AgencyDashboard() {
                   <div style={{fontSize:12.5,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.caption}</div>
                   <div style={{fontSize:10.5,color:th.text2,marginTop:2,display:"flex",alignItems:"center",gap:3}}><Clock size={9}/>{p.time}</div>
                 </div>
-                <Badge color={p.status==="scheduled"?"success":"warning"} size="xs">{p.status}</Badge>
+                <Badge color={p.status==="scheduled"?"success":"warning"} size="xs">{p.status==="scheduled"?L("scheduled","مجدول"):p.status==="draft"?L("draft","مسودة"):p.status}</Badge>
               </div>
             );
           })}
         </div>
 
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"0 10px 30px rgba(0,0,0,0.28)",overflow:"hidden"}}>
-          <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Sparkles size={14} color={th.accent}/>Quick actions</div>
+          <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Sparkles size={14} color={th.accent}/>{L("Quick actions","إجراءات سريعة")}</div>
           <div style={{padding:18}}>
-            <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}><Plus size={15}/>New post</button>
-            {[["analytics","Analytics",BarChart2],["inbox","Inbox",Inbox],["reports","Reports",PieChart]].map(([pg,lbl,Ic])=>(
+            <button onClick={()=>setPage("publisher")} style={{width:"100%",padding:"11px",borderRadius:11,background:th.accent,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7,marginBottom:14}}><Plus size={15}/>{L("New post","منشور جديد")}</button>
+            {[["analytics",L("Analytics","التحليلات"),BarChart2],["inbox",L("Inbox","الوارد"),Inbox],["reports",L("Reports","التقارير"),PieChart]].map(([pg,lbl,Ic])=>(
               <button key={pg} onClick={()=>setPage(pg)} style={{width:"100%",padding:"10px 12px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text,fontSize:12,fontWeight:500,cursor:"pointer",display:"flex",alignItems:"center",gap:9,marginBottom:8}}><Ic size={15} color={th.text2}/>{lbl}<ChevronRight size={13} color={th.text3} style={{marginLeft:"auto"}}/></button>
             ))}
           </div>
@@ -6189,7 +6191,8 @@ function TrialBanner() {
 }
 
 export default function TawasloApp() {
-  const [dark,      setDark]      = useState(true);
+  const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') === 'dark'; } catch(e){ return false; } });
+  useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
   const [lang,      setLang]      = useState("en");
   const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
   const [mobileNav, setMobileNav] = useState(false);
