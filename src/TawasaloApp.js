@@ -83,6 +83,20 @@ function markTrialStart(email) {
   const e = String(email).toLowerCase();
   if (!localStorage.getItem("tw_trial_start_" + e)) localStorage.setItem("tw_trial_start_" + e, String(Date.now()));
 }
+const TRIAL_DAYS = 30;
+// Whole days remaining in the trial. Paid/full-access return a large number.
+function trialDaysLeft(email) {
+  if (!email) return TRIAL_DAYS;
+  const e = String(email).toLowerCase();
+  if (FULL_ACCESS_EMAILS.includes(e) || localStorage.getItem("tw_paid_" + e) === "1") return 999;
+  const start = parseInt(localStorage.getItem("tw_trial_start_" + e) || "0", 10);
+  if (!start) return TRIAL_DAYS;
+  const elapsed = (Date.now() - start) / 86400000;
+  return Math.max(0, Math.ceil(TRIAL_DAYS - elapsed));
+}
+// Soft paywall: trial users whose days have run out. Their data stays visible,
+// but publishing / scheduling / AI are locked until they upgrade.
+function trialEnded(email) { return isTrialUser(email) && trialDaysLeft(email) <= 0; }
 
 // Reusable upgrade prompt — shown when a trial user hits a cap.
 function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
@@ -99,6 +113,44 @@ function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
       </div>
     </div>
   );
+}
+
+// Trial lifecycle popup: a 5-days-left nudge (once a day) and the trial-ended
+// soft paywall prompt. Data stays visible; this just encourages upgrade.
+function TrialLifecycle() {
+  const { userEmail, setPage, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const days = trialDaysLeft(userEmail);
+  const ended = trialEnded(userEmail);
+  const trialing = isTrialUser(userEmail);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!trialing) return;
+    if (ended) { setShow(true); return; }
+    if (days <= 5) {
+      try { const key = "tw_trialpop_" + new Date().toISOString().slice(0,10);
+        if (!sessionStorage.getItem(key)) { setShow(true); sessionStorage.setItem(key, "1"); }
+      } catch(e) { setShow(true); }
+    }
+  }, []); // eslint-disable-line
+  if (!trialing || !show) return null;
+  const title = ended ? L("Your free trial has ended","انتهت فترتك التجريبية")
+    : (isAR ? `تبقّى ${days} ${days===1?"يوم":"أيام"} في تجربتك` : `${days} ${days===1?"day":"days"} left in your trial`);
+  const body = ended
+    ? L("Your dashboard, analytics and connected accounts are all still here. Upgrade to publish, schedule and use AI again.","لوحتك وتحليلاتك وحساباتك المرتبطة لا تزال موجودة. قم بالترقية لتعود للنشر والجدولة واستخدام الذكاء الاصطناعي.")
+    : L("Keep your momentum going — upgrade now to unlock unlimited publishing, AI captions and accounts.","حافظ على زخمك — قم بالترقية الآن لفتح النشر غير المحدود وتعليقات الذكاء الاصطناعي والحسابات.");
+  return createPortal((
+    <div onClick={()=>setShow(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.78)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:430,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:26,textAlign:"center",boxShadow:th.shadow}}>
+        <div style={{width:58,height:58,borderRadius:16,background:ended?th.dangerSoft:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>{ended?<Lock size={26} color={th.danger}/>:<Sparkles size={26} color="#fff"/>}</div>
+        <h2 style={{margin:"0 0 8px",fontSize:20,fontWeight:800,color:th.text,letterSpacing:-0.4}}>{title}</h2>
+        <p style={{margin:"0 0 22px",fontSize:13.5,color:th.text2,lineHeight:1.65}}>{body}</p>
+        <button onClick={()=>{ setShow(false); setPage("billing"); }} style={{width:"100%",padding:"13px",borderRadius:12,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:10}}>{L("Upgrade now","الترقية الآن")}</button>
+        <button onClick={()=>setShow(false)} style={{width:"100%",padding:"11px",borderRadius:12,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{ended?L("Continue viewing","متابعة العرض"):L("Not now","ليس الآن")}</button>
+      </div>
+    </div>
+  ), document.body);
 }
 
 const PLATFORMS = [
@@ -2505,6 +2557,10 @@ function PublisherPage() {
 
   const generateCaption = async () => {
     if (!aiTopic.trim()) return;
+    if (trialEnded(userEmail)) {
+      setUpgrade({ title:"Your free trial has ended", detail:"Upgrade to keep using AI captions. Your accounts and analytics are still here.", Icon:Lock });
+      return;
+    }
     if (isTrialUser(userEmail) && aiUsesOf(userEmail) >= TRIAL.ai) {
       setUpgrade({ title:"You've used all 5 free AI generations", detail:`AI captions are a paid feature. You've experienced what the AI can do. Upgrade to keep generating unlimited bilingual captions, hashtags and content ideas.`, Icon:Wand2 });
       return;
@@ -2534,6 +2590,10 @@ function PublisherPage() {
 
   const handlePost = async () => {
     if (!caption.trim() || selectedAccounts.length === 0) return;
+    if (trialEnded(userEmail)) {
+      setUpgrade({ title:"Your free trial has ended", detail:"Upgrade to publish and schedule again. Your accounts, posts and analytics are all still here.", Icon:Lock });
+      return;
+    }
     if (isTrialUser(userEmail) && postsOf(userEmail) >= TRIAL.posts) {
       setUpgrade({ title:`You've reached your ${TRIAL.posts}-post trial limit`, detail:`Your free trial includes ${TRIAL.posts} posts so you can feel the full workflow. Upgrade for unlimited publishing and scheduling across all your brands.`, Icon:Send });
       return;
@@ -5160,9 +5220,9 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Nav = () => (
-    <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #1C2D45",padding:isMobile?"0 16px":"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
+    <nav style={{position:"sticky",top:0,zIndex:100,background:"rgba(7,9,15,0.97)",borderBottom:"1px solid #232B38",padding:isMobile?"0 16px":"0 32px",height:58,display:"flex",alignItems:"center",justifyContent:"space-between",backdropFilter:"blur(12px)"}}>
       <Logo/>
-      {isMobile && <button onClick={()=>setNavOpen(o=>!o)} aria-label="Menu" style={{background:"transparent",border:"1px solid #1C2D45",borderRadius:8,width:38,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#E8EFF8"}}>{navOpen?<XCircle size={18}/>:<Menu size={18}/>}</button>}
+      {isMobile && <button onClick={()=>setNavOpen(o=>!o)} aria-label="Menu" style={{background:"transparent",border:"1px solid #232B38",borderRadius:8,width:38,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#E8EFF8"}}>{navOpen?<XCircle size={18}/>:<Menu size={18}/>}</button>}
       <div style={{display:isMobile?"none":"flex",alignItems:"center",gap:28}}>
         {navLink('home','Home')}
         {navLink('features','Features')}
@@ -5171,16 +5231,16 @@ function LandingPage({ onGetStarted, onLogin }) {
         {navLink('contact','Contact')}
       </div>
       <div style={{display:isMobile?"none":"flex",gap:10}}>
-        <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
+        <button onClick={onLogin} style={{padding:"8px 18px",borderRadius:8,background:"transparent",border:"1px solid #232B38",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
         <button onClick={()=>setLandingPage('trial')} style={{padding:"8px 18px",borderRadius:8,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
       </div>
       {isMobile && navOpen && (
-        <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1120",borderBottom:"1px solid #1C2D45",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
+        <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1017",borderBottom:"1px solid #232B38",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
           {[['home','Home'],['features','Features'],['pricing','Pricing'],['about','About'],['contact','Contact']].map(([id,label])=>(
             <div key={id} onClick={()=>{setLandingPage(id);setNavOpen(false);}} style={{padding:"11px 12px",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",color:landingPage===id?"#4F6EF7":"#E8EFF8",background:landingPage===id?"rgba(79,110,247,0.1)":"transparent"}}>{label}</div>
           ))}
-          <div style={{height:1,background:"#1C2D45",margin:"6px 0"}}/>
-          <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
+          <div style={{height:1,background:"#232B38",margin:"6px 0"}}/>
+          <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #232B38",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
           <button onClick={()=>{setLandingPage('trial');setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Start Free Trial</button>
         </div>
       )}
@@ -5188,14 +5248,14 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Footer = () => (
-    <div style={{background:"#07090F",borderTop:"1px solid #1C2D45",padding:"20px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
+    <div style={{background:"#080B11",borderTop:"1px solid #232B38",padding:"20px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
       <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:28,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
       <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
       <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
         {[["FAQ","faq"],["Privacy","privacy"],["Terms","terms"],["Contact","contact"]].map(([l,p])=><span key={l} onClick={()=>setLandingPage(p)} style={{fontSize:11.5,color:"#7A8BA8",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color="#E8EFF8"} onMouseLeave={e=>e.currentTarget.style.color="#7A8BA8"}>{l}</span>)}
         <div style={{display:"flex",gap:8}}>
           {[["https://www.instagram.com/tawaslo",FaInstagram],["https://www.linkedin.com/company/tawaslo",FaLinkedin]].map(([href,Ic],i)=>(
-            <a key={i} href={href} target="_blank" rel="noreferrer" style={{width:30,height:30,borderRadius:8,background:"#101828",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",color:"#7A8BA8",textDecoration:"none",transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#4F6EF7";}} onMouseLeave={e=>{e.currentTarget.style.color="#7A8BA8";e.currentTarget.style.borderColor="#1C2D45";}}><Ic style={{fontSize:14}}/></a>
+            <a key={i} href={href} target="_blank" rel="noreferrer" style={{width:30,height:30,borderRadius:8,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center",color:"#7A8BA8",textDecoration:"none",transition:"all 0.15s"}} onMouseEnter={e=>{e.currentTarget.style.color="#fff";e.currentTarget.style.borderColor="#4F6EF7";}} onMouseLeave={e=>{e.currentTarget.style.color="#7A8BA8";e.currentTarget.style.borderColor="#232B38";}}><Ic style={{fontSize:14}}/></a>
           ))}
         </div>
       </div>
@@ -5203,17 +5263,17 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const grad = {background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
-  const card = {background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:22};
+  const card = {background:"#141923",border:"1px solid #232B38",borderRadius:14,padding:22};
 
   const PlanCard = ({name,desc,price,features,popular,extra=[],planKey}) => (
-    <div style={{background:"#101828",border:`2px solid ${popular?"#4F6EF7":"#1C2D45"}`,borderRadius:16,padding:24,position:"relative"}}>
+    <div style={{background:"#0D1119",border:`2px solid ${popular?"#6E8CAB":"#1E2838"}`,borderRadius:16,padding:24,position:"relative"}}>
       {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
       <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
       <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
-      <div style={{marginBottom:8}}><span style={{fontSize:34,fontWeight:900,color:popular?"#4F6EF7":"#E8EFF8"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
+      <div style={{marginBottom:8}}><span className="tw-num" style={{fontSize:34,fontWeight:700,color:popular?"#9DB6D6":"#F2F5F9"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
       {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[planKey]-price)*12}/year</div>}
       <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
-      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #1C2D45",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
+      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #232B38",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
     </div>
   );
 
@@ -5245,15 +5305,15 @@ function LandingPage({ onGetStarted, onLogin }) {
   ];
 
   const s = {
-    nav: { position:"fixed", top:0, left:0, right:0, zIndex:100, padding:"0 40px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", background: "rgba(7,9,15,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #1C2D45", transition:"all 0.3s" },
+    nav: { position:"fixed", top:0, left:0, right:0, zIndex:100, padding:"0 40px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", background: "rgba(7,9,15,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #232B38", transition:"all 0.3s" },
     logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
-    hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#07090F", position:"relative", overflow:"hidden" },
+    hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#080B11", position:"relative", overflow:"hidden" },
     heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
     badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(79,110,247,0.1)", border:"1px solid rgba(79,110,247,0.3)", color:"#4F6EF7", fontSize:12, fontWeight:700, marginBottom:24 },
     h1: { fontSize:isMobile?34:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
     sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
     btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },
-    btnSecondary: { padding:"14px 32px", borderRadius:12, background:"transparent", border:"1px solid #1C2D45", color:"#7A8BA8", fontSize:15, fontWeight:600, cursor:"pointer" },
+    btnSecondary: { padding:"14px 32px", borderRadius:12, background:"transparent", border:"1px solid #232B38", color:"#7A8BA8", fontSize:15, fontWeight:600, cursor:"pointer" },
     section: { padding:"80px 40px", maxWidth:1100, margin:"0 auto" },
     sectionTitle: { fontSize:36, fontWeight:900, color:"#E8EFF8", textAlign:"center", marginBottom:12, letterSpacing:-0.5 },
     sectionSub: { fontSize:16, color:"#7A8BA8", textAlign:"center", marginBottom:56 },
@@ -5296,26 +5356,26 @@ function LandingPage({ onGetStarted, onLogin }) {
             <Calendar size={15} color="#9DB6D6"/>
             <div style={{textAlign:"left"}}><div style={{color:"#E8EFF8",fontSize:10.5,fontWeight:700}}>14 posts scheduled</div><div style={{color:"#7A8BA8",fontSize:9}}>this week</div></div>
           </div>
-          <div style={{position:"relative",zIndex:2,background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.7)",textAlign:"left"}}>
-            <div style={{display:"flex",alignItems:"center",gap:7,padding:"10px 14px",borderBottom:"1px solid #1C2D45",background:"#07090F"}}>
+          <div style={{position:"relative",zIndex:2,background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden",boxShadow:"0 50px 120px rgba(0,0,0,0.7)",textAlign:"left"}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,padding:"10px 14px",borderBottom:"1px solid #232B38",background:"#080B11"}}>
               <span style={{width:10,height:10,borderRadius:"50%",background:"#EF4444"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#F59E0B"}}/><span style={{width:10,height:10,borderRadius:"50%",background:"#10B981"}}/>
-              <div style={{marginLeft:12,fontSize:11,color:"#3D5068",background:"#101828",borderRadius:7,padding:"4px 14px"}}>tawaslo.com/dashboard</div>
+              <div style={{marginLeft:12,fontSize:11,color:"#3D5068",background:"#141923",borderRadius:7,padding:"4px 14px"}}>tawaslo.com/dashboard</div>
             </div>
             <div style={{display:"flex"}}>
-              <div style={{width:162,borderRight:"1px solid #1C2D45",padding:"14px 12px",background:"#07090F"}}>
+              <div style={{width:162,borderRight:"1px solid #232B38",padding:"14px 12px",background:"#080B11"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><img src="/logo-transparent.png" alt="" style={{width:22,height:22,objectFit:"contain"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
                 {[["Dashboard",true],["Publisher",false],["Planner",false],["Analytics",false],["Inbox",false]].map(([n,a],i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(110,140,171,0.14)":"transparent",color:a?"#9DB6D6":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#6E8CAB":"#1C2D45"}}/>{n}</div>
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(110,140,171,0.14)":"transparent",color:a?"#9DB6D6":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#6E8CAB":"#232B38"}}/>{n}</div>
                 ))}
               </div>
               <div style={{flex:1,padding:16}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Marina Café &amp; Bistro</div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:14}}>
                   {[["Followers","77.6K","#7FC9A8"],["Reach","1.5M","#9DB6D6"],["Posts","128","#A78BFA"],["Engage","6.4%","#D9A45C"]].map(([l,v,c],i)=>(
-                    <div key={i} style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:10,padding:"10px 11px"}}><div style={{fontSize:9,color:"#7A8BA8",marginBottom:5}}>{l}</div><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div></div>
+                    <div key={i} style={{background:"#141923",border:"1px solid #232B38",borderRadius:10,padding:"10px 11px"}}><div style={{fontSize:9,color:"#7A8BA8",marginBottom:5}}>{l}</div><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div></div>
                   ))}
                 </div>
-                <div style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:10,padding:13}}>
+                <div style={{background:"#141923",border:"1px solid #232B38",borderRadius:10,padding:13}}>
                   <div style={{fontSize:10.5,color:"#7A8BA8",marginBottom:10}}>Reach &middot; last 30 days</div>
                   <svg viewBox="0 0 400 80" style={{width:"100%",height:80,display:"block"}}>
                     <defs><linearGradient id="heroSpark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
@@ -5331,7 +5391,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       </div>
 
       {/* Platform strip */}
-      <div style={{padding:"30px 32px",borderTop:"1px solid #1C2D45",borderBottom:"1px solid #1C2D45",background:"#07090F"}}>
+      <div style={{padding:"30px 32px",borderTop:"1px solid #232B38",borderBottom:"1px solid #232B38",background:"#080B11"}}>
         <div style={{textAlign:"center",fontSize:11,color:"#3D5068",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:18}}>Publish &amp; manage across every network</div>
         <div style={{display:"flex",gap:isMobile?20:40,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
           {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["TikTok","#E8EFF8",FaTiktok],["LinkedIn","#0A66C2",FaLinkedin],["X","#E8EFF8",FaTwitter],["YouTube","#FF0000",FaYoutube]].map(([n,c,Ic])=>(
@@ -5448,7 +5508,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           <div style={{textAlign:"center",marginTop:28}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
         </div>
       </div>
-      <div style={{padding:"72px 32px",textAlign:"center",background:"#07090F",borderTop:"1px solid #1C2D45"}}>
+      <div style={{padding:"72px 32px",textAlign:"center",background:"#080B11",borderTop:"1px solid #232B38"}}>
         <h2 style={{fontSize:30,fontWeight:900,marginBottom:12}}>Ready to grow your brand?</h2>
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:28}}>Join brands worldwide using Tawaslo to manage their social media.</p>
         <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start free — no credit card needed</button>
@@ -5458,14 +5518,14 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const TrialPage = () => (
     <div>
-      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #07090F",padding:isMobile?"56px 18px 40px":"80px 32px 56px",textAlign:"center"}}>
+      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #080B11",padding:isMobile?"56px 18px 40px":"80px 32px 56px",textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:11,fontWeight:700,marginBottom:22}}>✦ 30 days free &middot; No credit card</div>
         <h1 style={{fontSize:isMobile?30:46,fontWeight:900,lineHeight:1.1,marginBottom:18,letterSpacing:-1.2,maxWidth:720,margin:"0 auto 18px"}}>Start your <span style={grad}>free trial</span> today</h1>
         <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 30px",lineHeight:1.7}}>Full access to every feature for 30 days. Connect your brands, publish with AI, and see the results — no credit card, cancel anytime.</p>
         <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Create your free account →</button>
         <div style={{fontSize:12,color:"#3D5068",marginTop:14}}>Takes about 30 seconds &middot; No card required</div>
       </div>
-      <div style={{background:"#0C1120",padding:isMobile?"44px 18px":"56px 32px",borderTop:"1px solid #1C2D45"}}>
+      <div style={{background:"#0C1017",padding:isMobile?"44px 18px":"56px 32px",borderTop:"1px solid #232B38"}}>
         <div style={{maxWidth:1000,margin:"0 auto",display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:16}}>
           {[
             [CheckCircle,"30 days free","Full access, completely free for a month."],
@@ -5473,7 +5533,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             [Sparkles,"Every feature","All platforms, AI captions, analytics, multi-brand."],
             [XCircle,"Cancel anytime","No lock-in. Leave whenever you like, no questions."],
           ].map(([Ic,t,d],i)=>(
-            <div key={i} style={{background:"#101828",border:"1px solid #1C2D45",borderRadius:14,padding:20,textAlign:"center"}}>
+            <div key={i} style={{background:"#141923",border:"1px solid #232B38",borderRadius:14,padding:20,textAlign:"center"}}>
               <div style={{width:44,height:44,borderRadius:13,background:"rgba(79,110,247,0.11)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Ic size={20} color="#4F6EF7"/></div>
               <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{t}</div>
               <div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{d}</div>
@@ -5481,7 +5541,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           ))}
         </div>
       </div>
-      <div style={{background:"#07090F",padding:isMobile?"44px 18px":"64px 32px"}}>
+      <div style={{background:"#080B11",padding:isMobile?"44px 18px":"64px 32px"}}>
         <div style={{maxWidth:760,margin:"0 auto"}}>
           <h2 style={{fontSize:26,fontWeight:900,textAlign:"center",marginBottom:32}}>Everything unlocked from day one</h2>
           {[
@@ -5513,7 +5573,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
         {/* Publishing */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>PUBLISHING</div>
             <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish & schedule to all platforms</h3>
@@ -5525,7 +5585,7 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{padding:"5px 10px",borderRadius:20,background:"#0A66C218",border:"1px solid #0A66C2",fontSize:11,fontWeight:700,color:"#0A66C2",display:"flex",alignItems:"center",gap:5}}><FaLinkedin/> LinkedIn</div>
             </div>
           </div>
-          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>SCHEDULE</div>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(7,1fr)",gap:4,marginBottom:12,textAlign:"center"}}>
               {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=><div key={d} style={{fontSize:9,color:"#7A8BA8"}}>{d}</div>)}
@@ -5533,25 +5593,25 @@ function LandingPage({ onGetStarted, onLogin }) {
                 <div key={n} style={{fontSize:10,padding:4,borderRadius:4,background:active?`${c}30`:"transparent",color:active?c:"#7A8BA8",fontWeight:active?700:400}}>{n}</div>
               ))}
             </div>
-            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#4F6EF7",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#4F6EF7",fontSize:10}}>Tue 9:00am</span></div>
-            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#E1306C",display:"inline-block",flexShrink:0}}/>Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
+            <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#4F6EF7",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#4F6EF7",fontSize:10}}>Tue 9:00am</span></div>
+            <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#E1306C",display:"inline-block",flexShrink:0}}/>Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
           </div>
         </div>
 
         {/* AI Captions */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
-          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:4}}>TOPIC</div>
-            <div style={{background:"#0C1120",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#7A8BA8",marginBottom:10}}>New summer collection launch</div>
+            <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#7A8BA8",marginBottom:10}}>New summer collection launch</div>
             <div style={{display:"flex",gap:6,marginBottom:10}}>
               <span style={{padding:"4px 10px",borderRadius:20,background:"#4F6EF730",fontSize:10,color:"#4F6EF7"}}>Instagram</span>
               <span style={{padding:"4px 10px",borderRadius:20,background:"#7C3AED30",fontSize:10,color:"#7C3AED"}}>Exciting tone</span>
             </div>
-            <div style={{border:"1px solid #1C2D45",borderRadius:8,padding:10,marginBottom:8}}>
+            <div style={{border:"1px solid #232B38",borderRadius:8,padding:10,marginBottom:8}}>
               <div style={{fontSize:9,color:"#4F6EF7",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ENGLISH</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6}}>Summer is here & so is our new collection! ☀️ Fresh styles made for you. Shop now and shine! ✨ #SummerVibes #NewCollection</div>
             </div>
-            <div style={{border:"1px solid #1C2D45",borderRadius:8,padding:10}}>
+            <div style={{border:"1px solid #232B38",borderRadius:8,padding:10}}>
               <div style={{fontSize:9,color:"#7C3AED",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ARABIC</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6,direction:"rtl",textAlign:"right"}}>الصيف هنا ومعه مجموعتنا الجديدة! ☀️ أزياء عصرية صُممت لك. تسوق الآن! ✨ #أزياء_الصيف #مجموعة_جديدة</div>
             </div>
@@ -5564,18 +5624,18 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Analytics */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
             <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:10,letterSpacing:1}}>ANALYTICS</div>
             <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Real data. Real insights.</h3>
             <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Track followers, engagement, and growth across all platforms in real time. Monthly reports ready for your clients.</p>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
               {[["12.4K","Total Followers","#4F6EF7"],["+8.2%","Growth this month","#10B981"],["8.2K","Instagram","#E1306C"],["4.2K","Facebook","#1877F2"]].map(([v,l,c])=>(
-                <div key={l} style={{background:"#101828",borderRadius:10,padding:12,textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
+                <div key={l} style={{background:"#141923",borderRadius:10,padding:12,textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
               ))}
             </div>
           </div>
-          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:12}}>FOLLOWER GROWTH — LAST 6 MONTHS</div>
             <svg viewBox="0 0 260 110" style={{width:"100%",height:"auto"}}>
               <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
@@ -5589,11 +5649,11 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Inbox */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
-          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#4F6EF7",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4}}>7</span></div>
             {[["A","Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C"],["S","Sara Mohammed","What are your working hours?","4h","#1877F2"],["K","Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050"]].map(([init,name,msg,time,c])=>(
-              <div key={name} style={{display:"flex",gap:10,alignItems:"center",padding:8,background:"#0C1120",borderRadius:8,borderLeft:`2px solid ${c}`,marginBottom:6}}>
+              <div key={name} style={{display:"flex",gap:10,alignItems:"center",padding:8,background:"#0C1017",borderRadius:8,borderLeft:`2px solid ${c}`,marginBottom:6}}>
                 <div style={{width:28,height:28,borderRadius:"50%",background:`${c}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:c,flexShrink:0}}>{init}</div>
                 <div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{msg}</div></div>
                 <div style={{fontSize:9,color:"#7A8BA8",flexShrink:0}}>{time}</div>
@@ -5608,11 +5668,11 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
 
         {/* Multi-client */}
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
-          <div style={{background:"#101828",borderRadius:12,padding:16,border:"1px solid #1C2D45"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>YOUR CLIENTS</div>
             {[["🍽","Lumière Dining","Fine Dining","#E1306C","#F97316","Active"],["👗","Velour Fashion","Retail & Fashion","#7C3AED","#E1306C","Active"],["🏠","Prime Properties","Real Estate","#4F6EF7","#10B981","Active"],["🚗","Motivo Motors","Automotive","#F59E0B","#EF4444","Pending"]].map(([icon,name,cat,c1,c2,status])=>(
-              <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#0C1120",borderRadius:8,marginBottom:6}}>
+              <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#0C1017",borderRadius:8,marginBottom:6}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <div style={{width:28,height:28,borderRadius:6,background:`linear-gradient(135deg,${c1},${c2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>{icon}</div>
                   <div><div style={{fontSize:12,fontWeight:600}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8"}}>{cat}</div></div>
@@ -5637,7 +5697,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{textAlign:"center",marginBottom:36}}>
         <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Simple, transparent pricing</h1>
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:24}}>No hidden fees. Cancel anytime.</p>
-        <div style={{display:"inline-flex",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:10,padding:4}}>
+        <div style={{display:"inline-flex",background:"#0C1017",border:"1px solid #232B38",borderRadius:10,padding:4}}>
           {['monthly','yearly'].map(b=>(
             <button key={b} onClick={()=>setBilling(b)} style={{padding:"7px 20px",borderRadius:8,fontSize:13,fontWeight:600,cursor:"pointer",border:"none",background:billing===b?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",color:billing===b?"#fff":"#7A8BA8"}}>
               {b==='monthly'?'Monthly':'Yearly '}{b==='yearly'&&<span style={{fontSize:10,color:billing==='yearly'?"#fff":"#10B981",fontWeight:700}}>save 20%</span>}
@@ -5650,11 +5710,11 @@ function LandingPage({ onGetStarted, onLogin }) {
         <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
       </div>
-      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
-        <div style={{padding:"16px 20px",borderBottom:"1px solid #1C2D45"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
+      <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #232B38"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
         <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?460:"auto"}}>
         {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #1C2D4530",background:isHead?"#101828":type==="header"?"#0C1120":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
+          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #232B3830",background:isHead?"#141923":type==="header"?"#0C1017":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
             <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
           </div>
@@ -5665,9 +5725,9 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{marginTop:56}}>
         <div style={{textAlign:"center",marginBottom:6}}><h2 style={{fontSize:28,fontWeight:900,letterSpacing:-0.5}}>How Tawaslo compares</h2></div>
         <p style={{textAlign:"center",color:"#7A8BA8",fontSize:13.5,marginBottom:26}}>The power of the global tools — built for the region, at a fraction of the price.</p>
-        <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,overflow:"hidden"}}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
           <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?520:"auto"}}>
-          <div style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #1C2D45",fontSize:13,fontWeight:800,alignItems:"center"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #232B38",fontSize:13,fontWeight:800,alignItems:"center"}}>
             <div/>
             <div style={{textAlign:"center",color:"#fff",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><img src="/logo-transparent.png" alt="" style={{width:20,height:20,objectFit:"contain"}}/>Tawaslo</div>
             <div style={{textAlign:"center",color:"#7A8BA8"}}>Hootsuite</div>
@@ -5683,9 +5743,9 @@ function LandingPage({ onGetStarted, onLogin }) {
             ["Multi-client / agency workspace","✓","✓","✓"],
             ["Unified comments & DM inbox","✓","✓","✓"],
           ].map(([feat,tw,ho,sp],i,arr)=>(
-            <div key={i} style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #1C2D4530":"none",fontSize:12.5,alignItems:"center"}}>
+            <div key={i} style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"11px 18px",borderBottom:i<arr.length-1?"1px solid #232B3830":"none",fontSize:12.5,alignItems:"center"}}>
               <div style={{color:"#E8EFF8",fontWeight:500}}>{feat}</div>
-              <div style={{display:"flex",justifyContent:"center",fontWeight:700,background:"rgba(79,110,247,0.09)",borderLeft:"1px solid #1C2D45",borderRight:"1px solid #1C2D45",padding:"7px 0",color:"#fff"}}>{tw==="✓"?<CheckCircle size={15} color="#10B981"/>:tw==="✕"?<XCircle size={15} color="#EF4444"/>:tw}</div>
+              <div style={{display:"flex",justifyContent:"center",fontWeight:700,background:"rgba(110,140,171,0.1)",borderLeft:"1px solid #1E2838",borderRight:"1px solid #1E2838",padding:"7px 0",color:"#fff"}}>{tw==="✓"?<CheckCircle size={15} color="#10B981"/>:tw==="✕"?<XCircle size={15} color="#EF4444"/>:tw}</div>
               <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{ho==="✓"?<CheckCircle size={15} color="#10B981"/>:ho==="✕"?<XCircle size={15} color="#5b6b85"/>:ho}</div>
               <div style={{display:"flex",justifyContent:"center",color:"#7A8BA8"}}>{sp==="✓"?<CheckCircle size={15} color="#10B981"/>:sp==="✕"?<XCircle size={15} color="#5b6b85"/>:sp}</div>
             </div>
@@ -5707,7 +5767,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           <div key={l} style={card}><div style={{fontSize:22,fontWeight:900,...grad,textAlign:"center"}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5,textAlign:"center"}}>{l}</div></div>
         ))}
       </div>
-      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,marginBottom:28}}>
+      <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,marginBottom:28}}>
         <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",letterSpacing:1,marginBottom:16}}>WHAT MAKES US DIFFERENT</div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           {[
@@ -5719,7 +5779,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             [Calendar,"Schedule & auto-publish","Plan your whole month and let Tawaslo post automatically at the perfect time."],
           ].map(([Ic,title,desc])=>(
             <div key={title} style={{display:"flex",gap:13,alignItems:"flex-start"}}>
-              <div style={{width:38,height:38,borderRadius:11,background:"rgba(79,110,247,0.11)",border:"1px solid #1C2D45",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ic size={18} color="#4F6EF7"/></div>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(79,110,247,0.11)",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ic size={18} color="#4F6EF7"/></div>
               <div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{desc}</div></div>
             </div>
           ))}
@@ -5739,11 +5799,11 @@ function LandingPage({ onGetStarted, onLogin }) {
         <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Get in touch</h1>
         <p style={{color:"#7A8BA8",fontSize:14}}>Have questions? We'd love to hear from you.</p>
       </div>
-      <div style={{background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:28,display:"flex",flexDirection:"column",gap:16}}>
+      <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"flex",flexDirection:"column",gap:16}}>
         {[["Name","text","Your name","name"],["Email","email","your@email.com","email"],["Company","text","Your company (optional)","company"]].map(([label,type,ph,key])=>(
-          <div key={label}><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>{label}</div><input type={type} placeholder={ph} value={contact[key]} onChange={e=>setContact(c=>({...c,[key]:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #1C2D45",background:"#101828",color:"#E8EFF8",fontSize:13,outline:"none"}}/></div>
+          <div key={label}><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>{label}</div><input type={type} placeholder={ph} value={contact[key]} onChange={e=>setContact(c=>({...c,[key]:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none"}}/></div>
         ))}
-        <div><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>Message</div><textarea placeholder="How can we help?" value={contact.message} onChange={e=>setContact(c=>({...c,message:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #1C2D45",background:"#101828",color:"#E8EFF8",fontSize:13,outline:"none",resize:"vertical",height:120}}/></div>
+        <div><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>Message</div><textarea placeholder="How can we help?" value={contact.message} onChange={e=>setContact(c=>({...c,message:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none",resize:"vertical",height:120}}/></div>
         {contactSent ? (
           <div style={{padding:13,borderRadius:10,background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:13,fontWeight:600,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><CheckCircle size={15}/>Thanks — your email is opening. We will be in touch shortly.</div>
         ) : (
@@ -5785,7 +5845,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         {FAQS.map(([q,a],i)=>{
           const open = openFaq===i;
           return (
-            <div key={i} style={{background:"#0C1120",border:`1px solid ${open?"#4F6EF7":"#1C2D45"}`,borderRadius:14,overflow:"hidden",transition:"border-color .15s"}}>
+            <div key={i} style={{background:"#0C1017",border:`1px solid ${open?"#4F6EF7":"#232B38"}`,borderRadius:14,overflow:"hidden",transition:"border-color .15s"}}>
               <button onClick={()=>setOpenFaq(open?null:i)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,padding:"18px 22px",background:"transparent",border:"none",cursor:"pointer",textAlign:"left"}}>
                 <span style={{fontSize:15,fontWeight:700,color:"#E8EFF8"}}>{q}</span>
                 <ChevronDown size={18} color={open?"#4F6EF7":"#7A8BA8"} style={{flexShrink:0,transform:open?"rotate(180deg)":"none",transition:"transform .2s"}}/>
@@ -5795,7 +5855,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           );
         })}
       </div>
-      <div style={{marginTop:40,textAlign:"center",background:"#0C1120",border:"1px solid #1C2D45",borderRadius:16,padding:"28px"}}>
+      <div style={{marginTop:40,textAlign:"center",background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:"28px"}}>
         <div style={{fontSize:18,fontWeight:800,color:"#E8EFF8",marginBottom:8}}>Still have a question?</div>
         <div style={{fontSize:13,color:"#7A8BA8",marginBottom:18}}>Our team is happy to help. We usually reply within a few hours.</div>
         <button onClick={onGetStarted} style={{padding:"13px 30px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>Start your free trial</button>
@@ -5805,7 +5865,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const sectionStyle = { fontSize:13, color:"#A8B9CE", lineHeight:1.75, marginBottom:12 };
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#4F6EF7", marginBottom:8, marginTop:0 };
-  const dividerStyle = { border:"none", borderTop:"1px solid #1C2D45", margin:"24px 0" };
+  const dividerStyle = { border:"none", borderTop:"1px solid #232B38", margin:"24px 0" };
   const ulStyle = { fontSize:13, color:"#A8B9CE", lineHeight:1.75, marginBottom:12, paddingLeft:18 };
 
   const PrivacyPage = () => (
@@ -5893,7 +5953,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   return (
-    <div style={{background:"#07090F",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh",paddingBottom:isMobile?74:0}}>
+    <div style={{background:"#080B11",color:"#E8EFF8",fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",minHeight:"100vh",paddingBottom:isMobile?74:0}}>
       <Nav/>
       {landingPage==='home'&&<HomePage/>}
       {landingPage==='trial'&&<TrialPage/>}
@@ -5906,8 +5966,8 @@ function LandingPage({ onGetStarted, onLogin }) {
       {landingPage==='terms'&&<TermsPage/>}
       <Footer/>
       {isMobile && landingPage!=='pricing' && (
-        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(12,17,32,0.96)",borderTop:"1px solid #1C2D45",backdropFilter:"blur(12px)",padding:"12px 16px",display:"flex",gap:10,alignItems:"center",boxShadow:"0 -8px 30px rgba(0,0,0,0.55)"}}>
-          <button onClick={()=>setLandingPage('pricing')} style={{flex:1,padding:"12px",borderRadius:11,background:"transparent",border:"1px solid #1C2D45",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>View pricing</button>
+        <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(12,17,32,0.96)",borderTop:"1px solid #232B38",backdropFilter:"blur(12px)",padding:"12px 16px",display:"flex",gap:10,alignItems:"center",boxShadow:"0 -8px 30px rgba(0,0,0,0.55)"}}>
+          <button onClick={()=>setLandingPage('pricing')} style={{flex:1,padding:"12px",borderRadius:11,background:"transparent",border:"1px solid #232B38",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>View pricing</button>
           <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(79,110,247,0.45)"}}>Start free trial</button>
         </div>
       )}
@@ -5954,7 +6014,7 @@ function AdminLogin() {
   return (
     <div style={{
       minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",
-      background:"radial-gradient(1100px 600px at 50% -10%, rgba(79,110,247,0.18), transparent 60%), radial-gradient(900px 500px at 90% 110%, rgba(124,58,237,0.16), transparent 55%), #07090F",
+      background:"radial-gradient(1100px 600px at 50% -10%, rgba(79,110,247,0.18), transparent 60%), radial-gradient(900px 500px at 90% 110%, rgba(124,58,237,0.16), transparent 55%), #080B11",
       fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",color:th.text,direction:"ltr",padding:24,position:"relative",overflow:"hidden",
     }}>
       {/* faint grid backdrop */}
@@ -6198,7 +6258,7 @@ function AuthPage() {
               {signupStep < 4 && (
                 <div style={{display:"flex",gap:6,marginBottom:24}}>
                   {[1,2,3].map(s=>(
-                    <div key={s} style={{height:4,flex:1,borderRadius:2,background:s<=signupStep?th.accent:"#1C2D45",transition:"background 0.3s"}}/>
+                    <div key={s} style={{height:4,flex:1,borderRadius:2,background:s<=signupStep?th.accent:"#232B38",transition:"background 0.3s"}}/>
                   ))}
                 </div>
               )}
@@ -6827,6 +6887,7 @@ export default function TawasloApp() {
         <Sidebar/>
         <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
           <Topbar/>
+          {mode==="agency" && <TrialLifecycle/>}
           {mode==="agency" && <TrialBanner/>}
           {mode==="agency" && !["social","agencyteam","billing","agencysets","settings","clients"].includes(page) && <ContextBar/>}
           <div className="tw-scroll-area" style={{flex:1,overflowY:"auto",padding:22}}>
