@@ -237,7 +237,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
           selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav,
-          userName, userEmail, accountType } = useApp();
+          userName, userEmail, accountType, userPlan, userCompany } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -248,7 +248,8 @@ function Sidebar() {
   const planTrial = (() => { try { return isTrialUser(userEmail); } catch(e){ return false; } })();
   const sbName = (userName && userName.trim()) ? userName.replace(/\b\w/g, c=>c.toUpperCase()) : (userEmail ? userEmail.split('@')[0].replace(/\b\w/g,c=>c.toUpperCase()) : "Account");
   const sbInit = sbName.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase() || "AC";
-  const sbSub = (selClient?.name && selClient.name!=="Workspace") ? selClient.name : (accountLabelOf(accountType) || "Workspace");
+  const sbSub = userCompany || (accountType==="freelancer" ? "" : accountLabelOf(accountType));
+  const planLabel = planTrial ? L("Free trial","نسخة تجريبية") : (userPlan ? (userPlan.charAt(0).toUpperCase()+userPlan.slice(1)) : L("Pro","احترافي"));
   const [collapsed, setCollapsed] = useState(()=>{ try{ return localStorage.getItem('tw_sidebar')==='1'; }catch(e){ return false; } });
   useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
   const col = collapsed && !isMobile; // effective collapsed (mobile uses the drawer, never the rail)
@@ -394,47 +395,18 @@ function Sidebar() {
         )}
       </nav>
 
-      {col ? (
-        <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} title={sbName+(planTrial?" — Free trial":"")} style={{display:"flex",justifyContent:"center",padding:"0 0 10px",cursor:"pointer"}}>
-          <span style={{width:34,height:34,borderRadius:10,background:th.gradient,color:"#fff",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{sbInit}</span>
-        </div>
-      ) : (
-      <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} style={{margin:"0 14px 10px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"10px 11px",cursor:"pointer"}}>
-        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
-          <span style={{width:30,height:30,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
-          <div style={{minWidth:0,lineHeight:1.3}}>
-            <div style={{fontSize:12,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbName}</div>
-            <div style={{fontSize:9.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbSub}</div>
+      {col ? null : (
+      <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} style={{margin:"0 14px 12px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"11px 12px",cursor:"pointer"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+          <span style={{width:32,height:32,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
+          <div style={{minWidth:0,lineHeight:1.35}}>
+            <div style={{fontSize:12.5,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbName}</div>
+            {sbSub&&<div style={{fontSize:10,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{sbSub}</div>}
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${th.border}`,paddingTop:9}}>
-          <span style={{fontSize:10.5,fontWeight:600,color:planTrial?th.warning:th.accent,display:"flex",alignItems:"center",gap:5}}><Sparkles size={12}/>{planTrial?L("Free trial","نسخة تجريبية"):L("Active plan","خطة نشطة")}</span>
-          <span style={{fontSize:10,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
-        </div>
-      </div>
-      )}
-
-      {col ? (
-      <div style={{padding:"10px 0 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,borderTop:`1px solid ${th.border}`}}>
-        <button onClick={()=>setDark(!dark)} title={dark?"Light mode":"Dark mode"} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:6}}>{dark?<Sun size={16}/>:<Moon size={16}/>}</button>
-        <button onClick={()=>setLang(l=>l==="en"?"ar":"en")} title="Language" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:6}}><Languages size={16}/></button>
-        <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} title="Log out" style={{background:"transparent",border:"none",cursor:"pointer",color:th.danger,display:"flex",padding:6}}><LogOut size={16}/></button>
-      </div>
-      ) : (
-      <div style={{padding:"12px 14px",borderTop:`1px solid ${th.border}`}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <span style={{fontSize:11,color:th.text2,display:"flex",alignItems:"center",gap:5}}>
-            {dark?<Moon size={11}/>:<Sun size={11}/>}{dark?t("theme.dark","Dark"):t("theme.light","Light")}
-          </span>
-          <Toggle on={dark} onColor="accent" onClick={()=>setDark(!dark)}/>
-        </div>
-        <div style={{display:"flex",gap:6}}>
-          <button onClick={()=>setLang(l=>l==="en"?"ar":"en")} style={{flex:1,padding:"5px",borderRadius:7,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-            <Languages size={10}/>{lang==="en"?"عربي":"EN"}
-          </button>
-          <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} style={{flex:1,padding:"5px",borderRadius:7,background:th.dangerSoft,border:`1px solid ${th.danger}30`,color:th.danger,fontSize:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:4}}>
-            <LogOut size={10}/>{t("btn.logout","Log out")}
-          </button>
+          <span style={{fontSize:11,fontWeight:600,color:planTrial?th.warning:th.accent,display:"inline-flex",alignItems:"center",gap:6}}><Sparkles size={13}/>{planLabel}</span>
+          <span style={{fontSize:10.5,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
         </div>
       </div>
       )}
@@ -510,9 +482,9 @@ function Topbar() {
           )}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-          <div style={{lineHeight:1.3,textAlign:"right"}}>
-            <div style={{fontSize:12,fontWeight:700}}>{uName}</div>
-            <div style={{fontSize:9,color:th.text2}}>{uSub}</div>
+          <div style={{lineHeight:1.35,textAlign:"right"}}>
+            <div style={{fontSize:14,fontWeight:700,color:th.text}}>{uName}</div>
+            <div style={{fontSize:11,color:th.text2}}>{uSub}</div>
           </div>
         </div>
       </div>
@@ -4610,7 +4582,7 @@ function BillingPage() {
 }
 
 function SettingsPage() {
-  const { dark, setDark, lang, setLang, setUserName } = useApp();
+  const { dark, setDark, lang, setLang, setUserName, setIsAuthed } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -4829,6 +4801,12 @@ function SettingsPage() {
             <button onClick={submitTicket} disabled={tkSending} style={{display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:tkSending?"not-allowed":"pointer", opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?L("Sending…","جارٍ الإرسال…"):L("Send message","إرسال الرسالة")}</button>
             <a href="mailto:support@tawaslo.com" style={{fontSize:12, color:th.text2, textDecoration:"none"}}>{L("or email support@tawaslo.com","أو راسلنا على support@tawaslo.com")}</a>
           </div>
+        </div>
+
+        <div style={{...card}}>
+          {secTitle(LogOut, L("Session","الجلسة"))}
+          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>{L("Sign out of your Tawaslo account on this device.","تسجيل الخروج من حسابك على هذا الجهاز.")}</div>
+          <button onClick={async()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); }} style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7}}><LogOut size={14}/>{L("Log out","تسجيل الخروج")}</button>
         </div>
 
         <div style={{...card, border:`1px solid ${th.danger}33`}}>
@@ -6252,6 +6230,8 @@ export default function TawasloApp() {
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
   const [userEmail, setUserEmail] = useState(null);
   const [userName,  setUserName]  = useState("");
+  const [userPlan,  setUserPlan]  = useState("");
+  const [userCompany, setUserCompany] = useState("");
   const [clients,   setClients]   = useState([]);
   const [accountType, setAccountType] = useState("agency");
   const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
@@ -6263,6 +6243,8 @@ export default function TawasloApp() {
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
     setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
+    setUserPlan(prof?.plan || "");
+    setUserCompany(prof?.company || prof?.company_name || prof?.agency_name || "");
     // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
     if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
     const { data: rows } = await getClients(user.id);
@@ -6349,6 +6331,7 @@ export default function TawasloApp() {
     clients, setClients,
     accountType, userEmail,
     userName, setUserName,
+    userPlan, userCompany,
     setShowLanding,
     mobileNav, setMobileNav,
   };
