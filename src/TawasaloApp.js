@@ -236,12 +236,22 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
 
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
-          selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav } = useApp();
+          selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav,
+          userName, userEmail, accountType } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
+  const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
   // On mobile, navigating closes the slide-out drawer.
   useEffect(() => { if (isMobile && setMobileNav) setMobileNav(false); }, [page]); // eslint-disable-line
+  // Account + plan card (Option A)
+  const planTrial = (() => { try { return isTrialUser(userEmail); } catch(e){ return false; } })();
+  const sbName = (userName && userName.trim()) ? userName.replace(/\b\w/g, c=>c.toUpperCase()) : (userEmail ? userEmail.split('@')[0].replace(/\b\w/g,c=>c.toUpperCase()) : "Account");
+  const sbInit = sbName.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase() || "AC";
+  const sbSub = (selClient?.name && selClient.name!=="Workspace") ? selClient.name : (accountLabelOf(accountType) || "Workspace");
+  const [collapsed, setCollapsed] = useState(()=>{ try{ return localStorage.getItem('tw_sidebar')==='1'; }catch(e){ return false; } });
+  useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
+  const col = collapsed && !isMobile; // effective collapsed (mobile uses the drawer, never the rail)
 
   const OWNER_NAV = [
     {key:"overview", Icon:LayoutDashboard, label:"Overview"     },
@@ -283,20 +293,21 @@ function Sidebar() {
   ];
 
   const navItem = (key, Icon, label, badge, isActive, onClick) => (
-    <div key={key} onClick={onClick} style={{
-      display:"flex", alignItems:"center", justifyContent:"space-between",
-      padding:"8px 10px", borderRadius:9, marginBottom:1, cursor:"pointer",
+    <div key={key} onClick={onClick} title={col?label:undefined} style={{
+      display:"flex", alignItems:"center", justifyContent:col?"center":"space-between",
+      padding:col?"10px 0":"8px 10px", borderRadius:9, marginBottom:1, cursor:"pointer",
       background:isActive?th.accentSoft:"transparent",
       color:isActive?th.accent:th.text2,
       fontWeight:isActive?600:400, fontSize:12.5,
-      borderLeft:!isAR&&isActive?`3px solid ${th.accent}`:"3px solid transparent",
-      borderRight:isAR&&isActive?`3px solid ${th.accent}`:"3px solid transparent",
-      transition:"all 0.15s",
+      borderLeft:!isAR&&isActive&&!col?`3px solid ${th.accent}`:"3px solid transparent",
+      borderRight:isAR&&isActive&&!col?`3px solid ${th.accent}`:"3px solid transparent",
+      transition:"all 0.15s", position:"relative",
     }}>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
-        <Icon size={15} strokeWidth={isActive?2.2:1.7}/>{label}
+        <Icon size={col?18:15} strokeWidth={isActive?2.2:1.7}/>{!col&&label}
       </div>
-      {badge&&<span style={{background:th.danger,color:"#fff",borderRadius:10,fontSize:9,fontWeight:700,padding:"1px 6px"}}>{badge}</span>}
+      {!col&&badge&&<span style={{background:th.danger,color:"#fff",borderRadius:10,fontSize:9,fontWeight:700,padding:"1px 6px"}}>{badge}</span>}
+      {col&&badge&&<span style={{position:"absolute",top:4,right:10,width:6,height:6,borderRadius:"50%",background:th.danger}}/>}
     </div>
   );
 
@@ -309,22 +320,27 @@ function Sidebar() {
     <>
     {isMobile && mobileNav && <div onClick={()=>setMobileNav(false)} style={{position:"fixed",inset:0,background:"rgba(3,5,10,0.6)",backdropFilter:"blur(2px)",zIndex:190}}/>}
     <aside style={{
-      width:230, flexShrink:0, background:th.surface,
+      width:col?68:230, flexShrink:0, background:th.surface,
       borderRight:!isAR?`1px solid ${th.border}`:"none",
       borderLeft:isAR?`1px solid ${th.border}`:"none",
       display:"flex", flexDirection:"column",
       boxShadow:th.shadow, zIndex:30, overflow:"hidden",
+      transition:"width 0.2s cubic-bezier(0.2,0.7,0.2,1)",
       ...drawer,
     }}>
-      <div style={{padding:"20px 18px 14px",display:"flex",alignItems:"center",gap:10}}>
-        <img src="/logo-transparent.png" alt="Tawaslo" style={{width:38,height:38,objectFit:"contain",flexShrink:0}}/>
-        <div>
-          <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
-          <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>{t("brand.tagline","Social Intelligence")}</div>
+      <div style={{padding:col?"18px 0 12px":"20px 18px 14px",display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
+          <img src="/logo-transparent.png" alt="Tawaslo" style={{width:col?32:38,height:col?32:38,objectFit:"contain",flexShrink:0}}/>
+          {!col&&<div>
+            <div style={{fontWeight:900,fontSize:18,letterSpacing:-0.8,lineHeight:1}}>Tawaslo</div>
+            <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>{t("brand.tagline","Social Intelligence")}</div>
+          </div>}
         </div>
+        {!isMobile&&!col&&<button onClick={()=>setCollapsed(true)} title="Collapse sidebar" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4,borderRadius:6}}>{isAR?<ChevronRight size={17}/>:<ChevronLeft size={17}/>}</button>}
       </div>
+      {!isMobile&&col&&<div style={{display:"flex",justifyContent:"center",paddingBottom:8}}><button onClick={()=>setCollapsed(false)} title="Expand sidebar" style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,width:34,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:th.text2}}>{isAR?<ChevronLeft size={15}/>:<ChevronRight size={15}/>}</button></div>}
 
-      {mode==="agency"&&(
+      {mode==="agency"&&!col&&(
         <div style={{padding:"0 14px 12px"}}>
           <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",marginBottom:6}}>
             <div style={{fontSize:11,fontWeight:700}}>{selClient.name}</div>
@@ -344,23 +360,22 @@ function Sidebar() {
             }}>
               <div style={{width:6,height:6,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>
               <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-              {c.free&&<span style={{fontSize:8,color:th.success,fontWeight:700}}>FREE</span>}
             </div>
           ))}
         </div>
       )}
 
       {!isMobile && (
-      <div style={{padding:"0 14px 14px"}}>
-        <button onClick={()=>{ if(mode!=="owner") setPage("publisher"); }} style={{
-          width:"100%",padding:"9px 0",borderRadius:10,
+      <div style={{padding:col?"0 0 12px":"0 14px 14px",display:"flex",justifyContent:"center"}}>
+        <button onClick={()=>{ if(mode!=="owner") setPage("publisher"); }} title={col?(mode==="owner"?"New Campaign":"Create Post"):undefined} style={{
+          width:col?40:"100%",height:col?40:"auto",padding:col?0:"9px 0",borderRadius:col?11:10,
           background:th.gradient,border:"none",
           color:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",
-          boxShadow:`0 4px 16px rgba(79,110,247,0.4)`,
+          boxShadow:`0 4px 16px ${th.accent}55`,
           display:"flex",alignItems:"center",justifyContent:"center",gap:6,
         }}>
-          <Plus size={14} strokeWidth={2.5}/>
-          {mode==="owner"?t("btn.newCampaign","New Campaign"):t("btn.createPost","Create Post")}
+          <Plus size={col?18:14} strokeWidth={2.5}/>
+          {!col&&(mode==="owner"?t("btn.newCampaign","New Campaign"):t("btn.createPost","Create Post"))}
         </button>
       </div>
       )}
@@ -371,13 +386,41 @@ function Sidebar() {
         ):(
           AGENCY_NAV.map((sec,si)=>(
             <div key={si} style={{marginBottom:16}}>
-              <div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>
+              {!col&&<div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>}
+              {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
               {sec.items.filter(it=>!(isMobile&&it.key==="publisher")).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),badge,page===key,()=>setPage(key)))}
             </div>
           ))
         )}
       </nav>
 
+      {col ? (
+        <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} title={sbName+(planTrial?" — Free trial":"")} style={{display:"flex",justifyContent:"center",padding:"0 0 10px",cursor:"pointer"}}>
+          <span style={{width:34,height:34,borderRadius:10,background:th.gradient,color:"#fff",fontSize:12,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{sbInit}</span>
+        </div>
+      ) : (
+      <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} style={{margin:"0 14px 10px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"10px 11px",cursor:"pointer"}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:9}}>
+          <span style={{width:30,height:30,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
+          <div style={{minWidth:0,lineHeight:1.3}}>
+            <div style={{fontSize:12,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbName}</div>
+            <div style={{fontSize:9.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbSub}</div>
+          </div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${th.border}`,paddingTop:9}}>
+          <span style={{fontSize:10.5,fontWeight:600,color:planTrial?th.warning:th.accent,display:"flex",alignItems:"center",gap:5}}><Sparkles size={12}/>{planTrial?L("Free trial","نسخة تجريبية"):L("Active plan","خطة نشطة")}</span>
+          <span style={{fontSize:10,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
+        </div>
+      </div>
+      )}
+
+      {col ? (
+      <div style={{padding:"10px 0 14px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,borderTop:`1px solid ${th.border}`}}>
+        <button onClick={()=>setDark(!dark)} title={dark?"Light mode":"Dark mode"} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:6}}>{dark?<Sun size={16}/>:<Moon size={16}/>}</button>
+        <button onClick={()=>setLang(l=>l==="en"?"ar":"en")} title="Language" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:6}}><Languages size={16}/></button>
+        <button onClick={async()=>{ await signOut(); setIsAuthed(false); }} title="Log out" style={{background:"transparent",border:"none",cursor:"pointer",color:th.danger,display:"flex",padding:6}}><LogOut size={16}/></button>
+      </div>
+      ) : (
       <div style={{padding:"12px 14px",borderTop:`1px solid ${th.border}`}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <span style={{fontSize:11,color:th.text2,display:"flex",alignItems:"center",gap:5}}>
@@ -394,6 +437,7 @@ function Sidebar() {
           </button>
         </div>
       </div>
+      )}
     </aside>
     </>
   );
@@ -1478,7 +1522,6 @@ function AgencyDashboard() {
                   <div key={c.id} onClick={()=>{setSelClient(c);setBrandOpen(false);}} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:9,cursor:"pointer",background:selClient.id===c.id?th.accentSoft:"transparent"}}>
                     <span style={{width:26,height:26,borderRadius:7,background:selClient.id===c.id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:600,color:selClient.id===c.id?"#fff":th.text2,flexShrink:0}}>{(c.name||"?").slice(0,2).toUpperCase()}</span>
                     <span style={{fontSize:12.5,color:selClient.id===c.id?th.accent:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-                    {c.free&&<span style={{marginLeft:"auto",fontSize:9,color:th.success,flexShrink:0}}>FREE</span>}
                   </div>
                 ))}
                 <div onClick={()=>{setBrandOpen(false);setAddClientOpen(true);}} style={{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",borderRadius:9,cursor:"pointer",borderTop:`1px solid ${th.border}`,marginTop:4,color:th.accent,fontSize:12.5,fontWeight:600}}>
@@ -1527,8 +1570,12 @@ function AgencyDashboard() {
         </div>
       )}
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:14,marginBottom:18}}>
-        {kpiStats.map((s,i)=><StatCard key={i} {...s}/>)}
+      <div style={{marginBottom:22,paddingTop:4}}>
+        <div style={{fontSize:10.5,fontWeight:700,letterSpacing:"1.5px",color:th.text3,marginBottom:11}}>{L("THIS MONTH","هذا الشهر")}</div>
+        <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
+          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {L("engagement rate across","عبر")} <span className="tw-num">{postCount||0}</span> {L("posts.","منشورًا.")}
+        </div>
+        <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{accounts.length} {accounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")} · {L("Last 30 days","آخر ٣٠ يومًا")}</div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
