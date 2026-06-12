@@ -4791,28 +4791,38 @@ function InboxPage() {
   };
 
   const filtered = filter === 'all' ? messages : messages.filter(m => m.type === filter);
+  const commentCount = messages.filter(m => m.type === 'comment').length;
+  const dmCount = messages.filter(m => m.type === 'dm').length;
+  const needReply = messages.filter(m => m.type === 'comment' && (!m.replies || m.replies.length === 0)).length;
+  const mono = (name, size) => <div style={{width:size,height:size,borderRadius:"50%",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:Math.round(size*0.42),fontWeight:700,flexShrink:0}}>{(name||"?").replace(/^@/,'')[0].toUpperCase()}</div>;
 
   return (
     <div style={{padding:"28px 32px", maxWidth:1200}}>
-      <div style={{marginBottom:20, display:"flex", justifyContent:"space-between", alignItems:"center"}}>
+      <div style={{marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:12}}>
         <div>
-          <h2 style={{margin:0, fontSize:22, fontWeight:900}}>{L("Inbox","الوارد")}</h2>
-          <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Real-time comments and messages for","التعليقات والرسائل الفورية لـ")} {selClient?.name}</p>
+          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Inbox","الوارد")}</h2>
+          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("comments & messages","التعليقات والرسائل")}</p>
         </div>
-        <div style={{display:"flex", gap:8}}>
-          {['all','comment','dm'].map(f => (
-            <button key={f} onClick={()=>setFilter(f)} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer"}}>
-              {f==='all'?L("All","الكل"):f==='comment'?L("Comments","التعليقات"):L("DMs","الرسائل")}
+        <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+          {[['all',L("All","الكل"),messages.length],['comment',L("Comments","التعليقات"),commentCount],['dm',L("DMs","الرسائل"),dmCount]].map(([f,lab,n]) => (
+            <button key={f} onClick={()=>setFilter(f)} style={{padding:"7px 14px", borderRadius:999, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+              {lab}{n>0 && <span className="tw-num" style={{opacity:0.85}}>{n}</span>}
             </button>
           ))}
-          <button onClick={fetchInbox} disabled={loading} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
-            <RefreshCw size={11}/>{loading?L("Loading…","جارٍ التحميل…"):L("Refresh","تحديث")}
+          <button onClick={fetchInbox} disabled={loading} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11.5, cursor:"pointer", display:"flex", alignItems:"center", gap:5}}>
+            <RefreshCw size={12}/>{loading?L("Loading…","جارٍ…"):L("Refresh","تحديث")}
           </button>
-          <button onClick={sampleMode?exitSample:loadSample} style={{padding:"6px 14px", borderRadius:20, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:4}}>
-            <Eye size={11}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview sample","معاينة عينة")}
+          <button onClick={sampleMode?exitSample:loadSample} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5}}>
+            <Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview","معاينة")}
           </button>
         </div>
       </div>
+
+      {!loading && messages.length>0 && (
+        <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:14, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
+          <span className="tw-num" style={{color:th.text, fontWeight:600}}>{commentCount}</span> {L("comments","تعليق")} {L("and","و")} <span className="tw-num" style={{color:th.text, fontWeight:600}}>{dmCount}</span> {L("messages","رسالة")} {L("across your accounts","عبر حساباتك")}{needReply>0 && <>. <span style={{color:th.accent2||th.accent, fontWeight:600}}><span className="tw-num">{needReply}</span> {L("waiting on a reply","بانتظار الرد")}</span></>}.
+        </div>
+      )}
 
       {sampleMode && (
         <div style={{marginBottom:14, padding:"10px 14px", borderRadius:10, background:th.accentSoft, border:`1px solid ${th.accent}55`, fontSize:12, color:th.accent, display:"flex", alignItems:"center", gap:8}}>
@@ -4820,109 +4830,106 @@ function InboxPage() {
         </div>
       )}
       {loading ? (
-        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>Loading inbox...</div>
+        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>{L("Loading inbox…","جارٍ تحميل الوارد…")}</div>
       ) : messages.length === 0 ? (
         <div style={{textAlign:"center", padding:"54px 24px", color:th.text2, fontSize:13, maxWidth:460, margin:"0 auto"}}>
           <MessageCircle size={34} style={{marginBottom:14, opacity:0.3}}/>
           {accounts.filter(a=>a.platform==='ig').length === 0 ? (
             <>
-              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>No Instagram account connected</div>
-              <div>Connect an Instagram account for {selClient?.name} to start receiving comments and DMs here.</div>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>{L("No Instagram account connected","لا يوجد حساب إنستغرام مرتبط")}</div>
+              <div>{L("Connect an Instagram account to start receiving comments and DMs here.","اربط حساب إنستغرام لتبدأ باستقبال التعليقات والرسائل هنا.")}</div>
             </>
           ) : apiError ? (
             <>
-              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>Can&apos;t load messages yet</div>
-              <div>Instagram returned: <span style={{color:th.danger}}>{apiError}</span></div>
-              <div style={{marginTop:8, fontSize:12, color:th.text3}}>This usually means the <code>instagram_manage_comments</code> permission is still pending Meta App Review.</div>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>{L("No comments to show yet","لا توجد تعليقات بعد")}</div>
+              <div>{L("As soon as your posts get comments, they'll appear here ready to reply.","بمجرد أن تتلقى منشوراتك تعليقات، ستظهر هنا جاهزة للرد.")}</div>
             </>
           ) : (
             <>
-              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>No activity yet</div>
-              <div>Comments and DMs will appear here as soon as your posts get engagement.</div>
+              <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>{L("No activity yet","لا يوجد نشاط بعد")}</div>
+              <div>{L("Comments and DMs will appear here as soon as your posts get engagement.","ستظهر التعليقات والرسائل هنا بمجرد تفاعل الجمهور مع منشوراتك.")}</div>
             </>
           )}
           <button onClick={loadSample} style={{marginTop:18, padding:"9px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7}}>
-            <Eye size={14}/>Preview with sample data
+            <Eye size={14}/>{L("Preview with sample data","معاينة ببيانات تجريبية")}
           </button>
         </div>
       ) : (
-        <div style={{display:"grid", gridTemplateColumns:"340px 1fr", gap:16, height:560}}>
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflowY:"auto"}}>
-            {filtered.map(msg => (
-              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"14px 16px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:selected?.id===msg.id?th.accentSoft:"transparent", transition:"background 0.15s"}}>
-                <div style={{display:"flex", justifyContent:"space-between", marginBottom:4}}>
-                  <div style={{fontSize:12, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6}}>
-                    {(()=>{ const P=platOf(msg); return <P.Icon style={{color:P.color, fontSize:12}}/>; })()}
-                    @{msg.from}
-                  </div>
-                  <div style={{fontSize:10, color:th.text2}}>{formatTime(msg.time)}</div>
+        <div style={{display:"grid", gridTemplateColumns:"360px 1fr", gap:16, height:580}}>
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflowY:"auto"}}>
+            {filtered.map((msg,idx) => { const P=platOf(msg); const sel=selected?.id===msg.id; const unreplied = msg.type==='comment' && (!msg.replies || msg.replies.length===0);
+              return (
+              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"13px 15px", borderBottom:idx<filtered.length-1?`1px solid ${th.border}`:"none", cursor:"pointer", background:sel?th.accentSoft:"transparent", borderLeft:`2px solid ${sel?th.accent:"transparent"}`, display:"flex", gap:11}}>
+                <div style={{position:"relative"}}>
+                  {mono(msg.from, 38)}
+                  <span style={{position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><P.Icon style={{color:P.color, fontSize:9}}/></span>
                 </div>
-                <div style={{fontSize:11, color:th.text2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{msg.text}</div>
-                {msg.mediaCaption && <div style={{fontSize:9, color:th.text3, marginTop:3}}>On: {msg.mediaCaption}...</div>}
-                <div style={{marginTop:5, display:"flex", gap:5, alignItems:"center", flexWrap:"wrap"}}>
-                  {(()=>{ const P=platOf(msg); return <span style={{fontSize:9, fontWeight:700, color:P.color, background:P.color+"22", padding:"2px 7px", borderRadius:5, display:"inline-flex", alignItems:"center", gap:4}}><P.Icon style={{fontSize:9}}/>{P.name}</span>; })()}
-                  <span style={{fontSize:9, fontWeight:700, color:th.text2, background:th.card2, padding:"2px 6px", borderRadius:5}}>
-                    {msg.type === 'dm' ? 'DM' : 'Comment'}
-                  </span>
-                  {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:4}}>Sample</span>}
-                  {msg.likeCount > 0 && <span style={{fontSize:9, color:th.text2, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9} color={th.text2}/> {msg.likeCount}</span>}
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, marginBottom:2}}>
+                    <span style={{fontSize:12.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>@{msg.from}</span>
+                    <span className="tw-num" style={{fontSize:10, color:th.text3, flexShrink:0}}>{formatTime(msg.time)}</span>
+                  </div>
+                  <div style={{fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5}}>{msg.text}</div>
+                  <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                    <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":th.text2, background:msg.type==='dm'?"#7C3AED1a":th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):L("Comment","تعليق")}</span>
+                    {msg.likeCount > 0 && <span style={{fontSize:9.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9}/> <span className="tw-num">{msg.likeCount}</span></span>}
+                    {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:5}}>{L("Sample","عينة")}</span>}
+                    {unreplied && <span title={L("Needs a reply","بحاجة لرد")} style={{marginLeft:"auto", width:7, height:7, borderRadius:"50%", background:th.accent}}/>}
+                  </div>
                 </div>
               </div>
-            ))}
+            ); })}
           </div>
 
-          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, display:"flex", flexDirection:"column"}}>
-            {selected ? (
+          <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:22, display:"flex", flexDirection:"column"}}>
+            {selected ? (() => { const P=platOf(selected); return (
               <>
-                <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16, paddingBottom:16, borderBottom:`1px solid ${th.border}`}}>
-                  {(()=>{ const P=platOf(selected); return (
-                  <div style={{width:38, height:38, borderRadius:"50%", background:P.color+"26", display:"flex", alignItems:"center", justifyContent:"center"}}>
-                    <P.Icon style={{color:P.color, fontSize:17}}/>
-                  </div>); })()}
-                  <div>
-                    <div style={{fontSize:13, fontWeight:700, color:th.text}}>@{selected.from}</div>
-                    <div style={{fontSize:11, color:th.text2, display:"flex", alignItems:"center", gap:5}}>
-                      <span style={{fontWeight:700, color:platOf(selected).color}}>{platOf(selected).name}</span>
-                      · {selected.type === 'dm' ? 'Direct message' : 'Comment'} · {formatTime(selected.time)}
-                    </div>
+                <div style={{display:"flex", alignItems:"center", gap:12, marginBottom:18, paddingBottom:16, borderBottom:`1px solid ${th.border}`}}>
+                  <div style={{position:"relative"}}>
+                    {mono(selected.from, 44)}
+                    <span style={{position:"absolute", bottom:-3, right:-3, width:19, height:19, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><P.Icon style={{color:P.color, fontSize:11}}/></span>
                   </div>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontSize:14, fontWeight:600, color:th.text}}>@{selected.from}</div>
+                    <div style={{fontSize:11.5, color:th.text2}}><span style={{fontWeight:600, color:P.color}}>{P.name}</span> &middot; {selected.type === 'dm' ? L("Direct message","رسالة مباشرة") : L("Comment","تعليق")} &middot; <span className="tw-num">{formatTime(selected.time)}</span></div>
+                  </div>
+                  {selected.accountName && <span style={{fontSize:10.5, color:th.text3, flexShrink:0}}>&rarr; {selected.accountName}</span>}
                 </div>
                 <div style={{flex:1, overflowY:"auto", marginBottom:16}}>
-                  <div style={{background:th.card2, borderRadius:10, padding:16, fontSize:13, color:th.text, lineHeight:1.6, marginBottom:12}}>{selected.text}</div>
+                  {selected.mediaCaption && <div style={{fontSize:10.5, color:th.text3, marginBottom:9, display:"flex", alignItems:"center", gap:6}}><MessageCircle size={11}/>{L("On post","على منشور")}: &ldquo;{selected.mediaCaption}&hellip;&rdquo;</div>}
+                  <div style={{background:th.card2, borderRadius:12, padding:"14px 16px", fontSize:13.5, color:th.text, lineHeight:1.65, marginBottom:10}}>{selected.text}</div>
+                  {selected.likeCount > 0 && <div style={{fontSize:11, color:th.text3, marginBottom:14, display:"flex", alignItems:"center", gap:5}}><Heart size={12}/> <span className="tw-num">{selected.likeCount}</span> {L("likes","إعجاب")}</div>}
                   {selected.replies?.length > 0 && (
-                    <div style={{marginLeft:16}}>
-                      <div style={{fontSize:11, color:th.text2, marginBottom:8}}>Replies:</div>
+                    <div style={{marginLeft:18, borderLeft:`2px solid ${th.border}`, paddingLeft:14}}>
+                      <div style={{fontSize:10, color:th.text3, marginBottom:8, fontWeight:700, letterSpacing:0.5}}>{L("YOUR REPLIES","ردودك")}</div>
                       {selected.replies.map(r => (
-                        <div key={r.id} style={{background:th.card2, borderRadius:8, padding:"10px 14px", fontSize:12, color:th.text, marginBottom:6, borderLeft:`3px solid ${th.accent}`}}>
-                          <span style={{fontWeight:700}}>@{r.username}</span>: {r.text}
+                        <div key={r.id} style={{background:th.accentSoft, borderRadius:10, padding:"10px 13px", fontSize:12.5, color:th.text, marginBottom:7}}>
+                          <span style={{fontWeight:600, color:th.accent}}>@{r.username}</span> {r.text}
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
-                {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600}}>{L("Reply posted successfully","تم نشر الرد بنجاح")}</div>}
+                {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600, display:"flex", alignItems:"center", gap:6}}><CheckCircle size={13}/>{L("Reply posted","تم نشر الرد")}</div>}
                 {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
                 <div style={{display:"flex", gap:8}}>
                   <input
                     value={reply}
                     onChange={e=>{setReply(e.target.value); setReplyError('');}}
                     onKeyDown={e=>e.key==='Enter'&&sendReply()}
-                    placeholder={selected.type==='dm'?L("DM replies coming soon…","الرد على الرسائل قريباً…"):L("Type a reply…","اكتب رداً…")}
+                    placeholder={selected.type==='dm'?L("DM replies coming soon…","الرد على الرسائل قريباً…"):L("Write a reply…","اكتب رداً…")}
                     disabled={selected.type==='dm'||replying}
-                    style={{flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", opacity:selected.type==='dm'?0.5:1}}
+                    style={{flex:1, padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", opacity:selected.type==='dm'?0.5:1}}
                   />
                   <button
                     onClick={sendReply}
                     disabled={!reply.trim()||replying||selected.type==='dm'}
-                    style={{padding:"10px 20px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", opacity:(!reply.trim()||replying||selected.type==='dm')?0.5:1}}
-                  >{replying?'Sending…':'Reply'}</button>
-                </div>
-                <div style={{fontSize:10, color:th.text3, marginTop:6}}>
-                  {selected.type==='dm'?'DM replies require instagram_manage_messages (pending Meta approval).':'Requires instagram_manage_comments (pending Meta approval).'}
+                    style={{padding:"11px 22px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", opacity:(!reply.trim()||replying||selected.type==='dm')?0.5:1}}
+                  >{replying?L("Sending…","جارٍ…"):L("Reply","رد")}</button>
                 </div>
               </>
-            ) : (
-              <div style={{display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:th.text2, fontSize:13}}>{L("Select a message to view","اختر رسالة لعرضها")}</div>
+            ); })() : (
+              <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", color:th.text3, fontSize:13, gap:10}}><MessageCircle size={30} style={{opacity:0.3}}/>{L("Select a conversation","اختر محادثة")}</div>
             )}
           </div>
         </div>
@@ -5142,7 +5149,7 @@ function BillingPage() {
       {!isMobile && (
       <div style={{marginTop:44}}>
         <div style={{textAlign:"center", marginBottom:5}}><h3 style={{fontSize:18, fontWeight:800, margin:0, letterSpacing:-0.3}}>You're getting more, for less</h3></div>
-        <p style={{textAlign:"center", color:th.text2, fontSize:12.5, marginBottom:20}}>The same power as the global tools — built for the region, at a fraction of the price.</p>
+        <p style={{textAlign:"center", color:th.text2, fontSize:12.5, marginBottom:20}}>Everything the global tools do — plus the first platform that's truly bilingual — at a fraction of the price.</p>
         <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", maxWidth:720, margin:"0 auto"}}>
           <div style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"13px 18px", borderBottom:`1px solid ${th.border}`, fontSize:12, fontWeight:700, alignItems:"center"}}>
             <div/>
@@ -5154,7 +5161,7 @@ function BillingPage() {
             ["Starting price","From $49/mo","~$99/mo","~$249/mo"],
             ["Native Arabic & RTL","✓","✕","✕"],
             ["AI captions (AR + EN)","✓","Add-on","Limited"],
-            ["GCC payments (Benefit)","✓","✕","✕"],
+            ["Local payment methods","✓","✕","✕"],
             ["Flat pricing, no per-seat","✓","✕","✕"],
           ].map(([feat,tw,ho,sp],i,arr)=>(
             <div key={i} style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"11px 18px", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none", fontSize:12, alignItems:"center"}}>
@@ -5560,7 +5567,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(circle, rgba(150,175,205,0.045) 1px, transparent 1px), radial-gradient(ellipse 60% 50% at 50% -6%, rgba(110,140,171,0.20), transparent 60%), #080B11", backgroundSize:"24px 24px, 100% 100%, 100% 100%", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:20,background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",color:"#A6B8CF",fontSize:10.5,fontWeight:600,letterSpacing:0.3,marginBottom:22}}><span style={{width:5,height:5,borderRadius:"50%",background:"#7FC9A8",boxShadow:"0 0 0 3px rgba(127,201,168,0.18)"}}/>SOCIAL INTELLIGENCE, BUILT FOR EVERY BRAND</div>
         <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:700,margin:"0 auto 18px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
-        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:500,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — with full Arabic and English support, built for agencies and brands.</p>
+        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:520,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — and the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
           <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Start free trial →</button>
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
@@ -5960,7 +5967,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
       <div style={{marginTop:56}}>
         <div style={{textAlign:"center",marginBottom:6}}><h2 style={{fontSize:28,fontWeight:900,letterSpacing:-0.5}}>How Tawaslo compares</h2></div>
-        <p style={{textAlign:"center",color:"#7A8BA8",fontSize:13.5,marginBottom:26}}>The power of the global tools — built for the region, at a fraction of the price.</p>
+        <p style={{textAlign:"center",color:"#7A8BA8",fontSize:13.5,marginBottom:26}}>Everything the global tools do — and the first that's truly bilingual in English and Arabic — at a fraction of the price.</p>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
           <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?520:"auto"}}>
           <div style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #232B38",fontSize:13,fontWeight:800,alignItems:"center"}}>
@@ -5973,7 +5980,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             ["Starting price","From $49/mo","From ~$99/mo","From ~$249/mo"],
             ["Native Arabic & RTL","✓","✕","✕"],
             ["AI captions (Arabic + English)","✓","Add-on","Limited"],
-            ["GCC payments (Benefit, local cards)","✓","✕","✕"],
+            ["Local payment methods","✓","✕","✕"],
             ["Flat pricing, no per-seat fees","✓","✕","✕"],
             ["Free trial","30 days","30 days","30 days"],
             ["Multi-client / agency workspace","✓","✓","✓"],
@@ -5999,7 +6006,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:20}}>Tawaslo is a global social media management platform built for agencies and brands who want to do more — publish smarter, analyze better, and grow faster. Whether you're managing one brand or fifty, Tawaslo brings everything into one clean workspace.</p>
       <p style={{fontSize:15,color:"#7A8BA8",lineHeight:1.85,marginBottom:40}}>But we didn't stop there. We noticed something every other platform ignored: <strong style={{color:"#E8EFF8"}}>400 million people speak Arabic</strong> — and not a single major social media tool was truly built for them. So we built Tawaslo with Arabic as a first-class citizen. Full Arabic dashboard, AI captions in Arabic, right-to-left support. Not a plugin. Not a translation. Built in from day one.</p>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:14,marginBottom:40}}>
-        {[["400M+","Arabic speakers worldwide"],["5th","Most spoken language globally"],["22","Countries speak Arabic"],["$1T+","MENA digital economy by 2030"]].map(([v,l])=>(
+        {[["400M+","Arabic speakers worldwide"],["1.5B+","English speakers worldwide"],["1st","Platform truly built for both"],["100%","Native Arabic + English"]].map(([v,l])=>(
           <div key={l} style={card}><div style={{fontSize:22,fontWeight:900,...grad,textAlign:"center"}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5,textAlign:"center"}}>{l}</div></div>
         ))}
       </div>
@@ -6022,7 +6029,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:14}}>
-        {[["2026","Founded"],["Bahrain","Headquarters"],["Global","Vision"]].map(([v,l])=>(
+        {[["2026","Founded"],["EN + AR","First to do both"],["Worldwide","Built for"]].map(([v,l])=>(
           <div key={l} style={{...card,textAlign:"center"}}><div style={{fontSize:22,fontWeight:900,...grad}}>{v}</div><div style={{fontSize:11,color:"#7A8BA8",marginTop:5}}>{l}</div></div>
         ))}
       </div>
@@ -6051,7 +6058,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const FAQS = [
-    ["What is Tawaslo?", "Tawaslo is a social media management platform that lets you publish, schedule, reply, and analyze across all your accounts from one place. It is built for agencies and brands across the Gulf and beyond."],
+    ["What is Tawaslo?", "Tawaslo is a social media management platform that lets you publish, schedule, reply, and analyze across all your accounts from one place. It is built for agencies and brands worldwide, and it is the first platform that is truly bilingual in English and Arabic."],
     ["Which platforms does Tawaslo support?", "Instagram, Facebook, and LinkedIn today, with TikTok, X, and YouTube on the way."],
     ["Does Tawaslo work in Arabic?", "Yes. Tawaslo has native Arabic and right to left support, and the AI writes captions in both Arabic and English."],
     ["Is there a free trial?", "Yes. You get 30 days free with no credit card. The full workspace is unlocked, with a few trial limits: AI is capped at five generations and you can connect up to three accounts."],
@@ -6067,7 +6074,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     ["Can I reply to comments and messages?", "Yes. The unified inbox brings comments and direct messages from your connected networks into one place, so nothing slips through."],
     ["Can I group posts into a campaign?", "Yes. Bundle related posts into a campaign, track them together against a goal, and measure performance in one view."],
     ["Can I cancel anytime?", "Yes. There are no long term contracts. Cancel whenever you like and keep access until the end of your billing period."],
-    ["What payment methods do you accept?", "Local cards and regional payment methods, billed securely. See the pricing page for current plans."],
+    ["What payment methods do you accept?", "Major international cards and local payment methods, billed securely. See the pricing page for current plans."],
     ["Is there a mobile app?", "Tawaslo runs in any browser on desktop and mobile. A dedicated app is on our roadmap."],
     ["How do I get support?", "Email support@tawaslo.com, or reply to any Tawaslo email. We answer quickly."],
   ];
