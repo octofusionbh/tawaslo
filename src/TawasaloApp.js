@@ -2454,7 +2454,7 @@ function AIStudioPage() {
         <div style={{ ...card, marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
             <div style={{ fontSize:13, fontWeight:600, color:th.text, display:"flex", alignItems:"center", gap:8 }}><Image size={15} color={th.accent}/>AI images</div>
-            <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>Powered by GPT Image</span>
+            <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>Powered by Gemini</span>
           </div>
           <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:12 }}>
             {[["generate","Generate",Sparkles],["edit","Edit a photo",Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
@@ -2488,7 +2488,7 @@ function AIStudioPage() {
         <div style={{ ...card, textAlign:"center", padding:"34px 24px", marginBottom:14 }}>
           <div style={{ width:46, height:46, margin:"0 auto 12px", borderRadius:13, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={22} color={th.accent}/></div>
           <div style={{ fontSize:14.5, fontWeight:600, marginBottom:6 }}>Connect your image engine</div>
-          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto", lineHeight:1.6 }}>Add an <strong style={{color:th.text}}>OpenAI API key</strong> (OPENAI_API_KEY) in your Vercel settings to turn on AI image generation and editing.</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto", lineHeight:1.6 }}>Add a <strong style={{color:th.text}}>Gemini API key</strong> (GEMINI_API_KEY) in your Vercel settings to turn on AI image generation and editing.</div>
         </div>
       )}
       {tool==="images" && imgErr && imgErr!=="unconfigured" && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{imgErr}</div>}
