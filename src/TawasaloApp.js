@@ -240,9 +240,11 @@ function Toggle({ on, onColor="accent", onClick }) {
   );
 }
 
-function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
+function StatCard({ label, value, change, up, Icon:I, color="accent", spark }) {
   const th = useTheme();
   const [disp, setDisp] = useState(value);
+  // Tiny trend line under the metric — the kind of detail real products have.
+  const sparkPath = (vals, w, h) => { if(!vals||vals.length<2) return ""; const mx=Math.max(...vals),mn=Math.min(...vals),r=(mx-mn)||1; return "M"+vals.map((v,i)=>((i/(vals.length-1))*w).toFixed(1)+","+(h-((v-mn)/r)*(h-3)-1.5).toFixed(1)).join(" L"); };
   useEffect(() => {
     const str = String(value);
     const m = str.match(/^([^\d.-]*)(-?[\d,]*\.?\d+)(.*)$/);
@@ -282,6 +284,11 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
       </div>
       <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.5,marginBottom:3}}>{disp}</div>
       <div style={{fontSize:12,color:th.text2}}>{label}</div>
+      {spark && spark.length>1 && (
+        <svg width="100%" height="22" viewBox="0 0 100 22" preserveAspectRatio="none" style={{marginTop:10,display:"block"}}>
+          <path d={sparkPath(spark,100,22)} fill="none" stroke={th[color]||th.accent} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
+        </svg>
+      )}
     </div>
   );
 }
@@ -919,12 +926,10 @@ function OwnerDashboard() {
   };
 
   const kpis = [
-    { label:"Monthly revenue (MRR)", value:"$2,180", change:"+12%", up:true, Icon:DollarSign, color:"success" },
-    { label:"Active subscriptions", value:"18", change:"+3", up:true, Icon:CreditCard, color:"accent" },
-    { label:"Total clients", value: live.clients!=null ? String(live.clients) : "24", change:"+5", up:true, Icon:Building2, color:"accent2" },
-    { label:"Trials active", value:"6", change:"+2", up:true, Icon:Sparkles, color:"info" },
-    { label:"ARPU", value:"$91", change:"+4%", up:true, Icon:TrendingUp, color:"orange" },
-    { label:"Open support", value:"3", change:"-1", up:false, Icon:MessageCircle, color:"warning" },
+    { label:"Active subscriptions", value:"18", change:"+3", up:true, Icon:CreditCard, color:"accent", spark:[11,12,12,13,14,15,15,16,17,18] },
+    { label:"Total clients", value: live.clients!=null ? String(live.clients) : "24", change:"+5", up:true, Icon:Building2, color:"accent2", spark:[14,16,17,18,19,20,21,22,23,24] },
+    { label:"Trials active", value:"6", change:"+2", up:true, Icon:Sparkles, color:"info", spark:[3,2,4,3,5,4,5,4,5,6] },
+    { label:"ARPU", value:"$91", change:"+4%", up:true, Icon:TrendingUp, color:"accent", spark:[79,81,82,84,85,86,88,89,90,91] },
   ];
 
   const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
@@ -961,40 +966,52 @@ function OwnerDashboard() {
         </div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:13,marginBottom:20}}>
-        {kpis.map((s,i)=> i===0 ? (
-          <div key={i} style={{background:th.gradient,borderRadius:16,padding:16,boxShadow:"0 16px 38px rgba(79,110,247,0.42)",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",right:-12,top:-12,opacity:0.16}}><DollarSign size={70} color="#fff"/></div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.85)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,fontWeight:700}}>{s.label}</div>
-            <div style={{fontSize:23,fontWeight:800,color:"#fff",letterSpacing:-0.5}}>{s.value}</div>
-            <div style={{fontSize:10.5,color:"rgba(255,255,255,0.92)",marginTop:5,fontWeight:600}}>▲ {s.change} this month</div>
-          </div>
-        ) : <StatCard key={i} {...s}/>)}
+      <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 20px", marginBottom:20, fontSize:14, color:th.text2, lineHeight:1.6}}>
+        Tawaslo is at <span className="tw-num" style={{color:th.text, fontWeight:600}}>$2,180</span> MRR, up <span className="tw-num" style={{color:th.success, fontWeight:600}}>12%</span> this month, across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.clients!=null?live.clients:24}</span> clients on <span className="tw-num">3</span> plans. <span style={{color:th.text3}}>Revenue has grown <span className="tw-num" style={{color:th.success}}>251%</span> over the last year.</span>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:20}}>
-        <div style={{...card,padding:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:13,fontWeight:600,display:"flex",alignItems:"center",gap:7}}><TrendingUp size={15} color={th.accent}/>Revenue · last 12 months</div>
-            <div style={{fontSize:11,color:th.success,fontWeight:700}}>▲ +251% YoY</div>
+      {/* Bento — hero revenue panel + sparkline KPI tiles (breaks the uniform grid) */}
+      <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr",gap:14,marginBottom:14,alignItems:"stretch"}}>
+        <div style={{...card,padding:24,position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",right:-36,top:-36,opacity:0.05,pointerEvents:"none"}}><TrendingUp size={200} color={th.accent}/></div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <div style={{fontSize:10.5,fontWeight:700,letterSpacing:0.7,color:th.text3,textTransform:"uppercase"}}>Monthly recurring revenue</div>
+            <div style={{fontSize:11,color:th.success,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><ArrowUpRight size={14}/>+251% YoY</div>
           </div>
-          <div style={{fontSize:26,fontWeight:800,marginBottom:10}}>$2,180<span style={{fontSize:12,color:th.text2,fontWeight:400}}> this month</span></div>
-          <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:150,overflow:"visible"}}>
-            <defs><linearGradient id="revg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.35"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
-            <path d={area} fill="url(#revg)"/>
-            <path d={line} fill="none" stroke={th.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            {pts.map((pt,i)=><circle key={i} cx={pt[0]} cy={pt[1]} r={i===pts.length-1?4:0} fill={th.accent}/>)}
-          </svg>
+          <div style={{display:"flex",alignItems:"baseline",gap:12}}>
+            <span className="tw-num" style={{fontSize:42,fontWeight:600,letterSpacing:-1.2,color:th.text,lineHeight:1}}>$2,180</span>
+            <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:13,fontWeight:700,color:th.success}}><ArrowUpRight size={15}/>12% this month</span>
+          </div>
+          <div style={{fontSize:12,color:th.text2,marginTop:6,marginBottom:18}}><span className="tw-num">$26,160</span> ARR · <span className="tw-num">{live.clients!=null?live.clients:24}</span> paying clients</div>
+          <HoverChart height={140}
+            yTop={"$"+Math.max(...rev).toLocaleString()}
+            lines={[{color:th.accent,label:"Revenue ($)",values:rev}]}
+            labels={(()=>{const arr=[];const d=new Date();for(let i=11;i>=0;i--){arr.push(new Date(d.getFullYear(),d.getMonth()-i,1).toLocaleDateString([], {month:'short'}));}return arr;})()}/>
         </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
+        </div>
+      </div>
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
         <div style={{...card,padding:20}}>
           <div style={{fontSize:13,fontWeight:600,marginBottom:16,display:"flex",alignItems:"center",gap:7}}><PieChart size={15} color={th.accent}/>Plan mix</div>
           {planMix.map((pl,i)=>(
             <div key={pl.name} style={{marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{pl.name}</span><span style={{color:th.text2}}>{pl.count}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{pl.name}</span><span className="tw-num" style={{color:th.text2}}>{pl.count}</span></div>
               <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pl.count/planTotal*100}%`,background:pl.color,borderRadius:4}}/></div>
             </div>
           ))}
-          <div style={{fontSize:11,color:th.text2,marginTop:4}}>{planTotal} paying clients across 3 plans</div>
+          <div style={{fontSize:11,color:th.text2,marginTop:4}}><span className="tw-num">{planTotal}</span> paying clients across <span className="tw-num">3</span> plans</div>
+        </div>
+        <div style={{...card,padding:20}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8,display:"flex",alignItems:"center",gap:7}}><Activity size={15} color={th.accent}/>This month</div>
+          {[["Net new clients","+5",th.success],["Net revenue retention","112%",th.success],["Trial to paid","38%",th.text],["Open support tickets","3",th.warning]].map(([l,v,c],i,arr)=>(
+            <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none"}}>
+              <span style={{fontSize:12.5,color:th.text2}}>{l}</span>
+              <span className="tw-num" style={{fontSize:14.5,fontWeight:600,color:c}}>{v}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -1069,7 +1086,7 @@ function OwnerDashboard() {
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
-                  <span style={{fontSize:13,fontWeight:700,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
+                  <span className="tw-num" style={{fontSize:13,fontWeight:600,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
                 </div>
               </div>
             ))
