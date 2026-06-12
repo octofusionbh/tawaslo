@@ -2381,7 +2381,7 @@ function CalendarPage() {
     <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
       {p.image_url ? <img src={p.image_url} alt="" style={{ width:16, height:16, borderRadius:4, objectFit:"cover", flexShrink:0 }}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
       <span style={{ fontSize:9.5, color:info.color, fontWeight:600, flexShrink:0 }}>{fmtTime(p.scheduled_at)}</span>
-      <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || "(no caption)"}</span>
+      <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</span>
     </div>
   ); };
 
@@ -2408,7 +2408,7 @@ function CalendarPage() {
           <button onClick={()=>go(1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronRight size={16}/></button>
           <div style={{ fontSize:16, fontWeight:600, marginLeft:6 }}>{label}</div>
         </div>
-        <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>Today</button>
+        <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>{L("Today","اليوم")}</button>
       </div>
 
       <div style={{ ...card, overflow:"hidden" }}>
@@ -2421,10 +2421,10 @@ function CalendarPage() {
               return (
                 <div key={i} onClick={()=>{ setView("week"); setCursor(d); }} onDragOver={(e)=>{ if(dragId){ e.preventDefault(); setDragOver(d.toDateString()); } }} onDrop={(e)=>{ e.preventDefault(); reschedule(dragId, d); }} style={{ minHeight:108, padding:7, borderRight:(i%7!==6)?`1px solid ${th.border}`:"none", borderBottom:i<35?`1px solid ${th.border}`:"none", background:dragOver===d.toDateString()?th.accentSoft:(today?th.accentSoft:(inMonth?"transparent":th.bg)), boxShadow:dragOver===d.toDateString()?`inset 0 0 0 2px ${th.accent}`:"none", cursor:"pointer", opacity:inMonth?1:0.5, overflow:"hidden" }}>
                   <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:5 }}>
-                    <span style={{ fontSize:11.5, fontWeight:today?700:500, color:today?"#fff":th.text2, background:today?th.accent:"transparent", width:22, height:22, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.getDate()}</span>
+                    <span className="tw-num" style={{ fontSize:12, fontWeight:today?700:500, color:today?"#fff":th.text2, background:today?th.accent:"transparent", width:22, height:22, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center" }}>{d.getDate()}</span>
                   </div>
                   {dayPosts.slice(0,3).map(p => chip(p))}
-                  {dayPosts.length > 3 && <div style={{ fontSize:9.5, color:th.text2, paddingLeft:3 }}>+{dayPosts.length-3} more</div>}
+                  {dayPosts.length > 3 && <div style={{ fontSize:9.5, color:th.text2, paddingLeft:3 }}>+<span className="tw-num">{dayPosts.length-3}</span> {L("more","أخرى")}</div>}
                 </div>
               ); })}
           </div>
@@ -2435,9 +2435,9 @@ function CalendarPage() {
                 <div key={i} onDragOver={(e)=>{ if(dragId){ e.preventDefault(); setDragOver(d.toDateString()); } }} onDrop={(e)=>{ e.preventDefault(); reschedule(dragId, d); }} style={{ padding:9, borderRight:(i!==6)?`1px solid ${th.border}`:"none", background:dragOver===d.toDateString()?th.accentSoft:(today?th.accentSoft:"transparent"), boxShadow:dragOver===d.toDateString()?`inset 0 0 0 2px ${th.accent}`:"none" }}>
                   <div style={{ textAlign:"center", marginBottom:9 }}>
                     <div style={{ fontSize:10, color:th.text2 }}>{DOW[d.getDay()]}</div>
-                    <div style={{ fontSize:17, fontWeight:today?700:500, color:today?th.accent:th.text }}>{d.getDate()}</div>
+                    <div className="tw-num" style={{ fontSize:18, fontWeight:today?700:500, color:today?th.accent:th.text }}>{d.getDate()}</div>
                   </div>
-                  {dayPosts.length === 0 ? <div onClick={()=>setPage("publisher")} style={{ textAlign:"center", fontSize:10, color:th.text3, padding:"14px 0", cursor:"pointer", border:`1px dashed ${th.border}`, borderRadius:8 }}>+ Add</div> : dayPosts.map(p => chip(p))}
+                  {dayPosts.length === 0 ? <div onClick={()=>setPage("publisher")} style={{ textAlign:"center", fontSize:10, color:th.text3, padding:"14px 0", cursor:"pointer", border:`1px dashed ${th.border}`, borderRadius:8 }}>+ {L("Add","إضافة")}</div> : dayPosts.map(p => chip(p))}
                 </div>
               ); })}
           </div>
@@ -2446,8 +2446,8 @@ function CalendarPage() {
 
       {posts.length === 0 && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginTop:18 }}>
-          {[["Start from scratch","Compose a fresh post for any platform",Edit3],["Repurpose top posts","Turn winning content into new posts",RefreshCw],["Get inspired","See what's trending right now",Sparkles]].map(([t,sub,Ic],i)=>(
-            <div key={i} onClick={()=> i===2 ? setPage("listening") : setPage("publisher")} style={{ ...card, padding:18, cursor:"pointer", boxShadow:"0 6px 20px rgba(0,0,0,0.22)" }}>
+          {[[L("Start from scratch","ابدأ من الصفر"),L("Compose a fresh post for any platform","اكتب منشوراً جديداً لأي منصة"),Edit3],[L("Repurpose top posts","أعد استخدام أفضل المنشورات"),L("Turn winning content into new posts","حوّل المحتوى الناجح إلى منشورات جديدة"),RefreshCw],[L("Get inspired","استلهم"),L("See what's trending right now","شاهد ما هو رائج الآن"),Sparkles]].map(([t,sub,Ic],i)=>(
+            <div key={i} onClick={()=> i===2 ? setPage("listening") : setPage("publisher")} style={{ ...card, padding:18, cursor:"pointer", boxShadow:"none" }}>
               <div style={{ width:38, height:38, borderRadius:11, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:11 }}><Ic size={18} color={th.accent}/></div>
               <div style={{ fontSize:13.5, fontWeight:600, marginBottom:4 }}>{t}</div>
               <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.5 }}>{sub}</div>
@@ -2465,13 +2465,13 @@ function CalendarPage() {
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:16 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString([], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
             {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
-            <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || "(no caption)"}</div>
+            <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
             {busy.startsWith("err") && <div style={{ fontSize:11.5, color:th.danger, marginBottom:10 }}>{busy.slice(4)}</div>}
-            {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>Connected account not found for this post.</div>}
+            {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>{L("Connected account not found for this post.","لم يتم العثور على الحساب المرتبط لهذا المنشور.")}</div>}
             <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-              <button onClick={()=>postNow(selected)} disabled={busy==="posting"} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:busy==="posting"?0.6:1 }}><Send size={15}/>{busy==="posting"?"Posting…":"Post now"}</button>
-              <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer" }}><Edit3 size={14}/>Edit in composer</button>
-              <button onClick={()=>deletePost(selected.id)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.dangerSoft, border:`1px solid ${th.danger}33`, color:th.danger, fontSize:13, cursor:"pointer" }}><XCircle size={14}/>Delete</button>
+              <button onClick={()=>postNow(selected)} disabled={busy==="posting"} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:busy==="posting"?0.6:1 }}><Send size={15}/>{busy==="posting"?L("Posting…","جارٍ النشر…"):L("Post now","انشر الآن")}</button>
+              <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer" }}><Edit3 size={14}/>{L("Edit in composer","تعديل في المحرر")}</button>
+              <button onClick={()=>deletePost(selected.id)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.dangerSoft, border:`1px solid ${th.danger}33`, color:th.danger, fontSize:13, cursor:"pointer" }}><XCircle size={14}/>{L("Delete","حذف")}</button>
             </div>
           </div>
         </div>
@@ -3191,10 +3191,10 @@ function SocialAccountsPage() {
     if (!guardConnect()) return;
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
-    // Core scopes only. instagram_business_manage_messages / _manage_comments need
-    // separate Meta approval; if that lapses, Instagram rejects the WHOLE login with a
-    // generic "couldn't connect" error. We re-add them once approved in the dashboard.
-    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights';
+    // Full scope: basic + publish + insights (analytics) + comments & messages (Inbox).
+    // The earlier "couldn't connect" error was the tester/dev-role issue, not these scopes,
+    // and the app's "Manage messaging & content" use case is configured — so these are safe.
+    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments,instagram_business_manage_messages';
     // Store current page so callback can return here
     if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
     // Exact format from Meta's OAuth Authorize reference — client_id, redirect_uri,
@@ -4750,6 +4750,7 @@ function InboxPage() {
     const allMessages = [];
     let lastError = '';
     for (const acc of accounts.filter(a => a.platform === 'ig')) {
+      // Comments
       try {
         const res = await fetch('/api/instagram-inbox', {
           method: 'POST',
@@ -4757,10 +4758,20 @@ function InboxPage() {
           body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, type: 'comments' }),
         });
         const data = await res.json();
-        console.log('[Inbox] API response:', JSON.stringify(data));
         if (data.data) allMessages.push(...data.data.map(m => ({ ...m, accountName: acc.account_name })));
         else if (data.error) lastError = data.error;
-      } catch(e) { lastError = e.message; console.warn('Inbox fetch error:', e); }
+      } catch(e) { lastError = e.message; console.warn('Inbox comments error:', e); }
+      // Direct messages — non-fatal. Instagram only returns DMs from the last 24h / where the
+      // user messaged the business first, so an empty result here is normal, not an error.
+      try {
+        const dmRes = await fetch('/api/instagram-inbox', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, type: 'messages' }),
+        });
+        const dmData = await dmRes.json();
+        if (dmData.data) allMessages.push(...dmData.data.map(m => ({ ...m, accountName: acc.account_name })));
+      } catch(e) { /* DMs optional — ignore */ }
     }
     allMessages.sort((a, b) => new Date(b.time) - new Date(a.time));
     setMessages(allMessages);
