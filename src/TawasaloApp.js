@@ -2373,7 +2373,10 @@ function CalendarPage() {
     } catch (e) { setBusy("err:" + e.message); }
   };
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"0 10px 30px rgba(0,0,0,0.3)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const upcoming = posts.filter(p => new Date(p.scheduled_at) >= new Date()).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+  const nextPost = upcoming[0] || null;
+  const thisMonthCount = posts.filter(p => { const d=new Date(p.scheduled_at); return d.getFullYear()===y && d.getMonth()===m; }).length;
   const chip = (p) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; return (
     <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
       {p.image_url ? <img src={p.image_url} alt="" style={{ width:16, height:16, borderRadius:4, objectFit:"cover", flexShrink:0 }}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
@@ -2387,7 +2390,7 @@ function CalendarPage() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Planner","المخطط")}</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {posts.length} {L("scheduled","مجدول")} {isAR?"منشور":(posts.length===1?"post":"posts")} &middot; <span style={{ color:th.text3 }}>{L("drag a post to reschedule","اسحب منشوراً لإعادة جدولته")}</span></p>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; <span className="tw-num">{posts.length}</span> {L("scheduled","مجدول")}{nextPost ? <> &middot; {L("next up","التالي")} <span style={{ color:th.text }}>{new Date(nextPost.scheduled_at).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" })}</span> {L("at","في")} <span className="tw-num" style={{ color:th.text }}>{fmtTime(nextPost.scheduled_at)}</span></> : <> &middot; <span style={{ color:th.text3 }}>{L("drag a post to reschedule","اسحب منشوراً لإعادة جدولته")}</span></>}</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
@@ -3188,10 +3191,16 @@ function SocialAccountsPage() {
     if (!guardConnect()) return;
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
-    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_comments,instagram_business_manage_messages,instagram_business_manage_insights';
+    // Core scopes only. instagram_business_manage_messages / _manage_comments need
+    // separate Meta approval; if that lapses, Instagram rejects the WHOLE login with a
+    // generic "couldn't connect" error. We re-add them once approved in the dashboard.
+    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights';
     // Store current page so callback can return here
     if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
-    const authUrl = `https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code`;
+    // Exact format from Meta's OAuth Authorize reference — client_id, redirect_uri,
+    // response_type, scope only. (Dropped the non-standard force_reauth param, which can
+    // make Instagram fall back to a plain login instead of showing the consent screen.)
+    const authUrl = `https://www.instagram.com/oauth/authorize?client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
     window.location.href = authUrl;
   };
 
