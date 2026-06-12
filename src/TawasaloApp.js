@@ -3778,11 +3778,27 @@ function AnalyticsPage() {
   const topPosts = [...(data?.recentPosts||[])].sort((a,b)=>(b.likes+b.comments)-(a.likes+a.comments)).slice(0,5);
   const maxEng = Math.max(1, ...topPosts.map(pp=>pp.likes+pp.comments));
 
-  const metric = (label, value, series, scolor) => (
+  // ── Deltas & narrative ──────────────────────────────────────────────
+  const isSample = !!data?._sample;
+  const hasImpr = imprSeries.some(v => v > 0);
+  const seriesDelta = (s) => { if (!s || s.length < 4) return null; const h=Math.floor(s.length/2); const a=s.slice(0,h).reduce((x,y)=>x+y,0); const b=s.slice(h).reduce((x,y)=>x+y,0); return a>0 ? Math.round(((b-a)/a)*100) : null; };
+  const reachDelta = seriesDelta(reachSeries);
+  const imprDelta = hasImpr ? seriesDelta(imprSeries) : null;
+  const fnum = selectedAcc?.followers_count || data?.summary?.followers || totalFollowers || 0;
+  const followerDelta = isSample ? Number((1.2 + (fnum % 30) / 14).toFixed(1)) : null; // believable for demo accounts only
+  const engPtsDelta = isSample ? Number((0.2 + (Math.round(engRate*10) % 9) / 10).toFixed(1)) : null;
+  const avgLikes = (data?.recentPosts?.length) ? Math.round((data.summary.totalLikes || 0) / data.recentPosts.length) : 0;
+  const chip = (c) => c ? <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10.5,fontWeight:700,color:c.up?th.success:th.danger,background:(c.up?th.success:th.danger)+"1f",borderRadius:6,padding:"2px 7px"}}>{c.up?<ArrowUpRight size={11}/>:<ArrowDownRight size={11}/>}{c.txt}</span> : null;
+  // top content format for the narrative line
+  const topTypeEntry = Object.entries(typeCounts).sort((a,b)=>b[1]-a[1])[0];
+  const topTypeLabel = topTypeEntry ? (typeLabels[topTypeEntry[0]] || topTypeEntry[0]) : null;
+
+  const metric = (label, value, series, scolor, change) => (
     <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:"16px 18px",boxShadow:"none"}}>
       <div style={{fontSize:11.5,color:th.text2,marginBottom:9,fontWeight:500}}>{label}</div>
       <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.6,color:th.text}}>{value}</div>
-      {series && series.length>1 && (
+      {change && <div style={{marginTop:8}}>{chip(change)}</div>}
+      {!change && series && series.length>1 && (
         <svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none" style={{marginTop:8,display:"block"}}>
           <path d={sparkPath(series,100,26,true)} fill={(scolor||th.accent)+"22"}/>
           <path d={sparkPath(series,100,26,false)} fill="none" stroke={scolor||th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke"/>
@@ -3819,29 +3835,44 @@ function AnalyticsPage() {
         </div>
       ) : data ? (
         <>
+          {data.summary.totalReach > 0 && (
+            <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 18px", marginBottom:14}}>
+              <div style={{fontSize:14, lineHeight:1.65, color:th.text2}}>
+                {L("You reached ","وصلت إلى ")}<span className="tw-num" style={{color:th.text, fontWeight:600}}>{data.summary.totalReach.toLocaleString()}</span>{L(" people in the last 30 days"," شخص خلال آخر ٣٠ يوماً")}
+                {reachDelta!=null && reachDelta!==0 && <>{L(", ","، ")}<span className="tw-num" style={{color:reachDelta>0?th.success:th.danger, fontWeight:600}}>{reachDelta>0?L("up ","بزيادة ")+Math.abs(reachDelta)+"%":L("down ","بانخفاض ")+Math.abs(reachDelta)+"%"}</span></>}
+                {topTypeLabel && <>{". "}<span style={{color:th.accent2||th.accent}}>{topTypeLabel}</span>{L(" posts are pulling your strongest engagement right now."," هي الأقوى في التفاعل حالياً.")}</>}
+                {!topTypeLabel && "."}
+              </div>
+            </div>
+          )}
+
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
-            {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null)}
-            {metric(L("Reach (30d)","الوصول (٣٠ يوم)"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7")}
-            {metric(L("Impressions (30d)","الظهور (٣٠ يوم)"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA")}
-            {metric(L("Engagement","التفاعل"), engRate+"%", null, null)}
+            {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null, followerDelta!=null?{txt:followerDelta+"%",up:true}:null)}
+            {metric(L("Reach · 30d","الوصول · ٣٠ يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
+            {hasImpr
+              ? metric(L("Impressions · 30d","الظهور · ٣٠ يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
+              : metric(L("Avg. likes","متوسط الإعجابات"), avgLikes.toLocaleString(), null, null, null)}
+            {metric(L("Engagement","التفاعل"), engRate+"%", null, null, engPtsDelta!=null?{txt:engPtsDelta+"",up:true}:null)}
           </div>
 
           <div style={{display:"grid", gridTemplateColumns:"1.7fr 1fr", gap:16, marginBottom:14}}>
             <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"none"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                <div style={{fontSize:13.5,fontWeight:600}}>Reach &amp; impressions</div>
+                <div style={{fontSize:13.5,fontWeight:600}}>{hasImpr ? L("Reach & impressions","الوصول والظهور") : L("Daily reach","الوصول اليومي")}</div>
                 <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
-                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>Reach</span>
-                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#A78BFA",display:"inline-block"}}/>Impressions</span>
+                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>{L("Reach","الوصول")}</span>
+                  {hasImpr && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#A78BFA",display:"inline-block"}}/>{L("Impressions","الظهور")}</span>}
                 </div>
               </div>
               {reachSeries.length>1 ? (
                 <HoverChart height={160}
-                  yTop={(()=>{const m=Math.max(...reachSeries,...imprSeries,1);return m>=1000000?(m/1000000).toFixed(1).replace(/\.0$/,'')+"M":Math.round(m/1000)+"K";})()}
-                  lines={[{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries},{color:"#A78BFA",label:L("Impressions","الظهور"),values:imprSeries}]}
+                  yTop={(()=>{const m=Math.max(...reachSeries,...(hasImpr?imprSeries:[]),1);return m>=1000000?(m/1000000).toFixed(1).replace(/\.0$/,'')+"M":Math.round(m/1000)+"K";})()}
+                  lines={hasImpr
+                    ? [{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries},{color:"#A78BFA",label:L("Impressions","الظهور"),values:imprSeries}]
+                    : [{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries}]}
                   labels={reachSeries.map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(reachSeries.length-1-i));return d.toLocaleDateString([],{month:'short',day:'numeric'});})}/>
               ) : (
-                <div style={{fontSize:12,color:th.text2,padding:"30px 0",textAlign:"center"}}>Daily trend appears once insights data is available.</div>
+                <div style={{fontSize:12,color:th.text2,padding:"30px 0",textAlign:"center"}}>{L("Daily trend appears once insights data is available.","يظهر الاتجاه اليومي بمجرد توفر بيانات الإحصاءات.")}</div>
               )}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:14}}>
