@@ -13,7 +13,43 @@ export default async function handler(req, res) {
   const platformName = platform ? platformNames[platform] || platform : 'social media';
   const toneText = tone || 'engaging and professional';
   const language = (lang || 'both').toLowerCase(); // 'en' | 'ar' | 'both'
-  const theMode = (mode || 'caption').toLowerCase(); // 'caption' | 'ideas' | 'hashtags' | 'vision' | 'alt'
+  const theMode = (mode || 'caption').toLowerCase(); // 'caption' | 'ideas' | 'hashtags' | 'vision' | 'alt' | 'image' | 'image-edit'
+
+  // ── AI image generation & editing (OpenAI GPT Image) ───────────────────
+  // Folded into this endpoint to stay under Vercel's function limit. Needs a
+  // separate OPENAI_API_KEY (platform.openai.com — NOT the ChatGPT Plus account).
+  if (theMode === 'image' || theMode === 'image-edit') {
+    const OPENAI_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_KEY) return res.status(200).json({ error: 'image_engine_unconfigured', message: 'Add OPENAI_API_KEY in Vercel to turn on AI images.' });
+    const prompt = req.body.prompt || topic;
+    if (!prompt) return res.status(400).json({ error: 'A prompt is required.' });
+    const size = ['1024x1024', '1024x1536', '1536x1024'].includes(req.body.size) ? req.body.size : '1024x1024';
+    try {
+      if (theMode === 'image-edit' && req.body.imageBase64) {
+        const form = new FormData();
+        form.append('model', 'gpt-image-1');
+        form.append('prompt', prompt);
+        form.append('size', size);
+        const raw = String(req.body.imageBase64).replace(/^data:image\/\w+;base64,/, '');
+        form.append('image', new Blob([Buffer.from(raw, 'base64')], { type: 'image/png' }), 'image.png');
+        const r = await fetch('https://api.openai.com/v1/images/edits', { method: 'POST', headers: { Authorization: `Bearer ${OPENAI_KEY}` }, body: form });
+        const d = await r.json();
+        if (d.error) return res.status(400).json({ error: d.error.message });
+        return res.status(200).json({ images: (d.data || []).map(x => 'data:image/png;base64,' + x.b64_json) });
+      }
+      const quality = ['low', 'medium', 'high'].includes(req.body.quality) ? req.body.quality : 'medium';
+      const r = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${OPENAI_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'gpt-image-1', prompt, size, quality, n: Math.min(parseInt(req.body.n, 10) || 2, 4) }),
+      });
+      const d = await r.json();
+      if (d.error) return res.status(400).json({ error: d.error.message });
+      return res.status(200).json({ images: (d.data || []).map(x => 'data:image/png;base64,' + x.b64_json) });
+    } catch (e) {
+      return res.status(500).json({ error: 'Image generation failed', details: e.message });
+    }
+  }
 
   // Vision modes need an image; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {

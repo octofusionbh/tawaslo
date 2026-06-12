@@ -9,11 +9,11 @@ const ROOT = "https://ensembledata.com/apis";
 // Region -> one representative hashtag (kept to a single tag to conserve the free 50/day unit budget).
 const REGION_TAGS = {
   worldwide: ["fyp"],
-  gcc:       ["khaleeji"],
-  bahrain:   ["bahrain"],
-  saudi:     ["saudi"],
-  uae:       ["dubai"],
-  usa:       ["trending"],
+  gcc:       ["khaleeji", "dubai"],
+  bahrain:   ["bahrain", "manama"],
+  saudi:     ["saudi", "riyadh"],
+  uae:       ["dubai", "uae"],
+  usa:       ["trending", "usa"],
 };
 
 async function getJson(url, ms = 7000) {

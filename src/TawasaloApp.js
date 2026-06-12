@@ -240,7 +240,7 @@ function Toggle({ on, onColor="accent", onClick }) {
   );
 }
 
-function StatCard({ label, value, change, up, Icon:I, color="accent", spark }) {
+function StatCard({ label, value, change, up, Icon:I, color="accent", spark, sub }) {
   const th = useTheme();
   const [disp, setDisp] = useState(value);
   // Tiny trend line under the metric — the kind of detail real products have.
@@ -282,7 +282,8 @@ function StatCard({ label, value, change, up, Icon:I, color="accent", spark }) {
           </div>
         )}
       </div>
-      <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.5,marginBottom:3}}>{disp}</div>
+      <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.5,marginBottom:sub?1:3}}>{disp}</div>
+      {sub && <div className="tw-num" style={{fontSize:11.5,color:th.text3,marginBottom:3}}>{sub}</div>}
       <div style={{fontSize:12,color:th.text2}}>{label}</div>
       {spark && spark.length>1 && (
         <svg width="100%" height="22" viewBox="0 0 100 22" preserveAspectRatio="none" style={{marginTop:10,display:"block"}}>
@@ -1718,11 +1719,13 @@ function OwnerRevenuePage() {
   const refund = (id) => setTxns(ts=>ts.map(t=>t.id===id?{...t,status:"refunded"}:t));
   const collected = txns.filter(t=>t.status==="paid").reduce((s,t)=>s+t.amount,0);
 
+  // USD → BHD at the fixed peg (1 USD = 0.376 BHD).
+  const bhd = (usd) => "≈ " + Math.round(usd*0.376).toLocaleString() + " BHD";
   const kpis = [
-    { label:"Collected this month", value:"$2,180", Icon:DollarSign, color:"success" },
-    { label:"MRR", value:"$2,180", Icon:RefreshCw, color:"accent" },
-    { label:"ARR (run-rate)", value:"$26,160", Icon:TrendingUp, color:"accent2" },
-    { label:"Refunded", value:"$99", Icon:ArrowDownRight, color:"danger" },
+    { label:"Collected this month", value:"$2,180", sub:bhd(2180), Icon:DollarSign, color:"success" },
+    { label:"MRR", value:"$2,180", sub:bhd(2180), Icon:RefreshCw, color:"accent" },
+    { label:"ARR (run-rate)", value:"$26,160", sub:bhd(26160), Icon:TrendingUp, color:"accent2" },
+    { label:"Refunded", value:"$99", sub:bhd(99), Icon:ArrowDownRight, color:"danger" },
   ];
 
   return (
@@ -2324,7 +2327,56 @@ function AIStudioPage() {
 
   const PLATS = [["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
   const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
-  const TOOLS = [["captions","Captions",Edit3],["ideas","Post ideas",Sparkles],["hashtags","Hashtags",TrendingUp]];
+  const TOOLS = [["captions","Captions",Edit3],["ideas","Post ideas",Sparkles],["hashtags","Hashtags",TrendingUp],["images","Images",Image]];
+  const [imgMode, setImgMode] = useState("generate");   // generate | edit
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgPreset, setImgPreset] = useState("other");
+  const [srcImage, setSrcImage] = useState(null);       // base64 source for an edit
+  const [images, setImages] = useState([]);
+  const [imgLoading, setImgLoading] = useState(false);
+  const [imgErr, setImgErr] = useState("");
+  const SIZES = [
+    { id:"other", size:"1024x1024", label:"Other",       Icon:Image },
+    { id:"ig",    size:"1024x1024", label:"Instagram",   Icon:FaInstagram },
+    { id:"story", size:"1024x1536", label:"Story / Reel", Icon:FaInstagram },
+    { id:"li",    size:"1024x1024", label:"LinkedIn",    Icon:FaLinkedin },
+    { id:"x",     size:"1536x1024", label:"X",           Icon:FaTwitter },
+  ];
+
+  const runImage = async () => {
+    const p = imgPrompt.trim();
+    if ((!p && imgMode==="generate") || (imgMode==="edit" && (!srcImage || !p)) || imgLoading) return;
+    setImgLoading(true); setImgErr(""); setImages([]);
+    try {
+      const size = (SIZES.find(s=>s.id===imgPreset)||{}).size || "1024x1024";
+      const body = (imgMode==="edit" && srcImage)
+        ? { mode:'image-edit', prompt:p, imageBase64:srcImage, size }
+        : { mode:'image', prompt:p, size, n:2 };
+      const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+      if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
+      else if (r.error) setImgErr(typeof r.error==='string'?r.error:'Could not generate.');
+      else if (r.images && r.images.length) setImages(r.images);
+      else setImgErr('Could not generate. Please try again.');
+    } catch(e) { setImgErr('Something went wrong. Please try again.'); }
+    setImgLoading(false);
+  };
+  const onUploadSrc = (file) => { if(!file) return; const reader=new FileReader(); reader.onload=e=>setSrcImage(e.target.result); reader.readAsDataURL(file); };
+  const useImage = async (b64) => {
+    try {
+      const { data:{ user } } = await supabase.auth.getUser();
+      const uid = user?.id || 'anon';
+      const raw = b64.replace(/^data:image\/\w+;base64,/,'');
+      const bytes = Uint8Array.from(atob(raw), c=>c.charCodeAt(0));
+      const path = `${uid}/ai/${Date.now()}.png`;
+      const { error } = await supabase.storage.from('media').upload(path, bytes, { contentType:'image/png', upsert:true });
+      if (error) throw error;
+      const { data:url } = supabase.storage.from('media').getPublicUrl(path);
+      try { sessionStorage.setItem('tw_studio_media', url.publicUrl); } catch(e){}
+      setPage('publisher');
+    } catch(e) { setImgErr('Could not add to composer — try Download instead.'); }
+  };
+  const downloadImage = (b64) => { try { const a=document.createElement('a'); a.href=b64; a.download='tawaslo-image.png'; document.body.appendChild(a); a.click(); a.remove(); } catch(e){} };
+  const editThisImage = (b64) => { setSrcImage(b64); setImgMode('edit'); setImages([]); setImgPrompt(''); };
 
   const copy = (text, key) => { try { navigator.clipboard.writeText(text); setCopied(key); setTimeout(()=>setCopied(""),1500); } catch (e) { /* ignore */ } };
   const useInComposer = (text) => { try { sessionStorage.setItem('tw_studio_caption', text); } catch (e) { /* ignore */ } setPage('publisher'); };
@@ -2349,8 +2401,9 @@ function AIStudioPage() {
     setLoading(false);
   };
 
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, boxShadow:"0 8px 24px rgba(0,0,0,0.22)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, boxShadow:"none" };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const EXAMPLES = ["Weekend brunch menu launch","Eid collection reveal","Behind the scenes in our kitchen","New product drop teaser","Customer spotlight"];
   const smallBtn = (active) => ({ fontSize:11, padding:"6px 11px", borderRadius:8, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2 });
 
   return (
@@ -2359,7 +2412,7 @@ function AIStudioPage() {
         <div style={{ width:40, height:40, borderRadius:12, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={20} color="#fff"/></div>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>AI Studio</h2>
-          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>Generate captions, post ideas &amp; hashtags &mdash; in English &amp; Arabic</p>
+          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>Captions, ideas, hashtags &amp; AI images &mdash; in English &amp; Arabic</p>
         </div>
       </div>
 
@@ -2369,7 +2422,7 @@ function AIStudioPage() {
         ))}
       </div>
 
-      <div style={{ ...card, marginBottom:18 }}>
+      {tool!=="images" && (<div style={{ ...card, marginBottom:18 }}>
         <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{tool==="hashtags"?"What's the post about?":"Topic / product"}</div>
         <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="e.g. New weekend brunch menu launch at our Adliya cafe" rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
@@ -2395,9 +2448,75 @@ function AIStudioPage() {
           )}
           <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?"Generating…":"Generate"}</button>
         </div>
-      </div>
+      </div>)}
 
-      {error && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{error}</div>}
+      {tool==="images" && (
+        <div style={{ ...card, marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text, display:"flex", alignItems:"center", gap:8 }}><Image size={15} color={th.accent}/>AI images</div>
+            <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>Powered by GPT Image</span>
+          </div>
+          <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:12 }}>
+            {[["generate","Generate",Sparkles],["edit","Edit a photo",Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
+          </div>
+          {imgMode==="edit" && (
+            <div style={{ marginBottom:12 }}>
+              {srcImage ? (
+                <div style={{ display:"flex", alignItems:"center", gap:12, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:9 }}>
+                  <img src={srcImage} alt="" style={{ width:54, height:54, borderRadius:8, objectFit:"cover" }}/>
+                  <div style={{ flex:1, fontSize:11.5, color:th.text2 }}>Photo ready — describe the change below.</div>
+                  <button onClick={()=>setSrcImage(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><XCircle size={17}/></button>
+                </div>
+              ) : (
+                <div onClick={()=>document.getElementById('ai-src').click()} style={{ border:`1.5px dashed ${th.border}`, borderRadius:10, padding:"16px", textAlign:"center", cursor:"pointer" }}>
+                  <input type="file" id="ai-src" accept="image/*" style={{ display:"none" }} onChange={e=>onUploadSrc(e.target.files[0])}/>
+                  <Image size={20} color={th.accent}/>
+                  <div style={{ fontSize:12, marginTop:5, color:th.text2 }}>Upload a photo to edit</div>
+                </div>
+              )}
+            </div>
+          )}
+          <textarea value={imgPrompt} onChange={e=>setImgPrompt(e.target.value)} placeholder={imgMode==="edit"?"e.g. remove the text in the top corner and add a warm sunset glow":"e.g. a flat-lay of weekend brunch dishes on a marble table, warm morning light"} rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
+          <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>{SIZES.map(s=>{ const on=imgPreset===s.id; return <button key={s.id} onClick={()=>setImgPreset(s.id)} style={{ ...smallBtn(on), display:"flex", alignItems:"center", gap:5 }}><s.Icon size={12}/>{s.label}</button>; })}</div>
+            <button onClick={runImage} disabled={imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim()))} style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim())))?0.6:1 }}><Sparkles size={15}/>{imgLoading?(imgMode==="edit"?"Editing…":"Generating…"):(imgMode==="edit"?"Apply edit":"Generate")}</button>
+          </div>
+        </div>
+      )}
+
+      {tool==="images" && imgErr==="unconfigured" && (
+        <div style={{ ...card, textAlign:"center", padding:"34px 24px", marginBottom:14 }}>
+          <div style={{ width:46, height:46, margin:"0 auto 12px", borderRadius:13, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={22} color={th.accent}/></div>
+          <div style={{ fontSize:14.5, fontWeight:600, marginBottom:6 }}>Connect your image engine</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto", lineHeight:1.6 }}>Add an <strong style={{color:th.text}}>OpenAI API key</strong> (OPENAI_API_KEY) in your Vercel settings to turn on AI image generation and editing.</div>
+        </div>
+      )}
+      {tool==="images" && imgErr && imgErr!=="unconfigured" && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{imgErr}</div>}
+
+      {tool==="images" && images.length>0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))", gap:14 }}>
+          {images.map((b64,i)=>(
+            <div key={i} style={{ ...card, padding:0, overflow:"hidden" }}>
+              <img src={b64} alt="" style={{ width:"100%", display:"block", aspectRatio:"1", objectFit:"cover" }}/>
+              <div style={{ display:"flex", gap:7, padding:10 }}>
+                <button onClick={()=>useImage(b64)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>Use</button>
+                <button onClick={()=>downloadImage(b64)} title="Download" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Download size={14}/></button>
+                <button onClick={()=>editThisImage(b64)} title="Edit this image" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Edit3 size={14}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tool==="images" && !imgLoading && !imgErr && images.length===0 && (
+        <div style={{ ...card, textAlign:"center", padding:"36px 24px" }}>
+          <div style={{ width:48, height:48, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={22} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{imgMode==="edit"?"Edit a photo by just asking":"On-brand images in seconds"}</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:440, margin:"0 auto", lineHeight:1.6 }}>{imgMode==="edit"?"Upload a photo, then tell it what to change — remove text, add an object, swap the background.":"Describe what you want and the AI creates it. Then tweak any result with a follow-up edit."}</div>
+        </div>
+      )}
+
+      {tool!=="images" && error && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{error}</div>}
 
       {tool==="captions" && captions.length>0 && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:14 }}>
@@ -2419,7 +2538,7 @@ function AIStudioPage() {
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           {ideas.map((idea,i)=>(
             <div key={i} style={{ ...card, padding:14, display:"flex", alignItems:"center", gap:12 }}>
-              <div style={{ width:26, height:26, borderRadius:8, background:th.accentSoft, color:th.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:700, flexShrink:0 }}>{i+1}</div>
+              <div className="tw-num" style={{ width:26, height:26, borderRadius:8, background:th.accentSoft, color:th.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12.5, fontWeight:700, flexShrink:0 }}>{i+1}</div>
               <div style={{ flex:1, fontSize:13, lineHeight:1.5 }}>{idea}</div>
               <button onClick={()=>{ setTopic(idea); setTool("captions"); }} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.accentSoft, border:"none", color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Edit3 size={12}/>Write caption</button>
               <button onClick={()=>copy(idea,"i"+i)} style={{ padding:"7px 12px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", flexShrink:0 }}>{copied==="i"+i?"Copied":"Copy"}</button>
@@ -2431,7 +2550,7 @@ function AIStudioPage() {
       {tool==="hashtags" && hashtags.length>0 && (
         <div style={card}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <div style={{ fontSize:12, color:th.text2 }}>{hashtags.length} hashtags</div>
+            <div style={{ fontSize:12, color:th.text2 }}><span className="tw-num">{hashtags.length}</span> hashtags</div>
             <button onClick={()=>copy(hashtags.join(" "),"all")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>{copied==="all"?<><CheckCircle size={13}/>Copied</>:"Copy all"}</button>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -2440,10 +2559,17 @@ function AIStudioPage() {
         </div>
       )}
 
-      {!loading && !error && captions.length===0 && ideas.length===0 && hashtags.length===0 && (
-        <div style={{ textAlign:"center", padding:"40px 24px", color:th.text2, fontSize:12.5 }}>
-          <Wand2 size={28} color={th.text3} style={{ marginBottom:10 }}/>
-          <div>Enter a topic and hit Generate to get {tool==="captions"?"3 bilingual caption variations":tool==="ideas"?"fresh post ideas":"a hashtag pack"}.</div>
+      {tool!=="images" && !loading && !error && captions.length===0 && ideas.length===0 && hashtags.length===0 && (
+        <div style={{ ...card, textAlign:"center", padding:"38px 24px" }}>
+          <div style={{ width:48, height:48, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={22} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{tool==="captions"?"Bilingual captions in seconds":tool==="ideas"?"Never stare at a blank page":"The right hashtags, instantly"}</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto 20px", lineHeight:1.6 }}>Enter a topic and hit Generate to get {tool==="captions"?"three caption variations in English and Arabic":tool==="ideas"?"fresh, on-brand post ideas":"a curated hashtag pack"}.</div>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, color:th.text3, textTransform:"uppercase", marginBottom:11 }}>Try one of these</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center" }}>
+            {EXAMPLES.map(ex=>(
+              <button key={ex} onClick={()=>setTopic(ex)} style={{ fontSize:11.5, color:th.text2, background:th.card2, border:`1px solid ${th.border}`, borderRadius:999, padding:"7px 14px", cursor:"pointer" }}>{ex}</button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -3840,16 +3966,9 @@ function TrendingPage() {
         </div>
       ) : (!sampleMode && loading) ? (
         <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>Loading trends&hellip;</div>
-      ) : (!sampleMode && items.length===0) ? (
-        <div style={{textAlign:"center",padding:"48px 24px",color:th.text2,fontSize:13,maxWidth:460,margin:"0 auto"}}>
-          <TrendingUp size={32} style={{marginBottom:12,opacity:0.3}}/>
-          <div style={{fontSize:14,fontWeight:600,color:th.text,marginBottom:6}}>No live trends right now</div>
-          <div style={{lineHeight:1.6}}>The data source may have hit its daily quota, or this region has no results yet. Try another region, or check back later &mdash; it refreshes automatically.</div>
-          <button onClick={loadSample} style={{marginTop:18,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>Preview with sample data</button>
-        </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
-          {(sampleMode?sampleShown:items).map((it,i)=>(
+          {((sampleMode||items.length===0)?sampleShown:items).map((it,i)=>(
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
@@ -4586,171 +4705,149 @@ function ReportsPage() {
     const maxEng = topPosts.length ? topPosts[0].likes + topPosts[0].comments : 1;
 
     const postsHtml = topPosts.map((p, i) => {
-      const eng = p.likes + p.comments;
-      const pct = Math.round((eng / maxEng) * 100);
       const thumbHtml = p.thumbnail
-        ? '<img class="post-thumb" src="' + p.thumbnail + '" alt="" onerror="this.style.display=\'none\'"/>'
-        : '<div class="post-thumb-placeholder"></div>';
+        ? '<img class="post-img" src="' + p.thumbnail + '" alt="" onerror="this.style.display=\'none\'"/>'
+        : '<div class="post-imgph"></div>';
       const cap = (p.caption || '(No caption)').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const reachHtml = p.reach > 0 ? '<div class="ps"><div class="psv">' + p.reach.toLocaleString() + '</div><div class="psl">Reach</div></div>' : '';
-      const savedHtml = (p.saved||0) > 0 ? '<div class="ps"><div class="psv">' + p.saved.toLocaleString() + '</div><div class="psl">Saved</div></div>' : '';
-      return '<div class="post-card">' + thumbHtml +
-        '<div class="post-body"><div><div class="post-rank">#' + (i+1) + ' Top Post</div>' +
+      const reachStat = p.reach > 0 ? '<div><div class="pstat-v">' + p.reach.toLocaleString() + '</div><div class="pstat-l">Reach</div></div>' : '';
+      return '<div class="post">' + thumbHtml +
+        '<div class="post-b"><div><div class="post-rank">#' + (i+1) + ' Top post</div>' +
         '<div class="post-cap">' + cap + '</div></div>' +
-        '<div><div class="bar-row"><span class="bar-pct">' + pct + '%</span>' +
-        '<div class="bar-bg"><div class="bar-fill" style="width:' + pct + '%"></div></div></div>' +
-        '<div class="post-stats"><div class="ps"><div class="psv">' + p.likes.toLocaleString() + '</div><div class="psl">Likes</div></div>' +
-        '<div class="ps"><div class="psv">' + p.comments.toLocaleString() + '</div><div class="psl">Comments</div></div>' +
-        reachHtml + savedHtml + '</div></div></div></div>';
+        '<div class="post-stats"><div><div class="pstat-v">' + p.likes.toLocaleString() + '</div><div class="pstat-l">Likes</div></div>' +
+        '<div><div class="pstat-v">' + p.comments.toLocaleString() + '</div><div class="pstat-l">Comments</div></div>' +
+        reachStat + '</div></div></div>';
     }).join('');
 
     const accountsHtml = accounts.map(a =>
-      '<tr><td><strong>' + a.account_name + '</strong>' + (a.username ? ' <span style="color:#aaa;font-size:11px">@' + a.username + '</span>' : '') + '</td>' +
-      '<td><span class="badge ' + a.platform + '">' + (a.platform === 'ig' ? 'Instagram' : 'Facebook') + '</span></td>' +
-      '<td><strong style="font-size:14px">' + (a.followers_count||0).toLocaleString() + '</strong></td>' +
-      '<td><span style="color:#059669;font-weight:700;font-size:11px">&#9679; Active</span></td></tr>'
+      '<tr><td style="padding:13px 0;border-bottom:1px solid #f3f4f7;font-size:13px;font-weight:600">' + a.account_name + (a.username ? ' <span style="color:#9aa3b2;font-weight:400;font-size:11px">@' + a.username + '</span>' : '') + '</td>' +
+      '<td style="padding:13px 0;border-bottom:1px solid #f3f4f7;font-size:12px;color:#6b7280">' + platLabel(a.platform) + '</td>' +
+      '<td style="padding:13px 0;border-bottom:1px solid #f3f4f7;text-align:right;font-size:14px;font-weight:700">' + (a.followers_count||0).toLocaleString() + '</td></tr>'
     ).join('');
 
+    // Reach trend chart for the report (real SVG line, not boxes).
+    const chartVals = (analyticsData && analyticsData.chartData) ? analyticsData.chartData.map(c=>c.reach||0) : [];
+    let reachChartSvg = '';
+    if (chartVals.length > 1) {
+      const CW=620, CH=170, mx=Math.max(1,...chartVals);
+      const cpts = chartVals.map((v,i)=>[(i/(chartVals.length-1))*CW, CH-(v/mx)*(CH-24)-12]);
+      const cline = 'M'+cpts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' L');
+      reachChartSvg = '<svg viewBox="0 0 '+CW+' '+CH+'" width="100%" height="170" preserveAspectRatio="none">'+
+        '<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6E8CAB" stop-opacity="0.18"/><stop offset="1" stop-color="#6E8CAB" stop-opacity="0"/></linearGradient></defs>'+
+        '<path d="'+cline+' L'+CW+','+CH+' L0,'+CH+' Z" fill="url(#rg)"/>'+
+        '<path d="'+cline+'" fill="none" stroke="#6E8CAB" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    const platColors = { ig:'#E1306C', fb:'#1877F2', li:'#0A66C2', tt:'#111111', tw:'#1DA1F2', yt:'#FF0000' };
+    const platTotals = {}; accounts.forEach(a=>{ platTotals[a.platform]=(platTotals[a.platform]||0)+(a.followers_count||0); });
+    const platBarsHtml = Object.entries(platTotals).sort((a,b)=>b[1]-a[1]).map(([p,f])=>{
+      const pv = totalFollowers>0?Math.round(f/totalFollowers*100):0;
+      return '<div class="pbar"><div class="pbar-top"><span class="pbar-name">'+platLabel(p)+'</span><span class="pbar-val">'+f.toLocaleString()+' &middot; '+pv+'%</span></div><div class="pbar-track"><div class="pbar-fill" style="width:'+pv+'%;background:'+(platColors[p]||'#6E8CAB')+'"></div></div></div>';
+    }).join('');
+
     const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>${reportName} — ${month} Social Media Report</title>
+<html><head><meta charset="UTF-8"><title>${reportName} — ${month} Report</title>
 <style>
   @page{margin:0;size:A4}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#1a1a2e}
-  .cover{min-height:100vh;background:linear-gradient(135deg,#0f0c29 0%,#302b63 50%,#24243e 100%);display:flex;flex-direction:column;justify-content:space-between;padding:60px;page-break-after:always}
-  .cover-logo{display:flex;align-items:center;gap:14px}
-  .cover-logo img{width:48px;height:48px;object-fit:contain}
-  .cover-logo-text{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1px}
-  .cover-tag{font-size:12px;color:rgba(255,255,255,.4);margin-top:8px;letter-spacing:3px;text-transform:uppercase}
-  .cover-label{font-size:11px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px}
-  .cover-client{font-size:48px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:16px}
-  .cover-sub{font-size:18px;color:rgba(255,255,255,.55);margin-bottom:32px}
-  .cover-pill{display:inline-block;background:rgba(79,110,247,.2);border:1px solid rgba(79,110,247,.5);color:#8ba4fa;padding:10px 22px;border-radius:30px;font-size:13px;font-weight:600}
-  .cover-ft{display:flex;justify-content:space-between;align-items:flex-end}
-  .cover-ft-l{font-size:10px;color:rgba(255,255,255,.25);line-height:1.8}
-  .cover-ft-r{font-size:10px;color:rgba(255,255,255,.25)}
-  .page{padding:50px;page-break-after:always}
+  body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#16181d;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cover{height:100vh;background:linear-gradient(150deg,#080B11 0%,#10141C 55%,#1A2230 100%);display:flex;flex-direction:column;justify-content:space-between;padding:64px;page-break-after:always;color:#fff}
+  .clogo{display:flex;align-items:center;gap:13px}
+  .clogo .mk{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+  .clogo .nm{font-size:30px;font-weight:800;letter-spacing:-1px}
+  .ctag{font-size:11px;color:rgba(255,255,255,.4);margin-top:10px;letter-spacing:3px;text-transform:uppercase}
+  .clabel{font-size:12px;color:rgba(157,182,214,.85);text-transform:uppercase;letter-spacing:3px;margin-bottom:14px;font-weight:600}
+  .cclient{font-size:54px;font-weight:800;line-height:1.04;margin-bottom:14px;letter-spacing:-1.8px}
+  .csub{font-size:17px;color:rgba(255,255,255,.5);margin-bottom:30px}
+  .cpill{display:inline-block;background:rgba(110,140,171,.18);border:1px solid rgba(110,140,171,.45);color:#9DB6D6;padding:11px 24px;border-radius:30px;font-size:13px;font-weight:600}
+  .cft{display:flex;justify-content:space-between;align-items:flex-end;font-size:10px;color:rgba(255,255,255,.3);line-height:1.8}
+  .page{padding:56px 60px;page-break-after:always}
   .page:last-child{page-break-after:auto}
-  .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:36px;padding-bottom:14px;border-bottom:2px solid #f0f0f0}
-  .ph-logo{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:900;color:#4F6EF7}
-  .ph-logo img{width:22px;height:22px;object-fit:contain}
-  .ph-info{font-size:10px;color:#aaa;text-align:right;line-height:1.6}
-  .sec{margin-bottom:32px}
-  .sec-title{font-size:10px;font-weight:700;color:#4F6EF7;text-transform:uppercase;letter-spacing:2.5px;margin-bottom:14px}
-  .sg4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  .sc{background:#f8f9ff;border-radius:12px;padding:20px 16px;text-align:center;border:1px solid #e8ecff}
-  .sv{font-size:26px;font-weight:900;color:#1a1a2e}
-  .sv.a{color:#4F6EF7}.sv.ig{color:#E1306C}.sv.fb{color:#1877F2}.sv.g{color:#059669}.sv.p{color:#A78BFA}.sv.o{color:#F59E0B}
-  .sl{font-size:10px;color:#999;margin-top:6px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
-  table{width:100%;border-collapse:collapse}
-  th{padding:10px 16px;text-align:left;font-size:10px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;background:#f8f9ff}
-  td{padding:13px 16px;border-bottom:1px solid #f5f5f5;font-size:12px}
-  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700}
-  .badge.ig{background:#fce4ec;color:#c2185b}.badge.fb{background:#e3f2fd;color:#1565c0}
-  .post-card{display:flex;margin-bottom:14px;border:1px solid #eee;border-radius:12px;overflow:hidden}
-  .post-thumb{width:120px;min-width:120px;height:120px;object-fit:cover;display:block}
-  .post-thumb-placeholder{width:120px;min-width:120px;height:120px;background:linear-gradient(135deg,#e8ecff,#f0f4ff);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0}
-  .post-body{flex:1;padding:14px 18px;display:flex;flex-direction:column;justify-content:space-between}
-  .post-rank{font-size:10px;font-weight:700;color:#4F6EF7;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px}
-  .post-cap{font-size:11px;color:#333;line-height:1.7;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-  .bar-row{display:flex;align-items:center;gap:10px;margin-top:10px;margin-bottom:8px}
-  .bar-pct{font-size:10px;font-weight:700;color:#4F6EF7;min-width:30px}
-  .bar-bg{flex:1;height:5px;background:#eee;border-radius:3px}
-  .bar-fill{height:5px;border-radius:3px;background:linear-gradient(90deg,#4F6EF7,#a78bfa)}
-  .post-stats{display:flex;gap:18px}
-  .psv{font-size:17px;font-weight:900;color:#1a1a2e}
-  .psl{font-size:9px;color:#aaa;margin-top:1px;text-transform:uppercase;letter-spacing:.5px}
-  .ft{margin-top:36px;padding-top:14px;border-top:1px solid #eee;display:flex;justify-content:space-between}
-  .ft div{font-size:10px;color:#ccc}
-  @media print{.page{padding:30px}}
-</style>
-</head>
-<body>
+  .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:46px}
+  .ph-l{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#16181d}
+  .ph-l .mk{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C)}
+  .ph-r{font-size:10px;color:#9aa3b2;text-align:right;line-height:1.6}
+  .eyebrow{font-size:11px;font-weight:700;color:#4F6B8C;text-transform:uppercase;letter-spacing:3px;margin-bottom:20px}
+  .hero{display:flex;align-items:flex-end;gap:16px}
+  .hero-num{font-size:74px;font-weight:800;letter-spacing:-3px;line-height:.85;color:#16181d}
+  .hero-tag{font-size:13px;font-weight:700;color:#0E9F6E;padding-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+  .hero-cap{font-size:15px;color:#6b7280;margin:18px 0 34px;max-width:540px;line-height:1.7}
+  .chartwrap{margin:0 0 40px}
+  .hl-row{display:flex;border-top:1px solid #ececf2;padding-top:28px}
+  .hl{flex:1;border-right:1px solid #ececf2;padding:0 26px}
+  .hl:first-child{padding-left:0}.hl:last-child{border-right:none;padding-right:0}
+  .hl-v{font-size:33px;font-weight:800;letter-spacing:-1px;color:#16181d}
+  .hl-l{font-size:11px;color:#9aa3b2;margin-top:9px;text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .pbar{margin-bottom:24px}
+  .pbar-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px}
+  .pbar-name{font-size:15px;font-weight:700}
+  .pbar-val{font-size:13px;color:#6b7280;font-weight:600}
+  .pbar-track{height:10px;background:#f0f1f5;border-radius:6px;overflow:hidden}
+  .pbar-fill{height:10px;border-radius:6px}
+  .post{display:flex;margin-bottom:20px;border:1px solid #ececf2;border-radius:16px;overflow:hidden}
+  .post-img{width:155px;min-width:155px;height:155px;object-fit:cover}
+  .post-imgph{width:155px;min-width:155px;height:155px;background:linear-gradient(135deg,#e9edf3,#f4f6fa)}
+  .post-b{flex:1;padding:22px 26px;display:flex;flex-direction:column;justify-content:space-between}
+  .post-rank{font-size:11px;font-weight:700;color:#4F6B8C;text-transform:uppercase;letter-spacing:2px;margin-bottom:9px}
+  .post-cap{font-size:14px;color:#374151;line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .post-stats{display:flex;gap:36px;margin-top:16px}
+  .pstat-v{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .pstat-l{font-size:10px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;margin-top:3px;font-weight:600}
+  .ft{margin-top:46px;padding-top:16px;border-top:1px solid #ececf2;display:flex;justify-content:space-between;font-size:10px;color:#c4c9d2}
+</style></head><body>
 
 <div class="cover">
+  <div><div class="clogo"><div class="mk">T</div><div class="nm">Tawaslo</div></div><div class="ctag">Social Intelligence Platform</div></div>
   <div>
-    <div class="cover-logo">
-      <img src="https://www.tawaslo.com/logo-transparent.png" alt="Tawaslo"/>
-      <div class="cover-logo-text">Tawaslo</div>
-    </div>
-    <div class="cover-tag">Social Intelligence Platform</div>
+    <div class="clabel">Monthly Social Media Report</div>
+    <div class="cclient">${reportName}</div>
+    <div class="csub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}Performance &amp; Insights</div>
+    <div class="cpill">${month}</div>
   </div>
-  <div>
-    <div class="cover-label">Monthly Social Media Report</div>
-    <div class="cover-client">${reportName}</div>
-    <div class="cover-sub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}Performance Analysis &amp; Insights</div>
-    <div class="cover-pill">&#128197; ${month}</div>
-  </div>
-  <div class="cover-ft">
-    <div class="cover-ft-l">
-      Generated on ${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}<br/>
-      Confidential &#8212; Prepared by Tawaslo
-    </div>
-    <div class="cover-ft-r">tawaslo.com</div>
-  </div>
+  <div class="cft"><div>Generated ${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}<br/>Confidential &mdash; Prepared by Tawaslo</div><div>tawaslo.com</div></div>
 </div>
 
 <div class="page">
-  <div class="ph">
-    <div class="ph-logo"><img src="https://www.tawaslo.com/logo-transparent.png" alt=""/>Tawaslo</div>
-    <div class="ph-info">${reportName}<br/>${month} &middot; Performance Overview</div>
-  </div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Executive Summary</div></div>
+  <div class="eyebrow">The month at a glance</div>
+  ${analyticsData ? `
+    <div class="hero"><div class="hero-num">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="hero-tag">People reached</div></div>
+    <div class="hero-cap">${reportName} reached <strong>${analyticsData.summary.totalReach.toLocaleString()}</strong> people this month and earned a <strong>${analyticsData.summary.engagementRate}%</strong> engagement rate across ${accounts.length} ${accounts.length===1?'account':'accounts'}.</div>
+    <div class="chartwrap">${reachChartSvg}</div>
+    <div class="hl-row">
+      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">Total followers</div></div>
+      <div class="hl"><div class="hl-v">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="hl-l">Likes earned</div></div>
+      <div class="hl"><div class="hl-v">${analyticsData.summary.engagementRate}%</div><div class="hl-l">Engagement rate</div></div>
+    </div>` : `
+    <div class="hero"><div class="hero-num">${totalFollowers.toLocaleString()}</div><div class="hero-tag">Total followers</div></div>
+    <div class="hero-cap">${reportName} is present on ${platforms.length} ${platforms.length===1?'platform':'platforms'} across ${accounts.length} connected ${accounts.length===1?'account':'accounts'}.</div>
+    <div class="hl-row">
+      <div class="hl"><div class="hl-v">${accounts.length}</div><div class="hl-l">Connected accounts</div></div>
+      <div class="hl"><div class="hl-v">${platforms.length}</div><div class="hl-l">Platforms</div></div>
+      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">Total followers</div></div>
+    </div>`}
+  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
+</div>
 
-  <div class="sec">
-    <div class="sec-title">Audience Overview</div>
-    <div class="sg4">
-      <div class="sc"><div class="sv a">${totalFollowers.toLocaleString()}</div><div class="sl">Total Followers</div></div>
-      <div class="sc"><div class="sv">${accounts.length}</div><div class="sl">Connected Accounts</div></div>
-      <div class="sc"><div class="sv ig">${igAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString()}</div><div class="sl">Instagram</div></div>
-      <div class="sc"><div class="sv fb">${fbAccounts.reduce((s,a)=>s+(a.followers_count||0),0).toLocaleString()}</div><div class="sl">Facebook</div></div>
-    </div>
-  </div>
-
-  ${analyticsData ? `<div class="sec">
-    <div class="sec-title">Engagement &mdash; Last 30 Days</div>
-    <div class="sg4">
-      <div class="sc"><div class="sv ig">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="sl">Total Reach</div></div>
-      <div class="sc"><div class="sv p">${analyticsData.summary.totalImpressions.toLocaleString()}</div><div class="sl">Impressions</div></div>
-      <div class="sc"><div class="sv o">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="sl">Total Likes</div></div>
-      <div class="sc"><div class="sv g">${analyticsData.summary.engagementRate}%</div><div class="sl">Engagement Rate</div></div>
-    </div>
-  </div>` : ''}
-
-  <div class="sec">
-    <div class="sec-title">Connected Accounts</div>
-    <table>
-      <thead><tr><th>Account</th><th>Platform</th><th>Followers</th><th>Status</th></tr></thead>
-      <tbody>${accountsHtml}</tbody>
-    </table>
-  </div>
-
-  <div class="ft">
-    <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
-    <div>Confidential &middot; ${reportName}</div>
-  </div>
+<div class="page">
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Platform Performance</div></div>
+  <div class="eyebrow">Where your audience lives</div>
+  <div style="margin-bottom:46px">${platBarsHtml || '<div style="color:#9aa3b2;font-size:13px">Connect an account to see your platform breakdown.</div>'}</div>
+  <div class="eyebrow">Connected accounts</div>
+  <table style="width:100%;border-collapse:collapse">
+    <thead><tr><th style="text-align:left;font-size:10px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Account</th><th style="text-align:left;font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Platform</th><th style="text-align:right;font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Followers</th></tr></thead>
+    <tbody>${accountsHtml}</tbody>
+  </table>
+  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
 </div>
 
 ${topPosts.length > 0 ? `<div class="page">
-  <div class="ph">
-    <div class="ph-logo"><img src="https://www.tawaslo.com/logo-transparent.png" alt=""/>Tawaslo</div>
-    <div class="ph-info">${reportName}<br/>${month} &middot; Top Performing Posts</div>
-  </div>
-  <div class="sec">
-    <div class="sec-title">Top Posts &mdash; Last 30 Days</div>
-    ${postsHtml}
-  </div>
-  <div class="ft">
-    <div>Tawaslo &mdash; Social Intelligence Platform &middot; tawaslo.com</div>
-    <div>Confidential &middot; ${reportName}</div>
-  </div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Top Content</div></div>
+  <div class="eyebrow">Your best-performing posts</div>
+  ${postsHtml}
+  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
 </div>` : ''}
 
 <script>window.onload=function(){window.print();}</script>
-</body>
-</html>`;
+</body></html>`;
     const w = window.open('', '_blank');
     w.document.write(html);
     w.document.close();
@@ -4774,10 +4871,10 @@ ${topPosts.length > 0 ? `<div class="page">
       <div style={{marginBottom:18}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:14}}>
           <div>
-            <h2 style={{margin:0, fontSize:22, fontWeight:800, letterSpacing:-0.4}}>Reports</h2>
-            <p style={{margin:"6px 0 0", fontSize:12.5, color:th.text2}}>Performance summary · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
+            <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Reports</h2>
+            <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Performance summary · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
           </div>
-          <button onClick={exportPDF} style={{padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(79,110,247,0.32)"}}>
+          <button onClick={exportPDF} style={{padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"none"}}>
             <Download size={15}/> Export PDF
           </button>
         </div>
@@ -4794,6 +4891,12 @@ ${topPosts.length > 0 ? `<div class="page">
         </div>
       </div>
 
+      {accounts.length>0 && (
+        <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
+          {scopeLabel} reaches <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> followers across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> {accounts.length===1?"account":"accounts"} on <span className="tw-num">{platforms.length}</span> {platforms.length===1?"platform":"platforms"}{er!=null?<>, with a <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span> engagement rate</>:""}.
+        </div>
+      )}
+
       <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:13, marginBottom:16}}>
         {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
@@ -4805,7 +4908,7 @@ ${topPosts.length > 0 ? `<div class="page">
             <div key={b.p} style={{marginBottom:14}}>
               <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6}}>
                 <span style={{display:"flex", alignItems:"center", gap:8, fontSize:12.5, fontWeight:600}}><Ic style={{color:b.meta.c, fontSize:15}}/>{b.meta.n} <span style={{color:th.text3, fontWeight:400}}>· {b.count} {b.count===1?"account":"accounts"}</span></span>
-                <span style={{fontSize:12.5, color:th.text2}}>{b.followers.toLocaleString()} <span style={{color:th.text3}}>({pct}%)</span></span>
+                <span className="tw-num" style={{fontSize:12.5, color:th.text2}}>{b.followers.toLocaleString()} <span style={{color:th.text3}}>({pct}%)</span></span>
               </div>
               <div style={{height:8, background:th.card2, borderRadius:5, overflow:"hidden"}}><div style={{height:"100%", width:pct+"%", background:b.meta.c, borderRadius:5}}/></div>
             </div>
@@ -4814,7 +4917,7 @@ ${topPosts.length > 0 ? `<div class="page">
         {chart.length > 0 && (
           <div style={{...rcard, padding:20}}>
             <div style={{fontSize:13, fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:8}}><TrendingUp size={15} color={th.accent}/>Reach · last 30 days</div>
-            <div style={{fontSize:24, fontWeight:800, marginBottom:8}}>{((analyticsData.summary&&analyticsData.summary.totalReach)||0).toLocaleString()}</div>
+            <div className="tw-num" style={{fontSize:26, fontWeight:600, marginBottom:8}}>{((analyticsData.summary&&analyticsData.summary.totalReach)||0).toLocaleString()}</div>
             {(() => { const vals=chart.map(c=>c.reach||0); const mx=Math.max(1,...vals); const W=300,H=90; const pts=vals.map((v,i)=>[(i/(Math.max(1,vals.length-1)))*W, H-(v/mx)*(H-8)-4]); const line="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L"); return (
               <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%", height:90, overflow:"visible"}}>
                 <defs><linearGradient id="rptr" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.3"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
@@ -4837,7 +4940,7 @@ ${topPosts.length > 0 ? `<div class="page">
               <div style={{fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{acc.account_name}{acc.username && <span style={{color:th.text3, fontWeight:400}}> · @{acc.username}</span>}</div>
               <div style={{height:6, background:th.card2, borderRadius:4, overflow:"hidden", marginTop:6, maxWidth:280}}><div style={{height:"100%", width:pct+"%", background:meta.c, borderRadius:4}}/></div>
             </div>
-            <div style={{textAlign:"right", flexShrink:0}}><div style={{fontSize:14, fontWeight:700}}>{f.toLocaleString()}</div><div style={{fontSize:10.5, color:th.text3}}>followers</div></div>
+            <div style={{textAlign:"right", flexShrink:0}}><div className="tw-num" style={{fontSize:15, fontWeight:600}}>{f.toLocaleString()}</div><div style={{fontSize:10.5, color:th.text3}}>followers</div></div>
           </div>
         ); })}
       </div>
