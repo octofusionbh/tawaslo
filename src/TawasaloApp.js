@@ -3235,6 +3235,7 @@ function SocialAccountsPage() {
       "public_profile",
       "instagram_basic",
       "instagram_content_publish",
+      "instagram_manage_insights",
     ].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
@@ -3694,20 +3695,43 @@ function AnalyticsPage() {
 
   // Believable sample insights, used until real Meta insights are approved/available
   // (so the analytics view is always complete instead of showing an error).
+  // Seeded per-account AND per-platform so every connected account shows its own
+  // distinct, plausible numbers — Instagram and Facebook never look identical.
   const makeSampleAnalytics = (acc) => {
-    const f = acc.followers_count || 12000;
-    const seed = (i) => ((i*9301+49297)%233280)/233280;
-    const reach = Math.round(f*8.4), impr = Math.round(f*12.1);
-    const chartData = Array.from({length:30},(_,i)=>{ const base=reach/30; const wave=1+0.45*Math.sin(i/3)+(i/30)*0.5; return { date:"", reach:Math.round(base*wave*0.9), impressions:Math.round(base*wave*1.35) }; });
-    const types=["REELS","CAROUSEL_ALBUM","IMAGE","VIDEO"];
-    const caps=["Behind the scenes ✨","New drop is live 🔥","Weekend mood ☀️","Customer love ❤️","Quick tips for you","Meet the team","Limited-time offer","Throwback Thursday","Big announcement soon"];
-    const recentPosts = Array.from({length:9},(_,i)=>({ type:types[i%types.length], likes:Math.round(f*(0.025+seed(i+1)*0.05)), comments:Math.round(f*(0.002+seed(i+5)*0.004)), caption:caps[i], thumbnail:null }));
+    const platform = acc.platform || 'ig';
+    const key = String(acc.account_id || acc.id || acc.account_name || 'x') + ':' + platform;
+    let h = 2166136261; for (let i=0;i<key.length;i++){ h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    h = h >>> 0;
+    const r = (n) => { let x = (h ^ Math.imul(n+1, 2654435761)) >>> 0; x ^= x >>> 15; return (x % 100000) / 100000; };
+    const f = acc.followers_count || Math.round(3500 + r(0)*42000);
+    // Instagram reaches a higher multiple of its follower base than a Facebook Page does.
+    const reachMul = platform === 'fb' ? (2.8 + r(1)*2.4) : (6.5 + r(1)*4.5);
+    const imprMul  = reachMul * (1.2 + r(2)*0.5);
+    const reach = Math.round(f*reachMul), impr = Math.round(f*imprMul);
+    const phase = r(3)*6;
+    const chartData = Array.from({length:30},(_,i)=>{ const base=reach/30; const wave=1+0.42*Math.sin(i/3+phase)+(i/30)*(0.35+r(4)*0.4); return { date:"", reach:Math.round(base*wave*0.9), impressions:Math.round(base*wave*1.35) }; });
+    const types = platform === 'fb'
+      ? ["VIDEO","IMAGE","LINK","CAROUSEL_ALBUM"]
+      : ["REELS","CAROUSEL_ALBUM","IMAGE","VIDEO"];
+    const capsIG=["Behind the scenes ✨","New drop is live 🔥","Weekend mood ☀️","Customer love ❤️","Quick tips for you","Meet the team","Limited-time offer","Throwback Thursday","Big announcement soon"];
+    const capsFB=["Now open this weekend","Read our latest update","A look inside our kitchen","Thank you for 10k followers","This week's special","Community spotlight","We're hiring — join us","Customer story of the month","Tap to learn more →"];
+    const caps = platform === 'fb' ? capsFB : capsIG;
+    const recentPosts = Array.from({length:9},(_,i)=>({ type:types[(i+Math.floor(r(i)*4))%types.length], likes:Math.round(f*(0.018+r(i+10)*0.05)), comments:Math.round(f*(0.0015+r(i+20)*0.004)), caption:caps[i], thumbnail:null }));
     const totalLikes=recentPosts.reduce((s,p)=>s+p.likes,0), totalComments=recentPosts.reduce((s,p)=>s+p.comments,0);
-    return { _sample:true, summary:{ totalReach:reach, totalImpressions:impr, engagementRate:Number((4.2+(f%28)/10).toFixed(1)), totalLikes, totalComments }, chartData, recentPosts };
+    // Facebook engagement rates run lower than Instagram's.
+    const engBase = platform === 'fb' ? (1.4 + r(7)*1.8) : (3.4 + r(7)*3.1);
+    return { _sample:true, platform, summary:{ followers:f, totalReach:reach, totalImpressions:impr, engagementRate:Number(engBase.toFixed(1)), totalLikes, totalComments }, chartData, recentPosts };
   };
 
   const fetchAnalytics = async (acc) => {
     setLoading(true);
+    // Only Instagram has a live insights endpoint wired up. Facebook (and anything
+    // else) goes straight to its own platform-flavored sample so the data differs.
+    if (acc.platform !== 'ig') {
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch('/api/instagram-analytics', {
         method: 'POST',
@@ -3716,7 +3740,7 @@ function AnalyticsPage() {
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'no insights');
-      setAnalyticsData(prev => ({ ...prev, [acc.id]: data }));
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: { ...data, platform:'ig' } }));
     } catch(e) {
       setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
     }
@@ -3742,8 +3766,10 @@ function AnalyticsPage() {
   const engRate = data?.summary?.engagementRate || 0;
   const engFrac = Math.min(engRate/20, 1);
   const ringC = 2*Math.PI*32;
-  const typeLabels = { IMAGE:"Photo", VIDEO:"Video", CAROUSEL_ALBUM:"Carousel", REELS:"Reels" };
-  const typeColors = { IMAGE:"#2DD4BF", VIDEO:"#A78BFA", CAROUSEL_ALBUM:"#4F6EF7", REELS:"#7C3AED" };
+  const typeLabels = { IMAGE:"Photo", VIDEO:"Video", CAROUSEL_ALBUM:"Carousel", REELS:"Reels", LINK:"Link" };
+  const typeColors = { IMAGE:"#2DD4BF", VIDEO:"#A78BFA", CAROUSEL_ALBUM:"#4F6EF7", REELS:"#7C3AED", LINK:"#6E8CAB" };
+  const plat = data?.platform || selectedAcc?.platform || 'ig';
+  const platName = plat === 'fb' ? L("Facebook","فيسبوك") : plat === 'li' ? "LinkedIn" : plat === 'tw' ? "X" : L("Instagram","إنستغرام");
   const typeCounts = (data?.recentPosts||[]).reduce((m,pp)=>{ const t=pp.type||"IMAGE"; m[t]=(m[t]||0)+1; return m; },{});
   const mixTotal = Object.values(typeCounts).reduce((a,b)=>a+b,0) || 0;
   const DC = 2*Math.PI*44;
@@ -3753,9 +3779,9 @@ function AnalyticsPage() {
   const maxEng = Math.max(1, ...topPosts.map(pp=>pp.likes+pp.comments));
 
   const metric = (label, value, series, scolor) => (
-    <div style={{background:`linear-gradient(160deg, ${th.card2}, ${th.card})`,border:`1px solid ${th.border}`,borderRadius:18,padding:"16px 18px",boxShadow:"0 12px 32px rgba(0,0,0,0.30)"}}>
+    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:"16px 18px",boxShadow:"none"}}>
       <div style={{fontSize:11.5,color:th.text2,marginBottom:9,fontWeight:500}}>{label}</div>
-      <div style={{fontSize:25,fontWeight:700,letterSpacing:-0.6,color:th.text}}>{value}</div>
+      <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.6,color:th.text}}>{value}</div>
       {series && series.length>1 && (
         <svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none" style={{marginTop:8,display:"block"}}>
           <path d={sparkPath(series,100,26,true)} fill={(scolor||th.accent)+"22"}/>
@@ -3770,7 +3796,7 @@ function AnalyticsPage() {
       <div style={{marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12}}>
         <div>
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>{L("Analytics","التحليلات")}{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>{L("SAMPLE PREVIEW","معاينة عينة")}</span>}</h2>
-          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Performance overview","نظرة عامة على الأداء")} &middot; {selClient?.name}</p>
+          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{platName} &middot; {selectedAcc?.username?("@"+selectedAcc.username):selectedAcc?.account_name||selClient?.name}</p>
         </div>
         {accounts.length > 0 && (
           <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
@@ -3794,7 +3820,7 @@ function AnalyticsPage() {
       ) : data ? (
         <>
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
-            {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||totalFollowers).toLocaleString(), null, null)}
+            {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null)}
             {metric(L("Reach (30d)","الوصول (٣٠ يوم)"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7")}
             {metric(L("Impressions (30d)","الظهور (٣٠ يوم)"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA")}
             {metric(L("Engagement","التفاعل"), engRate+"%", null, null)}
@@ -3826,7 +3852,7 @@ function AnalyticsPage() {
                     <circle cx="40" cy="40" r="32" fill="none" stroke={th.border} strokeWidth="8"/>
                     <circle cx="40" cy="40" r="32" fill="none" stroke="#4F6EF7" strokeWidth="8" strokeDasharray={`${engFrac*ringC} ${ringC}`} strokeLinecap="round" transform="rotate(-90 40 40)"/>
                   </svg>
-                  <div><div style={{fontSize:22,fontWeight:600}}>{engRate}%</div><div style={{fontSize:10.5,color:th.text2}}>per post avg</div></div>
+                  <div><div className="tw-num" style={{fontSize:24,fontWeight:600}}>{engRate}%</div><div style={{fontSize:10.5,color:th.text2}}>{L("per post avg","متوسط لكل منشور")}</div></div>
                 </div>
               </div>
               <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:"14px 16px",boxShadow:"none"}}>
@@ -3838,11 +3864,11 @@ function AnalyticsPage() {
                       {mixSegs.map(sg => (
                         <circle key={sg.t} cx="60" cy="60" r="44" fill="none" stroke={sg.color} strokeWidth="13" strokeDasharray={`${sg.dash} ${DC-sg.dash}`} strokeDashoffset={sg.offset} transform="rotate(-90 60 60)"/>
                       ))}
-                      <text x="60" y="57" textAnchor="middle" fill={th.text} fontSize="16" fontWeight="500" fontFamily="sans-serif">{mixTotal}</text>
-                      <text x="60" y="73" textAnchor="middle" fill={th.text2} fontSize="9" fontFamily="sans-serif">posts</text>
+                      <text x="60" y="57" textAnchor="middle" fill={th.text} fontSize="18" fontWeight="600" fontFamily="Fraunces, Georgia, serif">{mixTotal}</text>
+                      <text x="60" y="73" textAnchor="middle" fill={th.text2} fontSize="9" fontFamily="sans-serif">{L("posts","منشور")}</text>
                     </svg>
                     <div style={{fontSize:10.5,color:th.text2,lineHeight:1.9}}>
-                      {mixSegs.map(sg => <div key={sg.t}><span style={{color:sg.color}}>&#9679;</span> {sg.label} {sg.pctVal}%</div>)}
+                      {mixSegs.map(sg => <div key={sg.t}><span style={{color:sg.color}}>&#9679;</span> {sg.label} <span className="tw-num">{sg.pctVal}%</span></div>)}
                     </div>
                   </div>
                 ) : (
@@ -3870,11 +3896,11 @@ function AnalyticsPage() {
                         {pp.thumbnail ? <img src={pp.thumbnail} alt="" style={{width:42,height:42,borderRadius:9,objectFit:"cover",flexShrink:0}} onError={e=>{e.target.style.display="none";}}/> : <div style={{width:42,height:42,borderRadius:9,background:th.gradient,flexShrink:0}}/>}
                         <div style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pp.caption||"(No caption)"}</div>
                       </div>
-                      <div style={{textAlign:"right",fontSize:12.5}}>{pp.reach>0?pp.reach.toLocaleString():"—"}</div>
-                      <div style={{textAlign:"right",fontSize:12.5}}>{pp.likes.toLocaleString()}</div>
+                      <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{pp.reach>0?pp.reach.toLocaleString():"—"}</div>
+                      <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{pp.likes.toLocaleString()}</div>
                       <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
                         <div style={{width:46,height:6,borderRadius:3,background:th.border}}><div style={{width:`${Math.round((eng/maxEng)*100)}%`,height:"100%",borderRadius:3,background:th.accent}}/></div>
-                        <span style={{fontSize:12,color:er!=null?th.success:th.text2,minWidth:32,textAlign:"right"}}>{er!=null?er+"%":"—"}</span>
+                        <span className="tw-num" style={{fontSize:12.5,color:er!=null?th.success:th.text2,minWidth:32,textAlign:"right"}}>{er!=null?er+"%":"—"}</span>
                       </div>
                     </div>
                   );
@@ -3885,8 +3911,8 @@ function AnalyticsPage() {
         </>
       ) : (
         <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"none"}}>
-          <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>Instagram Analytics</div>
-          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>Connect an Instagram Business account to see reach, impressions, content mix, and post performance.</div>
+          <div style={{fontSize:13, fontWeight:600, marginBottom:8}}>{L("Analytics","التحليلات")}</div>
+          <div style={{fontSize:12, color:th.text2, lineHeight:1.6}}>{L("Connect an Instagram or Facebook account to see reach, impressions, content mix, and post performance.","اربط حساب إنستغرام أو فيسبوك لعرض الوصول والظهور ومزيج المحتوى وأداء المنشورات.")}</div>
         </div>
       )}
     </div>
