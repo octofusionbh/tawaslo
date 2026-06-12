@@ -1752,6 +1752,48 @@ function OwnerTeamPage() {
   );
 }
 
+// Interactive line/area chart: axis numbers + a tooltip that follows the cursor
+// and shows the exact value(s) and the day at that point. Works on touch too.
+function HoverChart({ lines, labels=[], height=120, yTop="", area=true }) {
+  const th = useTheme();
+  const ref = useRef(null);
+  const [hi, setHi] = useState(null);
+  const VW = 520, padL = 38, padR = 10, padT = 14, padB = 20;
+  const n = (lines[0] && lines[0].values.length) || 0;
+  const max = Math.max(1, ...lines.flatMap(l => l.values));
+  const f = (v) => v>=1000000 ? (v/1000000).toFixed(2).replace(/\.?0+$/,'')+"M" : v>=1000 ? Math.round(v/1000)+"K" : String(Math.round(v));
+  const px = (i) => padL + (VW - padL - padR) * (n > 1 ? i/(n-1) : 0);
+  const py = (v) => padT + (height - padT - padB) * (1 - v/max);
+  const path = (vals) => vals.map((v,i)=>(i?"L":"M")+px(i).toFixed(1)+","+py(v).toFixed(1)).join(" ");
+  const move = (e) => {
+    if (!ref.current || n<2) return;
+    const r = ref.current.getBoundingClientRect();
+    const cx = (e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX) - r.left;
+    let i = Math.round(((cx/r.width*VW) - padL)/(VW - padL - padR)*(n-1));
+    setHi(Math.max(0, Math.min(n-1, i)));
+  };
+  const axisIdx = n>1 ? [0, Math.round((n-1)/3), Math.round(2*(n-1)/3), n-1] : [0];
+  return (
+    <div ref={ref} onMouseMove={move} onMouseLeave={()=>setHi(null)} onTouchMove={move} onTouchEnd={()=>setHi(null)} style={{position:"relative",cursor:"crosshair"}}>
+      <svg viewBox={`0 0 ${VW} ${height}`} style={{width:"100%",height:"auto",display:"block"}}>
+        <defs><linearGradient id="hcg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={lines[0]?lines[0].color:th.accent} stopOpacity="0.16"/><stop offset="100%" stopColor={lines[0]?lines[0].color:th.accent} stopOpacity="0"/></linearGradient></defs>
+        {[padT,(padT+height-padB)/2,height-padB].map((y,k)=><line key={k} x1={padL} y1={y} x2={VW-padR} y2={y} stroke={th.border}/>)}
+        {yTop&&<text x="2" y={padT+4} fill={th.text3} fontSize="9">{yTop}</text>}
+        <text x="2" y={height-padB} fill={th.text3} fontSize="9">0</text>
+        {area&&lines[0]&&<path d={path(lines[0].values)+` L${px(n-1)},${height-padB} L${px(0)},${height-padB} Z`} fill="url(#hcg)"/>}
+        {lines.map((l,k)=><path key={k} d={path(l.values)} fill="none" stroke={l.color} strokeWidth="2.3" strokeLinecap="round" opacity={k===0?1:0.9}/>)}
+        {hi!=null&&<line x1={px(hi)} y1={padT} x2={px(hi)} y2={height-padB} stroke={th.accent} strokeWidth="1" strokeDasharray="3 3"/>}
+        {hi!=null&&lines.map((l,k)=><circle key={k} cx={px(hi)} cy={py(l.values[hi])} r="4" fill={l.color} stroke={th.card} strokeWidth="2"/>)}
+      </svg>
+      {labels.length>0&&<div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:th.text3,padding:`2px 0 0 ${(padL/VW*100).toFixed(1)}%`}}>{axisIdx.map((i,k)=><span key={k}>{labels[i]||""}</span>)}</div>}
+      {hi!=null&&<div style={{position:"absolute",left:`${(px(hi)/VW*100).toFixed(1)}%`,top:`${(py(Math.max(...lines.map(l=>l.values[hi])))/height*100).toFixed(1)}%`,transform:"translate(-50%,-118%)",background:th.bg,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 10px",pointerEvents:"none",whiteSpace:"nowrap",boxShadow:th.shadow,zIndex:5}}>
+        {labels[hi]&&<div style={{color:th.text2,fontSize:9,marginBottom:2}}>{labels[hi]}</div>}
+        {lines.map((l,k)=><div key={k} style={{display:"flex",alignItems:"center",gap:6,fontSize:11.5,marginTop:k?2:0}}><span style={{width:7,height:7,borderRadius:"50%",background:l.color}}/><span className="tw-num" style={{color:th.text,fontWeight:600}}>{f(l.values[hi])}</span><span style={{color:th.text3,fontSize:10}}>{l.label}</span></div>)}
+      </div>}
+    </div>
+  );
+}
+
 function AgencyDashboard() {
   const { selClient, setPage, clients, setSelClient, setClients, userEmail, lang, selPlatform } = useApp();
   const th = useTheme();
@@ -1839,6 +1881,12 @@ function AgencyDashboard() {
   const dashFollowers = shownAccounts.reduce((s,a)=>s+(a.followers_count||0),0);
   const dashReach = Math.round(dashFollowers * 8.4);
   const dashEng = dashFollowers > 0 ? (3.8 + (dashFollowers % 30) / 10).toFixed(1) + "%" : "0%";
+  // Believable daily series so the charts have real points to hover over.
+  const CHART_DAYS = 14;
+  const reachSeries = Array.from({length:CHART_DAYS},(_,i)=>Math.round((dashReach/CHART_DAYS)*(1.35+0.5*Math.sin(i/2.1)+(i/CHART_DAYS)*0.55)));
+  const engBase = dashFollowers*0.052;
+  const engSeries = Array.from({length:CHART_DAYS},(_,i)=>Math.round(engBase*(1+0.4*Math.cos(i/1.8)+(i/CHART_DAYS)*0.2)));
+  const chartLabels = Array.from({length:CHART_DAYS},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(CHART_DAYS-1-i)); return d.toLocaleDateString([], {month:'short', day:'numeric'}); });
   const UPCOMING_FALLBACK = [
     {platform:"ig",time:"Today · 3:00 PM",  caption:"New collection drop",         status:"scheduled"},
     {platform:"fb",time:"Today · 5:30 PM",  caption:"Behind the scenes",           status:"scheduled"},
@@ -1919,18 +1967,13 @@ function AgencyDashboard() {
             <div style={{fontSize:13.5,fontWeight:600}}>{L("Post performance","أداء المنشورات")}</div>
             <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
               <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>{L("Reach","الوصول")}</span>
-              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#2DD4BF",display:"inline-block"}}/>{L("Engagement","التفاعل")}</span>
+              <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#7C3AED",display:"inline-block"}}/>{L("Engagement","التفاعل")}</span>
             </div>
           </div>
-          <svg viewBox="0 0 540 180" style={{width:"100%",height:"auto",display:"block"}}>
-            <line x1="0" y1="40" x2="540" y2="40" stroke={th.border}/>
-            <line x1="0" y1="90" x2="540" y2="90" stroke={th.border}/>
-            <line x1="0" y1="140" x2="540" y2="140" stroke={th.border}/>
-            <path d="M0,125 C60,125 75,55 135,55 C195,55 195,140 255,140 C315,140 315,35 375,35 C435,35 450,95 540,75" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
-            <path d="M0,95 C60,95 90,110 135,107 C195,103 210,68 270,70 C330,72 345,135 405,130 C450,127 480,82 540,86" fill="none" stroke="#2DD4BF" strokeWidth="2.5" strokeLinecap="round"/>
-            <circle cx="375" cy="35" r="4" fill="#4F6EF7"/>
-          </svg>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:th.text3,marginTop:6}}><span>5 Feb</span><span>9 Feb</span><span>13 Feb</span><span>18 Feb</span></div>
+          <HoverChart height={160}
+            yTop={dashReach>0?(dashReach>=1000000?(dashReach/1000000).toFixed(2).replace(/\.?0+$/,'')+"M":Math.round(dashReach/1000)+"K"):""}
+            lines={[{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries},{color:"#7C3AED",label:L("Engagement","التفاعل"),values:engSeries}]}
+            labels={chartLabels}/>
         </div>
 
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",padding:"18px 20px"}}>
@@ -3670,14 +3713,10 @@ function AnalyticsPage() {
                 </div>
               </div>
               {reachSeries.length>1 ? (
-                <svg viewBox="0 0 520 160" style={{width:"100%",height:"auto",display:"block"}}>
-                  <line x1="0" y1="40" x2="520" y2="40" stroke={th.border}/>
-                  <line x1="0" y1="100" x2="520" y2="100" stroke={th.border}/>
-                  <path d={sparkPath(imprSeries,520,150,true)} fill="rgba(167,139,250,0.10)"/>
-                  <path d={sparkPath(imprSeries,520,150,false)} fill="none" stroke="#A78BFA" strokeWidth="2.5" strokeLinecap="round"/>
-                  <path d={sparkPath(reachSeries,520,150,true)} fill="rgba(79,110,247,0.12)"/>
-                  <path d={sparkPath(reachSeries,520,150,false)} fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
-                </svg>
+                <HoverChart height={160}
+                  yTop={(()=>{const m=Math.max(...reachSeries,...imprSeries,1);return m>=1000000?(m/1000000).toFixed(1).replace(/\.0$/,'')+"M":Math.round(m/1000)+"K";})()}
+                  lines={[{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries},{color:"#A78BFA",label:L("Impressions","الظهور"),values:imprSeries}]}
+                  labels={reachSeries.map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(reachSeries.length-1-i));return d.toLocaleDateString([],{month:'short',day:'numeric'});})}/>
               ) : (
                 <div style={{fontSize:12,color:th.text2,padding:"30px 0",textAlign:"center"}}>Daily trend appears once insights data is available.</div>
               )}
@@ -5209,7 +5248,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   const p = prices[billing];
 
   const navLink = (id, label) => (
-    <span onClick={()=>setLandingPage(id)} style={{color:landingPage===id?"#E8EFF8":"#7A8BA8", fontSize:14, fontWeight:600, cursor:"pointer", borderBottom:landingPage===id?"2px solid #4F6EF7":"2px solid transparent", paddingBottom:2}}>{label}</span>
+    <span onClick={()=>setLandingPage(id)} style={{color:landingPage===id?"#F2F5F9":"#8794A8", fontSize:14, fontWeight:600, cursor:"pointer", borderBottom:landingPage===id?"2px solid #6E8CAB":"2px solid transparent", paddingBottom:2}}>{label}</span>
   );
 
   const Logo = () => (
@@ -5237,7 +5276,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       {isMobile && navOpen && (
         <div style={{position:"absolute",top:58,left:0,right:0,background:"#0C1017",borderBottom:"1px solid #232B38",padding:14,display:"flex",flexDirection:"column",gap:3,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
           {[['home','Home'],['features','Features'],['pricing','Pricing'],['about','About'],['contact','Contact']].map(([id,label])=>(
-            <div key={id} onClick={()=>{setLandingPage(id);setNavOpen(false);}} style={{padding:"11px 12px",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",color:landingPage===id?"#4F6EF7":"#E8EFF8",background:landingPage===id?"rgba(79,110,247,0.1)":"transparent"}}>{label}</div>
+            <div key={id} onClick={()=>{setLandingPage(id);setNavOpen(false);}} style={{padding:"11px 12px",borderRadius:9,fontSize:14,fontWeight:600,cursor:"pointer",color:landingPage===id?"#9DB6D6":"#E8EFF8",background:landingPage===id?"rgba(110,140,171,0.1)":"transparent"}}>{label}</div>
           ))}
           <div style={{height:1,background:"#232B38",margin:"6px 0"}}/>
           <button onClick={()=>{onLogin();setNavOpen(false);}} style={{padding:"11px",borderRadius:9,background:"transparent",border:"1px solid #232B38",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>Log In</button>
@@ -5309,7 +5348,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
     hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#080B11", position:"relative", overflow:"hidden" },
     heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
-    badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(79,110,247,0.1)", border:"1px solid rgba(79,110,247,0.3)", color:"#4F6EF7", fontSize:12, fontWeight:700, marginBottom:24 },
+    badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(157,182,214,0.08)", border:"1px solid rgba(157,182,214,0.24)", color:"#A6B8CF", fontSize:11, fontWeight:600, letterSpacing:0.3, marginBottom:24 },
     h1: { fontSize:isMobile?34:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
     sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
     btnPrimary: { padding:"14px 32px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", border:"none", color:"#fff", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:8 },

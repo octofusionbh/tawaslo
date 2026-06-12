@@ -28,13 +28,13 @@ export default async function handler(req, res) {
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Welcome to Tawaslo</title>
 </head>
-<body style="margin:0;padding:0;background:#0B1221;font-family:-apple-system,'Segoe UI',sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0B1221;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#080B11;font-family:-apple-system,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#080B11;padding:32px 16px;">
 <tr><td align="center">
-<table width="560" cellpadding="0" cellspacing="0" style="background:#0D1828;border-radius:16px;border:1px solid #1C2D45;overflow:hidden;max-width:560px;width:100%;">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#0F141C;border-radius:16px;border:1px solid #1E2838;overflow:hidden;max-width:560px;width:100%;">
 
   <!-- HERO -->
-  <tr><td style="background:#07090F;padding:40px 40px 0;text-align:center;border-bottom:1px solid #1C2D45;">
+  <tr><td style="background:#060810;padding:40px 40px 0;text-align:center;border-bottom:1px solid #1E2838;">
     <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
       <tr>
         <td style="vertical-align:middle;padding-right:10px;">
@@ -45,11 +45,11 @@ export default async function handler(req, res) {
     </table>
     <h1 style="font-size:26px;font-weight:800;color:#E8EFF8;margin:0 0 12px;line-height:1.25;">You are in. Let's build something great.</h1>
     <p style="font-size:14px;color:#7A8BA8;margin:0 0 24px;line-height:1.7;">Your Tawaslo workspace is live and ready.<br>Everything you need to manage social media like a pro.</p>
-    <a href="https://tawaslo.com" style="display:inline-block;background:#4F6EF7;color:#fff;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;margin-bottom:28px;">Go to my dashboard</a>
+    <a href="https://tawaslo.com" style="display:inline-block;background:#6E8CAB;color:#fff;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;margin-bottom:28px;">Go to my dashboard</a>
 
     <!-- MOCKUP -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#0B1221;border-radius:12px 12px 0 0;border:1px solid #1C2D45;border-bottom:none;margin-top:4px;">
-      <tr><td style="background:#141E30;border-radius:8px 8px 0 0;padding:8px 12px;border-bottom:1px solid #1C2D45;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#080B11;border-radius:12px 12px 0 0;border:1px solid #1E2838;border-bottom:none;margin-top:4px;">
+      <tr><td style="background:#141E30;border-radius:8px 8px 0 0;padding:8px 12px;border-bottom:1px solid #1E2838;">
         <table cellpadding="0" cellspacing="0"><tr>
           <td style="width:8px;height:8px;border-radius:50%;background:#FF5F57;margin-right:4px;"></td>
           <td width="6"></td>
@@ -57,33 +57,33 @@ export default async function handler(req, res) {
           <td width="6"></td>
           <td style="width:8px;height:8px;border-radius:50%;background:#28C840;"></td>
           <td width="12"></td>
-          <td style="background:#0D1828;border-radius:4px;padding:3px 10px;font-size:10px;color:#7A8BA8;">tawaslo.com/publisher</td>
+          <td style="background:#0F141C;border-radius:4px;padding:3px 10px;font-size:10px;color:#7A8BA8;">tawaslo.com/publisher</td>
         </tr></table>
       </td></tr>
-      <tr><td style="background:#07090F;padding:14px;">
+      <tr><td style="background:#060810;padding:14px;">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td width="140" valign="top" style="background:#0D1828;border-radius:8px;padding:10px;border:1px solid #1C2D45;">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1C2D45;">
-              <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#4F6EF7,#7C3AED);display:inline-block;"></div>
+          <td width="140" valign="top" style="background:#0F141C;border-radius:8px;padding:10px;border:1px solid #1E2838;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px;padding-bottom:10px;border-bottom:1px solid #1E2838;">
+              <div style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);display:inline-block;"></div>
               <span style="font-size:10px;font-weight:800;color:#E8EFF8;margin-left:6px;">Tawaslo</span>
             </div>
-            <div style="font-size:9px;color:#4F6EF7;background:rgba(79,110,247,0.15);padding:5px 6px;border-radius:5px;margin-bottom:3px;">Publisher</div>
+            <div style="font-size:9px;color:#6E8CAB;background:rgba(110,140,171,0.15);padding:5px 6px;border-radius:5px;margin-bottom:3px;">Publisher</div>
             <div style="font-size:9px;color:#7A8BA8;padding:5px 6px;margin-bottom:3px;">Inbox</div>
             <div style="font-size:9px;color:#7A8BA8;padding:5px 6px;margin-bottom:3px;">Analytics</div>
             <div style="font-size:9px;color:#7A8BA8;padding:5px 6px;margin-bottom:3px;">Campaigns</div>
             <div style="font-size:9px;color:#7A8BA8;padding:5px 6px;margin-bottom:3px;">Reports</div>
           </td>
           <td width="12"></td>
-          <td valign="top" style="background:#0D1828;border-radius:8px;padding:12px;border:1px solid #1C2D45;">
+          <td valign="top" style="background:#0F141C;border-radius:8px;padding:12px;border:1px solid #1E2838;">
             <div style="font-size:11px;font-weight:700;color:#E8EFF8;margin-bottom:10px;">Create a post</div>
-            <div style="background:#111827;border-radius:6px;padding:8px;font-size:8px;color:#7A8BA8;margin-bottom:8px;border:1px solid #1C2D45;line-height:1.5;">Introducing Tawaslo, built for agencies worldwide. Publish, schedule and grow.</div>
-            <div style="background:#111827;border-radius:6px;height:32px;margin-bottom:8px;border:1px dashed #1C2D45;"></div>
+            <div style="background:#111827;border-radius:6px;padding:8px;font-size:8px;color:#7A8BA8;margin-bottom:8px;border:1px solid #1E2838;line-height:1.5;">Introducing Tawaslo, built for agencies worldwide. Publish, schedule and grow.</div>
+            <div style="background:#111827;border-radius:6px;height:32px;margin-bottom:8px;border:1px dashed #1E2838;"></div>
             <table cellpadding="0" cellspacing="0" style="margin-bottom:8px;"><tr>
               <td style="background:rgba(24,119,242,0.15);color:#1877F2;font-size:7px;font-weight:700;padding:3px 8px;border-radius:20px;margin-right:4px;">Facebook</td>
               <td width="4"></td>
               <td style="background:rgba(225,48,108,0.15);color:#E1306C;font-size:7px;font-weight:700;padding:3px 8px;border-radius:20px;">Instagram</td>
             </tr></table>
-            <div style="background:#4F6EF7;color:#fff;font-size:8px;font-weight:700;padding:5px 12px;border-radius:5px;display:inline-block;">Publish Now</div>
+            <div style="background:#6E8CAB;color:#fff;font-size:8px;font-weight:700;padding:5px 12px;border-radius:5px;display:inline-block;">Publish Now</div>
             <div style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);border-radius:5px;padding:4px 8px;font-size:7px;color:#10B981;margin-top:6px;">Posted successfully</div>
           </td>
         </tr></table>
@@ -97,22 +97,22 @@ export default async function handler(req, res) {
     <p style="font-size:14px;color:#A8B9CE;line-height:1.75;margin:0 0 28px;">Welcome to Tawaslo, the social media management platform built for agencies, freelancers, and brands worldwide. Your workspace is set up and ready to go.</p>
 
     <!-- PLAN BOX -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid rgba(79,110,247,0.3);border-radius:12px;margin-bottom:28px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid rgba(110,140,171,0.3);border-radius:12px;margin-bottom:28px;">
       <tr>
         <td style="padding:18px 22px;">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td><div style="font-size:11px;color:#7A8BA8;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px;">Active plan</div>
-              <div style="font-size:18px;font-weight:800;color:#4F6EF7;">${planName}</div></td>
+              <div style="font-size:18px;font-weight:800;color:#6E8CAB;">${planName}</div></td>
               <td align="right"><div style="font-size:26px;font-weight:800;color:#E8EFF8;">$${planPrice}</div>
               <div style="font-size:12px;color:#7A8BA8;">per month</div></td>
             </tr>
           </table>
-          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1C2D45;margin-top:14px;padding-top:14px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1E2838;margin-top:14px;padding-top:14px;">
             <tr>
-              <td align="center"><div style="font-size:16px;font-weight:800;color:#4F6EF7;">${accountsDisplay}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Social accounts</div></td>
-              <td align="center"><div style="font-size:16px;font-weight:800;color:#4F6EF7;">${limits.members}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Team members</div></td>
-              <td align="center"><div style="font-size:16px;font-weight:800;color:#4F6EF7;">${postsDisplay}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Posts per month</div></td>
+              <td align="center"><div style="font-size:16px;font-weight:800;color:#6E8CAB;">${accountsDisplay}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Social accounts</div></td>
+              <td align="center"><div style="font-size:16px;font-weight:800;color:#6E8CAB;">${limits.members}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Team members</div></td>
+              <td align="center"><div style="font-size:16px;font-weight:800;color:#6E8CAB;">${postsDisplay}</div><div style="font-size:10px;color:#7A8BA8;margin-top:2px;">Posts per month</div></td>
             </tr>
           </table>
         </td>
@@ -120,12 +120,12 @@ export default async function handler(req, res) {
     </table>
 
     <!-- SOCIAL PROOF -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid #1C2D45;border-radius:12px;margin-bottom:28px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid #1E2838;border-radius:12px;margin-bottom:28px;">
       <tr><td style="padding:20px;">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td align="center"><div style="font-size:22px;font-weight:800;color:#4F6EF7;">500+</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Brands managed</div></td>
-          <td align="center"><div style="font-size:22px;font-weight:800;color:#4F6EF7;">10K+</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Posts published</div></td>
-          <td align="center"><div style="font-size:22px;font-weight:800;color:#4F6EF7;">98%</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Satisfaction rate</div></td>
+          <td align="center"><div style="font-size:22px;font-weight:800;color:#6E8CAB;">500+</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Brands managed</div></td>
+          <td align="center"><div style="font-size:22px;font-weight:800;color:#6E8CAB;">10K+</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Posts published</div></td>
+          <td align="center"><div style="font-size:22px;font-weight:800;color:#6E8CAB;">98%</div><div style="font-size:10px;color:#7A8BA8;margin-top:3px;">Satisfaction rate</div></td>
         </tr></table>
       </td></tr>
     </table>
@@ -136,48 +136,48 @@ export default async function handler(req, res) {
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
       <tr>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Publish content</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Post to Facebook and Instagram instantly or schedule ahead</div>
         </td>
         <td width="4%"></td>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Schedule posts</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Plan your content calendar days or weeks in advance</div>
         </td>
       </tr>
       <tr><td colspan="3" height="8"></td></tr>
       <tr>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Unified inbox</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Monitor all comments and DMs from every platform</div>
         </td>
         <td width="4%"></td>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">AI captions</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Generate captions in English and Arabic in seconds</div>
         </td>
       </tr>
       <tr><td colspan="3" height="8"></td></tr>
       <tr>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Analytics</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Track followers, reach, and engagement per client</div>
         </td>
         <td width="4%"></td>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">All brands, one workspace</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Manage all your brands from one dashboard</div>
         </td>
       </tr>
       <tr><td colspan="3" height="8"></td></tr>
       <tr>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Campaigns</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Plan and run campaigns across every platform for your clients</div>
         </td>
         <td width="4%"></td>
-        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1C2D45;">
+        <td width="48%" valign="top" style="background:#111827;border-radius:10px;padding:14px;border:1px solid #1E2838;">
           <div style="font-size:12px;font-weight:700;color:#E8EFF8;margin-bottom:3px;">Reports</div>
           <div style="font-size:11px;color:#7A8BA8;line-height:1.5;">Monthly performance reports ready to share with clients</div>
         </td>
@@ -185,42 +185,42 @@ export default async function handler(req, res) {
     </table>
 
     <!-- DIVIDER -->
-    <div style="border-top:1px solid #1C2D45;margin:24px 0;"></div>
+    <div style="border-top:1px solid #1E2838;margin:24px 0;"></div>
 
     <!-- STEPS -->
     <p style="font-size:15px;font-weight:700;color:#E8EFF8;margin:0 0 14px;">Get started in 3 steps</p>
     <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;width:100%;"><tr>
-      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#4F6EF7;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">1</div></td>
+      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#6E8CAB;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">1</div></td>
       <td width="14"></td>
       <td><div style="font-size:13px;font-weight:700;color:#E8EFF8;margin-bottom:2px;">Connect your social accounts</div><div style="font-size:12px;color:#7A8BA8;line-height:1.5;">Go to Social Accounts and connect your Facebook Pages and Instagram Business accounts.</div></td>
     </tr></table>
     <table cellpadding="0" cellspacing="0" style="margin-bottom:14px;width:100%;"><tr>
-      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#4F6EF7;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">2</div></td>
+      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#6E8CAB;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">2</div></td>
       <td width="14"></td>
       <td><div style="font-size:13px;font-weight:700;color:#E8EFF8;margin-bottom:2px;">Add your clients</div><div style="font-size:12px;color:#7A8BA8;line-height:1.5;">Create a workspace for each brand or client you manage. Keep everything separate and organized.</div></td>
     </tr></table>
     <table cellpadding="0" cellspacing="0" style="margin-bottom:24px;width:100%;"><tr>
-      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#4F6EF7;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">3</div></td>
+      <td width="28" valign="top"><div style="width:28px;height:28px;border-radius:50%;background:#6E8CAB;color:#fff;font-size:12px;font-weight:800;text-align:center;line-height:28px;">3</div></td>
       <td width="14"></td>
       <td><div style="font-size:13px;font-weight:700;color:#E8EFF8;margin-bottom:2px;">Publish your first post</div><div style="font-size:12px;color:#7A8BA8;line-height:1.5;">Head to the Publisher, write a caption, upload an image, and go live or schedule it for later.</div></td>
     </tr></table>
 
     <!-- DIVIDER -->
-    <div style="border-top:1px solid #1C2D45;margin:24px 0;"></div>
+    <div style="border-top:1px solid #1E2838;margin:24px 0;"></div>
 
     <!-- CLOSING -->
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border-radius:12px;border:1px solid #1C2D45;margin-bottom:24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border-radius:12px;border:1px solid #1E2838;margin-bottom:24px;">
       <tr><td style="padding:20px;text-align:center;">
         <p style="font-size:13px;color:#A8B9CE;line-height:1.7;margin:0 0 16px;">We built Tawaslo for agencies and brands like yours, anywhere in the world. Whether you are managing 2 clients or 200, we are here to make social media management faster, smarter, and more professional.<br><br>If you ever need help, just reply to this email. We read every message.</p>
-        <a href="https://tawaslo.com" style="display:inline-block;background:#4F6EF7;color:#fff;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;">Start publishing now</a>
+        <a href="https://tawaslo.com" style="display:inline-block;background:#6E8CAB;color:#fff;font-size:14px;font-weight:700;padding:14px 36px;border-radius:10px;text-decoration:none;">Start publishing now</a>
       </td></tr>
     </table>
 
-    <p style="font-size:12px;color:#7A8BA8;text-align:center;margin:0;">Questions? <a href="mailto:support@tawaslo.com" style="color:#4F6EF7;text-decoration:none;">support@tawaslo.com</a></p>
+    <p style="font-size:12px;color:#7A8BA8;text-align:center;margin:0;">Questions? <a href="mailto:support@tawaslo.com" style="color:#6E8CAB;text-decoration:none;">support@tawaslo.com</a></p>
   </td></tr>
 
   <!-- FOOTER -->
-  <tr><td style="background:#07090F;padding:22px 40px;text-align:center;border-top:1px solid #1C2D45;">
+  <tr><td style="background:#060810;padding:22px 40px;text-align:center;border-top:1px solid #1E2838;">
     <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px;"><tr>
       <td style="padding:0 13px;"><a href="https://www.instagram.com/tawaslo" style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9FB0C8;text-decoration:none;">INSTAGRAM</a></td>
       <td style="color:#243A57;font-size:12px;">&middot;</td>

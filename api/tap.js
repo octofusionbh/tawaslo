@@ -40,7 +40,7 @@ async function sendToCustomer(to, subject, html) {
 }
 
 const EMAIL_FOOTER = `
-  <tr><td style="background:#07090F;padding:24px 40px;text-align:center;border-top:1px solid #1C2D45;">
+  <tr><td style="background:#060810;padding:24px 40px;text-align:center;border-top:1px solid #1E2838;">
     <table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 12px;"><tr>
       <td style="padding:0 13px;"><a href="https://www.instagram.com/tawaslo" style="font-size:11px;font-weight:700;letter-spacing:1px;color:#9FB0C8;text-decoration:none;">INSTAGRAM</a></td>
       <td style="color:#243A57;font-size:12px;">&middot;</td>
@@ -53,10 +53,10 @@ const EMAIL_FOOTER = `
 
 function emailShell(inner) {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="color-scheme" content="dark"/></head>
-  <body style="margin:0;padding:0;background:#0B1221;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0B1221;padding:32px 16px;"><tr><td align="center">
-  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;background:#0D1828;border-radius:16px;border:1px solid #1C2D45;overflow:hidden;">
-    <tr><td style="background:#07090F;padding:18px 30px;border-bottom:1px solid #1C2D45;">
+  <body style="margin:0;padding:0;background:#080B11;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#080B11;padding:32px 16px;"><tr><td align="center">
+  <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:560px;background:#0F141C;border-radius:16px;border:1px solid #1E2838;overflow:hidden;">
+    <tr><td style="background:#060810;padding:18px 30px;border-bottom:1px solid #1E2838;">
       <img src="https://tawaslo.com/logo-transparent.png" width="26" height="26" alt="" style="vertical-align:middle;border:0;"/>
       <span style="color:#E8EFF8;font-size:17px;font-weight:800;letter-spacing:-0.3px;vertical-align:middle;padding-left:8px;">Tawaslo</span>
     </td></tr>
@@ -74,15 +74,15 @@ function receiptHtml({ plan, period, amount, currency, invoiceNo, date, last4 })
       <p style="margin:0;font-size:13.5px;line-height:1.7;color:#A8B9CE;">Here is your receipt for the Tawaslo ${plan} plan. A copy is saved in your billing history.</p>
     </td></tr>
     <tr><td style="padding:20px 40px 6px;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid #1C2D45;border-radius:12px;"><tr><td style="padding:22px 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#111827;border:1px solid #1E2838;border-radius:12px;"><tr><td style="padding:22px 24px;">
         <table width="100%" cellpadding="0" cellspacing="0">
           ${row('Plan', 'Tawaslo ' + plan)}${row('Billing period', period)}${row('Invoice number', invoiceNo)}${row('Date', date)}${row('Payment method', 'Card ending ' + last4)}
         </table>
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1C2D45;"><tr><td style="font-size:14px;color:#E8EFF8;font-weight:800;padding:14px 0 0;">Total paid</td><td align="right" style="font-size:20px;color:#4F6EF7;font-weight:800;padding:14px 0 0;">${currency} ${amount}</td></tr></table>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #1E2838;"><tr><td style="font-size:14px;color:#E8EFF8;font-weight:800;padding:14px 0 0;">Total paid</td><td align="right" style="font-size:20px;color:#6E8CAB;font-weight:800;padding:14px 0 0;">${currency} ${amount}</td></tr></table>
       </td></tr></table>
     </td></tr>
     <tr><td style="padding:18px 40px 36px;text-align:center;">
-      <table cellpadding="0" cellspacing="0" align="center"><tr><td align="center" bgcolor="#4F6EF7" style="border-radius:11px;background:linear-gradient(135deg,#4F6EF7,#7C3AED);">
+      <table cellpadding="0" cellspacing="0" align="center"><tr><td align="center" bgcolor="#6E8CAB" style="border-radius:11px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);">
         <a href="https://tawaslo.com" style="display:inline-block;padding:14px 34px;font-size:14px;font-weight:700;color:#FFFFFF;border-radius:11px;text-decoration:none;">View billing history</a>
       </td></tr></table>
       <p style="margin:14px 0 0;font-size:12px;color:#7A8BA8;">Need a tax invoice or have a billing question? Reply to this email.</p>
@@ -97,7 +97,7 @@ function paymentFailedHtml({ firstName, plan, amount, currency }) {
       <p style="margin:0;font-size:13.5px;line-height:1.7;color:#A8B9CE;">Hi ${firstName}, the payment of ${currency} ${amount} for your Tawaslo ${plan} plan did not go through. This usually happens when a card expires or has insufficient funds.</p>
     </td></tr>
     <tr><td style="padding:20px 40px 36px;text-align:center;">
-      <table cellpadding="0" cellspacing="0" align="center"><tr><td align="center" bgcolor="#4F6EF7" style="border-radius:11px;background:linear-gradient(135deg,#4F6EF7,#7C3AED);">
+      <table cellpadding="0" cellspacing="0" align="center"><tr><td align="center" bgcolor="#6E8CAB" style="border-radius:11px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);">
         <a href="https://tawaslo.com" style="display:inline-block;padding:15px 38px;font-size:15px;font-weight:700;color:#FFFFFF;border-radius:11px;text-decoration:none;">Update payment method</a>
       </td></tr></table>
       <p style="margin:14px 0 0;font-size:12px;color:#7A8BA8;">Already fixed it? You can ignore this email. Questions? Just reply.</p>
