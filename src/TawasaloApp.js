@@ -2494,7 +2494,7 @@ function EmptyState({ Icon, title, body, cta, onCta, compact }) {
 }
 
 function PublisherPage() {
-  const { selClient, dark, setPage, userEmail, lang } = useApp();
+  const { selClient, dark, setPage, userEmail, lang, selPlatform } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -2555,6 +2555,14 @@ function PublisherPage() {
       .then(({ data }) => { if (data) setAccounts(data); });
     loadDrafts(realClientId);
   }, [realClientId]);
+
+  // Pampering: the composer follows the channel you picked in the top bar — pick once, up top.
+  // (You can still fine-tune individual accounts below if you have more than one on a channel.)
+  useEffect(() => {
+    if (!accounts.length) return;
+    const match = (selPlatform && selPlatform !== "all") ? accounts.filter(a => a.platform === selPlatform) : accounts;
+    setSelectedAccounts(match.map(a => a.id));
+  }, [accounts, selPlatform]);
 
   const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
@@ -2794,11 +2802,14 @@ function PublisherPage() {
         <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
 
           <div style={card}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}><div style={{ fontSize:12, color:th.text2 }}>{L("Publish to","النشر إلى")}</div></div>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+              <div style={{ fontSize:12, color:th.text2 }}>{L("Publishing to","النشر إلى")}</div>
+              {accounts.length>0 && <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><ArrowUpRight size={11}/>{L("follows the channel above","يتبع القناة بالأعلى")}</span>}
+            </div>
             {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>{L("No connected accounts.","لا توجد حسابات مرتبطة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect accounts","اربط الحسابات")}</span> {L("to start.","للبدء.")}</div> : (
               <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:9 }}>
                 {accounts.map(acc => { const info = PLAT[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe }; const sel = selectedAccounts.includes(acc.id);
-                  return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text2, fontSize:11.5, cursor:"pointer" }}><info.Icon style={{ fontSize:14 }}/>{acc.account_name}</button>; })}
+                  return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} title={sel?L("Included — click to exclude","مضمّن — اضغط للاستبعاد"):L("Click to include","اضغط للتضمين")} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px 6px 10px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text3, fontSize:11.5, cursor:"pointer", opacity:sel?1:0.65 }}>{sel ? <Check size={13}/> : <info.Icon style={{ fontSize:14 }}/>}{acc.account_name}</button>; })}
               </div>
             )}
             <div style={{ fontSize:10, color:th.text3, marginBottom:6 }}>{L("Connect to enable","اربط للتفعيل")}</div>
@@ -2881,8 +2892,8 @@ function PublisherPage() {
                 style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:12, padding:"20px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent", marginBottom:media.length?12:0 }}>
                 <input type="file" id="pub-file" accept="image/*,video/*" multiple style={{ display:"none" }} onChange={e=>handleUpload(e.target.files)}/>
                 <Image size={22} color={th.accent}/>
-                <div style={{ fontSize:12.5, fontWeight:500, marginTop:6 }}>Drag &amp; drop or click to upload</div>
-                <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Images auto-become a carousel &middot; drop a video for a Reel &middot; up to 100MB</div>
+                <div style={{ fontSize:12.5, fontWeight:500, marginTop:6 }}>{L("Drag & drop or click to upload","اسحب وأفلت أو اضغط للرفع")}</div>
+                <div style={{ fontSize:10.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Add several photos and they become a swipeable carousel — each one gets its own alt text. Drop a video for a Reel.","أضف عدة صور لتتحول إلى كاروسيل قابل للتمرير — لكل صورة نصها البديل. أضف فيديو للريلز.")}</div>
               </div>
             )}
             {media.length > 0 && (
@@ -6906,7 +6917,12 @@ export default function TawasloApp() {
       spend: c.spend ?? 0,
     }));
     setClients(norm);
-    if (norm.length) setSelClient(norm[0]);
+    // Preserve the user's current brand selection across reloads/auth refreshes —
+    // only fall back to the first brand on the very first load (no real selection yet).
+    if (norm.length) setSelClient(prev => {
+      const keep = prev && prev.id && norm.find(c => c.id === prev.id);
+      return keep || norm[0];
+    });
     const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
     setMode(onAdminHost && user.email === ADMIN_EMAIL ? "owner" : "agency");
   };
