@@ -1998,7 +1998,7 @@ function AgencyDashboard() {
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",overflow:"hidden"}}>
           <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>{L("Upcoming posts","المنشورات القادمة")}</div>
-            <button onClick={()=>setPage("publisher")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{L("View all","عرض الكل")}<ChevronRight size={12}/></button>
+            <button onClick={()=>setPage("planner")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{L("View all","عرض الكل")}<ChevronRight size={12}/></button>
           </div>
           {upcomingShown.map((p,i)=>{
             const PI = PlatformIcons[p.platform] || PlatformIcons.ig;
@@ -2305,7 +2305,7 @@ function CalendarPage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
-  const [view, setView] = useState("month");
+  const [view, setView] = useState("list");
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -2394,7 +2394,7 @@ function CalendarPage() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
-            {[["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
+            {[["list",L("List","قائمة")],["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
@@ -2402,6 +2402,7 @@ function CalendarPage() {
         </div>
       </div>
 
+      {view !== "list" && (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <button onClick={()=>go(-1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronLeft size={16}/></button>
@@ -2410,12 +2411,43 @@ function CalendarPage() {
         </div>
         <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>{L("Today","اليوم")}</button>
       </div>
+      )}
 
       <div style={{ ...card, overflow:"hidden" }}>
+        {view !== "list" && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:`1px solid ${th.border}` }}>
           {DOW.map(d => <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, fontWeight:600, color:th.text2, letterSpacing:0.3 }}>{d}</div>)}
         </div>
-        {view === "month" ? (
+        )}
+        {view === "list" ? (() => {
+          const sorted = [...posts].sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+          if (sorted.length === 0) return <div style={{ padding:"48px 24px", textAlign:"center", color:th.text2, fontSize:13 }}><Calendar size={30} style={{ opacity:0.3, marginBottom:12 }}/><div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Nothing scheduled yet","لا يوجد شيء مجدول بعد")}</div><div>{L("Schedule a post and it'll show up here, grouped by day.","جدوِل منشوراً وسيظهر هنا مرتباً حسب اليوم.")}</div></div>;
+          const groups = []; let lastKey = null;
+          for (const p of sorted) { const d = new Date(p.scheduled_at); const key = d.toDateString(); if (key !== lastKey) { groups.push({ key, date:d, items:[] }); lastKey = key; } groups[groups.length-1].items.push(p); }
+          const tmr = new Date(); tmr.setDate(tmr.getDate()+1);
+          const dayLabel = (d) => isToday(d) ? L("Today","اليوم") : sameDay(d,tmr) ? L("Tomorrow","غداً") : d.toLocaleDateString(isAR?"ar":[], { weekday:"long", day:"numeric", month:"long" });
+          return <div>{groups.map((g,gi) => (
+            <div key={g.key}>
+              <div style={{ padding:"9px 18px", background:th.card2, borderBottom:`1px solid ${th.border}`, borderTop:gi>0?`1px solid ${th.border}`:"none", fontSize:10.5, fontWeight:700, letterSpacing:0.5, color:th.text3, textTransform:"uppercase", display:"flex", justifyContent:"space-between" }}>
+                <span>{dayLabel(g.date)}</span><span className="tw-num" style={{ color:th.text3 }}>{g.date.toLocaleDateString(isAR?"ar":[], { day:"numeric", month:"short" })}</span>
+              </div>
+              {g.items.map((p,pi) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe };
+                return (
+                <div key={p.id} onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer" }}>
+                  <div style={{ width:40, height:40, borderRadius:11, background:info.color+"1e", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><info.Icon style={{ color:info.color, fontSize:18 }}/></div>
+                  <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, overflow:"hidden", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{p.image_url ? <img src={p.image_url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Image size={15} color={th.text3}/>}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(untitled)","(بدون عنوان)")}</div>
+                    <div style={{ fontSize:11, color:th.text2, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Clock size={12}/><span className="tw-num">{fmtTime(p.scheduled_at)}</span>{p.account_id && <span style={{ color:th.text3 }}>&middot; {(accounts.find(a=>a.account_id===p.account_id)||{}).account_name || info.name}</span>}</div>
+                  </div>
+                  <span style={{ fontSize:10, fontWeight:700, borderRadius:999, padding:"3px 10px", background:p.status==="scheduled"?th.successSoft:th.warningSoft, color:p.status==="scheduled"?th.success:th.warning, flexShrink:0 }}>{p.status==="scheduled"?L("scheduled","مجدول"):L("draft","مسودة")}</span>
+                  <button title={L("Preview","معاينة")} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Eye size={16}/></button>
+                  <button title={L("Edit","تعديل")} onClick={(e)=>{e.stopPropagation();setPage("publisher");}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Edit3 size={15}/></button>
+                </div>
+              ); })}
+            </div>
+          ))}</div>;
+        })() : view === "month" ? (
           <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
             {monthCells.map((d, i) => { const inMonth = d.getMonth() === m; const dayPosts = postsOn(d); const today = isToday(d);
               return (
