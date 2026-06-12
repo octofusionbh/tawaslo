@@ -2557,14 +2557,22 @@ function PublisherPage() {
   }, [realClientId]);
 
   // Pampering: the composer follows the channel you picked in the top bar — pick once, up top.
-  // (You can still fine-tune individual accounts below if you have more than one on a channel.)
+  // "All" targets every account; a specific channel with several accounts pre-picks one and
+  // lets you choose which (or add the others with a tap).
   useEffect(() => {
     if (!accounts.length) return;
-    const match = (selPlatform && selPlatform !== "all") ? accounts.filter(a => a.platform === selPlatform) : accounts;
-    setSelectedAccounts(match.map(a => a.id));
+    if (selPlatform && selPlatform !== "all") {
+      const match = accounts.filter(a => a.platform === selPlatform);
+      setSelectedAccounts(match.length <= 1 ? match.map(a => a.id) : [match[0].id]);
+    } else {
+      setSelectedAccounts(accounts.map(a => a.id));
+    }
   }, [accounts, selPlatform]);
 
   const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
+  // When a channel is chosen up top, the picker shows only that channel's accounts.
+  const channelScoped = !!(selPlatform && selPlatform !== "all");
+  const pubAccounts = channelScoped ? accounts.filter(a => a.platform === selPlatform) : accounts;
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
@@ -2803,12 +2811,16 @@ function PublisherPage() {
 
           <div style={card}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div style={{ fontSize:12, color:th.text2 }}>{L("Publishing to","النشر إلى")}</div>
+              <div style={{ fontSize:12, color:th.text2, display:"flex", alignItems:"center", gap:7 }}>
+                {L("Publishing to","النشر إلى")}
+                {channelScoped && PLAT[selPlatform] && <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:PLAT[selPlatform].color, background:PLAT[selPlatform].color+"1a", borderRadius:7, padding:"2px 8px" }}>{(()=>{const Ic=PLAT[selPlatform].Icon;return <Ic style={{ fontSize:11 }}/>;})()}{PLAT[selPlatform].name}{pubAccounts.length>1?" · "+L("choose","اختر"):""}</span>}
+              </div>
               {accounts.length>0 && <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><ArrowUpRight size={11}/>{L("follows the channel above","يتبع القناة بالأعلى")}</span>}
             </div>
-            {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>{L("No connected accounts.","لا توجد حسابات مرتبطة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect accounts","اربط الحسابات")}</span> {L("to start.","للبدء.")}</div> : (
+            {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>{L("No connected accounts.","لا توجد حسابات مرتبطة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect accounts","اربط الحسابات")}</span> {L("to start.","للبدء.")}</div>
+            : pubAccounts.length === 0 ? <div style={{ fontSize:12, color:th.text2, marginBottom:9 }}>{L("No "+(PLAT[selPlatform]?.name||"")+" account connected for this brand.","لا يوجد حساب مرتبط لهذه العلامة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect one","اربط حساباً")}</span>.</div> : (
               <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:9 }}>
-                {accounts.map(acc => { const info = PLAT[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe }; const sel = selectedAccounts.includes(acc.id);
+                {pubAccounts.map(acc => { const info = PLAT[acc.platform] || { name:acc.platform, color:th.accent, Icon:Globe }; const sel = selectedAccounts.includes(acc.id);
                   return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} title={sel?L("Included — click to exclude","مضمّن — اضغط للاستبعاد"):L("Click to include","اضغط للتضمين")} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px 6px 10px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text3, fontSize:11.5, cursor:"pointer", opacity:sel?1:0.65 }}>{sel ? <Check size={13}/> : <info.Icon style={{ fontSize:14 }}/>}{acc.account_name}</button>; })}
               </div>
             )}
