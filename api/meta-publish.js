@@ -8,6 +8,7 @@ export default async function handler(req, res) {
   const videoUrl = req.body.videoUrl || null;
   const imageUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls.filter(Boolean).slice(0, 10) : null;
   const altText = req.body.altText || null;
+  const altTexts = Array.isArray(req.body.altTexts) ? req.body.altTexts : null; // per-slide alt text for carousels
   const firstComment = req.body.firstComment || null;
   const igFormat = (req.body.igFormat || 'feed').toLowerCase(); // feed | reel | story
 
@@ -37,10 +38,12 @@ export default async function handler(req, res) {
       let creationId;
 
       if (imageUrls && imageUrls.length > 1) {
-        // CAROUSEL: child containers -> parent container
+        // CAROUSEL: child containers -> parent container (each child keeps its own alt text)
         const childIds = [];
-        for (const url of imageUrls) {
-          const c = await post(`${igBase}/${accountId}/media`, { image_url: url, is_carousel_item: true, access_token: accessToken });
+        for (let idx = 0; idx < imageUrls.length; idx++) {
+          const childBody = { image_url: imageUrls[idx], is_carousel_item: true, access_token: accessToken };
+          if (altTexts && altTexts[idx]) childBody.alt_text = altTexts[idx];
+          const c = await post(`${igBase}/${accountId}/media`, childBody);
           if (c.error) return res.status(400).json({ error: c.error.message });
           childIds.push(c.id);
         }

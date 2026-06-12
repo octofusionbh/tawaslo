@@ -15,7 +15,7 @@ import {
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
-  Monitor,
+  Monitor, Info, ScanLine, Check,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -2504,8 +2504,10 @@ function PublisherPage() {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccounts, setSelectedAccounts] = useState([]);
   const [caption, setCaption] = useState("");
-  const [altText, setAltText] = useState("");
   const [media, setMedia] = useState([]);
+  const [selectedSlide, setSelectedSlide] = useState(null); // which image's alt text is being edited
+  const [altBusy, setAltBusy] = useState(null);   // media id currently generating alt text (or 'all')
+  const [visionBusy, setVisionBusy] = useState(false); // "Read the image" in progress
   const [mediaWarning, setMediaWarning] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [igFormat, setIgFormat] = useState("feed");
@@ -2619,7 +2621,52 @@ function PublisherPage() {
     setAiLoading(false);
   };
 
-  const resetComposer = () => { setCaption(""); setAltText(""); setFirstComment(""); setMedia([]); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); };
+  const resetComposer = () => { setCaption(""); setFirstComment(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); };
+
+  // Per-slide alt text lives on each media item (m.alt). These helpers read/write it.
+  const setAlt = (id, val) => setMedia(prev => prev.map(m => m.id === id ? { ...m, alt: val } : m));
+  const effSlide = images.find(m => m.id === selectedSlide) ? selectedSlide : (images[0]?.id || null);
+  const altDone = images.filter(m => (m.alt || "").trim()).length;
+  // Alt text only matters for an Instagram feed photo/carousel — not Reels, not Stories, not other networks.
+  const showAlt = igSelected && igFormat === "feed" && images.length > 0;
+
+  const generateAlt = async (id) => {
+    const img = images.find(m => m.id === id); if (!img?.url) return;
+    setAltBusy(id);
+    try {
+      const res = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ mode:'alt', imageUrl: img.url, platform:'ig', details: aiTopic || caption || "" }) });
+      const data = await res.json();
+      if (data.alt) setAlt(id, data.alt);
+    } catch (e) { /* non-fatal */ }
+    setAltBusy(null);
+  };
+  const generateAllAlt = async () => {
+    setAltBusy('all');
+    for (const img of images) {
+      if (!img.url || (img.alt || "").trim()) continue;
+      try {
+        const res = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ mode:'alt', imageUrl: img.url, platform:'ig', details: aiTopic || caption || "" }) });
+        const data = await res.json();
+        if (data.alt) setAlt(img.id, data.alt);
+      } catch (e) { /* non-fatal */ }
+    }
+    setAltBusy(null);
+  };
+
+  // "Read the image" — vision describes the first photo and drops it into the AI topic to build from.
+  const readImage = async () => {
+    if (!firstImg?.url) return;
+    setVisionBusy(true); setShowAI(true);
+    try {
+      const res = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ mode:'vision', imageUrl: firstImg.url, details: aiTopic || "" }) });
+      const data = await res.json();
+      if (data.description) setAiTopic(data.description);
+    } catch (e) { /* non-fatal */ }
+    setVisionBusy(false);
+  };
 
   const saveDraft = async () => {
     if (!realClientId) return;
@@ -2643,6 +2690,7 @@ function PublisherPage() {
     }
     setPosting(true); setResults([]);
     const imgs = images.map(m => m.url);
+    const imgAlts = images.map(m => (m.alt || "").trim());
     const out = [];
     for (const accId of selectedAccounts) {
       const acc = accounts.find(a => a.id === accId); if (!acc) continue;
@@ -2654,7 +2702,7 @@ function PublisherPage() {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: altText || null, firstComment: firstComment || null, igFormat }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, firstComment: firstComment || null, igFormat }) });
         const data = await res.json();
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -2763,17 +2811,22 @@ function PublisherPage() {
             <div style={card}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:12, color:th.text2 }}>{L("Instagram publishes as","ينشر على إنستغرام كـ")}</span></div>
               <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3, width:"fit-content" }}>
-                {[["feed",L("Feed post","منشور")],["reel",L("Reel","ريل")],["story",L("Story (soon)","ستوري (قريباً)")]].map(([k,t])=>(
+                {[["feed",L("Feed post","منشور")],["reel",L("Reel","ريل")],["story",L("Story","ستوري")]].map(([k,t])=>(
                   <button key={k} onClick={()=>setIgFormat(k)} style={{ padding:"6px 14px", borderRadius:8, border:"none", background:igFormat===k?th.gradient:"transparent", color:igFormat===k?"#fff":th.text2, fontSize:11.5, fontWeight:igFormat===k?600:400, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
+              {igFormat==="story" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Stories publish as a single photo or video and disappear after 24 hours. Caption, alt text and carousel don't apply on Instagram Stories.","تُنشر القصص كصورة أو فيديو واحد وتختفي بعد ٢٤ ساعة. النص والنص البديل والكاروسيل لا تنطبق على قصص إنستغرام.")}</div>}
+              {igFormat==="reel" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Reels use your video and caption. Alt text doesn't apply to Reels.","تستخدم الريلز الفيديو والنص. النص البديل لا ينطبق على الريلز.")}</div>}
             </div>
           )}
 
           <div style={card}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
               <div style={{ fontSize:12, color:th.text2 }}>{L("Caption","النص")}</div>
-              <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>{L("AI write","كتابة ذكية")}</button>
+              <div style={{ display:"flex", gap:7, alignItems:"center" }}>
+                {firstImg?.url && <button onClick={readImage} disabled={visionBusy} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}55`, borderRadius:8, padding:"5px 11px", cursor:"pointer", opacity:visionBusy?0.6:1 }}><ScanLine size={12}/>{visionBusy?L("Reading…","قراءة…"):L("Read the image","اقرأ الصورة")}</button>}
+                <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>{L("AI write","كتابة ذكية")}</button>
+              </div>
             </div>
             {showAI && (
               <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:13, marginBottom:11 }}>
@@ -2816,9 +2869,8 @@ function PublisherPage() {
               </div>
             )}
             <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption…" rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7, gap:10 }}>
-              <input value={altText} onChange={e=>setAltText(e.target.value)} placeholder="Alt text (accessibility & SEO)" style={{ ...inp, flex:1, fontSize:11.5, padding:"7px 11px" }}/>
-              <span style={{ fontSize:11, color:th.text3 }}>{caption.length} / 2200</span>
+            <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginTop:7 }}>
+              <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
             </div>
           </div>
 
@@ -2835,19 +2887,42 @@ function PublisherPage() {
             )}
             {media.length > 0 && (
               <div style={{ display:"flex", gap:9, flexWrap:"wrap" }}>
-                {media.map((m,i)=>(
-                  <div key={m.id} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}` }}>
-                    {m.url && m.type==="image" && <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>}
+                {media.map((m,i)=>{
+                  const isImg = m.type==="image";
+                  const isSel = showAlt && isImg && effSlide===m.id;
+                  const hasAlt = isImg && (m.alt||"").trim();
+                  return (
+                  <div key={m.id} onClick={()=>{ if(showAlt && isImg) setSelectedSlide(m.id); }} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}`, cursor:(showAlt&&isImg)?"pointer":"default", boxShadow:isSel?`0 0 0 2px ${th.accent}`:"none" }}>
+                    {m.url && isImg && <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>}
                     {m.type==="video" && <div style={{ width:"100%", height:"100%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><Send size={18}/></div>}
                     {m.uploading && <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }}>…</div>}
-                    {m.type==="image" && images.length>1 && <span style={{ position:"absolute", top:4, left:4, background:"rgba(0,0,0,0.6)", borderRadius:6, width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }}>{i+1}</span>}
+                    {isImg && images.length>1 && <span style={{ position:"absolute", bottom:4, left:4, background:"rgba(0,0,0,0.6)", borderRadius:6, width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }} className="tw-num">{i+1}</span>}
+                    {showAlt && isImg && <span title={hasAlt?"Alt text added":"Needs alt text"} style={{ position:"absolute", top:4, left:4, width:16, height:16, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", background:hasAlt?"#2E8B6B":"rgba(0,0,0,0.55)", color:"#fff", border:`1.5px solid ${th.card}` }}>{hasAlt?<Check size={9}/>:<span style={{fontSize:9,fontWeight:700}}>!</span>}</span>}
                     <span onClick={(e)=>{e.stopPropagation();removeMedia(m.id);}} style={{ position:"absolute", top:4, right:4, cursor:"pointer", color:"#fff", display:"flex" }}><XCircle size={15}/></span>
                   </div>
-                ))}
+                ); })}
               </div>
             )}
             {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>{mediaWarning}</div>}
           </div>
+
+          {showAlt && (
+            <div style={card}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                <div style={{ fontSize:12, color:th.text2 }}>{L("Alt text","النص البديل")}</div>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:700, color:"#E1306C", background:"#E1306C18", borderRadius:5, padding:"2px 7px" }}><FaInstagram style={{ fontSize:11 }}/>INSTAGRAM</span>
+                {images.length>1 && <span style={{ fontSize:9.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:5, padding:"2px 7px" }}>{L("SLIDE","شريحة")} <span className="tw-num">{images.findIndex(m=>m.id===effSlide)+1}</span></span>}
+                <span style={{ marginLeft:"auto", fontSize:10.5, color:altDone===images.length?th.success:th.text3 }}><span className="tw-num">{altDone}</span>/<span className="tw-num">{images.length}</span> {L("described","موصوفة")}</span>
+                {images.length>1 && <button onClick={generateAllAlt} disabled={altBusy!==null} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><Sparkles size={11}/>{altBusy==='all'?L("Writing…","كتابة…"):L("Generate all","توليد الكل")}</button>}
+              </div>
+              {images.length>1 && <div style={{ fontSize:10.5, color:th.text3, marginBottom:8 }}>{L("Tap a slide above to describe it. Each carousel image keeps its own alt text.","اضغط على شريحة بالأعلى لوصفها. كل صورة في الكاروسيل لها نصها البديل.")}</div>}
+              <div style={{ position:"relative" }}>
+                <textarea value={images.find(m=>m.id===effSlide)?.alt || ""} onChange={e=>setAlt(effSlide, e.target.value)} placeholder={L("Describe this image for people using screen readers…","صف هذه الصورة لمستخدمي قارئات الشاشة…")} rows={2} style={{ ...inp, resize:"vertical", lineHeight:1.5, paddingRight:108 }}/>
+                <button onClick={()=>generateAlt(effSlide)} disabled={altBusy!==null || !images.find(m=>m.id===effSlide)?.url} style={{ position:"absolute", top:8, right:8, display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"6px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><Sparkles size={11}/>{altBusy===effSlide?L("…","…"):L("Generate","توليد")}</button>
+              </div>
+              <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.")}</div>
+            </div>
+          )}
 
           <div style={card}>
             <div style={lbl}><MessageCircle size={13} style={{ verticalAlign:-2, marginRight:5 }}/>First comment <span style={{ color:th.text3 }}>(optional &middot; great for hashtags)</span></div>
@@ -2876,7 +2951,7 @@ function PublisherPage() {
                     </button>
                   ); })}
                 </div>
-                <div style={{ fontSize:9.5, color:th.text3, marginTop:8 }}>Suggested for GCC audiences &middot; adjusts to your selected platform</div>
+                <div style={{ fontSize:9.5, color:th.text3, marginTop:8 }}>{L("Based on typical engagement windows","مبني على أوقات التفاعل المعتادة")} &middot; {L("adjusts to your selected platform","يتكيّف مع المنصة المختارة")}</div>
               </div>
             )}
           </div>
@@ -2918,14 +2993,35 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
 
+            if (effPreviewPlat === "ig" && igFormat === "story") {
+              // Story preview — full-bleed media, progress bar, avatar overlay, no caption/likes.
+              return (
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:430 }}>
+                  <div style={{ position:"absolute", inset:0 }}>
+                    {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#2a2f3a,#11141b)", display:"flex", alignItems:"center", justifyContent:"center", color:"#7a8494", flexDirection:"column", gap:8 }}>{video?<Send size={26}/>:<Image size={26}/>}<div style={{ fontSize:11 }}>{video?"Video story":"Add a photo or video"}</div></div>}
+                  </div>
+                  <div style={{ position:"absolute", top:10, left:10, right:10, height:2.5, borderRadius:2, background:"rgba(255,255,255,0.35)", overflow:"hidden" }}><div style={{ width:"38%", height:"100%", background:"#fff" }}/></div>
+                  <div style={{ position:"absolute", top:20, left:10, right:10, display:"flex", alignItems:"center", gap:8 }}>
+                    <div style={{ padding:2, borderRadius:"50%", background:"linear-gradient(135deg,#f58529,#dd2a7b,#8134af)" }}>{avatar(26)}</div>
+                    <div style={{ fontSize:12, fontWeight:600, color:"#fff", textShadow:"0 1px 3px rgba(0,0,0,0.6)" }}>{handle}</div>
+                    <div style={{ fontSize:11, color:"rgba(255,255,255,0.8)", textShadow:"0 1px 3px rgba(0,0,0,0.6)" }}>now</div>
+                    <MoreHorizontal size={16} color="#fff" style={{ marginLeft:"auto" }}/>
+                  </div>
+                  <div style={{ position:"absolute", bottom:12, left:12, right:12, display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ flex:1, border:"1px solid rgba(255,255,255,0.6)", borderRadius:999, padding:"8px 14px", color:"rgba(255,255,255,0.85)", fontSize:11.5 }}>Send message</div>
+                    <Heart size={20} color="#fff"/><Send size={20} color="#fff"/>
+                  </div>
+                </div>
+              );
+            }
             if (effPreviewPlat === "ig") {
               return (
                 <div style={shell}>
-                  <div style={{ display:"flex", alignItems:"center", gap:9, padding:"10px 12px" }}>{avatar(30)}<div style={{ fontSize:12.5, fontWeight:600 }}>{handle}</div><MoreHorizontal size={16} style={{ marginLeft:"auto" }}/></div>
+                  <div style={{ display:"flex", alignItems:"center", gap:9, padding:"10px 12px" }}>{avatar(30)}<div style={{ fontSize:12.5, fontWeight:600 }}>{handle}</div>{igFormat==="reel" && <span style={{ fontSize:10, color:grey, marginLeft:6 }}>· Reel</span>}<MoreHorizontal size={16} style={{ marginLeft:"auto" }}/></div>
                   {media()}
                   <div style={{ padding:"9px 12px" }}>
                     <div style={{ display:"flex", gap:14, marginBottom:8 }}><Heart size={20}/><MessageCircle size={20}/><Send size={20}/><Bookmark size={20} style={{ marginLeft:"auto" }}/></div>
-                    <div style={{ fontWeight:600, fontSize:12, marginBottom:4 }}>1,248 likes</div>
+                    <div style={{ fontWeight:600, fontSize:12, marginBottom:4 }}><span className="tw-num">1,248</span> likes</div>
                     <div style={{ fontSize:12, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}><span style={{ fontWeight:600, color:"#1a1a1a" }}>{handle}</span> {cap}</div>
                   </div>
                 </div>
@@ -3137,6 +3233,7 @@ function SocialAccountsPage() {
       "pages_manage_posts",
       "business_management",
       "public_profile",
+      "instagram_basic",
       "instagram_content_publish",
     ].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
