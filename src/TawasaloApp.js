@@ -476,8 +476,10 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, setMobileNav } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, setMobileNav, clients, setSelClient, setMode } = useApp();
   const th = useTheme();
+  const [sq, setSq] = useState("");      // global search query
+  const [sOpen, setSOpen] = useState(false);
   const isMobile = useIsMobile();
   const uName = (userName && userName.trim())
     ? userName.replace(/\b\w/g, c=>c.toUpperCase())
@@ -500,13 +502,43 @@ function Topbar() {
     aistudio:"AI Studio", media:"Media", analytics:"Analytics",
     reports:"Reports", agencyteam:"Team", billing:"Billing", agencysets:"Settings",
   };
+  // Global search — jumps to any page, or opens a client.
+  const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
+  const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Listening"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
+  const ql = sq.trim().toLowerCase();
+  const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql)).slice(0,7) : [];
+  const clientHits = ql ? (clients||[]).filter(c=>(c.name||"").toLowerCase().includes(ql)).slice(0,5) : [];
+  const goPage = (k)=>{ setPage(k); setSq(""); setSOpen(false); };
+  const goClient = (c)=>{ setSelClient&&setSelClient(c); setMode&&setMode("agency"); setPage("dashboard"); setSq(""); setSOpen(false); };
   return (
     <header style={{height:58,flexShrink:0,background:th.surface,borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 22px"}}>
       <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
         {isMobile && <button onClick={()=>setMobileNav&&setMobileNav(true)} aria-label="Menu" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text,display:"flex",alignItems:"center",padding:4,flexShrink:0}}><Menu size={22}/></button>}
-        {!isMobile && <div style={{display:"flex",alignItems:"center",gap:7,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"6px 12px",width:220}}>
-          <Search size={13} color={th.text3}/>
-          <input placeholder={t("common.search","Search...")} style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12,width:"100%",fontFamily:"inherit"}}/>
+        {!isMobile && <div style={{position:"relative",width:240}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card2,border:`1px solid ${sOpen?th.accent:th.border}`,borderRadius:9,padding:"6px 12px"}}>
+            <Search size={13} color={th.text3}/>
+            <input value={sq} onChange={e=>{setSq(e.target.value);setSOpen(true);}} onFocus={()=>setSOpen(true)} placeholder={t("common.search","Search pages & clients…")} style={{background:"transparent",border:"none",outline:"none",color:th.text,fontSize:12,width:"100%",fontFamily:"inherit"}}/>
+            {sq && <XCircle size={13} color={th.text3} style={{cursor:"pointer",flexShrink:0}} onClick={()=>{setSq("");setSOpen(false);}}/>}
+          </div>
+          {sOpen && ql && (
+            <>
+              <div onClick={()=>setSOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
+              <div style={{position:"absolute",top:40,left:0,zIndex:50,width:290,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 18px 44px rgba(0,0,0,0.5)",overflow:"hidden",maxHeight:400,overflowY:"auto"}}>
+                {(pageHits.length+clientHits.length)===0 && <div style={{padding:"16px",fontSize:12,color:th.text3,textAlign:"center"}}>No matches for &ldquo;{sq}&rdquo;</div>}
+                {pageHits.length>0 && <div style={{padding:"9px 14px 4px",fontSize:9.5,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase"}}>Pages</div>}
+                {pageHits.map(([k,l])=>(
+                  <div key={k} onMouseDown={e=>e.preventDefault()} onClick={()=>goPage(k)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",cursor:"pointer",fontSize:12.5,color:th.text}}><ArrowUpRight size={13} color={th.text3}/>{l}</div>
+                ))}
+                {clientHits.length>0 && <div style={{padding:"9px 14px 4px",fontSize:9.5,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase",borderTop:pageHits.length?`1px solid ${th.border}`:"none"}}>Clients</div>}
+                {clientHits.map(c=>(
+                  <div key={c.id||c.name} onMouseDown={e=>e.preventDefault()} onClick={()=>goClient(c)} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",cursor:"pointer"}}>
+                    <div style={{width:24,height:24,borderRadius:7,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",flexShrink:0}}>{(c.name||"?").slice(0,2).toUpperCase()}</div>
+                    <span style={{fontSize:12.5,color:th.text}}>{c.name}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>}
         <div style={{display:isMobile?"none":"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2}}>
           <span style={{padding:"4px 10px",borderRadius:7,background:mode==="owner"?th.accentSoft:th.accent2Soft,color:mode==="owner"?th.accent:th.accent2,fontWeight:700,fontSize:11}}>
@@ -1153,8 +1185,22 @@ function OwnerClientsPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [menu, setMenu] = useState(null);
+  const [detail, setDetail] = useState(null);   // client open in the side drawer
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const [logs, setLogs] = useState([
+    { id:1, msg:"Bayan Clinic started a free trial", who:"System", ago:"12m ago", icon:Sparkles, c:th.info },
+    { id:2, msg:"Marina Cafe upgraded to Professional", who:"System", ago:"1h ago", icon:ArrowUpRight, c:th.success },
+    { id:3, msg:"Payment failed for Noor Designs", who:"System", ago:"3h ago", icon:CreditCard, c:th.warning },
+    { id:4, msg:"Souq Online was suspended", who:"You", ago:"5h ago", icon:Pause, c:th.danger },
+    { id:5, msg:"Gulf Auto connected a new account", who:"System", ago:"1d ago", icon:Link, c:th.accent },
+    { id:6, msg:"Promo code BAHRAIN10 redeemed by Trio Restaurant", who:"System", ago:"1d ago", icon:Tag, c:th.accent2 },
+  ]);
+  const pushLog = (msg, icon=Activity, c=th.accent) => setLogs(ls => [{ id:Date.now(), msg, who:"You", ago:"just now", icon, c }, ...ls].slice(0,14));
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
+  const openDetail = (r) => { setDetail(r); setEditing(false); setForm({ name:r.name, email:r.email, plan:r.plan, status:r.status }); setMenu(null); };
+  const saveEdit = () => { setRows(rs=>rs.map(x=>x.id===detail.id?{...x,...form}:x)); setDetail(d=>({...d,...form})); setEditing(false); pushLog(`Edited ${form.name}`, Edit3, th.accent); };
   const filtered = rows.filter(r =>
     (filter==="all" || r.status===filter) &&
     (r.name.toLowerCase().includes(q.toLowerCase()) || r.email.toLowerCase().includes(q.toLowerCase()))
@@ -1187,7 +1233,7 @@ function OwnerClientsPage() {
           <span>Client</span><span>Plan</span><span>Status</span><span>Accounts</span><span style={{textAlign:"right"}}>MRR</span><span/>
         </div>
         {filtered.map((r,i)=>{ const sm=statusMeta(th,r.status); return (
-          <div key={r.id} style={{display:"grid",gridTemplateColumns:"2.2fr 1.1fr 1fr 0.8fr 0.9fr 44px",gap:12,padding:"13px 20px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",alignItems:"center",position:"relative"}}>
+          <div key={r.id} onClick={()=>openDetail(r)} style={{display:"grid",gridTemplateColumns:"2.2fr 1.1fr 1fr 0.8fr 0.9fr 44px",gap:12,padding:"13px 20px",borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none",alignItems:"center",position:"relative",cursor:"pointer"}}>
             <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
               <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff",flexShrink:0}}>{r.name.slice(0,2).toUpperCase()}</div>
               <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.email}</div></div>
@@ -1201,10 +1247,11 @@ function OwnerClientsPage() {
               {menu===r.id && (
                 <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:36,zIndex:20,width:184,background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 16px 40px rgba(0,0,0,0.45)",overflow:"hidden",padding:5}}>
                   {[
+                    { l:"View details", Icon:Eye, fn:()=>openDetail(r) },
+                    { l:"Edit", Icon:Edit3, fn:()=>{ openDetail(r); setEditing(true); } },
                     { l:"Open dashboard", Icon:ArrowUpRight, fn:()=>impersonate(r) },
-                    { l:"Change plan", Icon:CreditCard, fn:()=>{} },
-                    { l:r.status==="suspended"?"Reactivate":"Suspend", Icon:r.status==="suspended"?Play:Pause, fn:()=>toggleStatus(r.id) },
-                    { l:"Delete", Icon:Trash2, danger:true, fn:()=>setRows(rs=>rs.filter(x=>x.id!==r.id)) },
+                    { l:r.status==="suspended"?"Reactivate":"Suspend", Icon:r.status==="suspended"?Play:Pause, fn:()=>{toggleStatus(r.id); pushLog(`${r.status==="suspended"?"Reactivated":"Suspended"} ${r.name}`, r.status==="suspended"?Play:Pause, r.status==="suspended"?th.success:th.danger);} },
+                    { l:"Delete", Icon:Trash2, danger:true, fn:()=>{setRows(rs=>rs.filter(x=>x.id!==r.id)); pushLog(`Deleted ${r.name}`, Trash2, th.danger);} },
                   ].map((it,k)=>(
                     <button key={k} onClick={()=>{it.fn();setMenu(null);}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 11px",borderRadius:8,background:"transparent",border:"none",color:it.danger?th.danger:th.text,fontSize:12.5,fontWeight:500,cursor:"pointer",textAlign:"left"}}><it.Icon size={14}/>{it.l}</button>
                   ))}
@@ -1215,6 +1262,92 @@ function OwnerClientsPage() {
         );})}
         {filtered.length===0 && <div style={{padding:"40px",textAlign:"center",fontSize:13,color:th.text3}}>No clients match your search.</div>}
       </div>
+
+      {/* Activity log — audit trail of platform actions */}
+      <div style={{...card, marginTop:16, overflow:"hidden"}}>
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><Activity size={15} color={th.accent}/>Activity log</div>
+          <span style={{fontSize:11,color:th.text3}}>Audit trail of platform actions</span>
+        </div>
+        {logs.map((lg,i)=>{ const Ic=lg.icon||Activity; return (
+          <div key={lg.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 20px",borderBottom:i<logs.length-1?`1px solid ${th.border}`:"none"}}>
+            <div style={{width:30,height:30,borderRadius:9,background:(lg.c||th.accent)+"1e",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={14} color={lg.c||th.accent}/></div>
+            <div style={{flex:1,minWidth:0,fontSize:12.5,color:th.text}}>{lg.msg}</div>
+            <span style={{fontSize:10,fontWeight:700,color:lg.who==="You"?th.accent:th.text3,background:lg.who==="You"?th.accentSoft:"transparent",borderRadius:6,padding:"2px 8px",flexShrink:0}}>{lg.who}</span>
+            <span style={{fontSize:10.5,color:th.text3,flexShrink:0,minWidth:62,textAlign:"right"}}>{lg.ago}</span>
+          </div>
+        );})}
+      </div>
+
+      {/* Client detail / edit drawer */}
+      {detail && (() => { const sm=statusMeta(th,detail.status); return (
+        <div onClick={()=>setDetail(null)} style={{position:"fixed",inset:0,background:"rgba(3,5,10,0.55)",zIndex:60,display:"flex",justifyContent:"flex-end"}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:420,maxWidth:"92vw",height:"100%",background:th.surface,borderLeft:`1px solid ${th.border}`,overflowY:"auto",boxShadow:"-20px 0 60px rgba(0,0,0,0.5)"}}>
+            <div style={{padding:"22px 24px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",gap:13}}>
+              <div style={{width:46,height:46,borderRadius:13,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700,color:"#fff",flexShrink:0}}>{detail.name.slice(0,2).toUpperCase()}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:16,fontWeight:600,color:th.text}}>{detail.name}</div>
+                <div style={{fontSize:11.5,color:th.text2}}>{detail.email}</div>
+              </div>
+              <span style={{fontSize:10.5,fontWeight:700,color:sm.c,background:sm.bg,borderRadius:999,padding:"3px 10px",flexShrink:0}}>{sm.label}</span>
+              <button onClick={()=>setDetail(null)} style={{background:"none",border:"none",cursor:"pointer",color:th.text2,display:"flex"}}><XCircle size={20}/></button>
+            </div>
+
+            {!editing ? (
+              <>
+                <div style={{padding:"18px 24px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                  {[["Plan",detail.plan],["Accounts",detail.accounts],["MRR",detail.mrr?`$${detail.mrr}`:"—"],["Joined",detail.joined]].map(([l,v])=>(
+                    <div key={l} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"12px 14px"}}>
+                      <div style={{fontSize:10.5,color:th.text2,marginBottom:5}}>{l}</div>
+                      <div className="tw-num" style={{fontSize:15,fontWeight:600,color:th.text}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{padding:"4px 24px 8px"}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase",marginBottom:10}}>Recent activity</div>
+                  {[["Published a Reel","4m ago",th.success],["Scheduled 3 posts","2h ago",th.accent],["Replied to 5 comments","6h ago",th.accent2],["Account created",detail.joined,th.text3]].map(([t,ago,c],i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:11,padding:"9px 0",borderBottom:i<3?`1px solid ${th.border}`:"none"}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:c,flexShrink:0}}/>
+                      <span style={{flex:1,fontSize:12.5,color:th.text}}>{t}</span>
+                      <span style={{fontSize:10.5,color:th.text3}}>{ago}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{padding:"14px 24px 24px",display:"flex",flexDirection:"column",gap:9}}>
+                  <button onClick={()=>impersonate(detail)} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}><ArrowUpRight size={15}/>Open their dashboard</button>
+                  <div style={{display:"flex",gap:9}}>
+                    <button onClick={()=>setEditing(true)} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,cursor:"pointer"}}><Edit3 size={14}/>Edit</button>
+                    <a href={`mailto:${detail.email}`} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:6,padding:"10px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,textDecoration:"none"}}><Mail size={14}/>Email</a>
+                  </div>
+                  <button onClick={()=>{toggleStatus(detail.id); pushLog(`${detail.status==="suspended"?"Reactivated":"Suspended"} ${detail.name}`, detail.status==="suspended"?Play:Pause, detail.status==="suspended"?th.success:th.danger); setDetail(d=>({...d,status:d.status==="suspended"?"active":"suspended"}));}} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:"10px",borderRadius:11,background:detail.status==="suspended"?th.successSoft:th.warningSoft,border:`1px solid ${(detail.status==="suspended"?th.success:th.warning)}33`,color:detail.status==="suspended"?th.success:th.warning,fontSize:12.5,cursor:"pointer"}}>{detail.status==="suspended"?<><Play size={14}/>Reactivate account</>:<><Pause size={14}/>Suspend account</>}</button>
+                </div>
+              </>
+            ) : (
+              <div style={{padding:"20px 24px"}}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase",marginBottom:14}}>Edit client</div>
+                {[["name","Name"],["email","Email"]].map(([k,l])=>(
+                  <div key={k} style={{marginBottom:13}}>
+                    <div style={{fontSize:11,color:th.text2,marginBottom:5}}>{l}</div>
+                    <input value={form[k]||""} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"10px 13px",color:th.text,fontSize:13,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}/>
+                  </div>
+                ))}
+                <div style={{marginBottom:13}}>
+                  <div style={{fontSize:11,color:th.text2,marginBottom:5}}>Plan</div>
+                  <select value={form.plan} onChange={e=>setForm(f=>({...f,plan:e.target.value}))} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"10px 13px",color:th.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>{["Essential","Professional","Enterprise","Internal"].map(p=><option key={p} value={p}>{p}</option>)}</select>
+                </div>
+                <div style={{marginBottom:18}}>
+                  <div style={{fontSize:11,color:th.text2,marginBottom:5}}>Status</div>
+                  <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"10px 13px",color:th.text,fontSize:13,outline:"none",fontFamily:"inherit"}}>{["active","trial","past_due","suspended"].map(p=><option key={p} value={p}>{p}</option>)}</select>
+                </div>
+                <div style={{display:"flex",gap:9}}>
+                  <button onClick={()=>setEditing(false)} style={{flex:1,padding:"11px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:13,cursor:"pointer"}}>Cancel</button>
+                  <button onClick={saveEdit} style={{flex:1.4,padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>Save changes</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ); })()}
     </div>
   );
 }
@@ -5342,7 +5475,7 @@ function SettingsPage() {
   const toggleNotif = (k) => setNotif(prev => { const next = { ...prev, [k]: !prev[k] }; try { localStorage.setItem('tw_notify', JSON.stringify(next)); } catch (e) { /* ignore */ } return next; });
 
   const fieldStyle = {width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit"};
-  const card = {background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, boxShadow:"0 8px 24px rgba(0,0,0,0.22)"};
+  const card = {background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, boxShadow:"none"};
   const secTitle = (Icon, txt) => (<div style={{display:"flex", alignItems:"center", gap:8, fontSize:13.5, fontWeight:700, marginBottom:16}}><Icon size={15} color={th.accent}/>{txt}</div>);
   const Sw = ({on, onClick}) => (
     <button onClick={onClick} style={{width:42, height:23, borderRadius:12, background:on?th.accent:th.border, border:"none", cursor:"pointer", position:"relative", flexShrink:0}}>
@@ -6953,7 +7086,7 @@ function TrialBanner() {
 }
 
 export default function TawasloApp() {
-  const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') === 'dark'; } catch(e){ return false; } });
+  const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') !== 'light'; } catch(e){ return true; } });
   useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
   const [lang,      setLang]      = useState("en");
   const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
@@ -7090,6 +7223,7 @@ export default function TawasloApp() {
       if (page==="revenue")  return <OwnerRevenuePage/>;
       if (page==="apiusage") return <OwnerApiUsagePage/>;
       if (page==="team")     return <OwnerTeamPage/>;
+      if (page==="settings") return <SettingsPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
