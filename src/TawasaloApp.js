@@ -280,7 +280,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent" }) {
           </div>
         )}
       </div>
-      <div style={{fontSize:26,fontWeight:600,letterSpacing:-0.5,marginBottom:3}}>{disp}</div>
+      <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.5,marginBottom:3}}>{disp}</div>
       <div style={{fontSize:12,color:th.text2}}>{label}</div>
     </div>
   );
@@ -2741,7 +2741,7 @@ function PublisherPage() {
   };
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:16, boxShadow:"0 10px 30px rgba(0,0,0,0.3)" };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:16, boxShadow:"none" };
   const lbl = { fontSize:12, color:th.text2, marginBottom:10 };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const firstImg = images[0];
@@ -3534,7 +3534,7 @@ function Placeholder({ icon:Icon, title, description, badge, features, ctaLabel,
   const th = useTheme();
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"66vh",textAlign:"center",padding:40}}>
-      <div style={{width:74,height:74,borderRadius:20,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18,boxShadow:"0 10px 30px rgba(79,110,247,0.22)"}}>
+      <div style={{width:74,height:74,borderRadius:20,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:18}}>
         <Icon size={32} color={th.accent} strokeWidth={1.6}/>
       </div>
       {badge && <div style={{display:"inline-flex",alignItems:"center",gap:6,background:th.accentSoft,color:th.accent,fontSize:11,fontWeight:700,padding:"4px 12px",borderRadius:999,marginBottom:12,letterSpacing:0.3}}><Sparkles size={12}/>{badge}</div>}
@@ -3668,7 +3668,7 @@ function TrendingPage() {
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
           {(sampleMode?sampleShown:items).map((it,i)=>(
-            <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.32)"}}>
+            <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":"Instagram"}</span>
@@ -4064,9 +4064,9 @@ function CampaignsPage() {
                 <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:7 }}><Target size={13}/>{c.goal || 'No goal set'}</div>
                 <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:14 }}><Calendar size={13}/>{fmtDate(c.start_date)} to {fmtDate(c.end_date)}</div>
                 <div style={{ display:"flex", gap:18, paddingTop:14, borderTop:`1px solid ${th.border}` }}>
-                  <div><div style={{ fontSize:17, fontWeight:800, color:th.text }}>{c.posts}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Posts</div></div>
-                  <div><div style={{ fontSize:17, fontWeight:800, color:th.text }}>{fmt(c.reach)}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Reach</div></div>
-                  <div><div style={{ fontSize:17, fontWeight:800, color:th.accent }}>{(c.engagement||0)}%</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Engagement</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{c.posts}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Posts</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{fmt(c.reach)}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Reach</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.accent }}>{(c.engagement||0)}%</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Engagement</div></div>
                 </div>
               </div>
             );
@@ -4267,14 +4267,14 @@ function AdsPage() {
         <div style={{ fontSize:11, color:th.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:0.5 }}>{label}</div>
         {Icon && <div style={{ width:30, height:30, borderRadius:9, background:(color || th.accent)+"1f", display:"flex", alignItems:"center", justifyContent:"center" }}><Icon size={15} color={color || th.accent}/></div>}
       </div>
-      <div style={{ fontSize:26, fontWeight:800, color: color || th.text }}>{value}</div>
+      <div className="tw-num" style={{ fontSize:26, fontWeight:600, color: color || th.text }}>{value}</div>
       {sub && <div style={{ fontSize:11, color:th.text2, marginTop:4 }}>{sub}</div>}
     </div>
   );
 
   const statusColor = (st) => st === 'ACTIVE' ? th.success : st === 'PAUSED' ? th.warning : th.text2;
   const emptyState = (Icon, title, body) => (
-    <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:"48px 24px", textAlign:"center", boxShadow:"0 10px 30px rgba(0,0,0,0.26)" }}>
+    <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:"48px 24px", textAlign:"center", boxShadow:"none" }}>
       <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Icon size={26} color={th.accent}/></div>
       <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{title}</div>
       <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.7, maxWidth:430, margin:"0 auto" }}>{body}</div>
@@ -4314,7 +4314,7 @@ function AdsPage() {
             {statCard("Campaigns", adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} active`, th.success, Megaphone)}
           </div>
 
-          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 12px 32px rgba(0,0,0,0.3)" }}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
             <div style={{ padding:"15px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700 }}>Campaigns</div>
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
@@ -4985,7 +4985,7 @@ function TeamPage() {
         </div>
       )}
 
-      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 12px 32px rgba(0,0,0,0.3)" }}>
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
         <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>Members &middot; {team.length}</div>
         {team.map((m,i) => (
           <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none" }}>
@@ -5116,7 +5116,7 @@ function BillingPage() {
               <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
               <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
               <div style={{display:"flex", alignItems:"baseline", gap:6}}>
-                <span style={{fontSize:34, fontWeight:900, color:highlight?th.accent:th.text}}>${price}</span>
+                <span className="tw-num" style={{fontSize:34, fontWeight:600, color:highlight?th.accent:th.text}}>${price}</span>
                 <span style={{fontSize:12, color:th.text2}}>/mo</span>
               </div>
               <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>
