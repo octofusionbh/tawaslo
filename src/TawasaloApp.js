@@ -175,20 +175,6 @@ function CountUp({ to, duration = 1500, format, className, style }) {
   return <span ref={ref} className={className} style={style}>{format ? format(val) : Math.round(val)}</span>;
 }
 
-// Unified empty state — a soft icon tile, title, one line, and an optional
-// primary action. Used across rooms so blank screens point the way forward.
-function EmptyState({ th, Icon, title, desc, actionLabel, onAction, ActionIcon }) {
-  const AI = ActionIcon || Plus;
-  return (
-    <div style={{ textAlign: "center", padding: "48px 24px" }}>
-      <div style={{ width: 54, height: 54, borderRadius: 16, background: th.accentSoft, border: `1px solid ${th.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>{Icon && <Icon size={25} color={th.accent} />}</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 12.5, color: th.text2, lineHeight: 1.6, maxWidth: 300, margin: "0 auto 18px" }}>{desc}</div>
-      {actionLabel && <button onClick={onAction} style={{ padding: "10px 20px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, boxShadow: `0 6px 18px ${th.accent}40` }}><AI size={14} />{actionLabel}</button>}
-    </div>
-  );
-}
-
 // ── Skeleton loaders ───────────────────────────────────────────────
 // Shaped shimmering placeholders shown while data loads, instead of a plain
 // "Loading…" line. Sk is the primitive; the others compose common layouts.
