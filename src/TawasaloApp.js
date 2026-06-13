@@ -686,7 +686,7 @@ function Sidebar() {
           </div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${th.border}`,paddingTop:9}}>
             <span style={{fontSize:11,fontWeight:600,color:planTrial?th.warning:th.accent,display:"inline-flex",alignItems:"center",gap:6}}><Sparkles size={13}/>{planLabel}</span>
-            <span style={{fontSize:10.5,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
+            <span onClick={(e)=>{ e.stopPropagation(); setAcctOpen(false); setPage("billing"); }} style={{fontSize:10.5,fontWeight:600,color:th.accent,cursor:"pointer"}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
           </div>
         </div>
       </div>
