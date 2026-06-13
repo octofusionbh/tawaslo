@@ -122,9 +122,9 @@ function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
 // works before billing is wired, mirroring the trial-limit pattern above.
 // Full-access accounts (the agency owner) are never capped.
 const IMG_PACKS = [
-  { id:"starter", name:"Starter", images:50,  price:18.9 },
-  { id:"growth",  name:"Growth",  images:100, price:24.9, popular:true },
-  { id:"agency",  name:"Agency",  images:250, price:39.9 },
+  { id:"lite", name:"Lite", images:50,  price:18.9 },
+  { id:"plus", name:"Plus", images:100, price:24.9, popular:true },
+  { id:"max",  name:"Max",  images:250, price:39.9 },
 ];
 const IMG_FREE = 5; // free images per client per month, before any pack
 function imgMonthKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
@@ -194,21 +194,34 @@ function ImagePackPicker({ th, geo, currentPack, onChoose }) {
   );
 }
 
-// Paywall modal — pops when a capped client tries to generate with no credits.
-function ImagePaywallModal({ open, onClose, th, geo, used, limit, currentPack, onChoose }) {
+// Paywall modal — pops when an agency runs out of credits. Paid agencies get the
+// pack picker; trial/free agencies are sent to upgrade their plan first, since
+// image packs are a paid-plan add-on.
+function ImagePaywallModal({ open, onClose, th, geo, used, limit, currentPack, onChoose, isPaid, onUpgrade }) {
   if (!open) return null;
-  const out = limit !== Infinity && used >= limit;
+  const out = used >= limit;
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:480, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:th.shadow }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:isPaid?480:420, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:th.shadow }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
           <div style={{ width:42, height:42, borderRadius:11, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={20} color={th.accent}/></div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><XCircle size={18}/></button>
         </div>
-        <div style={{ fontSize:18, fontWeight:700, color:th.text, margin:"12px 0 5px", letterSpacing:-0.3 }}>{out ? "You are out of image credits" : "Unlock AI image generation"}</div>
-        <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:20 }}>Create and edit on-brand images with Gemini, right inside your studio. Pick a monthly pack to keep going. Credits refresh every month.</div>
-        <ImagePackPicker th={th} geo={geo} currentPack={currentPack} onChoose={onChoose}/>
-        <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:th.text3 }}>Secure payment. Cancel anytime. Billed in USD.</div>
+        {isPaid ? (
+          <>
+            <div style={{ fontSize:18, fontWeight:700, color:th.text, margin:"12px 0 5px", letterSpacing:-0.3 }}>{out ? "You are out of image credits" : "Add AI image credits"}</div>
+            <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:20 }}>Create and edit on-brand images with Gemini, right inside your studio. Pick a monthly pack for your agency. Credits refresh every month.</div>
+            <ImagePackPicker th={th} geo={geo} currentPack={currentPack} onChoose={onChoose}/>
+            <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:th.text3 }}>Secure payment. Cancel anytime. Billed in USD.</div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize:18, fontWeight:700, color:th.text, margin:"12px 0 5px", letterSpacing:-0.3 }}>{out ? "You've used your free images" : "Unlock AI image generation"}</div>
+            <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:20 }}>AI image generation is a paid add-on. Choose a plan, then add a monthly image pack for your agency to keep generating and editing on-brand images.</div>
+            <button onClick={onUpgrade} style={{ width:"100%", padding:"13px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", marginBottom:10 }}>See plans</button>
+            <button onClick={onClose} style={{ width:"100%", padding:"11px", borderRadius:12, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Maybe later</button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -2441,6 +2454,7 @@ function AIStudioPage() {
   const [creditTick, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
   const [justBought, setJustBought] = useState("");
   const acct = (userEmail || "").toLowerCase();   // image credits are owned by the agency, not the client
+  const isPaid = (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
   const imgLimit = imgLimitOf(acct);
   const imgUsed = imgUsedOf(acct);
   const noCredits = imgUsed >= imgLimit;
@@ -2580,7 +2594,7 @@ function AIStudioPage() {
             <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
               <span><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</span>
-              <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{curPack ? "Change plan" : "Get more"}</button>
+              <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? "Upgrade plan" : (curPack ? "Change plan" : "Get more")}</button>
             </div>
           </div>
           {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} activated. Your image credits are ready.</div>}
@@ -2702,7 +2716,7 @@ function AIStudioPage() {
         </div>
       )}
 
-      <ImagePaywallModal open={payOpen} onClose={()=>setPayOpen(false)} th={th} geo={geo} used={imgUsed} limit={imgLimit} currentPack={curPack} onChoose={choosePack}/>
+      <ImagePaywallModal open={payOpen} onClose={()=>setPayOpen(false)} th={th} geo={geo} used={imgUsed} limit={imgLimit} currentPack={curPack} onChoose={choosePack} isPaid={isPaid} onUpgrade={()=>{ setPayOpen(false); setPage('billing'); }}/>
     </div>
   );
 }
@@ -5450,8 +5464,9 @@ function BillingPage() {
   const [cancelled, setCancelled] = useState(false);
   const [imgTick, setImgTick] = useState(0);   // re-read image credits after a change
   const imgAcct = (userEmail || "").toLowerCase();
+  const imgIsPaid = (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
   const imgCurPack = imgPackOf(imgAcct);
-  const agencyName = userCompany || userName || "your agency";
+  const agencyName = shortCompany(userCompany) || (userEmail === ADMIN_EMAIL ? "Octo Fusion" : (userName || "your agency"));
   const chooseImgPack = (pack) => { setImgPackOf(imgAcct, pack.id); setImgTick(t => t + 1); setNotice(`${pack.name} image pack activated for ${agencyName}. ${pack.images} images a month across all your clients, refreshing monthly.`); };
 
   useEffect(() => {
@@ -5573,13 +5588,22 @@ function BillingPage() {
           <div style={{width:34, height:34, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><Image size={17} color={th.accent}/></div>
           <h3 style={{fontSize:17, fontWeight:800, margin:0, letterSpacing:-0.3}}>AI image credits</h3>
         </div>
-        <p style={{margin:"0 0 16px 44px", fontSize:12.5, color:th.text2}}>
-          {imgCurPack
-            ? <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
-            : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. Generate and edit on-brand images across all your clients in AI Studio.</>}
-        </p>
-        <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>
-        <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed to your agency, in USD. Cancel anytime.</div>
+        {imgIsPaid ? (
+          <>
+            <p style={{margin:"0 0 16px 44px", fontSize:12.5, color:th.text2}}>
+              {imgCurPack
+                ? <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
+                : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. Generate and edit on-brand images across all your clients in AI Studio.</>}
+            </p>
+            <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>
+            <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed to your agency, in USD. Cancel anytime.</div>
+          </>
+        ) : (
+          <div style={{marginLeft:44, padding:"16px 18px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, fontSize:12.5, color:th.text2, lineHeight:1.6}}>
+            <Lock size={14} color={th.text3} style={{verticalAlign:-2, marginRight:7}}/>
+            AI image credits are available on any paid plan. Choose a plan above to unlock image generation and add a monthly pack.
+          </div>
+        )}
       </div>
 
       {!isMobile && (
@@ -5952,7 +5976,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{marginBottom:8}}><span className="tw-num" style={{fontSize:34,fontWeight:700,color:popular?"#9DB6D6":"#F2F5F9"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
       {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[planKey]-price)*12}/year</div>}
       <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
-      <button onClick={onGetStarted} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #232B38",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
+      <button onClick={()=>{ try{ sessionStorage.setItem('tw_signup_plan', planKey); }catch(e){} onGetStarted(); }} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #232B38",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
     </div>
   );
 
@@ -6396,7 +6420,7 @@ function LandingPage({ onGetStarted, onLogin }) {
           <p style={{color:"#7A8BA8",fontSize:13.5}}>Generate and edit on-brand images with AI. Add a monthly pack to any plan.</p>
         </div>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16,maxWidth:760,margin:"0 auto"}}>
-          {[["Starter",50,"18.90",false],["Growth",100,"24.90",true],["Agency",250,"39.90",false]].map(([nm,imgs,pr,pop])=>(
+          {[["Lite",50,"18.90",false],["Plus",100,"24.90",true],["Max",250,"39.90",false]].map(([nm,imgs,pr,pop])=>(
             <div key={nm} style={{background:pop?"#101722":"#0C1017",border:`${pop?2:1}px solid ${pop?"#6E8CAB":"#232B38"}`,borderRadius:14,padding:"22px 18px 20px",position:"relative",textAlign:"center"}}>
               {pop&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 13px",borderRadius:999,letterSpacing:0.4,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
               <div style={{fontSize:11,letterSpacing:0.6,textTransform:"uppercase",color:"#9DB6D6",fontWeight:700,marginBottom:10}}>{nm}</div>
@@ -6792,10 +6816,12 @@ function AuthPage() {
   const [trialPlatforms,setTrialPlatforms]= useState([]);
   const [trialBrands,   setTrialBrands]   = useState("");
   const [accountType,   setAccountType]   = useState("agency");
-  const [selectedPlan,  setSelectedPlan]  = useState("professional");
+  const [selectedPlan,  setSelectedPlan]  = useState(() => { try { const sp = sessionStorage.getItem('tw_signup_plan'); sessionStorage.removeItem('tw_signup_plan'); const map = { pro:'professional', starter:'starter', professional:'professional', agency:'agency' }; return (sp && map[sp]) || 'professional'; } catch(e) { return 'professional'; } });
   const [billingPeriod, setBillingPeriod] = useState("monthly");
   const [companyName,   setCompanyName]   = useState("");
   const [tosAgreed,     setTosAgreed]     = useState(false);
+  const [imgAddon,      setImgAddon]      = useState("none");   // optional AI image pack chosen at signup
+  const sgeo = useGeo();
 
   const handleSignUp = async () => {
     if (!tosAgreed) { setError("Please agree to the Terms of Service to continue."); return; }
@@ -6806,6 +6832,7 @@ function AuthPage() {
     if (err) { setError(err.message); return; }
     if (data?.user) {
       try { markTrialStart(email); } catch(e) {}
+      try { if (imgAddon && imgAddon !== "none") setImgPackOf(email.toLowerCase(), imgAddon); } catch(e) {}
       await createProfile(data.user.id, name, email, selectedPlan, accountType, companyName);
       await createInitialClient(data.user.id, companyName || name, selectedPlan, accountType);
       // Send welcome email
@@ -7087,6 +7114,40 @@ function AuthPage() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Optional AI image add-on — slides in once a plan is selected */}
+                  <div style={{maxHeight:selectedPlan?460:0,opacity:selectedPlan?1:0,overflow:"hidden",transform:selectedPlan?"translateY(0)":"translateY(-8px)",transition:"max-height 0.45s ease, opacity 0.35s ease, transform 0.35s ease"}}>
+                    <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px 16px",marginBottom:4}}>
+                      <div style={{display:"flex",alignItems:"center",gap:9,marginBottom:11}}>
+                        <div style={{width:30,height:30,borderRadius:9,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}><Image size={15} color={th.accent}/></div>
+                        <div>
+                          <div style={{fontSize:12.5,fontWeight:800,color:th.text}}>Add AI image generation</div>
+                          <div style={{fontSize:10.5,color:th.text2}}>Optional. On-brand images, generated and edited with AI.</div>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                        {IMG_PACKS.map(p=>{ const on=imgAddon===p.id; const ap=approxLabel(sgeo,p.price); return (
+                          <div key={p.id} onClick={()=>setImgAddon(p.id)} style={{display:"flex",alignItems:"center",gap:11,background:on?"rgba(79,110,247,0.08)":th.card,border:`1.5px solid ${on?th.accent:th.border}`,borderRadius:10,padding:"9px 13px",cursor:"pointer"}}>
+                            <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${on?th.accent:th.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<div style={{width:8,height:8,borderRadius:"50%",background:th.accent}}/>}</div>
+                            <div style={{flex:1}}>
+                              <span style={{fontSize:12,fontWeight:700,color:th.text}}>{p.name}</span>
+                              <span style={{fontSize:11,color:th.text2}}> · {p.images} images / mo</span>
+                              {p.popular&&<span style={{fontSize:8.5,fontWeight:700,letterSpacing:0.3,textTransform:"uppercase",color:"#fff",background:th.accent,padding:"2px 6px",borderRadius:10,marginLeft:7}}>Popular</span>}
+                            </div>
+                            <div style={{textAlign:"right"}}>
+                              <div className="tw-num" style={{fontSize:13,fontWeight:700,color:th.text}}>+${p.price}</div>
+                              {ap&&<div style={{fontSize:9.5,color:th.text3}}>{ap.replace("approx ","≈ ")}</div>}
+                            </div>
+                          </div>
+                        ); })}
+                        <div onClick={()=>setImgAddon("none")} style={{display:"flex",alignItems:"center",gap:11,background:"transparent",border:`1.5px solid ${imgAddon==="none"?th.accent:th.border}`,borderRadius:10,padding:"9px 13px",cursor:"pointer"}}>
+                          <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${imgAddon==="none"?th.accent:th.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{imgAddon==="none"&&<div style={{width:8,height:8,borderRadius:"50%",background:th.accent}}/>}</div>
+                          <span style={{flex:1,fontSize:12,color:th.text2}}>No thanks, maybe later</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <div style={{display:"flex",gap:8,marginTop:4}}>
                     <button onClick={()=>setSignupStep(1)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
                     <button onClick={()=>setSignupStep(3)} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
