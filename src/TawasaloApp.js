@@ -115,6 +115,97 @@ function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
   );
 }
 
+// ── AI image credits ───────────────────────────────────────────────
+// Image generation is a paid add-on sold in monthly packs, scoped per client
+// account. Each client gets a small free taste per month; buying a pack lifts
+// the cap. Tracked in localStorage (per client, per calendar month) so it
+// works before billing is wired, mirroring the trial-limit pattern above.
+// Full-access accounts (the agency owner) are never capped.
+const IMG_PACKS = [
+  { id:"starter", name:"Starter", images:50,  price:18.9 },
+  { id:"growth",  name:"Growth",  images:100, price:24.9, popular:true },
+  { id:"agency",  name:"Agency",  images:250, price:39.9 },
+];
+const IMG_FREE = 5; // free images per client per month, before any pack
+function imgMonthKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+function imgPackOf(clientId) { try { return clientId ? (localStorage.getItem("tw_imgpack_" + clientId) || null) : null; } catch (e) { return null; } }
+function setImgPackOf(clientId, packId) { try { if (!clientId) return; if (packId) localStorage.setItem("tw_imgpack_" + clientId, packId); else localStorage.removeItem("tw_imgpack_" + clientId); } catch (e) { /* ignore */ } }
+function imgUsedOf(clientId) { try { return clientId ? parseInt(localStorage.getItem("tw_img_" + clientId + "_" + imgMonthKey()) || "0", 10) : 0; } catch (e) { return 0; } }
+function bumpImgUsed(clientId, by = 1) { try { if (!clientId) return 0; const n = imgUsedOf(clientId) + by; localStorage.setItem("tw_img_" + clientId + "_" + imgMonthKey(), String(n)); return n; } catch (e) { return 0; } }
+function imgLimitOf(clientId, email) {
+  if (email && FULL_ACCESS_EMAILS.includes(String(email).toLowerCase())) return Infinity;
+  const p = IMG_PACKS.find(x => x.id === imgPackOf(clientId));
+  return p ? p.images : IMG_FREE;
+}
+
+// Visitor geo -> local currency, fetched once and cached, for the "approx" line.
+let _twGeo = null;
+function useGeo() {
+  const [geo, setGeo] = useState(_twGeo);
+  useEffect(() => {
+    if (_twGeo) { setGeo(_twGeo); return; }
+    let on = true;
+    fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'geo' }) })
+      .then(r => r.json()).then(d => { _twGeo = d || {}; if (on) setGeo(_twGeo); }).catch(() => {});
+    return () => { on = false; };
+  }, []);
+  return geo;
+}
+function approxLabel(geo, usd) {
+  if (!geo || !geo.currency || geo.currency === 'USD' || !geo.rate || geo.rate === 1) return null;
+  const v = usd * geo.rate;
+  const r = v >= 10 ? Math.round(v) : Math.round(v * 10) / 10;
+  return "approx " + r + " " + geo.currency;
+}
+
+// Reusable pack picker — used in the paywall modal, Billing, and the homepage.
+function ImagePackPicker({ th, geo, currentPack, onChoose }) {
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(165px,1fr))", gap:12 }}>
+      {IMG_PACKS.map(p => {
+        const on = currentPack === p.id;
+        const ap = approxLabel(geo, p.price);
+        return (
+          <div key={p.id} style={{ background:th.card, border:`${p.popular?2:1}px solid ${p.popular?th.accent:th.border}`, borderRadius:14, padding:"18px 16px", display:"flex", flexDirection:"column", position:"relative" }}>
+            {p.popular && <div style={{ position:"absolute", top:-10, left:"50%", transform:"translateX(-50%)", background:th.accent, color:"#06090F", fontSize:10, fontWeight:700, letterSpacing:0.5, textTransform:"uppercase", padding:"3px 12px", borderRadius:20, whiteSpace:"nowrap" }}>Most popular</div>}
+            <div style={{ fontSize:11, letterSpacing:0.6, textTransform:"uppercase", color:th.accent, fontWeight:700, marginBottom:12 }}>{p.name}</div>
+            <div style={{ display:"flex", alignItems:"baseline" }}>
+              <span className="tw-num" style={{ fontSize:30, fontWeight:600, color:th.text, letterSpacing:-0.5, lineHeight:1 }}>${p.price}</span>
+              <span style={{ fontSize:13, color:th.text3, fontWeight:500, marginLeft:2 }}>/mo</span>
+            </div>
+            {ap && <div style={{ fontSize:10.5, color:th.text3, marginTop:5 }}>{ap}</div>}
+            <div style={{ margin:"13px 0 16px", paddingTop:13, borderTop:`1px solid ${th.border}` }}>
+              <span className="tw-num" style={{ fontSize:18, fontWeight:600, color:th.text2 }}>{p.images}</span>
+              <span style={{ fontSize:12, color:th.text3, fontWeight:500 }}> images / month</span>
+            </div>
+            <button onClick={() => onChoose && onChoose(p)} style={{ marginTop:"auto", width:"100%", padding:11, borderRadius:10, background:p.popular?th.gradient:"transparent", border:p.popular?"none":`1px solid ${th.border}`, color:p.popular?"#fff":th.text2, fontSize:13, fontWeight:p.popular?700:600, cursor:"pointer" }}>{on ? "Current plan" : "Choose " + p.name}</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Paywall modal — pops when a capped client tries to generate with no credits.
+function ImagePaywallModal({ open, onClose, th, geo, used, limit, currentPack, onChoose }) {
+  if (!open) return null;
+  const out = limit !== Infinity && used >= limit;
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:480, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:th.shadow }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+          <div style={{ width:42, height:42, borderRadius:11, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={20} color={th.accent}/></div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><XCircle size={18}/></button>
+        </div>
+        <div style={{ fontSize:18, fontWeight:700, color:th.text, margin:"12px 0 5px", letterSpacing:-0.3 }}>{out ? "You are out of image credits" : "Unlock AI image generation"}</div>
+        <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:20 }}>Create and edit on-brand images with Gemini, right inside your studio. Pick a monthly pack to keep going. Credits refresh every month.</div>
+        <ImagePackPicker th={th} geo={geo} currentPack={currentPack} onChoose={onChoose}/>
+        <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:th.text3 }}>Secure payment. Cancel anytime. Billed in USD.</div>
+      </div>
+    </div>
+  );
+}
+
 // Trial lifecycle popup: a 5-days-left nudge (once a day) and the trial-ended
 // soft paywall prompt. Data stays visible; this just encourages upgrade.
 function TrialLifecycle() {
@@ -2311,8 +2402,9 @@ function MediaPage() {
 }
 
 function AIStudioPage() {
-  const { dark, setPage, selClient } = useApp();
+  const { dark, setPage, selClient, userEmail } = useApp();
   const th = dark ? DARK : LIGHT;
+  const geo = useGeo();
   const [tool, setTool] = useState("captions");
   const [topic, setTopic] = useState("");
   const [platform, setPlatform] = useState("ig");
@@ -2335,6 +2427,16 @@ function AIStudioPage() {
   const [images, setImages] = useState([]);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgErr, setImgErr] = useState("");
+  const [payOpen, setPayOpen] = useState(false);
+  const [creditTick, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
+  const [justBought, setJustBought] = useState("");
+  const cid = selClient?.id;
+  const imgLimit = imgLimitOf(cid, userEmail);
+  const imgUsed = imgUsedOf(cid);
+  const imgUnlimited = imgLimit === Infinity;
+  const noCredits = !imgUnlimited && imgUsed >= imgLimit;
+  const curPack = imgPackOf(cid);
+  const choosePack = (pack) => { setImgPackOf(cid, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
   const SIZES = [
     { id:"other", size:"1024x1024", label:"Other",       Icon:Image },
     { id:"ig",    size:"1024x1024", label:"Instagram",   Icon:FaInstagram },
@@ -2346,6 +2448,7 @@ function AIStudioPage() {
   const runImage = async () => {
     const p = imgPrompt.trim();
     if ((!p && imgMode==="generate") || (imgMode==="edit" && (!srcImage || !p)) || imgLoading) return;
+    if (noCredits) { setPayOpen(true); return; }
     setImgLoading(true); setImgErr(""); setImages([]);
     try {
       const size = (SIZES.find(s=>s.id===imgPreset)||{}).size || "1024x1024";
@@ -2355,7 +2458,7 @@ function AIStudioPage() {
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
       else if (r.error) setImgErr(typeof r.error==='string'?r.error:'Could not generate.');
-      else if (r.images && r.images.length) setImages(r.images);
+      else if (r.images && r.images.length) { setImages(r.images); if (!imgUnlimited && cid) { bumpImgUsed(cid, r.images.length); setCreditTick(t=>t+1); } }
       else setImgErr('Could not generate. Please try again.');
     } catch(e) { setImgErr('Something went wrong. Please try again.'); }
     setImgLoading(false);
@@ -2456,6 +2559,29 @@ function AIStudioPage() {
             <div style={{ fontSize:13, fontWeight:600, color:th.text, display:"flex", alignItems:"center", gap:8 }}><Image size={15} color={th.accent}/>AI images</div>
             <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>Powered by Gemini</span>
           </div>
+
+          <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 14px", marginBottom:12 }}>
+            {imgUnlimited ? (
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:th.text2 }}><Sparkles size={13} color={th.accent}/>Unlimited image credits</div>
+            ) : (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
+                  <div>
+                    <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>Image credits this month</div>
+                    <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {imgLimit}</span></div>
+                  </div>
+                  <div style={{ fontSize:11, color:th.text3 }}>{curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free"} plan</div>
+                </div>
+                <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
+                  <span><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</span>
+                  <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{curPack ? "Change plan" : "Get more"}</button>
+                </div>
+              </>
+            )}
+          </div>
+          {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} activated. Your image credits are ready.</div>}
+
           <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:12 }}>
             {[["generate","Generate",Sparkles],["edit","Edit a photo",Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
           </div>
@@ -2572,6 +2698,8 @@ function AIStudioPage() {
           </div>
         </div>
       )}
+
+      <ImagePaywallModal open={payOpen} onClose={()=>setPayOpen(false)} th={th} geo={geo} used={imgUsed} limit={imgLimit} currentPack={curPack} onChoose={choosePack}/>
     </div>
   );
 }
@@ -5305,17 +5433,23 @@ function TeamPage() {
 }
 
 function BillingPage() {
-  const { dark, lang } = useApp();
+  const { dark, lang, selClient, userEmail } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
+  const geo = useGeo();
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [paid, setPaid] = useState(false);
   const [period, setPeriod] = useState("annual");
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [imgTick, setImgTick] = useState(0);   // re-read image credits after a change
+  const imgCid = selClient?.id;
+  const imgCurPack = imgPackOf(imgCid);
+  const imgUnlimitedBilling = imgLimitOf(imgCid, userEmail) === Infinity;
+  const chooseImgPack = (pack) => { setImgPackOf(imgCid, pack.id); setImgTick(t => t + 1); setNotice(`${pack.name} image pack activated for ${selClient?.name || "this client"}. ${pack.images} images a month, refreshing monthly.`); };
 
   useEffect(() => {
     try {
@@ -5430,6 +5564,22 @@ function BillingPage() {
         })}
       </div>
       <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
+
+      <div style={{marginTop:40}}>
+        <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:4}}>
+          <div style={{width:34, height:34, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><Image size={17} color={th.accent}/></div>
+          <h3 style={{fontSize:17, fontWeight:800, margin:0, letterSpacing:-0.3}}>AI image credits</h3>
+        </div>
+        <p style={{margin:"0 0 16px 44px", fontSize:12.5, color:th.text2}}>
+          {imgCurPack
+            ? <>{selClient?.name || "This client"} is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
+            : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{selClient?.name || "this client"}</span>. Generate and edit on-brand images in AI Studio.</>}
+        </p>
+        {imgUnlimitedBilling
+          ? <div style={{marginLeft:44, fontSize:12.5, color:th.text2, display:"flex", alignItems:"center", gap:8}}><Sparkles size={14} color={th.accent}/>Your account has unlimited image credits.</div>
+          : <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>}
+        <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed per client account, in USD. Cancel anytime.</div>
+      </div>
 
       {!isMobile && (
       <div style={{marginTop:44}}>

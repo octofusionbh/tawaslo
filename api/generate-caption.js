@@ -65,6 +65,32 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Geo currency hint ──────────────────────────────────────────────
+  // Returns the visitor's country and an approximate local-currency rate so
+  // the pricing cards can show a small "approx X BHD" line under the USD
+  // price. Display only — billing is always taken in USD. Rates are static
+  // (GCC pegs are fixed; the rest are rounded estimates, and the line is
+  // explicitly labelled "approx" so exactness is not implied).
+  if (theMode === 'geo') {
+    const cc = String(req.headers['x-vercel-ip-country'] || '').toUpperCase();
+    const MAP = {
+      BH:{ currency:'BHD', rate:0.376 }, SA:{ currency:'SAR', rate:3.75 },
+      AE:{ currency:'AED', rate:3.67 },  KW:{ currency:'KWD', rate:0.307 },
+      QA:{ currency:'QAR', rate:3.64 },  OM:{ currency:'OMR', rate:0.385 },
+      JO:{ currency:'JOD', rate:0.709 }, EG:{ currency:'EGP', rate:49 },
+      GB:{ currency:'GBP', rate:0.79 },  CA:{ currency:'CAD', rate:1.37 },
+      AU:{ currency:'AUD', rate:1.52 },  IN:{ currency:'INR', rate:83 },
+      PK:{ currency:'PKR', rate:278 },   TR:{ currency:'TRY', rate:32 },
+    };
+    const EU = ['DE','FR','ES','IT','NL','IE','PT','AT','BE','FI','GR','LU','SK','SI','EE','LV','LT','CY','MT'];
+    const info = MAP[cc] || (EU.includes(cc) ? { currency:'EUR', rate:0.92 } : null);
+    return res.status(200).json({
+      country: cc || null,
+      currency: info ? info.currency : 'USD',
+      rate: info ? info.rate : 1,
+    });
+  }
+
   // Vision modes need an image; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });
