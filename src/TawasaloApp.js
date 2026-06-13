@@ -137,6 +137,22 @@ function imgLimitOf(acct) {
   return p ? p.images : IMG_FREE;
 }
 
+// ── Approval workflow ───────────────────────────────────────────────
+// Per-post sign-off. A post moves draft -> pending -> approved, or lands on
+// "changes" when the client asks for edits. State is stored locally for now;
+// the live build persists a status column on each post in Supabase and the
+// client responds through a secure expiring link (tawaslo.com/a/<token>).
+const APPR_STATUS = {
+  draft:    { label:"Draft",             ar:"مسودة",         color:"#7E8B99" },
+  pending:  { label:"Pending",           ar:"بانتظار الموافقة", color:"#E0B973" },
+  approved: { label:"Approved",          ar:"تمت الموافقة",  color:"#5FBF92" },
+  changes:  { label:"Changes requested", ar:"طلب تعديل",      color:"#D98A6A" },
+};
+function clientNeedsApproval(clientId) { try { return clientId ? localStorage.getItem("tw_apprdef_" + clientId) !== "0" : true; } catch (e) { return true; } }
+function setClientNeedsApproval(clientId, on) { try { if (clientId) localStorage.setItem("tw_apprdef_" + clientId, on ? "1" : "0"); } catch (e) { /* ignore */ } }
+function apprToken(id) { try { let t = localStorage.getItem("tw_apprlink_" + id); if (!t) { t = Math.random().toString(36).slice(2, 10); localStorage.setItem("tw_apprlink_" + id, t); } return t; } catch (e) { return "preview"; } }
+function apprLink(id) { return "tawaslo.com/a/" + apprToken(id); }
+
 // Short, card-style agency name: keeps the first two words of a long company
 // name (e.g. "Octo Fusion Collective Hub" -> "Octo Fusion") so the topbar and
 // sidebar read like a clean business card.
@@ -531,6 +547,7 @@ function Sidebar() {
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
+      {key:"approvals", Icon:Shield,          label:"Approvals", badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
       {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
       {key:"listening", Icon:Activity,        label:"Listening", badge:null},
@@ -2166,6 +2183,139 @@ function HoverChart({ lines, labels=[], height=120, yTop="", area=true }) {
         {labels[hi]&&<div style={{color:th.text2,fontSize:9,marginBottom:2}}>{labels[hi]}</div>}
         {lines.map((l,k)=><div key={k} style={{display:"flex",alignItems:"center",gap:6,fontSize:11.5,marginTop:k?2:0}}><span style={{width:7,height:7,borderRadius:"50%",background:l.color}}/><span className="tw-num" style={{color:th.text,fontWeight:600}}>{f(l.values[hi])}</span><span style={{color:th.text3,fontSize:10}}>{l.label}</span></div>)}
       </div>}
+    </div>
+  );
+}
+
+// Share sheet shown after "Send for approval" — hands the client a secure
+// link via WhatsApp, email, or copy. Opening WhatsApp/email pre-fills a short
+// message; billing-free, no account needed on the client side.
+function SendApprovalModal({ open, onClose, th, L, link, subtitle }) {
+  const [copied, setCopied] = useState(false);
+  if (!open) return null;
+  const url = "https://" + link;
+  const msg = L("Here is the content plan for your approval: ", "إليك خطة المحتوى للموافقة: ") + url;
+  const wa = "https://wa.me/?text=" + encodeURIComponent(msg);
+  const mail = "mailto:?subject=" + encodeURIComponent(L("Content plan for your approval", "خطة المحتوى للموافقة")) + "&body=" + encodeURIComponent(msg);
+  const doCopy = () => { try { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) { /* ignore */ } };
+  const open2 = (u) => { try { window.open(u, "_blank", "noopener"); } catch (e) { /* ignore */ } };
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,18,0.62)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} className="tw-pop" style={{ width:382, maxWidth:"100%", background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden" }}>
+        <div style={{ padding:"17px 20px 14px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <CheckCircle size={18} color={th.success}/>
+            <span style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Approval link ready","رابط الموافقة جاهز")}</span>
+            <span onClick={onClose} style={{ marginLeft:"auto", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={17}/></span>
+          </div>
+          <div style={{ marginTop:7, fontSize:12, color:th.text2 }}>{subtitle || L("Send this to your client to sign off.","أرسل هذا للعميل للموافقة.")} {L("Expires in 7 days.","تنتهي خلال 7 أيام.")}</div>
+        </div>
+        <div style={{ padding:"15px 20px 6px" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 11px", marginBottom:14 }}>
+            <Link size={14} color={th.text3}/>
+            <span style={{ fontSize:12, color:th.text, fontFamily:"monospace", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{link}</span>
+            <button onClick={doCopy} style={{ marginLeft:"auto", flexShrink:0, background:"transparent", border:`1px solid ${copied?th.success:th.border}`, color:copied?th.success:th.text, fontSize:11, padding:"5px 11px", borderRadius:8, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5 }}>{copied?<CheckCircle size={13}/>:<Copy size={13}/>}{copied?L("Copied","تم النسخ"):L("Copy","نسخ")}</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <button onClick={()=>open2(wa)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:"#1FA855", border:"none", color:"#fff", fontSize:13, fontWeight:600, padding:"12px", borderRadius:11, cursor:"pointer" }}><MessageCircle size={17}/>WhatsApp</button>
+            <button onClick={()=>open2(mail)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:13, fontWeight:600, padding:"12px", borderRadius:11, cursor:"pointer" }}><Mail size={16}/>{L("Email","البريد")}</button>
+          </div>
+        </div>
+        <div style={{ padding:"11px 20px 17px" }}>
+          <div style={{ fontSize:11, color:th.text3, lineHeight:1.5 }}>{L("WhatsApp and email open with the link and a short note already written.","يفتح واتساب والبريد مع الرابط ورسالة قصيرة جاهزة.")}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Approvals queue — every post awaiting sign-off, with live status and the
+// Send / Approve / Request-changes actions. Teammates work it in-app; clients
+// respond through the shared link.
+function ApprovalsPage() {
+  const { selClient, lang } = useApp();
+  const th = useTheme();
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
+  const SEED = [
+    { id:"a1", title:"Sunset reel",          p:"ig", when:"Tue 2 Jun · 6:00 PM",  st:"approved", g:"linear-gradient(135deg,#2C4A63,#7FC9A8)" },
+    { id:"a2", title:"Weekend brunch offer",  p:"fb", when:"Thu 4 Jun · 1:00 PM",  st:"approved", g:"linear-gradient(135deg,#5A3B2C,#B5824E)" },
+    { id:"a3", title:"Pool day carousel",     p:"ig", when:"Sat 6 Jun · 5:00 PM",  st:"pending",  g:"linear-gradient(135deg,#2C3E4F,#5B7BA8)" },
+    { id:"a4", title:"Spa treatment promo",   p:"ig", when:"Sat 13 Jun · 6:00 PM", st:"pending",  g:"linear-gradient(135deg,#4F2C3A,#A85B74)" },
+    { id:"a5", title:"Family package",        p:"fb", when:"Thu 18 Jun · 1:00 PM", st:"changes",  g:"linear-gradient(135deg,#2C424F,#5B93A8)" },
+    { id:"a6", title:"Beachfront drone shot", p:"ig", when:"Sat 20 Jun · 5:30 PM", st:"draft",    g:"linear-gradient(135deg,#2C4A63,#4F9EC9)" },
+  ];
+  const [rows, setRows] = useState(SEED);
+  const [filter, setFilter] = useState("all");
+  const [sendOpen, setSendOpen] = useState(false);
+  const [needs, setNeeds] = useState(clientNeedsApproval(selClient?.id));
+  const PC = { ig:"#C13584", fb:"#1877F2" };
+  const PN = { ig:"Instagram", fb:"Facebook" };
+  const setSt = (id, st) => setRows(rs => rs.map(r => r.id === id ? { ...r, st } : r));
+  const counts = rows.reduce((a,r)=>{ a[r.st]=(a[r.st]||0)+1; return a; }, {});
+  const shown = filter === "all" ? rows : rows.filter(r => r.st === filter);
+  const toggleNeeds = () => { const v = !needs; setNeeds(v); setClientNeedsApproval(selClient?.id, v); };
+  const FILTERS = [["all",L("All","الكل")],["pending",L("Pending","بانتظار")],["approved",L("Approved","موافق")],["changes",L("Changes","تعديلات")],["draft",L("Draft","مسودة")]];
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const pill = (st) => { const s = APPR_STATUS[st]; return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:s.color, background:s.color+"1F", padding:"3px 9px", borderRadius:20, whiteSpace:"nowrap" }}><span style={{ width:5, height:5, borderRadius:"50%", background:s.color }}/>{L(s.label,s.ar)}</span>
+  ); };
+  return (
+    <div style={{ padding:"26px 30px", maxWidth:980 }}>
+      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("month-"+(selClient?.id||"x"))} subtitle={L("Send June's calendar to ","أرسل تقويم يونيو إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","")}/>
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:16, marginBottom:18, flexWrap:"wrap" }}>
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <Shield size={19} color={th.accent}/>
+            <h1 style={{ fontSize:22, fontWeight:700, color:th.text, margin:0 }}>{L("Approvals","الموافقات")}</h1>
+          </div>
+          <div style={{ fontSize:12.5, color:th.text2, marginTop:5 }}>{L("Track sign-off for ","تتبّع موافقات ")}{selClient?.name||L("this client","هذا العميل")}{L(". Send the month or a single post.",". أرسل الشهر أو منشوراً واحداً.")}</div>
+        </div>
+        <button onClick={()=>setSendOpen(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 17px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}><Send size={15}/>{L("Send for approval","إرسال للموافقة")}</button>
+      </div>
+
+      <div style={{ ...card, padding:"12px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
+        <Shield size={16} color={th.text2}/>
+        <div style={{ flex:1 }}>
+          <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("This client requires approval","هذا العميل يتطلب موافقة")}</div>
+          <div style={{ fontSize:11, color:th.text3 }}>{L("New posts default to Send for approval.","المنشورات الجديدة تُرسل للموافقة افتراضياً.")}</div>
+        </div>
+        <span onClick={toggleNeeds} style={{ width:42, height:24, borderRadius:14, background:needs?th.accent:th.border, position:"relative", cursor:"pointer", transition:"background .2s", flexShrink:0 }}>
+          <span style={{ position:"absolute", top:3, left:needs?21:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/>
+        </span>
+      </div>
+
+      <div className="tw-scroll-x" style={{ display:"flex", gap:8, marginBottom:14 }}>
+        {FILTERS.map(([k,lbl]) => { const n = k==="all"?rows.length:(counts[k]||0); return (
+          <button key={k} onClick={()=>setFilter(k)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:600, cursor:"pointer", border:`1px solid ${filter===k?th.accent:th.border}`, background:filter===k?th.accentSoft:th.card, color:filter===k?th.accent:th.text2, whiteSpace:"nowrap" }}>{lbl} <span className="tw-num" style={{ opacity:0.7 }}>{n}</span></button>
+        ); })}
+      </div>
+
+      <div style={{ ...card, overflow:"hidden" }}>
+        {shown.length === 0 ? <div style={{ padding:"36px 0", textAlign:"center", fontSize:12.5, color:th.text3 }}>{L("Nothing here.","لا شيء هنا.")}</div> :
+          shown.map((r,i) => (
+            <div key={r.id} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 16px", borderBottom:i<shown.length-1?`1px solid ${th.border}`:"none" }}>
+              <div style={{ width:46, height:46, borderRadius:10, background:r.g, flexShrink:0, position:"relative" }}>
+                <span style={{ position:"absolute", bottom:-3, right:-3, width:15, height:15, borderRadius:5, background:PC[r.p], border:`2px solid ${th.card}` }}/>
+              </div>
+              <div style={{ minWidth:0, flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
+                <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{PN[r.p]} · {r.when}</div>
+              </div>
+              {pill(r.st)}
+              {r.st === "pending" || r.st === "changes" ? (
+                <div style={{ display:"flex", gap:7, flexShrink:0 }}>
+                  <button onClick={()=>setSt(r.id,"changes")} title={L("Request changes","طلب تعديل")} style={{ width:32, height:32, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MessageCircle size={14}/></button>
+                  <button onClick={()=>setSt(r.id,"approved")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.successSoft, border:`1px solid ${th.success}44`, color:th.success, fontSize:12, fontWeight:600, cursor:"pointer" }}><CheckCircle size={13}/>{L("Approve","موافقة")}</button>
+                </div>
+              ) : r.st === "draft" ? (
+                <button onClick={()=>setSt(r.id,"pending")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Send size={12}/>{L("Send","إرسال")}</button>
+              ) : (
+                <span style={{ width:90, textAlign:"right", fontSize:11, color:th.text3, flexShrink:0 }}>{L("Signed off","تمت")}</span>
+              )}
+            </div>
+          ))}
+      </div>
     </div>
   );
 }
@@ -7800,6 +7950,7 @@ export default function TawasloApp() {
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
+    if (page==="approvals") return <ApprovalsPage/>;
     if (page==="aistudio") return <AIStudioPage/>;
     if (page==="campaigns") return <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
