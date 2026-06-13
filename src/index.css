@@ -33,6 +33,14 @@ body {
   border-radius: 8px;
 }
 
+/* Micro-interactions — tactile feedback app-wide. Buttons give a subtle press,
+   form fields get a soft steel focus ring. Inline transitions still win where
+   a component sets its own. */
+button:not(:disabled) { transition: transform .12s ease, filter .15s ease, box-shadow .15s ease; }
+button:not(:disabled):active { transform: scale(0.975); }
+input, textarea, select { transition: border-color .15s ease, box-shadow .15s ease; }
+input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 3px rgba(110,140,171,0.2); }
+
 /* Light placeholder text for dark mode inputs */
 textarea::placeholder,
 input::placeholder {
