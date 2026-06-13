@@ -659,7 +659,7 @@ function Sidebar() {
       {col ? null : (
       <div style={{position:"relative",margin:"0 14px 12px"}}>
         {acctOpen && <div onClick={()=>setAcctOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>}
-        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:0,right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:6,boxShadow:"0 18px 44px rgba(0,0,0,0.55)",transformOrigin:"bottom center",opacity:acctOpen?1:0,transform:acctOpen?"translateY(0) scale(1)":"translateY(8px) scale(0.97)",pointerEvents:acctOpen?"auto":"none",transition:"opacity .18s ease, transform .2s cubic-bezier(.2,.7,.2,1)"}}>
+        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:0,right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:6,boxShadow:"0 18px 44px rgba(0,0,0,0.55)",transformOrigin:"bottom center",opacity:acctOpen?1:0,transform:acctOpen?"translateY(0) scale(1)":"translateY(18px) scale(0.95)",pointerEvents:acctOpen?"auto":"none",transition:acctOpen?"opacity .22s ease, transform .34s cubic-bezier(.16,.84,.34,1)":"opacity .2s ease, transform .26s cubic-bezier(.4,0,.7,.3)"}}>
             {[
               [Settings, L("Settings","الإعدادات"), ()=>setPage(mode==="owner"?"settings":"agencysets")],
               ...(mode!=="owner" ? [[CreditCard, L("Billing & plan","الفوترة والخطة"), ()=>setPage("billing")]] : []),
@@ -2334,18 +2334,29 @@ function AgencyDashboard() {
           </div>
         </div>
       ); })() : (
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,300px))`,gap:12,marginBottom:18}}>
           {shownAccounts.slice(0,8).map((acc,i)=>{
             const PI = PlatformIcons[acc.platform];
             const sel = viewingAccount===(acc.id||i);
+            const PCLR = {ig:"#E1306C",fb:"#1877F2",li:"#0A66C2",tt:th.text2,yt:"#FF0000"};
+            const pc = PCLR[acc.platform]||th.accent;
+            const f = acc.followers_count||0;
+            const up = f>0;
+            const sLine = up ? "M0,24 L20,22 L40,23 L60,17 L80,15 L100,10 L120,7" : "M0,22 L120,22";
+            const sArea = up ? "M0,24 L20,22 L40,23 L60,17 L80,15 L100,10 L120,7 L120,30 L0,30 Z" : "M0,22 L120,22 L120,30 L0,30 Z";
             return (
-              <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"none",cursor:"pointer"}}>
+              <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:sel?th.card2:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"none",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <div style={{width:32,height:32,borderRadius:9,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={15} color={th.text2}/>}</div>
+                  <div style={{width:38,height:38,borderRadius:11,background:pc+"1f",border:`1px solid ${pc}40`,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={17} color={th.text2}/>}</div>
                   {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>{L("viewing","قيد العرض")}</span>}
                 </div>
                 <div style={{fontSize:11.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.username?("@"+acc.username):acc.account_name}</div>
                 <div style={{fontSize:18,fontWeight:600,marginTop:2}}><span className="tw-num">{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}</span><span style={{fontSize:11,color:th.text2,fontWeight:400}}> {L("followers","\u0645\u062a\u0627\u0628\u0639")}</span></div>
+                <svg className="tw-throb" height="30" viewBox="0 0 120 30" preserveAspectRatio="none" style={{width:"100%",display:"block",marginTop:9}}>
+                  <path d={sArea} fill={th.accent+"24"}/>
+                  <path d={sLine} fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
+                </svg>
+                <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول ٣٠ يوم")} <span className="tw-num" style={{color:th.text}}>{up?fmtN(Math.round(f*8.4)):"—"}</span></div>
               </div>
             );
           })}
