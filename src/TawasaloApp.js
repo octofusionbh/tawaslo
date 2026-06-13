@@ -514,7 +514,7 @@ function Sidebar() {
       transition:"width 0.2s cubic-bezier(0.2,0.7,0.2,1)",
       ...drawer,
     }}>
-      <div style={{padding:col?"18px 0 12px":"20px 18px 14px",display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",gap:10}}>
+      <div style={{padding:col?"18px 0 12px":"20px 14px 14px",display:"flex",alignItems:"center",justifyContent:col?"center":"space-between",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
           <img src="/logo-transparent.png" alt="Tawaslo" style={{width:col?32:38,height:col?32:38,objectFit:"contain",flexShrink:0}}/>
           {!col&&<div>
@@ -6081,11 +6081,19 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{marginLeft:12,fontSize:11,color:"#3D5068",background:"#141923",borderRadius:7,padding:"4px 14px"}}>tawaslo.com/dashboard</div>
             </div>
             <div style={{display:"flex"}}>
-              <div style={{width:162,borderRight:"1px solid #232B38",padding:"14px 12px",background:"#080B11"}}>
+              <div style={{width:162,borderRight:"1px solid #232B38",padding:"14px 12px",background:"#080B11",display:"flex",flexDirection:"column"}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}><img src="/logo-transparent.png" alt="" style={{width:22,height:22,objectFit:"contain"}}/><span style={{fontSize:13,fontWeight:800}}>Tawaslo</span></div>
                 {[["Dashboard",true],["Publisher",false],["Planner",false],["Analytics",false],["Inbox",false]].map(([n,a],i)=>(
                   <div key={i} style={{display:"flex",alignItems:"center",gap:9,padding:"7px 9px",borderRadius:8,marginBottom:3,background:a?"rgba(110,140,171,0.14)":"transparent",color:a?"#9DB6D6":"#7A8BA8",fontSize:11.5,fontWeight:a?700:500}}><div style={{width:13,height:13,borderRadius:4,background:a?"#6E8CAB":"#232B38"}}/>{n}</div>
                 ))}
+                <div style={{marginTop:14,background:"#0E141E",border:"1px solid #232B38",borderRadius:10,padding:"10px 11px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:7}}><span style={{fontSize:9,color:"#7A8BA8",fontWeight:600}}>AI image credits</span><span className="tw-num" style={{fontSize:9,color:"#9DB6D6",fontWeight:700}}>64/100</span></div>
+                  <div style={{height:5,background:"#080B11",borderRadius:5,overflow:"hidden"}}><div style={{width:"64%",height:"100%",background:"linear-gradient(90deg,#6E8CAB,#4F6B8C)",borderRadius:5}}/></div>
+                </div>
+                <div style={{marginTop:"auto",paddingTop:12,borderTop:"1px solid #232B38",display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:26,height:26,borderRadius:8,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,fontWeight:700,color:"#fff",flexShrink:0}}>MC</div>
+                  <div style={{minWidth:0}}><div style={{fontSize:10,fontWeight:700,color:"#E8EFF8",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>Marina Café</div><div style={{fontSize:8.5,color:"#7A8BA8"}}>Professional</div></div>
+                </div>
               </div>
               <div style={{flex:1,padding:16}}>
                 <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Marina Café &amp; Bistro</div>
@@ -6136,7 +6144,7 @@ function LandingPage({ onGetStarted, onLogin }) {
               [TrendingUp,"04","Watch it grow","Track reach and engagement, and prove the results.",true],
             ].map(([Ic,num,title,desc,hi])=>(
               <div key={num} style={{position:"relative",textAlign:"center"}}>
-                <div style={{width:42,height:42,borderRadius:13,background:hi?"linear-gradient(135deg,rgba(110,140,171,0.18),#121826)":"#121826",border:`1px solid ${hi?"#3E5C7E":"#2A3650"}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 13px",position:"relative",zIndex:2}}><Ic size={20} color={hi?"#9FC2E4":"#9DB6D6"}/></div>
+                <div style={{width:42,height:42,borderRadius:13,background:hi?"#19232F":"#121826",border:`1px solid ${hi?"#3E5C7E":"#2A3650"}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 13px",position:"relative",zIndex:2}}><Ic size={20} color={hi?"#9FC2E4":"#9DB6D6"}/></div>
                 <div className="tw-num" style={{color:"#3D4A60",fontSize:13,fontWeight:600,marginBottom:3}}>{num}</div>
                 <div style={{fontSize:13.5,fontWeight:600,marginBottom:5}}>{title}</div>
                 <div style={{fontSize:12,color:"#7E8A9C",lineHeight:1.55}}>{desc}</div>
