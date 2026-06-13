@@ -2334,7 +2334,7 @@ function AgencyDashboard() {
           </div>
         </div>
       ); })() : (
-        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,300px))`,gap:12,marginBottom:18}}>
+        <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
           {shownAccounts.slice(0,8).map((acc,i)=>{
             const PI = PlatformIcons[acc.platform];
             const sel = viewingAccount===(acc.id||i);
@@ -3169,11 +3169,11 @@ function PublisherPage() {
   }, [accounts, selPlatform]);
 
   const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
-  // The picker always shows every connected account so you can post to any
-  // combination (they're all different accounts). The top-bar channel just
-  // pre-selects a sensible default; you can add or remove any from here.
+  // Respect the top bar: pick a platform up top and the picker shows only that
+  // platform's accounts (you can still select several of them); pick "All" and
+  // every account shows so you can post across platforms in one go.
   const channelScoped = !!(selPlatform && selPlatform !== "all");
-  const pubAccounts = accounts;
+  const pubAccounts = channelScoped ? accounts.filter(a => a.platform === selPlatform) : accounts;
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
@@ -3355,6 +3355,19 @@ function PublisherPage() {
     const h12 = hh % 12 || 12; const ap = hh >= 12 ? "PM" : "AM";
     return { dateStr, time: t, blab, when: `${sameDayNow ? "Today" : "Tomorrow"} ${h12}:${String(mm).padStart(2,'0')} ${ap}` };
   });
+  // Weekly engagement heatmap per platform (rows: AM, Noon, Eve, Night; cols Mon..Sun).
+  // Heuristic until the Instagram insights permission lands, then swaps to real audience data.
+  const HEATGRID = {
+    ig:[[2,1,2,2,3,4,3],[3,2,3,3,4,5,4],[4,3,4,4,5,5,5],[2,2,2,3,3,4,3]],
+    fb:[[2,2,2,2,3,3,3],[3,3,4,4,4,4,3],[3,3,4,4,5,4,4],[2,2,2,2,3,3,2]],
+    li:[[3,4,4,4,4,2,1],[3,4,4,4,4,2,1],[2,3,3,3,3,2,1],[1,1,1,1,2,1,1]],
+    tw:[[3,4,3,3,4,3,2],[4,3,4,4,3,3,2],[3,3,3,3,4,3,3],[2,2,2,2,3,3,2]],
+    tt:[[2,2,2,2,3,4,3],[3,3,3,3,4,4,4],[4,4,4,4,5,5,5],[3,3,3,3,4,5,4]],
+    yt:[[2,2,2,2,3,4,3],[3,3,3,3,4,4,4],[4,4,4,4,5,5,4],[2,2,2,2,3,4,3]],
+  };
+  const heatGrid = HEATGRID[primaryPlat] || HEATGRID.ig;
+  const HEATCOL = ["#11161F","#1B2A3A","#2C4A63","#3E6E8C","#5B93B8","#7FC9A8"];
+  const HEATROWS = [L("AM","ص"),L("Noon","ظهر"),L("Eve","مساء"),L("Night","ليل")];
 
   if (isMobile) {
     return (
@@ -3566,7 +3579,17 @@ function PublisherPage() {
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
                 </div>
-                <div style={{ fontSize:11, color:th.text2, marginBottom:8, display:"flex", alignItems:"center", gap:6 }}><Sparkles size={12} color={th.accent}/>Best times to post on {(PLAT[primaryPlat]||{}).name || "Instagram"}</div>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:3, display:"flex", alignItems:"center", gap:6 }}><Sparkles size={12} color={th.accent}/>{L("Best time to post on","أفضل وقت للنشر على")} {(PLAT[primaryPlat]||{}).name || "Instagram"}</div>
+                <div style={{ fontSize:9.5, color:th.text3, marginBottom:11 }}>{L("Brighter cells are when your audience is most active.","الخلايا الأفتح هي أوقات نشاط جمهورك.")}</div>
+                <div style={{ display:"grid", gridTemplateColumns:"34px repeat(7,1fr)", gap:3, alignItems:"center" }}>
+                  <div/>
+                  {["M","T","W","T","F","S","S"].map((d,i)=><div key={"d"+i} style={{ textAlign:"center", fontSize:9, color:th.text3, fontWeight:700 }}>{d}</div>)}
+                  {[].concat(...heatGrid.map((row,ri)=>[
+                    <div key={"l"+ri} style={{ fontSize:9, color:th.text2 }}>{HEATROWS[ri]}</div>,
+                    ...row.map((v,ci)=><div key={ri+"_"+ci} style={{ height:18, borderRadius:4, background:HEATCOL[v]||HEATCOL[0] }}/>)
+                  ]))}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, margin:"14px 0 9px" }}><div style={{ height:1, flex:1, background:th.border }}/><span style={{ fontSize:9, letterSpacing:0.8, color:th.text3, fontWeight:700 }}>{L("TOP PICKS","أفضل الأوقات")}</span><div style={{ height:1, flex:1, background:th.border }}/></div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {bestSlots.map((bs,i)=>{ const active = scheduleDate===bs.dateStr && scheduleTime===bs.time; return (
                     <button key={i} onClick={()=>{ setScheduleDate(bs.dateStr); setScheduleTime(bs.time); }} style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:2, padding:"8px 13px", borderRadius:11, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, cursor:"pointer", minWidth:96 }}>
@@ -3575,7 +3598,7 @@ function PublisherPage() {
                     </button>
                   ); })}
                 </div>
-                <div style={{ fontSize:9.5, color:th.text3, marginTop:8 }}>{L("Based on typical engagement windows","مبني على أوقات التفاعل المعتادة")} &middot; {L("adjusts to your selected platform","يتكيّف مع المنصة المختارة")}</div>
+                <div style={{ fontSize:9.5, color:th.text3, marginTop:8 }}>{L("Based on typical engagement windows","مبني على أوقات التفاعل المعتادة")} &middot; {L("switches to your real audience data once insights are approved","يتحول إلى بيانات جمهورك الفعلية بعد اعتماد الإحصاءات")}</div>
               </div>
             )}
           </div>
