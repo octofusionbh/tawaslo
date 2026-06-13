@@ -146,6 +146,18 @@ function shortCompany(name) {
   return w.length > 2 ? w.slice(0, 2).join(" ") : name.trim();
 }
 
+// Privacy-blurred avatar — a soft, face-toned circle that reads like a real
+// profile photo with the identity hidden, instead of a flat initials chip.
+function BlurAvatar({ size = 28, hue = 20 }) {
+  const inset = -Math.round(size * 0.2);
+  const blur = Math.max(3, Math.round(size * 0.14));
+  return (
+    <div style={{ width:size, height:size, borderRadius:"50%", overflow:"hidden", flexShrink:0, position:"relative", border:"1px solid rgba(255,255,255,0.08)" }}>
+      <div style={{ position:"absolute", inset:inset, background:`radial-gradient(circle at 50% 34%, hsl(${hue},48%,74%) 0%, hsl(${hue},42%,52%) 42%, hsl(${(hue+210)%360},22%,28%) 74%, #161d2a 100%)`, filter:`blur(${blur}px)` }}/>
+    </div>
+  );
+}
+
 // Visitor geo -> local currency, fetched once and cached, for the "approx" line.
 let _twGeo = null;
 function useGeo() {
@@ -5622,6 +5634,7 @@ function BillingPage() {
             ["Starting price","From $49/mo","~$99/mo","~$249/mo"],
             ["Native Arabic & RTL","✓","✕","✕"],
             ["AI captions (AR + EN)","✓","Add-on","Limited"],
+            ["AI image generation","✓","Add-on","Limited"],
             ["Local payment methods","✓","✕","✕"],
             ["Flat pricing, no per-seat","✓","✕","✕"],
           ].map(([feat,tw,ho,sp],i,arr)=>(
@@ -6114,15 +6127,16 @@ function LandingPage({ onGetStarted, onLogin }) {
             <h2 style={{fontSize:isMobile?23:30,fontWeight:800,letterSpacing:-0.7,margin:0}}>From sign-up to growth, <span style={grad}>in minutes.</span></h2>
           </div>
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?16:18,position:"relative"}}>
-            {!isMobile&&<div style={{position:"absolute",top:21,left:"12%",right:"12%",height:1,background:"#2A3650",zIndex:1}}/>}
+            <style>{`@keyframes jflow{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}`}</style>
+            {!isMobile&&<div style={{position:"absolute",top:21,left:"12.5%",right:"12.5%",height:2,borderRadius:2,background:"#212C42",overflow:"hidden",zIndex:1}}><div style={{position:"absolute",top:0,left:0,height:"100%",width:"30%",background:"linear-gradient(90deg,transparent,#6E8CAB,transparent)",animation:"jflow 3.2s linear infinite"}}/></div>}
             {[
               [Link,"01","Connect accounts","Link Instagram, Facebook and LinkedIn in seconds.",false],
               [Sparkles,"02","Create with AI","Draft bilingual captions and ideas instantly.",false],
               [Calendar,"03","Schedule the month","Plan everything, auto-publish at the best time.",false],
               [TrendingUp,"04","Watch it grow","Track reach and engagement, and prove the results.",true],
             ].map(([Ic,num,title,desc,hi])=>(
-              <div key={num} style={{position:"relative"}}>
-                <div style={{width:42,height:42,borderRadius:13,background:hi?"linear-gradient(135deg,rgba(110,140,171,0.18),#121826)":"#121826",border:`1px solid ${hi?"#3E5C7E":"#2A3650"}`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:13,position:"relative",zIndex:2}}><Ic size={20} color={hi?"#9FC2E4":"#9DB6D6"}/></div>
+              <div key={num} style={{position:"relative",textAlign:"center"}}>
+                <div style={{width:42,height:42,borderRadius:13,background:hi?"linear-gradient(135deg,rgba(110,140,171,0.18),#121826)":"#121826",border:`1px solid ${hi?"#3E5C7E":"#2A3650"}`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 13px",position:"relative",zIndex:2}}><Ic size={20} color={hi?"#9FC2E4":"#9DB6D6"}/></div>
                 <div className="tw-num" style={{color:"#3D4A60",fontSize:13,fontWeight:600,marginBottom:3}}>{num}</div>
                 <div style={{fontSize:13.5,fontWeight:600,marginBottom:5}}>{title}</div>
                 <div style={{fontSize:12,color:"#7E8A9C",lineHeight:1.55}}>{desc}</div>
@@ -6206,8 +6220,8 @@ function LandingPage({ onGetStarted, onLogin }) {
             <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
               <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Unified inbox</div>
               <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:11}}>Every comment and DM, one place.</div>
-              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><div style={{width:24,height:24,borderRadius:"50%",background:"#1E2838",display:"flex",alignItems:"center",justifyContent:"center",color:"#9DB6D6",fontSize:9,fontWeight:700}}>MR</div><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Love this!</div></div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:24,height:24,borderRadius:"50%",background:"#1E2838",display:"flex",alignItems:"center",justifyContent:"center",color:"#9DB6D6",fontSize:9,fontWeight:700}}>AK</div><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Do you ship to Riffa?</div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}><BlurAvatar size={24} hue={22}/><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Love this!</div></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><BlurAvatar size={24} hue={265}/><div style={{background:"#121826",border:"1px solid #232B38",borderRadius:8,padding:"6px 9px",color:"#C2CEDE",fontSize:10}}>Do you ship to Riffa?</div></div>
             </div>
 
           </div>
@@ -6358,9 +6372,9 @@ function LandingPage({ onGetStarted, onLogin }) {
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#4F6EF7",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4}}>7</span></div>
-            {[["A","Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C"],["S","Sara Mohammed","What are your working hours?","4h","#1877F2"],["K","Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050"]].map(([init,name,msg,time,c])=>(
+            {[["Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C",20],["Sara Mohammed","What are your working hours?","4h","#1877F2",330],["Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050",35]].map(([name,msg,time,c,hue])=>(
               <div key={name} style={{display:"flex",gap:10,alignItems:"center",padding:8,background:"#0C1017",borderRadius:8,borderLeft:`2px solid ${c}`,marginBottom:6}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:`${c}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:c,flexShrink:0}}>{init}</div>
+                <BlurAvatar size={28} hue={hue}/>
                 <div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{msg}</div></div>
                 <div style={{fontSize:9,color:"#7A8BA8",flexShrink:0}}>{time}</div>
               </div>
@@ -6426,7 +6440,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #232B38"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
         <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?460:"auto"}}>
-        {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
+        {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["AI image generation","Add-on","Add-on","Add-on",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
           <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #232B3830",background:isHead?"#141923":type==="header"?"#0C1017":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
             <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
@@ -6450,6 +6464,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             ["Starting price","From $49/mo","From ~$99/mo","From ~$249/mo"],
             ["Native Arabic & RTL","✓","✕","✕"],
             ["AI captions (Arabic + English)","✓","Add-on","Limited"],
+            ["AI image generation","✓","Add-on","Limited"],
             ["Local payment methods","✓","✕","✕"],
             ["Flat pricing, no per-seat fees","✓","✕","✕"],
             ["Free trial","30 days","30 days","30 days"],
@@ -6507,23 +6522,33 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const ContactPage = () => (
-    <div style={{padding:"60px 32px",maxWidth:600,margin:"0 auto"}}>
-      <div style={{textAlign:"center",marginBottom:40}}>
-        <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Get in touch</h1>
-        <p style={{color:"#7A8BA8",fontSize:14}}>Have questions? We'd love to hear from you.</p>
+    <div style={{padding:isMobile?"40px 20px":"64px 32px",maxWidth:980,margin:"0 auto"}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"0.9fr 1.1fr",gap:isMobile?30:48,alignItems:"start"}}>
+        <div>
+          <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.6,marginBottom:12}}>CONTACT</div>
+          <h1 style={{fontSize:isMobile?30:40,fontWeight:900,letterSpacing:-0.9,margin:"0 0 14px",lineHeight:1.05}}>Let's talk.</h1>
+          <p style={{color:"#7A8BA8",fontSize:14,lineHeight:1.7,marginBottom:30,maxWidth:380}}>Questions about a plan, a demo for your agency, or help getting set up? Send a note and we'll reply within one business day.</p>
+          <div style={{display:"flex",flexDirection:"column",gap:14}}>
+            {[[Mail,"Email us","support@tawaslo.com"],[Clock,"Response time","Within 1 business day"],[Languages,"Bilingual support","English & Arabic, worldwide"]].map(([Ic,t,d],i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:13}}>
+                <div style={{width:40,height:40,borderRadius:11,background:"#121826",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={17} color="#9DB6D6"/></div>
+                <div><div style={{fontSize:13,fontWeight:700,color:"#E8EFF8"}}>{t}</div><div style={{fontSize:12,color:"#7A8BA8"}}>{d}</div></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:isMobile?22:28,display:"flex",flexDirection:"column",gap:16}}>
+          {[["Name","text","Your name","name"],["Email","email","your@email.com","email"],["Company","text","Your company (optional)","company"]].map(([label,type,ph,key])=>(
+            <div key={label}><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>{label}</div><input type={type} placeholder={ph} value={contact[key]} onChange={e=>setContact(c=>({...c,[key]:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none",boxSizing:"border-box"}}/></div>
+          ))}
+          <div><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>Message</div><textarea placeholder="How can we help?" value={contact.message} onChange={e=>setContact(c=>({...c,message:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none",resize:"vertical",height:120,boxSizing:"border-box"}}/></div>
+          {contactSent ? (
+            <div style={{padding:13,borderRadius:10,background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:13,fontWeight:600,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><CheckCircle size={15}/>Thanks — your email is opening. We will be in touch shortly.</div>
+          ) : (
+            <button onClick={sendContact} style={{padding:13,borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Send message</button>
+          )}
+        </div>
       </div>
-      <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"flex",flexDirection:"column",gap:16}}>
-        {[["Name","text","Your name","name"],["Email","email","your@email.com","email"],["Company","text","Your company (optional)","company"]].map(([label,type,ph,key])=>(
-          <div key={label}><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>{label}</div><input type={type} placeholder={ph} value={contact[key]} onChange={e=>setContact(c=>({...c,[key]:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none"}}/></div>
-        ))}
-        <div><div style={{fontSize:11,color:"#7A8BA8",marginBottom:6}}>Message</div><textarea placeholder="How can we help?" value={contact.message} onChange={e=>setContact(c=>({...c,message:e.target.value}))} style={{width:"100%",padding:"11px 14px",borderRadius:8,border:"1px solid #232B38",background:"#141923",color:"#E8EFF8",fontSize:13,outline:"none",resize:"vertical",height:120}}/></div>
-        {contactSent ? (
-          <div style={{padding:13,borderRadius:10,background:"rgba(16,185,129,0.12)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:13,fontWeight:600,textAlign:"center",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><CheckCircle size={15}/>Thanks — your email is opening. We will be in touch shortly.</div>
-        ) : (
-          <button onClick={sendContact} style={{padding:13,borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Send message</button>
-        )}
-      </div>
-      <div style={{marginTop:24,textAlign:"center",fontSize:13,color:"#7A8BA8"}}>Or email us: <span style={{color:"#4F6EF7"}}>support@tawaslo.com</span></div>
     </div>
   );
 
@@ -7141,7 +7166,7 @@ function AuthPage() {
 
                   {selectedPlan && (()=>{ const PP=({starter:{monthly:49,annual:39},professional:{monthly:99,annual:79},agency:{monthly:199,annual:159}})[selectedPlan]||{}; const planP=billingPeriod==="annual"?PP.annual:PP.monthly; const addP=(IMG_PACKS.find(x=>x.id===imgAddon)||{}).price||0; const tot=Math.round(((planP||0)+addP)*100)/100; const ap=approxLabel(sgeo,tot); return (
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"2px 0 12px",padding:"11px 15px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:11}}>
-                      <span style={{fontSize:12,color:th.text2}}>Total today</span>
+                      <span style={{fontSize:12,color:th.text2}}>Total</span>
                       <div style={{textAlign:"right"}}>
                         <span className="tw-num" style={{fontSize:19,fontWeight:800,color:th.text}}>${tot}</span><span style={{fontSize:11,color:th.text2}}>/mo</span>
                         {ap&&<div style={{fontSize:9.5,color:th.text3,marginTop:1}}>{ap.replace("approx ","≈ ")}</div>}
