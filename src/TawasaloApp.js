@@ -1594,6 +1594,7 @@ function OwnerPromosPage() {
 
         <div style={{...card,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Active &amp; past codes</div>
+          {codes.length===0 && <div style={{padding:"40px 20px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:12,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}><Tag size={19} color={th.text3}/></div><div style={{fontSize:13,fontWeight:600,marginBottom:4}}>No codes yet</div><div style={{fontSize:12,color:th.text3}}>Create your first promo code to start offering discounts.</div></div>}
           {codes.map((c,i)=>(
             <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 20px",borderBottom:i<codes.length-1?`1px solid ${th.border}`:"none",opacity:c.active?1:0.55}}>
               <div style={{display:"flex",alignItems:"center",gap:13,minWidth:0}}>
@@ -1601,9 +1602,9 @@ function OwnerPromosPage() {
                 <div style={{minWidth:0}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:13.5,fontWeight:800,letterSpacing:0.5,fontFamily:"monospace"}}>{c.code}</span>
-                    <span style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,borderRadius:999,padding:"2px 8px"}}>{c.type==="percent"?`${c.value}% off`:`$${c.value} off`}</span>
+                    <span style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,borderRadius:999,padding:"2px 8px"}}>{c.type==="percent"?<><span className="tw-num">{c.value}</span>% off</>:<>$<span className="tw-num">{c.value}</span> off</>}</span>
                   </div>
-                  <div style={{fontSize:10.5,color:th.text2,marginTop:3}}>{c.plans} · {c.uses}{c.limit?`/${c.limit}`:""} used · exp {c.expiry}</div>
+                  <div style={{fontSize:10.5,color:th.text2,marginTop:3}}>{c.plans} · <span className="tw-num">{c.uses}</span>{c.limit?<>/<span className="tw-num">{c.limit}</span></>:""} used · exp {c.expiry}</div>
                 </div>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:7,flexShrink:0}}>
@@ -1689,13 +1690,13 @@ function OwnerGiftsPage() {
             <>
               <label style={lbl}>Amount (USD)</label>
               <div style={{display:"flex",gap:8,marginBottom:14}}>
-                {[25,50,100].map(a=>(<button key={a} onClick={()=>setAmount(String(a))} style={{flex:1,padding:"10px",borderRadius:9,fontSize:12.5,fontWeight:700,cursor:"pointer",border:`1px solid ${String(a)===amount?th.accent:th.border}`,background:String(a)===amount?th.accentSoft:th.card2,color:String(a)===amount?th.accent:th.text}}>${a}</button>))}
+                {[25,50,100].map(a=>(<button key={a} onClick={()=>setAmount(String(a))} style={{flex:1,padding:"10px",borderRadius:9,fontSize:12.5,fontWeight:700,cursor:"pointer",border:`1px solid ${String(a)===amount?th.accent:th.border}`,background:String(a)===amount?th.accentSoft:th.card2,color:String(a)===amount?th.accent:th.text}}>$<span className="tw-num">{a}</span></button>))}
                 <input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9]/g,""))} style={{...inp,width:64,textAlign:"center"}}/>
               </div>
               <label style={lbl}>Recipient email</label>
               <input value={recipient} onChange={e=>setRecipient(e.target.value)} placeholder="name@email.com" style={{...inp,marginBottom:14}}/>
               <label style={lbl}>Message (optional)</label>
-              <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Enjoy Tawaslo on us 🎁" rows={3} style={{...inp,marginBottom:18,resize:"vertical"}}/>
+              <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Enjoy Tawaslo on us" rows={3} style={{...inp,marginBottom:18,resize:"vertical"}}/>
               <button onClick={issueCard} style={{width:"100%",padding:"11px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><SendIcon size={15}/>Issue &amp; send</button>
             </>
           ) : (
@@ -1713,12 +1714,13 @@ function OwnerGiftsPage() {
 
         <div style={{...card,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Issued gift cards</div>
+          {cards.length===0 && <div style={{padding:"40px 20px",textAlign:"center"}}><div style={{width:44,height:44,borderRadius:12,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}><Gift size={19} color={th.text3}/></div><div style={{fontSize:13,fontWeight:600,marginBottom:4}}>No gift cards yet</div><div style={{fontSize:12,color:th.text3}}>Issue a gift card or gift a plan to get started.</div></div>}
           {cards.map((c,i)=>{ const m=sMeta[c.status]||sMeta.active; return (
             <div key={c.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 20px",borderBottom:i<cards.length-1?`1px solid ${th.border}`:"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:13,minWidth:0}}>
                 <div style={{width:44,height:44,borderRadius:12,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Gift size={19} color="#fff"/></div>
                 <div style={{minWidth:0}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13.5,fontWeight:800}}>${c.amount}</span><span style={{fontSize:11.5,fontFamily:"monospace",color:th.text2}}>{c.code}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13.5,fontWeight:800}}>$<span className="tw-num">{c.amount}</span></span><span style={{fontSize:11.5,fontFamily:"monospace",color:th.text2}}>{c.code}</span></div>
                   <div style={{fontSize:10.5,color:th.text2,marginTop:3}}>{c.recipient} · {c.date}</div>
                 </div>
               </div>
@@ -1975,7 +1977,7 @@ function OwnerApiUsagePage() {
           <div style={{fontSize:13,fontWeight:600,marginBottom:18}}>Usage</div>
           {usage.map((u,i)=>{ const pct=Math.min(100,Math.round(u.value/u.cap*100)); const hot=pct>=90; return (
             <div key={i} style={{marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{u.label}</span><span style={{color:th.text2}}>{u.value} / {u.cap} <span style={{color:th.text3}}>{u.unit}</span></span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{u.label}</span><span style={{color:th.text2}}><span className="tw-num">{u.value}</span> / <span className="tw-num">{u.cap}</span> <span style={{color:th.text3}}>{u.unit}</span></span></div>
               <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:hot?th.warning:th.accent,borderRadius:4}}/></div>
             </div>
           );})}
@@ -2401,7 +2403,7 @@ function MediaPage() {
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div>
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Media Library","مكتبة الوسائط")}</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{shown.length} {isAR?"ملف":(shown.length===1?"asset":"assets")} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}><span className="tw-num">{shown.length}</span> {isAR?"ملف":(shown.length===1?"asset":"assets")} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
         </div>
         <label style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:11, background:th.gradient, color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>
           <Plus size={14}/>{uploading?"Uploading…":"Upload"}
@@ -4671,6 +4673,13 @@ function StreamsPage() {
       </div>
 
       <div style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:8 }}>
+        {columns.length===0 && (
+          <div style={{ flex:1, textAlign:"center", padding:"60px 24px" }}>
+            <div style={{ width:48, height:48, borderRadius:14, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><Activity size={22} color={th.text3}/></div>
+            <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("No streams yet","لا توجد تدفقات")}</div>
+            <div style={{ fontSize:12.5, color:th.text2, maxWidth:360, margin:"0 auto", lineHeight:1.6 }}>{L("Add a keyword, hashtag or mention above to start watching the conversation in real time.","أضف كلمة مفتاحية أو وسماً أو إشارة أعلاه لبدء متابعة المحادثة مباشرةً.")}</div>
+          </div>
+        )}
         {columns.map(col => (
           <div key={col.id} style={{ width:300, flexShrink:0, background:th.surface, border:`1px solid ${th.border}`, borderRadius:14, display:"flex", flexDirection:"column", maxHeight:"calc(100vh - 230px)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderBottom:`1px solid ${th.border}` }}>
@@ -4690,12 +4699,12 @@ function StreamsPage() {
                     <div style={{ width:26, height:26, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9.5, fontWeight:700, color:th.text2, flexShrink:0 }}>{item.author.slice(0,2).toUpperCase()}</div>
                     <div style={{ flex:1, minWidth:0, fontSize:11.5, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>@{item.author}</div>
                     <span style={{ width:7, height:7, borderRadius:"50%", background:item.plat[1], flexShrink:0 }}/>
-                    <span style={{ fontSize:10, color:th.text3, flexShrink:0 }}>{item.time}</span>
+                    <span className="tw-num" style={{ fontSize:10, color:th.text3, flexShrink:0 }}>{item.time}</span>
                   </div>
                   <div style={{ fontSize:12, color:th.text, lineHeight:1.5, marginBottom:8 }}>{item.text}</div>
                   <div style={{ display:"flex", gap:14, fontSize:10.5, color:th.text2 }}>
-                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={11}/>{item.likes}</span>
-                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={11}/>{item.comments}</span>
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={11}/><span className="tw-num">{item.likes}</span></span>
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={11}/><span className="tw-num">{item.comments}</span></span>
                   </div>
                 </div>
               ))}
