@@ -6993,15 +6993,18 @@ function AuthPage() {
 
   return (
     <div style={{display:"flex",height:"100vh",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",overflow:"hidden",direction:isAR?"rtl":"ltr"}}>
-      <div style={{width:420,flexShrink:0,display:isMobile?"none":"flex",background:"linear-gradient(145deg,#0D1425 0%,#111827 50%,#0D1425 100%)",borderRight:`1px solid ${th.border}`,flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
-        <div onClick={()=>setShowLanding(true)} title="Back to homepage" style={{display:"flex",alignItems:"center",gap:12,marginBottom:60,cursor:"pointer"}}>
+      <div style={{width:420,flexShrink:0,display:isMobile?"none":"flex",background:"linear-gradient(150deg,#0A0F18 0%,#0F1A2C 55%,#0B1118 100%)",borderRight:`1px solid ${th.border}`,flexDirection:"column",padding:"40px 36px",position:"relative",overflow:"hidden"}}>
+        <style>{`@keyframes authglow{0%,100%{opacity:0.55;transform:translate(0,0) scale(1)}50%{opacity:0.85;transform:translate(12px,-10px) scale(1.08)}}`}</style>
+        <div style={{position:"absolute",top:-40,left:-30,width:220,height:180,background:`radial-gradient(circle, ${th.accent}66, transparent 70%)`,filter:"blur(22px)",animation:"authglow 7s ease-in-out infinite",pointerEvents:"none",zIndex:0}}/>
+        <div style={{position:"absolute",bottom:-50,right:-40,width:190,height:170,background:`radial-gradient(circle, ${th.accent}22, transparent 70%)`,filter:"blur(24px)",pointerEvents:"none",zIndex:0}}/>
+        <div onClick={()=>setShowLanding(true)} title="Back to homepage" style={{display:"flex",alignItems:"center",gap:12,marginBottom:60,cursor:"pointer",position:"relative",zIndex:1}}>
           <img src="/logo-transparent.png" alt="Tawaslo" style={{width:42,height:42,objectFit:"contain",flexShrink:0}}/>
           <div>
             <div style={{fontWeight:900,fontSize:22,letterSpacing:-0.8}}>Tawaslo</div>
             <div style={{fontSize:10,color:th.text2,letterSpacing:0.5,textTransform:"uppercase"}}>Social Intelligence</div>
           </div>
         </div>
-        <div style={{flex:1}}>
+        <div style={{flex:1,position:"relative",zIndex:1}}>
           <div style={{fontSize:32,fontWeight:900,letterSpacing:-1,lineHeight:1.2,marginBottom:16}}>
             {isAR ? (<>
               أدِر كل<br/>
@@ -7023,14 +7026,14 @@ function AuthPage() {
             {Icon:Shield,        label:L("Enterprise security and team controls","أمان مؤسسي وضوابط للفريق")},
           ].map(({Icon:I,label},i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-              <div style={{width:28,height:28,borderRadius:7,background:th.accentSoft,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+              <div style={{width:28,height:28,borderRadius:7,background:th.accentSoft,border:`1px solid ${th.accent}33`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
                 <I size={13} color={th.accent}/>
               </div>
               <span style={{fontSize:12,color:th.text2}}>{label}</span>
             </div>
           ))}
         </div>
-        <div style={{display:"flex",gap:7,marginTop:24}}>
+        <div style={{display:"flex",gap:7,marginTop:24,position:"relative",zIndex:1}}>
           {PLATFORMS.map(p=>{
             const PI=PlatformIcons[p.id];
             return (
@@ -7078,7 +7081,7 @@ function AuthPage() {
                 </label>
                 <button onClick={()=>{setAuthPage("forgot");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{L("Forgot password?","نسيت كلمة المرور؟")}</button>
               </div>
-              <button onClick={handleSignIn} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 4px 18px rgba(79,110,247,0.4)`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
+              <button onClick={handleSignIn} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:`0 8px 22px ${th.accent}55`,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:10}}>
                 {loading?L("Signing in…","جارٍ تسجيل الدخول…"):L("Sign in","تسجيل الدخول")} {!loading&&<ChevronRight size={15} style={{transform:isAR?"scaleX(-1)":"none"}}/>}
               </button>
               <div style={{textAlign:"center",fontSize:12,color:th.text2}}>
