@@ -5556,6 +5556,7 @@ function BillingPage() {
                 <span className="tw-num" style={{fontSize:34, fontWeight:600, color:highlight?th.accent:th.text}}>${price}</span>
                 <span style={{fontSize:12, color:th.text2}}>/mo</span>
               </div>
+              {approxLabel(geo,price)&&<div style={{fontSize:10, color:th.text3, marginTop:2}}>{approxLabel(geo,price).replace("approx ","≈ ")}</div>}
               <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>
               <div style={{fontSize:12, color:th.text2, lineHeight:2, marginBottom:18}}>
                 <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.accounts} social accounts</div>
@@ -5900,6 +5901,7 @@ function LandingPage({ onGetStarted, onLogin }) {
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
   const [billing, setBilling] = useState('monthly');
+  const lgeo = useGeo();
   const [contact, setContact] = useState({name:'',email:'',company:'',message:''});
   const [contactSent, setContactSent] = useState(false);
   const sendContact = () => {
@@ -5973,7 +5975,8 @@ function LandingPage({ onGetStarted, onLogin }) {
       {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
       <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
       <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
-      <div style={{marginBottom:8}}><span className="tw-num" style={{fontSize:34,fontWeight:700,color:popular?"#9DB6D6":"#F2F5F9"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
+      <div style={{marginBottom:approxLabel(lgeo,price)?2:8}}><span className="tw-num" style={{fontSize:34,fontWeight:700,color:popular?"#9DB6D6":"#F2F5F9"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
+      {approxLabel(lgeo,price)&&<div style={{fontSize:11,color:"#5A6B86",marginBottom:8}}>{approxLabel(lgeo,price).replace("approx ","≈ ")}</div>}
       {billing==='yearly'&&<div style={{fontSize:11,color:"#10B981",marginBottom:12}}>Save ${(prices.monthly[planKey]-price)*12}/year</div>}
       <div style={{fontSize:12,color:"#7A8BA8",lineHeight:2.2,marginBottom:20}}>{features.map(f=><div key={f}>✓ {f}</div>)}{extra.map(f=><div key={f} style={{color:"#3D5068"}}>— {f}</div>)}</div>
       <button onClick={()=>{ try{ sessionStorage.setItem('tw_signup_plan', planKey); }catch(e){} onGetStarted(); }} style={{width:"100%",padding:"11px",borderRadius:10,background:popular?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:popular?"none":"1px solid #232B38",color:popular?"#fff":"#7A8BA8",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
@@ -6414,23 +6417,10 @@ function LandingPage({ onGetStarted, onLogin }) {
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
       </div>
 
-      <div style={{marginBottom:48}}>
-        <div style={{textAlign:"center",marginBottom:20}}>
-          <h2 style={{fontSize:24,fontWeight:900,letterSpacing:-0.4,marginBottom:8}}>AI image credits</h2>
-          <p style={{color:"#7A8BA8",fontSize:13.5}}>Generate and edit on-brand images with AI. Add a monthly pack to any plan.</p>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16,maxWidth:760,margin:"0 auto"}}>
-          {[["Lite",50,"18.90",false],["Plus",100,"24.90",true],["Max",250,"39.90",false]].map(([nm,imgs,pr,pop])=>(
-            <div key={nm} style={{background:pop?"#101722":"#0C1017",border:`${pop?2:1}px solid ${pop?"#6E8CAB":"#232B38"}`,borderRadius:14,padding:"22px 18px 20px",position:"relative",textAlign:"center"}}>
-              {pop&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 13px",borderRadius:999,letterSpacing:0.4,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
-              <div style={{fontSize:11,letterSpacing:0.6,textTransform:"uppercase",color:"#9DB6D6",fontWeight:700,marginBottom:10}}>{nm}</div>
-              <div><span className="tw-num" style={{fontSize:30,fontWeight:700,color:"#F2F5F9"}}>${pr}</span><span style={{fontSize:13,color:"#7A8BA8"}}>/mo</span></div>
-              <div style={{margin:"12px 0",paddingTop:12,borderTop:"1px solid #232B38"}}><span className="tw-num" style={{fontSize:17,fontWeight:700,color:"#C7D4E3"}}>{imgs}</span><span style={{fontSize:12,color:"#7A8BA8"}}> images / month</span></div>
-              <button onClick={()=>setLandingPage('trial')} style={{width:"100%",padding:11,borderRadius:10,background:pop?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:pop?"none":"1px solid #2A3444",color:pop?"#fff":"#9DB6D6",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
-            </div>
-          ))}
-        </div>
-        <p style={{textAlign:"center",color:"#3D5068",fontSize:11,marginTop:12}}>Prices in USD. Billed per client account. Cancel anytime.</p>
+      <div style={{textAlign:"center",marginBottom:44,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
+        <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:12.5,color:"#7A8BA8",background:"#0C1017",border:"1px solid #232B38",borderRadius:999,padding:"8px 16px"}}>
+          Optional AI image generation, add a monthly pack from <span style={{color:"#9DB6D6",fontWeight:700}}>$18.90</span> when you choose your plan.
+        </span>
       </div>
 
       <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
@@ -7110,6 +7100,7 @@ function AuthPage() {
                       <div style={{textAlign:"right"}}>
                         <div style={{fontSize:18,fontWeight:800,color:th.accent}}>${billingPeriod==="annual"?p.annual:p.monthly}</div>
                         <div style={{fontSize:10,color:th.text2}}>/mo{billingPeriod==="annual"?" · billed yearly":""}</div>
+                        {approxLabel(sgeo,billingPeriod==="annual"?p.annual:p.monthly)&&<div style={{fontSize:9,color:th.text3,marginTop:2}}>{approxLabel(sgeo,billingPeriod==="annual"?p.annual:p.monthly).replace("approx ","≈ ")}</div>}
                         {billingPeriod==="annual"&&<div style={{fontSize:9,color:"#10B981",marginTop:2}}>Save ${(p.monthly-p.annual)*12}/yr</div>}
                       </div>
                     </div>
