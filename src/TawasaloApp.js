@@ -132,9 +132,8 @@ function imgPackOf(clientId) { try { return clientId ? (localStorage.getItem("tw
 function setImgPackOf(clientId, packId) { try { if (!clientId) return; if (packId) localStorage.setItem("tw_imgpack_" + clientId, packId); else localStorage.removeItem("tw_imgpack_" + clientId); } catch (e) { /* ignore */ } }
 function imgUsedOf(clientId) { try { return clientId ? parseInt(localStorage.getItem("tw_img_" + clientId + "_" + imgMonthKey()) || "0", 10) : 0; } catch (e) { return 0; } }
 function bumpImgUsed(clientId, by = 1) { try { if (!clientId) return 0; const n = imgUsedOf(clientId) + by; localStorage.setItem("tw_img_" + clientId + "_" + imgMonthKey(), String(n)); return n; } catch (e) { return 0; } }
-function imgLimitOf(clientId, email) {
-  if (email && FULL_ACCESS_EMAILS.includes(String(email).toLowerCase())) return Infinity;
-  const p = IMG_PACKS.find(x => x.id === imgPackOf(clientId));
+function imgLimitOf(acct) {
+  const p = IMG_PACKS.find(x => x.id === imgPackOf(acct));
   return p ? p.images : IMG_FREE;
 }
 
@@ -568,7 +567,7 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, setMobileNav, clients, setSelClient, setMode } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, userCompany, setMobileNav, clients, setSelClient, setMode } = useApp();
   const th = useTheme();
   const [sq, setSq] = useState("");      // global search query
   const [sOpen, setSOpen] = useState(false);
@@ -576,7 +575,8 @@ function Topbar() {
   const uName = (userName && userName.trim())
     ? userName.replace(/\b\w/g, c=>c.toUpperCase())
     : (userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User");
-  const uSub = (mode==="owner") ? "Tawaslo HQ" : (selClient?.name && selClient.name!=="Workspace" ? selClient.name : (accountLabelOf(accountType)||"Workspace"));
+  // Top-right subtitle shows the agency the user works for, not the client they're servicing.
+  const uSub = (mode==="owner") ? "Tawaslo HQ" : ((userCompany && userCompany.trim()) ? userCompany : (accountLabelOf(accountType)||"Agency"));
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
   const NOTIFS = [
@@ -2430,13 +2430,12 @@ function AIStudioPage() {
   const [payOpen, setPayOpen] = useState(false);
   const [creditTick, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
   const [justBought, setJustBought] = useState("");
-  const cid = selClient?.id;
-  const imgLimit = imgLimitOf(cid, userEmail);
-  const imgUsed = imgUsedOf(cid);
-  const imgUnlimited = imgLimit === Infinity;
-  const noCredits = !imgUnlimited && imgUsed >= imgLimit;
-  const curPack = imgPackOf(cid);
-  const choosePack = (pack) => { setImgPackOf(cid, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
+  const acct = (userEmail || "").toLowerCase();   // image credits are owned by the agency, not the client
+  const imgLimit = imgLimitOf(acct);
+  const imgUsed = imgUsedOf(acct);
+  const noCredits = imgUsed >= imgLimit;
+  const curPack = imgPackOf(acct);
+  const choosePack = (pack) => { setImgPackOf(acct, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
   const SIZES = [
     { id:"other", size:"1024x1024", label:"Other",       Icon:Image },
     { id:"ig",    size:"1024x1024", label:"Instagram",   Icon:FaInstagram },
@@ -2458,7 +2457,7 @@ function AIStudioPage() {
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
       else if (r.error) setImgErr(typeof r.error==='string'?r.error:'Could not generate.');
-      else if (r.images && r.images.length) { setImages(r.images); if (!imgUnlimited && cid) { bumpImgUsed(cid, r.images.length); setCreditTick(t=>t+1); } }
+      else if (r.images && r.images.length) { setImages(r.images); if (acct) { bumpImgUsed(acct, r.images.length); setCreditTick(t=>t+1); } }
       else setImgErr('Could not generate. Please try again.');
     } catch(e) { setImgErr('Something went wrong. Please try again.'); }
     setImgLoading(false);
@@ -2561,24 +2560,18 @@ function AIStudioPage() {
           </div>
 
           <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 14px", marginBottom:12 }}>
-            {imgUnlimited ? (
-              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:th.text2 }}><Sparkles size={13} color={th.accent}/>Unlimited image credits</div>
-            ) : (
-              <>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
-                  <div>
-                    <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>Image credits this month</div>
-                    <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {imgLimit}</span></div>
-                  </div>
-                  <div style={{ fontSize:11, color:th.text3 }}>{curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free"} plan</div>
-                </div>
-                <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
-                  <span><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</span>
-                  <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{curPack ? "Change plan" : "Get more"}</button>
-                </div>
-              </>
-            )}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>Image credits this month</div>
+                <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {imgLimit}</span></div>
+              </div>
+              <div style={{ fontSize:11, color:th.text3 }}>{curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free"} plan</div>
+            </div>
+            <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
+            <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
+              <span><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</span>
+              <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{curPack ? "Change plan" : "Get more"}</button>
+            </div>
           </div>
           {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} activated. Your image credits are ready.</div>}
 
@@ -5433,7 +5426,7 @@ function TeamPage() {
 }
 
 function BillingPage() {
-  const { dark, lang, selClient, userEmail } = useApp();
+  const { dark, lang, userEmail, userCompany, userName } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -5446,10 +5439,10 @@ function BillingPage() {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [imgTick, setImgTick] = useState(0);   // re-read image credits after a change
-  const imgCid = selClient?.id;
-  const imgCurPack = imgPackOf(imgCid);
-  const imgUnlimitedBilling = imgLimitOf(imgCid, userEmail) === Infinity;
-  const chooseImgPack = (pack) => { setImgPackOf(imgCid, pack.id); setImgTick(t => t + 1); setNotice(`${pack.name} image pack activated for ${selClient?.name || "this client"}. ${pack.images} images a month, refreshing monthly.`); };
+  const imgAcct = (userEmail || "").toLowerCase();
+  const imgCurPack = imgPackOf(imgAcct);
+  const agencyName = userCompany || userName || "your agency";
+  const chooseImgPack = (pack) => { setImgPackOf(imgAcct, pack.id); setImgTick(t => t + 1); setNotice(`${pack.name} image pack activated for ${agencyName}. ${pack.images} images a month across all your clients, refreshing monthly.`); };
 
   useEffect(() => {
     try {
@@ -5572,13 +5565,11 @@ function BillingPage() {
         </div>
         <p style={{margin:"0 0 16px 44px", fontSize:12.5, color:th.text2}}>
           {imgCurPack
-            ? <>{selClient?.name || "This client"} is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
-            : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{selClient?.name || "this client"}</span>. Generate and edit on-brand images in AI Studio.</>}
+            ? <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
+            : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. Generate and edit on-brand images across all your clients in AI Studio.</>}
         </p>
-        {imgUnlimitedBilling
-          ? <div style={{marginLeft:44, fontSize:12.5, color:th.text2, display:"flex", alignItems:"center", gap:8}}><Sparkles size={14} color={th.accent}/>Your account has unlimited image credits.</div>
-          : <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>}
-        <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed per client account, in USD. Cancel anytime.</div>
+        <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>
+        <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed to your agency, in USD. Cancel anytime.</div>
       </div>
 
       {!isMobile && (
