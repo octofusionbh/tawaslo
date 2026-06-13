@@ -175,6 +175,52 @@ function CountUp({ to, duration = 1500, format, className, style }) {
   return <span ref={ref} className={className} style={style}>{format ? format(val) : Math.round(val)}</span>;
 }
 
+// ── Skeleton loaders ───────────────────────────────────────────────
+// Shaped shimmering placeholders shown while data loads, instead of a plain
+// "Loading…" line. Sk is the primitive; the others compose common layouts.
+function Sk({ w = "100%", h = 12, r = 8, mb = 0, style }) {
+  return <div className="tw-sk" style={{ width: w, height: h, borderRadius: r, marginBottom: mb, flexShrink: 0, ...style }} />;
+}
+function SkStatRow({ th, n = 4 }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(${n},1fr)`, gap: 12, marginBottom: 14 }}>
+      {Array.from({ length: n }).map((_, i) => (
+        <div key={i} style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 16 }}><Sk w={54} h={11} mb={12} /><Sk w={78} h={24} r={7} /></div>
+      ))}
+    </div>
+  );
+}
+function SkChart({ th, h = 120 }) {
+  return (
+    <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, padding: 18 }}>
+      <Sk w={140} h={12} mb={18} />
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height: h }}>
+        {[54, 72, 46, 88, 64, 96, 58, 80].map((b, i) => <Sk key={i} w="100%" h={b + "%"} style={{ flex: 1 }} />)}
+      </div>
+    </div>
+  );
+}
+function SkList({ th, rows = 5 }) {
+  return (
+    <div style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, overflow: "hidden" }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderBottom: i < rows - 1 ? `1px solid ${th.border}` : "none" }}>
+          <Sk w={36} h={36} r={18} /><div style={{ flex: 1 }}><Sk w="45%" h={11} mb={8} /><Sk w="75%" h={9} /></div><Sk w={26} h={9} />
+        </div>
+      ))}
+    </div>
+  );
+}
+function SkCards({ th, count = 8, h = 150, min = 180 }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill,minmax(${min}px,1fr))`, gap: 14 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{ background: th.card, border: `1px solid ${th.border}`, borderRadius: 14, overflow: "hidden" }}><Sk h={h} r={0} /><div style={{ padding: 12 }}><Sk w="55%" h={11} mb={8} /><Sk w="35%" h={9} /></div></div>
+      ))}
+    </div>
+  );
+}
+
 // Privacy-blurred avatar — a soft, face-toned circle that reads like a real
 // profile photo with the identity hidden, instead of a flat initials chip.
 function BlurAvatar({ size = 28, hue = 20 }) {
@@ -2437,7 +2483,7 @@ function MediaPage() {
       {plat!=="all" && <div style={{ fontSize:10.5, color:th.text3, marginBottom:12, marginTop:-8 }}>New uploads are tagged to <strong style={{color:th.text2}}>{clientName} · {PNAME[plat]}</strong>. Switch the platform filter to All to upload shared assets.</div>}
 
       {loading ? (
-        <div style={{ textAlign:"center", padding:48, color:th.text2, fontSize:13 }}>Loading media…</div>
+        <SkCards th={th} count={8} h={150} min={180}/>
       ) : shown.length === 0 ? (
         <div onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);upload(e.dataTransfer.files);}} onClick={()=>document.getElementById('media-file').click()}
           style={{ border:`1.5px dashed ${dragOver?th.accent:th.border}`, borderRadius:18, padding:"52px 24px", textAlign:"center", cursor:"pointer", background:dragOver?th.accentSoft:"transparent" }}>
@@ -3962,7 +4008,7 @@ function SocialAccountsPage() {
       <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>Connected accounts {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
       <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.32)" }}>
         {loading ? (
-          <div style={{ padding:40, textAlign:"center", color:th.text2, fontSize:13 }}>Loading…</div>
+          <SkList th={th} rows={3}/>
         ) : accounts.length===0 ? (
           <div style={{ padding:"52px 24px", textAlign:"center" }}>
             <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Link size={26} color={th.accent}/></div>
@@ -4155,7 +4201,7 @@ function TrendingPage() {
           <button onClick={loadSample} style={{marginTop:16,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>Preview with sample data</button>
         </div>
       ) : (!sampleMode && loading) ? (
-        <div style={{textAlign:"center",padding:48,color:th.text2,fontSize:13}}>Loading trends&hellip;</div>
+        <SkCards th={th} count={8} h={140} min={170}/>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
           {((sampleMode||items.length===0)?sampleShown:items).map((it,i)=>(
@@ -4349,7 +4395,7 @@ function AnalyticsPage() {
       </div>
 
       {loading ? (
-        <div style={{textAlign:"center", padding:48, color:th.text2, fontSize:13}}>Loading analytics&hellip;</div>
+        <div><SkStatRow th={th} n={4}/><SkChart th={th}/></div>
       ) : data?.error ? (
         <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"none"}}>
           <div style={{fontSize:13, color:th.danger, marginBottom:8, fontWeight:600}}>Could not load Instagram insights</div>
@@ -4542,7 +4588,7 @@ function CampaignsPage() {
         <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>New campaign</button>
       </div>
 
-      {loading ? <div style={{ color:th.text2, fontSize:13, padding:40, textAlign:"center" }}>Loading campaigns…</div> : (
+      {loading ? <SkCards th={th} count={6} h={120} min={240}/> : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:16 }}>
           {campaigns.map(c => {
             const st = STATUS[c.status] || STATUS.active;
@@ -4792,7 +4838,7 @@ function AdsPage() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign:"center", padding:60, color:th.text2, fontSize:13 }}>Loading ads data…</div>
+        <div><SkStatRow th={th} n={4}/><SkChart th={th}/></div>
       ) : error ? (
         emptyState(Megaphone, "Ads insights are on the way", <>Connect a Facebook account that has ad account access to see your campaign performance here, including spend, reach and results, all in one place.</>)
       ) : !adsData ? (
@@ -5312,7 +5358,7 @@ function InboxPage() {
         </div>
       )}
       {loading ? (
-        <div style={{textAlign:"center", padding:60, color:th.text2, fontSize:13}}>{L("Loading inbox…","جارٍ تحميل الوارد…")}</div>
+        <SkList th={th} rows={6}/>
       ) : messages.length === 0 ? (
         <div style={{textAlign:"center", padding:"54px 24px", color:th.text2, fontSize:13, maxWidth:460, margin:"0 auto"}}>
           <MessageCircle size={34} style={{marginBottom:14, opacity:0.3}}/>
