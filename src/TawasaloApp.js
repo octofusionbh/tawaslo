@@ -7587,7 +7587,7 @@ export default function TawasloApp() {
   const isAdminUser = userEmail === ADMIN_EMAIL;
 
   // Load the signed-in user's real brands + decide which app (client vs admin) to show
-  const loadWorkspace = async (user) => {
+  const loadWorkspace = async (user, fresh) => {
     setUserEmail(user.email || null);
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
@@ -7623,7 +7623,10 @@ export default function TawasloApp() {
       return keep || norm[0];
     });
     const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
-    setMode(onAdminHost && user.email === ADMIN_EMAIL ? "owner" : "agency");
+    const owner = onAdminHost && user.email === ADMIN_EMAIL;
+    setMode(owner ? "owner" : "agency");
+    // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
+    if (fresh) { const home = owner ? "overview" : "dashboard"; try { sessionStorage.setItem('tw_page', home); } catch (e) {} setPage(home); }
   };
 
   // Restore session on load
@@ -7639,10 +7642,27 @@ export default function TawasloApp() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setAuthPage('recovery'); setAuthReady(true); return; }
       setIsAuthed(!!session?.user);
-      if (session?.user) loadWorkspace(session.user);
+      if (session?.user) loadWorkspace(session.user, event === 'SIGNED_IN');
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Auto sign-out after inactivity — keeps the workspace secure if the laptop is
+  // left open, closed, or goes to sleep. Resets on any activity; also checks on
+  // wake (visibility change) in case timers were paused while asleep.
+  useEffect(() => {
+    if (!isAuthed) return;
+    const IDLE_MS = 30 * 60 * 1000;
+    let timer, last = Date.now();
+    const doLogout = async () => { try { sessionStorage.removeItem('tw_page'); } catch (e) {} try { await signOut(); } catch (e) {} setIsAuthed(false); };
+    const reset = () => { last = Date.now(); clearTimeout(timer); timer = setTimeout(doLogout, IDLE_MS); };
+    const onVis = () => { if (document.visibilityState === 'visible' && Date.now() - last > IDLE_MS) doLogout(); else reset(); };
+    const evts = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    evts.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    document.addEventListener('visibilitychange', onVis);
+    reset();
+    return () => { clearTimeout(timer); evts.forEach(e => window.removeEventListener(e, reset)); document.removeEventListener('visibilitychange', onVis); };
+  }, [isAuthed]);
 
   // Remember that the user is inside the app, so a refresh keeps them here instead of bouncing to the landing page.
   useEffect(() => {
