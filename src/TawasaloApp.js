@@ -1371,7 +1371,7 @@ function OwnerPageHead({ Icon, title, subtitle, action }) {
   return (
     <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:22,flexWrap:"wrap",gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:13}}>
-        <div style={{width:42,height:42,borderRadius:13,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 8px 22px rgba(79,110,247,0.35)"}}><Icon size={20} color="#fff"/></div>
+        <div style={{width:42,height:42,borderRadius:13,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 8px 22px rgba(110,140,171,0.35)"}}><Icon size={20} color="#fff"/></div>
         <div>
           <h1 style={{margin:0,fontSize:21,fontWeight:700,letterSpacing:-0.5}}>{title}</h1>
           <p style={{margin:"4px 0 0",fontSize:12.5,color:th.text2}}>{subtitle}</p>
@@ -2323,7 +2323,7 @@ function AgencyDashboard() {
                   {sel&&<span style={{fontSize:9,color:th.accent,background:th.accentSoft,padding:"2px 7px",borderRadius:10}}>{L("viewing","قيد العرض")}</span>}
                 </div>
                 <div style={{fontSize:11.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.username?("@"+acc.username):acc.account_name}</div>
-                <div style={{fontSize:18,fontWeight:600,marginTop:2}}>{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}<span style={{fontSize:11,color:th.text2,fontWeight:400}}> {L("followers","\u0645\u062a\u0627\u0628\u0639")}</span></div>
+                <div style={{fontSize:18,fontWeight:600,marginTop:2}}><span className="tw-num">{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}</span><span style={{fontSize:11,color:th.text2,fontWeight:400}}> {L("followers","\u0645\u062a\u0627\u0628\u0639")}</span></div>
               </div>
             );
           })}
@@ -3054,7 +3054,7 @@ function EmptyState({ Icon, title, body, cta, onCta, compact }) {
       </div>
       <div style={{ fontSize:15.5, fontWeight:700, marginBottom:6 }}>{title}</div>
       <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.65, maxWidth:340, marginBottom: cta ? 18 : 0 }}>{body}</div>
-      {cta && <button onClick={onCta} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 22px rgba(79,110,247,0.32)" }}>{cta}<ArrowUpRight size={14}/></button>}
+      {cta && <button onClick={onCta} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", boxShadow:"0 8px 22px rgba(110,140,171,0.32)" }}>{cta}<ArrowUpRight size={14}/></button>}
     </div>
   );
 }
@@ -3129,16 +3129,18 @@ function PublisherPage() {
     if (!accounts.length) return;
     if (selPlatform && selPlatform !== "all") {
       const match = accounts.filter(a => a.platform === selPlatform);
-      setSelectedAccounts(match.length <= 1 ? match.map(a => a.id) : [match[0].id]);
+      setSelectedAccounts(match.map(a => a.id));
     } else {
       setSelectedAccounts(accounts.map(a => a.id));
     }
   }, [accounts, selPlatform]);
 
   const toggleAccount = (id) => setSelectedAccounts(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
-  // When a channel is chosen up top, the picker shows only that channel's accounts.
+  // The picker always shows every connected account so you can post to any
+  // combination (they're all different accounts). The top-bar channel just
+  // pre-selects a sensible default; you can add or remove any from here.
   const channelScoped = !!(selPlatform && selPlatform !== "all");
-  const pubAccounts = channelScoped ? accounts.filter(a => a.platform === selPlatform) : accounts;
+  const pubAccounts = accounts;
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
@@ -3381,7 +3383,7 @@ function PublisherPage() {
                 {L("Publishing to","النشر إلى")}
                 {channelScoped && PLAT[selPlatform] && <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:PLAT[selPlatform].color, background:PLAT[selPlatform].color+"1a", borderRadius:7, padding:"2px 8px" }}>{(()=>{const Ic=PLAT[selPlatform].Icon;return <Ic style={{ fontSize:11 }}/>;})()}{PLAT[selPlatform].name}{pubAccounts.length>1?" · "+L("choose","اختر"):""}</span>}
               </div>
-              {accounts.length>0 && <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><ArrowUpRight size={11}/>{L("follows the channel above","يتبع القناة بالأعلى")}</span>}
+              {accounts.length>0 && <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Check size={11}/>{L("tap any to include or exclude","اضغط أي حساب لتضمينه أو استبعاده")}</span>}
             </div>
             {accounts.length === 0 ? <div style={{ fontSize:12.5, color:th.text2 }}>{L("No connected accounts.","لا توجد حسابات مرتبطة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect accounts","اربط الحسابات")}</span> {L("to start.","للبدء.")}</div>
             : pubAccounts.length === 0 ? <div style={{ fontSize:12, color:th.text2, marginBottom:9 }}>{L("No "+(PLAT[selPlatform]?.name||"")+" account connected for this brand.","لا يوجد حساب مرتبط لهذه العلامة.")} <span style={{ color:th.accent, cursor:"pointer" }} onClick={()=>setPage("social")}>{L("Connect one","اربط حساباً")}</span>.</div> : (
@@ -3859,7 +3861,6 @@ function SocialAccountsPage() {
             body: JSON.stringify({ code, redirectUri }),
           });
           const data = await res.json();
-          console.log('META OAUTH RESPONSE:', JSON.stringify(data, null, 2));
           if (!res.ok) throw new Error(data.error);
 
           const clientId = await resolveClientId(realClientId);
@@ -3976,7 +3977,7 @@ function SocialAccountsPage() {
         .tw-cta{transition:transform .12s ease, filter .15s ease;}
         .tw-cta:hover{transform:translateY(-1px); filter:brightness(1.08);}
       `}</style>
-      <div style={{ position:"absolute", top:-40, left:"30%", width:520, height:280, background:"radial-gradient(ellipse at center, rgba(79,110,247,0.18), transparent 70%)", filter:"blur(20px)", pointerEvents:"none", zIndex:0 }}/>
+      <div style={{ position:"absolute", top:-40, left:"30%", width:520, height:280, background:"radial-gradient(ellipse at center, rgba(110,140,171,0.18), transparent 70%)", filter:"blur(20px)", pointerEvents:"none", zIndex:0 }}/>
 
       <div style={{ position:"relative", zIndex:1 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:24 }}>
@@ -4117,7 +4118,7 @@ function Placeholder({ icon:Icon, title, description, badge, features, ctaLabel,
       )}
       <div style={{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}}>
         {ctaLabel && ctaPage && (
-          <button onClick={()=>setPage(ctaPage)} style={{padding:"10px 20px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 14px rgba(79,110,247,0.4)",display:"flex",alignItems:"center",gap:7}}>
+          <button onClick={()=>setPage(ctaPage)} style={{padding:"10px 20px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",boxShadow:"0 4px 14px rgba(110,140,171,0.4)",display:"flex",alignItems:"center",gap:7}}>
             <ArrowUpRight size={15}/>{ctaLabel}
           </button>
         )}
@@ -5511,7 +5512,7 @@ function TeamPage() {
           <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Team</h2>
           <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Invite teammates and manage access &middot; <span style={{ color:th.text }}>{team.length} of {SEATS} seats used</span></p>
         </div>
-        <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(79,110,247,0.4)" }}>
+        <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
           <UserPlus size={15}/> Invite member
         </button>
       </div>
@@ -5539,7 +5540,7 @@ function TeamPage() {
         {team.map((m,i) => (
           <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none" }}>
             <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(79,110,247,0.35)" }}>{m.avatar}</div>
+              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(110,140,171,0.35)" }}>{m.avatar}</div>
               <div>
                 <div style={{ fontSize:13.5, fontWeight:600 }}>{m.name}</div>
                 <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{m.email}</div>
@@ -5665,9 +5666,9 @@ function BillingPage() {
               border:`2px solid ${isCurrent?th.accent:(featured?th.accent:(isYourTier?th.accent+"66":th.border))}`,
               borderRadius:16, padding:"26px 22px 22px", position:"relative",
               display:"flex", flexDirection:"column",
-              boxShadow:featured?"0 16px 44px rgba(79,110,247,0.28)":"0 8px 24px rgba(0,0,0,0.22)",
+              boxShadow:featured?"0 16px 44px rgba(110,140,171,0.28)":"0 8px 24px rgba(0,0,0,0.22)",
             }}>
-              {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(79,110,247,0.5)"}}>MOST POPULAR</div>}
+              {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(110,140,171,0.5)"}}>MOST POPULAR</div>}
               {isCurrent && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>CURRENT</div>}
               <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
               <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
@@ -6134,7 +6135,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     nav: { position:"fixed", top:0, left:0, right:0, zIndex:100, padding:"0 40px", height:64, display:"flex", alignItems:"center", justifyContent:"space-between", background: "rgba(7,9,15,0.95)", backdropFilter: "blur(12px)", borderBottom: "1px solid #232B38", transition:"all 0.3s" },
     logo: { fontSize:20, fontWeight:900, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" },
     hero: { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center", padding:"120px 20px 80px", background:"#080B11", position:"relative", overflow:"hidden" },
-    heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(79,110,247,0.15) 0%, transparent 70%)", pointerEvents:"none" },
+    heroBg: { position:"absolute", top:0, left:0, right:0, bottom:0, background:"radial-gradient(ellipse 80% 60% at 50% 0%, rgba(110,140,171,0.15) 0%, transparent 70%)", pointerEvents:"none" },
     badge: { display:"inline-flex", alignItems:"center", gap:6, padding:"6px 16px", borderRadius:20, background:"rgba(157,182,214,0.08)", border:"1px solid rgba(157,182,214,0.24)", color:"#A6B8CF", fontSize:11, fontWeight:600, letterSpacing:0.3, marginBottom:24 },
     h1: { fontSize:isMobile?34:56, fontWeight:900, color:"#E8EFF8", lineHeight:1.1, marginBottom:24, letterSpacing:-1.5, maxWidth:800 },
     sub: { fontSize:18, color:"#7A8BA8", maxWidth:560, lineHeight:1.7, marginBottom:40 },
@@ -6152,7 +6153,7 @@ function LandingPage({ onGetStarted, onLogin }) {
         <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:700,margin:"0 auto 18px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
         <p style={{fontSize:16,color:"#8A9BB8",maxWidth:520,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — and the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
-          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Start free trial →</button>
+          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)"}}>Start free trial →</button>
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
         </div>
         <div style={{display:"flex",gap:20,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
@@ -6353,11 +6354,11 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const TrialPage = () => (
     <div>
-      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(79,110,247,0.2) 0%, transparent 65%), #080B11",padding:isMobile?"56px 18px 40px":"80px 32px 56px",textAlign:"center"}}>
+      <div style={{background:"radial-gradient(ellipse 80% 50% at 50% -10%, rgba(110,140,171,0.2) 0%, transparent 65%), #080B11",padding:isMobile?"56px 18px 40px":"80px 32px 56px",textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 16px",borderRadius:20,background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)",color:"#10B981",fontSize:11,fontWeight:700,marginBottom:22}}>✦ 30 days free &middot; No credit card</div>
         <h1 style={{fontSize:isMobile?30:46,fontWeight:900,lineHeight:1.1,marginBottom:18,letterSpacing:-1.2,maxWidth:720,margin:"0 auto 18px"}}>Start your <span style={grad}>free trial</span> today</h1>
         <p style={{fontSize:16,color:"#7A8BA8",maxWidth:520,margin:"0 auto 30px",lineHeight:1.7}}>Full access to every feature for 30 days. Connect your brands, publish with AI, and see the results — no credit card, cancel anytime.</p>
-        <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(79,110,247,0.4)"}}>Create your free account →</button>
+        <button onClick={onGetStarted} style={{padding:"14px 34px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)"}}>Create your free account →</button>
         <div style={{fontSize:12,color:"#3D5068",marginTop:14}}>Takes about 30 seconds &middot; No card required</div>
       </div>
       <div style={{background:"#0C1017",padding:isMobile?"44px 18px":"56px 32px",borderTop:"1px solid #232B38"}}>
@@ -6369,7 +6370,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             [XCircle,"Cancel anytime","No lock-in. Leave whenever you like, no questions."],
           ].map(([Ic,t,d],i)=>(
             <div key={i} style={{background:"#141923",border:"1px solid #232B38",borderRadius:14,padding:20,textAlign:"center"}}>
-              <div style={{width:44,height:44,borderRadius:13,background:"rgba(79,110,247,0.11)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Ic size={20} color="#4F6EF7"/></div>
+              <div style={{width:44,height:44,borderRadius:13,background:"rgba(110,140,171,0.11)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Ic size={20} color="#4F6EF7"/></div>
               <div style={{fontSize:14,fontWeight:800,marginBottom:6}}>{t}</div>
               <div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{d}</div>
             </div>
@@ -6403,7 +6404,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     <div style={{padding:"60px 32px",maxWidth:1000,margin:"0 auto"}}>
       <div style={{textAlign:"center",marginBottom:48}}>
         <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Everything you need to<br/><span style={grad}>manage social media at scale</span></h1>
-        <p style={{color:"#7A8BA8",fontSize:14,maxWidth:500,margin:"0 auto"}}>From publishing to analytics to inbox management — Tawaslo has it all.</p>
+        <p style={{color:"#7A8BA8",fontSize:14,maxWidth:500,margin:"0 auto"}}>From publishing to analytics to inbox management, Tawaslo has it all.</p>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
@@ -6622,7 +6623,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             [Calendar,"Schedule & auto-publish","Plan your whole month and let Tawaslo post automatically at the perfect time."],
           ].map(([Ic,title,desc])=>(
             <div key={title} style={{display:"flex",gap:13,alignItems:"flex-start"}}>
-              <div style={{width:38,height:38,borderRadius:11,background:"rgba(79,110,247,0.11)",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ic size={18} color="#4F6EF7"/></div>
+              <div style={{width:38,height:38,borderRadius:11,background:"rgba(110,140,171,0.11)",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}><Ic size={18} color="#4F6EF7"/></div>
               <div><div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{title}</div><div style={{fontSize:12,color:"#7A8BA8",lineHeight:1.6}}>{desc}</div></div>
             </div>
           ))}
@@ -6723,7 +6724,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const PrivacyPage = () => (
     <div style={{padding:"60px 32px", maxWidth:720, margin:"0 auto"}}>
-      <div style={{display:"inline-block",fontSize:11,background:"rgba(79,110,247,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
+      <div style={{display:"inline-block",fontSize:11,background:"rgba(110,140,171,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
       <h1 style={{fontSize:32,fontWeight:900,margin:"0 0 6px"}}>Privacy policy</h1>
       <p style={{fontSize:12,color:"#7A8BA8",marginBottom:32}}>Last updated: June 2026</p>
 
@@ -6769,7 +6770,7 @@ function LandingPage({ onGetStarted, onLogin }) {
 
   const TermsPage = () => (
     <div style={{padding:"60px 32px", maxWidth:720, margin:"0 auto"}}>
-      <div style={{display:"inline-block",fontSize:11,background:"rgba(79,110,247,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
+      <div style={{display:"inline-block",fontSize:11,background:"rgba(110,140,171,0.15)",color:"#4F6EF7",borderRadius:20,padding:"3px 12px",marginBottom:14}}>Legal</div>
       <h1 style={{fontSize:32,fontWeight:900,margin:"0 0 6px"}}>Terms of service</h1>
       <p style={{fontSize:12,color:"#7A8BA8",marginBottom:32}}>Last updated: June 2026</p>
 
@@ -6821,7 +6822,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       {isMobile && landingPage!=='pricing' && (
         <div style={{position:"fixed",bottom:0,left:0,right:0,zIndex:200,background:"rgba(12,17,32,0.96)",borderTop:"1px solid #232B38",backdropFilter:"blur(12px)",padding:"12px 16px",display:"flex",gap:10,alignItems:"center",boxShadow:"0 -8px 30px rgba(0,0,0,0.55)"}}>
           <button onClick={()=>setLandingPage('pricing')} style={{flex:1,padding:"12px",borderRadius:11,background:"transparent",border:"1px solid #232B38",color:"#E8EFF8",fontSize:13,fontWeight:600,cursor:"pointer"}}>View pricing</button>
-          <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(79,110,247,0.45)"}}>Start free trial</button>
+          <button onClick={onGetStarted} style={{flex:1.6,padding:"12px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 6px 20px rgba(110,140,171,0.45)"}}>Start free trial</button>
         </div>
       )}
     </div>
@@ -6867,7 +6868,7 @@ function AdminLogin() {
   return (
     <div style={{
       minHeight:"100vh",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",
-      background:"radial-gradient(1100px 600px at 50% -10%, rgba(79,110,247,0.18), transparent 60%), radial-gradient(900px 500px at 90% 110%, rgba(124,58,237,0.16), transparent 55%), #080B11",
+      background:"radial-gradient(1100px 600px at 50% -10%, rgba(110,140,171,0.18), transparent 60%), radial-gradient(900px 500px at 90% 110%, rgba(124,58,237,0.16), transparent 55%), #080B11",
       fontFamily:"'Plus Jakarta Sans','Segoe UI',sans-serif",color:th.text,direction:"ltr",padding:24,position:"relative",overflow:"hidden",
     }}>
       {/* faint grid backdrop */}
@@ -6877,7 +6878,7 @@ function AdminLogin() {
         {/* brand */}
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",marginBottom:26}}>
           <div style={{position:"relative",marginBottom:16}}>
-            <div style={{width:64,height:64,borderRadius:19,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 14px 40px rgba(79,110,247,0.45)"}}>
+            <div style={{width:64,height:64,borderRadius:19,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 14px 40px rgba(110,140,171,0.45)"}}>
               <Shield size={30} color="#fff" strokeWidth={1.7}/>
             </div>
             <div style={{position:"absolute",right:-7,bottom:-7,width:26,height:26,borderRadius:9,background:th.card,border:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -6901,7 +6902,7 @@ function AdminLogin() {
           {field(<Lock size={15} color={th.text3}/>, "Password", pw, setPw, show?"text":"password")}
           <button onClick={submit} disabled={loading} style={{
             width:"100%",padding:"14px",borderRadius:13,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,
-            cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:"0 8px 26px rgba(79,110,247,0.42)",
+            cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,boxShadow:"0 8px 26px rgba(110,140,171,0.42)",
             display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginTop:4,
           }}>
             {loading?"Signing in…":"Enter HQ"} {!loading && <ChevronRight size={16}/>}
@@ -7141,7 +7142,7 @@ function AuthPage() {
                         <svg width="40" height="40" viewBox="0 0 56 56" fill="none"><rect x="16" y="8" width="24" height="40" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="6" y="20" width="10" height="28" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><rect x="40" y="20" width="10" height="28" rx="2" stroke="#4F6EF7" strokeWidth="1.8" fill="none"/><line x1="21" y1="14" x2="23" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="27" y1="14" x2="29" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="33" y1="14" x2="35" y2="14" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="21" y1="20" x2="23" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="27" y1="20" x2="29" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="33" y1="20" x2="35" y2="20" stroke="#4F6EF7" strokeWidth="1.5" strokeLinecap="round"/><line x1="9" y1="26" x2="13" y2="26" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="9" y1="31" x2="13" y2="31" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="43" y1="26" x2="47" y2="26" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><line x1="43" y1="31" x2="47" y2="31" stroke="#4F6EF7" strokeWidth="1.3" strokeLinecap="round"/><rect x="22" y="38" width="12" height="10" rx="1" stroke="#4F6EF7" strokeWidth="1.5" fill="none"/><line x1="28" y1="38" x2="28" y2="48" stroke="#4F6EF7" strokeWidth="1.2"/><line x1="4" y1="48" x2="52" y2="48" stroke="#4F6EF7" strokeWidth="1.8" strokeLinecap="round"/></svg>
                       )},
                     ].map(({id,label,desc,icon})=>(
-                      <div key={id} onClick={()=>setAccountType(id)} style={{background:th.card,border:`1.5px solid ${accountType===id?th.accent:th.border}`,borderRadius:10,padding:"14px 10px",textAlign:"center",cursor:"pointer",background:accountType===id?"rgba(79,110,247,0.1)":th.card,transition:"all 0.15s"}}>
+                      <div key={id} onClick={()=>setAccountType(id)} style={{background:th.card,border:`1.5px solid ${accountType===id?th.accent:th.border}`,borderRadius:10,padding:"14px 10px",textAlign:"center",cursor:"pointer",background:accountType===id?"rgba(110,140,171,0.1)":th.card,transition:"all 0.15s"}}>
                         <div style={{display:"flex",justifyContent:"center",marginBottom:8}}>{icon}</div>
                         <div style={{fontSize:11,fontWeight:700,color:th.text}}>{label}</div>
                         <div style={{fontSize:9,color:th.text2,marginTop:3,lineHeight:1.4}}>{desc}</div>
@@ -7172,7 +7173,7 @@ function AuthPage() {
                       ["clients","Manage multiple clients",Users],
                       ["analytics","Understand my analytics",BarChart2],
                     ].map(([id,label,Ic])=>(
-                      <div key={id} onClick={()=>setTrialGoal(id)} style={{display:"flex",alignItems:"center",gap:13,padding:"14px 16px",borderRadius:12,border:`1.5px solid ${trialGoal===id?th.accent:th.border}`,background:trialGoal===id?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:13.5,fontWeight:600,color:th.text,transition:"all 0.15s"}}>
+                      <div key={id} onClick={()=>setTrialGoal(id)} style={{display:"flex",alignItems:"center",gap:13,padding:"14px 16px",borderRadius:12,border:`1.5px solid ${trialGoal===id?th.accent:th.border}`,background:trialGoal===id?"rgba(110,140,171,0.1)":th.card,cursor:"pointer",fontSize:13.5,fontWeight:600,color:th.text,transition:"all 0.15s"}}>
                         <div style={{width:34,height:34,borderRadius:9,background:trialGoal===id?th.gradient:th.card2,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={17} color={trialGoal===id?"#fff":th.text2}/></div>
                         <span style={{flex:1}}>{label}</span>
                         <div style={{width:18,height:18,borderRadius:"50%",border:`1.5px solid ${trialGoal===id?th.accent:th.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{trialGoal===id&&<div style={{width:9,height:9,borderRadius:"50%",background:th.accent}}/>}</div>
@@ -7197,13 +7198,13 @@ function AuthPage() {
                   <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:22}}>
                     {[["ig","Instagram",FaInstagram,"#E1306C"],["fb","Facebook",FaFacebook,"#1877F2"],["li","LinkedIn",FaLinkedin,"#0A66C2"],["tt","TikTok",FaTiktok,th.text],["tw","X",FaTwitter,th.text]].map(([id,label,Ic,c])=>{
                       const on=trialPlatforms.includes(id);
-                      return <div key={id} onClick={()=>setTrialPlatforms(p=>on?p.filter(x=>x!==id):[...p,id])} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:999,border:`1.5px solid ${on?th.accent:th.border}`,background:on?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}><Ic style={{color:c,fontSize:15}}/>{label}{on&&<CheckCircle size={13} color={th.accent}/>}</div>;
+                      return <div key={id} onClick={()=>setTrialPlatforms(p=>on?p.filter(x=>x!==id):[...p,id])} style={{display:"flex",alignItems:"center",gap:8,padding:"9px 14px",borderRadius:999,border:`1.5px solid ${on?th.accent:th.border}`,background:on?"rgba(110,140,171,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}><Ic style={{color:c,fontSize:15}}/>{label}{on&&<CheckCircle size={13} color={th.accent}/>}</div>;
                     })}
                   </div>
                   <div style={{fontSize:11.5,fontWeight:700,color:th.text2,marginBottom:9,textTransform:"uppercase",letterSpacing:0.5}}>How many brands do you manage?</div>
                   <div style={{display:"flex",gap:8,marginBottom:24}}>
                     {[["1","Just one"],["2-5","2 – 5"],["6+","6 or more"]].map(([id,label])=>(
-                      <div key={id} onClick={()=>setTrialBrands(id)} style={{flex:1,textAlign:"center",padding:"12px",borderRadius:11,border:`1.5px solid ${trialBrands===id?th.accent:th.border}`,background:trialBrands===id?"rgba(79,110,247,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}>{label}</div>
+                      <div key={id} onClick={()=>setTrialBrands(id)} style={{flex:1,textAlign:"center",padding:"12px",borderRadius:11,border:`1.5px solid ${trialBrands===id?th.accent:th.border}`,background:trialBrands===id?"rgba(110,140,171,0.1)":th.card,cursor:"pointer",fontSize:12.5,fontWeight:600,color:th.text}}>{label}</div>
                     ))}
                   </div>
                   <div style={{display:"flex",gap:8}}>
@@ -7232,7 +7233,7 @@ function AuthPage() {
                     {id:"professional", name:"Professional", monthly:99,  annual:79,  desc:"10 accounts · 5 members · 100 posts/mo", popular:true},
                     {id:"agency",       name:"Enterprise",   monthly:199, annual:159, desc:"Unlimited accounts · 20 members · unlimited posts"},
                   ].map(p=>(
-                    <div key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{background:selectedPlan===p.id?"rgba(79,110,247,0.1)":th.card,border:`1.5px solid ${selectedPlan===p.id?th.accent:th.border}`,borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all 0.15s"}}>
+                    <div key={p.id} onClick={()=>setSelectedPlan(p.id)} style={{background:selectedPlan===p.id?"rgba(110,140,171,0.1)":th.card,border:`1.5px solid ${selectedPlan===p.id?th.accent:th.border}`,borderRadius:10,padding:"14px 16px",marginBottom:10,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"all 0.15s"}}>
                       <div>
                         <div style={{fontSize:13,fontWeight:800,color:th.text}}>
                           {p.name}
@@ -7261,7 +7262,7 @@ function AuthPage() {
                       </div>
                       <div style={{display:"flex",flexDirection:"column",gap:7}}>
                         {IMG_PACKS.map(p=>{ const on=imgAddon===p.id; const ap=approxLabel(sgeo,p.price); return (
-                          <div key={p.id} onClick={()=>setImgAddon(p.id)} style={{display:"flex",alignItems:"center",gap:11,background:on?"rgba(79,110,247,0.08)":th.card,border:`1.5px solid ${on?th.accent:th.border}`,borderRadius:10,padding:"9px 13px",cursor:"pointer"}}>
+                          <div key={p.id} onClick={()=>setImgAddon(p.id)} style={{display:"flex",alignItems:"center",gap:11,background:on?"rgba(110,140,171,0.08)":th.card,border:`1.5px solid ${on?th.accent:th.border}`,borderRadius:10,padding:"9px 13px",cursor:"pointer"}}>
                             <div style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${on?th.accent:th.border}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>{on&&<div style={{width:8,height:8,borderRadius:"50%",background:th.accent}}/>}</div>
                             <div style={{flex:1}}>
                               <span style={{fontSize:12,fontWeight:700,color:th.text}}>{p.name}</span>
@@ -7313,7 +7314,7 @@ function AuthPage() {
                   {inp("Work email address",email,e=>{setEmail(e.target.value);setError("");},"email")}
                   {inp("Password (min 8 characters)",pw,e=>{setPw(e.target.value);setError("");},"password")}
                   <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:20,marginTop:4}}>
-                    <div onClick={()=>setTosAgreed(!tosAgreed)} style={{width:16,height:16,minWidth:16,borderRadius:4,border:`1.5px solid ${tosAgreed?th.accent:th.border}`,background:tosAgreed?"rgba(79,110,247,0.2)":"transparent",marginTop:1,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                    <div onClick={()=>setTosAgreed(!tosAgreed)} style={{width:16,height:16,minWidth:16,borderRadius:4,border:`1.5px solid ${tosAgreed?th.accent:th.border}`,background:tosAgreed?"rgba(110,140,171,0.2)":"transparent",marginTop:1,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                       {tosAgreed&&<CheckCircle size={10} color={th.accent}/>}
                     </div>
                     <div style={{fontSize:11,color:th.text2,lineHeight:1.6}}>
@@ -7472,7 +7473,7 @@ function OnboardingHero() {
         {/* LEFT — the path */}
         <div style={{ width:260, flexShrink:0 }}>
           <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:1.4, color:th.accent, textTransform:"uppercase", marginBottom:3 }}>Your setup journey</div>
-          <div style={{ fontSize:16, fontWeight:700, marginBottom:18 }}>{allDone ? "Complete 🎉" : `Step ${current + 1} of ${steps.length}`}</div>
+          <div style={{ fontSize:16, fontWeight:700, marginBottom:18 }}>{allDone ? "All set" : `Step ${current + 1} of ${steps.length}`}</div>
           {steps.map((s,i)=>{ const isCur = i === current && !allDone; const last = i === steps.length - 1; return (
             <div key={s.key} className="tw-jnode" onClick={()=>setFocus(i)} style={{ display:"flex", gap:12, opacity: s.done || isCur ? 1 : 0.55 }}>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
@@ -7494,7 +7495,7 @@ function OnboardingHero() {
           {allDone ? (
             <>
               <div style={{ width:56, height:56, borderRadius:16, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:`0 12px 30px ${th.accent}55` }}><Sparkles size={26} color="#fff"/></div>
-              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're all set, {selClient?.name || "let's grow"}! 🎉</div>
+              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're all set, {selClient?.name || "let's grow"}!</div>
               <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.6, maxWidth:460, marginBottom:20 }}>Your workspace is ready. Channels connected, first post out, analytics live — now the fun part: growing your audience.</div>
               <div style={{ display:"flex", gap:10 }}>
                 <button className="tw-jcta" onClick={()=>setPage('publisher')} style={{ padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Edit3 size={15}/>Create a post</button>
@@ -7546,7 +7547,7 @@ function TrialBanner() {
   if (hidden || daysLeft === null) return null;
   const ended = daysLeft <= 0;
   return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : "rgba(79,110,247,0.08)", borderBottom:`1px solid ${th.border}`, flexShrink:0 }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"9px 22px", background: ended ? th.dangerSoft : "rgba(110,140,171,0.08)", borderBottom:`1px solid ${th.border}`, flexShrink:0 }}>
       <div style={{ fontSize:12.5, color: ended ? th.danger : th.text, display:"flex", alignItems:"center", gap:8 }}>
         <Sparkles size={14} color={ended ? th.danger : th.accent}/>
         {ended
