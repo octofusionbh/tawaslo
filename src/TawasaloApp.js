@@ -175,6 +175,20 @@ function CountUp({ to, duration = 1500, format, className, style }) {
   return <span ref={ref} className={className} style={style}>{format ? format(val) : Math.round(val)}</span>;
 }
 
+// Unified empty state — a soft icon tile, title, one line, and an optional
+// primary action. Used across rooms so blank screens point the way forward.
+function EmptyState({ th, Icon, title, desc, actionLabel, onAction, ActionIcon }) {
+  const AI = ActionIcon || Plus;
+  return (
+    <div style={{ textAlign: "center", padding: "48px 24px" }}>
+      <div style={{ width: 54, height: 54, borderRadius: 16, background: th.accentSoft, border: `1px solid ${th.accent}33`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>{Icon && <Icon size={25} color={th.accent} />}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: th.text, marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 12.5, color: th.text2, lineHeight: 1.6, maxWidth: 300, margin: "0 auto 18px" }}>{desc}</div>
+      {actionLabel && <button onClick={onAction} style={{ padding: "10px 20px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, boxShadow: `0 6px 18px ${th.accent}40` }}><AI size={14} />{actionLabel}</button>}
+    </div>
+  );
+}
+
 // ── Skeleton loaders ───────────────────────────────────────────────
 // Shaped shimmering placeholders shown while data loads, instead of a plain
 // "Loading…" line. Sk is the primitive; the others compose common layouts.
@@ -501,6 +515,7 @@ function Sidebar() {
   const isAR = lang==="ar";
   const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
+  const [acctOpen, setAcctOpen] = useState(false);   // account dropdown (settings / log out)
   // On mobile, navigating closes the slide-out drawer.
   useEffect(() => { if (isMobile && setMobileNav) setMobileNav(false); }, [page]); // eslint-disable-line
   // Account + plan card (Option A)
@@ -656,17 +671,37 @@ function Sidebar() {
       </nav>
 
       {col ? null : (
-      <div onClick={()=>setPage(mode==="owner"?"settings":"billing")} style={{margin:"0 14px 12px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"11px 12px",cursor:"pointer"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-          <span style={{width:32,height:32,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
-          <div style={{minWidth:0,lineHeight:1.35}}>
-            <div style={{fontSize:12.5,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbName}</div>
-            {sbSub&&<div style={{fontSize:10,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{sbSub}</div>}
+      <div style={{position:"relative",margin:"0 14px 12px"}}>
+        {acctOpen && <div onClick={()=>setAcctOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>}
+        {acctOpen && (
+          <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:0,right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:6,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
+            {[
+              [Settings, L("Settings","الإعدادات"), ()=>setPage(mode==="owner"?"settings":"agencysets")],
+              ...(mode!=="owner" ? [[CreditCard, L("Billing & plan","الفوترة والخطة"), ()=>setPage("billing")]] : []),
+            ].map(([Ic,label,act],i)=>(
+              <div key={i} onClick={()=>{ act(); setAcctOpen(false); }} className="tw-acct" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,cursor:"pointer",color:th.text,fontSize:12.5,fontWeight:500}}><Ic size={16} color={th.accent}/>{label}</div>
+            ))}
+            <div onClick={()=>setDark(d=>!d)} className="tw-acct" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 10px",borderRadius:8,cursor:"pointer",color:th.text,fontSize:12.5,fontWeight:500}}>
+              <span style={{display:"flex",alignItems:"center",gap:10}}>{dark?<Moon size={16} color={th.accent}/>:<Sun size={16} color={th.accent}/>}{L("Dark mode","الوضع الداكن")}</span>
+              <span style={{width:30,height:17,borderRadius:20,background:dark?th.accent:th.border,position:"relative",transition:"background .15s",flexShrink:0}}><span style={{position:"absolute",top:2,left:dark?15:2,width:13,height:13,borderRadius:"50%",background:"#fff",transition:"left .15s"}}/></span>
+            </div>
+            <div style={{height:1,background:th.border,margin:"5px 4px"}}/>
+            <div onClick={async()=>{ setAcctOpen(false); try{ await signOut(); }catch(e){} setIsAuthed(false); }} className="tw-acct" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,cursor:"pointer",color:th.danger,fontSize:12.5,fontWeight:600}}><LogOut size={16} color={th.danger}/>{L("Log out","تسجيل الخروج")}</div>
           </div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${th.border}`,paddingTop:9}}>
-          <span style={{fontSize:11,fontWeight:600,color:planTrial?th.warning:th.accent,display:"inline-flex",alignItems:"center",gap:6}}><Sparkles size={13}/>{planLabel}</span>
-          <span style={{fontSize:10.5,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
+        )}
+        <div onClick={()=>setAcctOpen(o=>!o)} style={{background:th.card2,border:`1px solid ${acctOpen?th.accent:th.border}`,borderRadius:12,padding:"11px 12px",cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <span style={{width:32,height:32,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
+            <div style={{minWidth:0,lineHeight:1.35,flex:1}}>
+              <div style={{fontSize:12.5,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sbName}</div>
+              {sbSub&&<div style={{fontSize:10,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{sbSub}</div>}
+            </div>
+            <ChevronDown size={15} color={th.text3} style={{transform:acctOpen?"rotate(180deg)":"none",transition:"transform .15s",flexShrink:0}}/>
+          </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",borderTop:`1px solid ${th.border}`,paddingTop:9}}>
+            <span style={{fontSize:11,fontWeight:600,color:planTrial?th.warning:th.accent,display:"inline-flex",alignItems:"center",gap:6}}><Sparkles size={13}/>{planLabel}</span>
+            <span style={{fontSize:10.5,fontWeight:600,color:th.text2}}>{planTrial?L("Upgrade","ترقية"):L("Manage","إدارة")}</span>
+          </div>
         </div>
       </div>
       )}
