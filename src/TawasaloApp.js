@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { createPortal } from "react-dom";
+import { APPROVAL_IMAGES } from "./approvalImages";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
@@ -152,6 +153,8 @@ function clientNeedsApproval(clientId) { try { return clientId ? localStorage.ge
 function setClientNeedsApproval(clientId, on) { try { if (clientId) localStorage.setItem("tw_apprdef_" + clientId, on ? "1" : "0"); } catch (e) { /* ignore */ } }
 function apprToken(id) { try { let t = localStorage.getItem("tw_apprlink_" + id); if (!t) { t = Math.random().toString(36).slice(2, 10); localStorage.setItem("tw_apprlink_" + id, t); } return t; } catch (e) { return "preview"; } }
 function apprLink(id) { return "tawaslo.com/a/" + apprToken(id); }
+function apprStatusOf(postId) { try { return (postId && localStorage.getItem("tw_appr_" + postId)) || "draft"; } catch (e) { return "draft"; } }
+function setApprStatus(postId, st) { try { if (postId) localStorage.setItem("tw_appr_" + postId, st); } catch (e) { /* ignore */ } }
 
 // Short, card-style agency name: keeps the first two words of a long company
 // name (e.g. "Octo Fusion Collective Hub" -> "Octo Fusion") so the topbar and
@@ -3107,6 +3110,13 @@ function CalendarPage() {
   const [busy, setBusy] = useState("");
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
+  const [apprOf, setApprOf] = useState({});
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sel, setSel] = useState([]);
+  const [sentCount, setSentCount] = useState(0);
+  const stOf = (id) => apprOf[id] || apprStatusOf(id);
+  const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
 
   const reschedule = async (postId, targetDate) => {
     if (!postId) return;
@@ -3171,8 +3181,18 @@ function CalendarPage() {
   const upcoming = posts.filter(p => new Date(p.scheduled_at) >= new Date()).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
   const nextPost = upcoming[0] || null;
   const thisMonthCount = posts.filter(p => { const d=new Date(p.scheduled_at); return d.getFullYear()===y && d.getMonth()===m; }).length;
+  const apprRows = posts.filter(p => { const d=new Date(p.scheduled_at); return d.getFullYear()===y && d.getMonth()===m; }).map(p => ({
+    id:p.id, p:p.platform, st:stOf(p.id),
+    title:(p.caption||L("(no caption)","(بدون نص)")).slice(0,42),
+    when:new Date(p.scheduled_at).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" })+" · "+fmtTime(p.scheduled_at),
+    g:p.image_url?`center/cover url(${p.image_url})`:((PLAT[p.platform]||{}).color||th.accent)+"33",
+  }));
+  const pendingCount = apprRows.filter(r => r.st === "pending").length;
+  const openPicker = () => { setSel(apprRows.filter(r => r.st !== "approved").map(r => r.id)); setPickerOpen(true); };
+  const confirmSend = () => { sel.forEach(id => setSt(id, "pending")); setSentCount(sel.length); setPickerOpen(false); setSendOpen(true); };
   const chip = (p) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; return (
     <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
+      <span title={L(APPR_STATUS[stOf(p.id)].label,APPR_STATUS[stOf(p.id)].ar)} style={{ width:6, height:6, borderRadius:"50%", background:APPR_STATUS[stOf(p.id)].color, flexShrink:0 }}/>
       {p.image_url ? <img src={p.image_url} alt="" style={{ width:16, height:16, borderRadius:4, objectFit:"cover", flexShrink:0 }}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
       <span style={{ fontSize:9.5, color:info.color, fontWeight:600, flexShrink:0 }}>{fmtTime(p.scheduled_at)}</span>
       <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</span>
@@ -3205,6 +3225,17 @@ function CalendarPage() {
         </div>
         <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>{L("Today","اليوم")}</button>
       </div>
+      )}
+
+      {pendingCount > 0 && (
+        <div style={{ display:"flex", alignItems:"center", gap:13, background:"rgba(224,183,115,0.10)", border:"1px solid rgba(224,183,115,0.38)", borderRadius:14, padding:"12px 16px", marginBottom:14 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:"rgba(224,183,115,0.18)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Clock size={17} color="#E0B973"/></div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}><span className="tw-num">{pendingCount}</span> {pendingCount===1?L("post marked for approval","منشور بانتظار الموافقة"):L("posts marked for approval","منشورات بانتظار الموافقة")}</div>
+            <div style={{ fontSize:11.5, color:th.text2 }}>{L("Held until your client signs off.","محجوزة حتى موافقة العميل.")}</div>
+          </div>
+          <button onClick={openPicker} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Send size={14}/>{L("Send month for approval","إرسال الشهر للموافقة")}</button>
+        </div>
       )}
 
       <div style={{ ...card, overflow:"hidden" }}>
@@ -3294,6 +3325,19 @@ function CalendarPage() {
             <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
             {busy.startsWith("err") && <div style={{ fontSize:11.5, color:th.danger, marginBottom:10 }}>{busy.slice(4)}</div>}
             {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>{L("Connected account not found for this post.","لم يتم العثور على الحساب المرتبط لهذا المنشور.")}</div>}
+            <div style={{ marginBottom:18 }}>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:9, display:"flex", alignItems:"center", gap:6 }}><Shield size={13} color={th.accent}/>{L("How does this post get cleared?","كيف تتم الموافقة على هذا المنشور؟")}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[["approved",L("Approved by me","موافقتي"),L("Schedules now","يُجدول الآن"),"#5FBF92",CheckCircle],["pending",L("Send for approval","إرسال للموافقة"),L("Held for client","ينتظر العميل"),"#E0B973",Send]].map(([k,t,sub,col,Ic])=>{ const active = stOf(selected.id)===k; return (
+                  <div key={k} onClick={()=>setSt(selected.id,k)} style={{ cursor:"pointer", border:`1.5px solid ${active?col:th.border}`, background:active?col+"1e":"transparent", borderRadius:12, padding:"11px 12px", transition:"border-color .15s ease, background .15s ease" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}><Ic size={14} color={active?col:th.text2}/><span style={{ fontSize:12, fontWeight:600, color:active?th.text:th.text2 }}>{t}</span></div>
+                    <div style={{ fontSize:10, color:active?col:th.text3 }}>{sub}</div>
+                  </div>
+                ); })}
+              </div>
+              {stOf(selected.id)==="pending" && <button onClick={()=>{ setSelected(null); openPicker(); }} style={{ width:"100%", marginTop:9, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"9px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}><Link size={13}/>{L("Get the approval link","احصل على رابط الموافقة")}</button>}
+              {stOf(selected.id)==="changes" && <div style={{ marginTop:9, fontSize:11, color:"#D98A6A", display:"flex", alignItems:"center", gap:6 }}><MessageCircle size={13}/>{L("Client requested changes.","طلب العميل تعديلات.")}</div>}
+            </div>
             <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
               <button onClick={()=>postNow(selected)} disabled={busy==="posting"} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:busy==="posting"?0.6:1 }}><Send size={15}/>{busy==="posting"?L("Posting…","جارٍ النشر…"):L("Post now","انشر الآن")}</button>
               <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer" }}><Edit3 size={14}/>{L("Edit in composer","تعديل في المحرر")}</button>
@@ -3302,6 +3346,9 @@ function CalendarPage() {
           </div>
         </div>
       ); })()}
+
+      <SendPickerModal open={pickerOpen} onClose={()=>setPickerOpen(false)} th={th} L={L} rows={apprRows} sel={sel} setSel={setSel} onContinue={confirmSend}/>
+      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("plan-"+(selClient?.id||realClientId||"x")+"-"+sentCount)} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
     </div>
   );
 }
@@ -6098,6 +6145,9 @@ function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
+  const [agencyLogo, setAgencyLogo] = useState("");
+  const [logoCropFile, setLogoCropFile] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   // Contact-support ticket form
   const [tkSubject, setTkSubject] = useState("");
@@ -6138,6 +6188,7 @@ function SettingsPage() {
       setAgencyName(profile?.company_name || profile?.name || "");
       setContactEmail(profile?.email || user.email || "");
       setWebsite(profile?.website || "");
+      setAgencyLogo(profile?.logo_url || "");
       setFullName(profile?.name || (user.user_metadata && user.user_metadata.name) || "");
       setLoginEmail(user.email || "");
       setOrigEmail(user.email || "");
@@ -6154,6 +6205,16 @@ function SettingsPage() {
     setSaving(false);
     if (error) { setErr(error.message || "Could not save. Please try again."); return; }
     setSaved(true); setTimeout(()=>setSaved(false), 2000);
+  };
+
+  const putAgencyLogo = async (blob) => {
+    if (!blob || !userId) return; setUploadingLogo(true);
+    try {
+      const path = `${userId}/agency-logo-${Date.now()}.png`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { upsert:true, contentType:'image/png' });
+      if (!error) { const { data:url } = supabase.storage.from('media').getPublicUrl(path); const u = (url && url.publicUrl) || ""; setAgencyLogo(u); try { await updateProfile(userId, { logo_url: u }); } catch (e) { /* column may not exist yet */ } }
+    } catch (e) { /* ignore */ }
+    setUploadingLogo(false);
   };
 
   const saveProfile = async () => {
@@ -6219,6 +6280,17 @@ function SettingsPage() {
 
         <div style={card}>
           {secTitle(Building2, L("Agency profile","ملف الوكالة"))}
+          <div style={{display:"flex", alignItems:"center", gap:14, paddingBottom:16, marginBottom:16, borderBottom:`1px solid ${th.border}`}}>
+            <ClientMonogram name={agencyName||"Agency"} logo={agencyLogo} size={56} radius={15}/>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:12.5, color:th.text, fontWeight:600, marginBottom:2}}>{L("Agency logo","شعار الوكالة")}</div>
+              <div style={{fontSize:11, color:th.text2, lineHeight:1.5}}>{L("Shows on approvals, the client link and your reports.","يظهر في الموافقات ورابط العميل وتقاريرك.")}</div>
+            </div>
+            <label style={{display:"inline-flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:12, fontWeight:600, cursor:uploadingLogo?"wait":"pointer", flexShrink:0}}>
+              <Image size={14}/>{uploadingLogo?L("Uploading…","جارٍ الرفع…"):(agencyLogo?L("Change","تغيير"):L("Upload","رفع"))}
+              <input type="file" accept="image/*" disabled={uploadingLogo} style={{display:"none"}} onChange={e=>{ if(e.target.files&&e.target.files[0]) setLogoCropFile(e.target.files[0]); e.target.value=''; }}/>
+            </label>
+          </div>
           <div style={{display:"flex", flexDirection:"column", gap:12}}>
             <div>
               <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Agency name","اسم الوكالة")}</div>
@@ -6237,6 +6309,7 @@ function SettingsPage() {
           <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
             {saved?L("Saved","تم الحفظ"):saving?L("Saving…","جارٍ الحفظ…"):L("Save changes","حفظ التغييرات")}
           </button>
+          {logoCropFile && <LogoCropper file={logoCropFile} onCancel={()=>setLogoCropFile(null)} onSave={(blob)=>{ setLogoCropFile(null); putAgencyLogo(blob); }}/>}
         </div>
 
         <div style={card}>
@@ -6523,6 +6596,77 @@ function LandingPage({ onGetStarted, onLogin }) {
           </div>
         </div>
         )}
+      </div>
+
+      {/* Client approvals — brag section */}
+      <div style={{padding:isMobile?"56px 18px":"78px 32px",background:"#080B11",borderTop:"1px solid #232B38"}}>
+        <div style={{maxWidth:1000,margin:"0 auto",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 320px",gap:44,alignItems:"center"}}>
+          <div>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10.5,color:"#9DB6D6",background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",padding:"5px 12px",borderRadius:20,letterSpacing:0.4,fontWeight:600}}><Sparkles size={12}/>NEW · CLIENT APPROVALS</span>
+            <h2 style={{fontSize:isMobile?24:30,fontWeight:800,lineHeight:1.18,margin:"16px 0 12px",letterSpacing:-0.6}}>Sign off the whole month <span style={grad}>before a single post goes live.</span></h2>
+            <p style={{fontSize:14.5,color:"#8A9BB8",lineHeight:1.65,maxWidth:430,margin:0}}>Send your client one secure link. They review the full calendar on any device, approve everything in a tap or request a change, and approved posts schedule themselves. No logins, no email threads, no screenshots.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:18}}>
+              {["Share by WhatsApp, email or link","Swipe carousels and Stories, just like the feed","Revisions resend with a gold new flag"].map(t=>(
+                <div key={t} style={{display:"flex",alignItems:"center",gap:9,fontSize:13,color:"#C2D0E6"}}><CheckCircle size={16} color="#5FBF92"/>{t}</div>
+              ))}
+            </div>
+          </div>
+          <div style={{position:"relative",marginTop:isMobile?34:0}}>
+            <style>{`
+@keyframes apkChip{0%,24%{transform:scale(1)}26%{transform:scale(.93)}29%,100%{transform:scale(1)}}
+@keyframes apkPrev{0%,1%{opacity:0;transform:translate(-50%,-44%) scale(.93)}4%,20%{opacity:1;transform:translate(-50%,-50%) scale(1)}24%,100%{opacity:0;transform:translate(-50%,-44%) scale(.93)}}
+@keyframes apkSheet{0%,27%{opacity:0;transform:translate(-50%,-44%) scale(.93)}30%,47%{opacity:1;transform:translate(-50%,-50%) scale(1)}51%,100%{opacity:0;transform:translate(-50%,-44%) scale(.93)}}
+@keyframes apkBadge{0%,80%{opacity:0;transform:translateY(8px)}85%,96%{opacity:1;transform:none}99%,100%{opacity:0;transform:translateY(8px)}}
+${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{background:#E0B973}${g+2}%,94%{background:#5FBF92}97%,100%{background:#E0B973}}`;}).join('')}
+.apk-chip{animation:apkChip 9s ease infinite}
+.apk-prev{animation:apkPrev 9s ease infinite;position:absolute;left:50%;top:50%;z-index:7;width:190px;pointer-events:none}
+.apk-sheet{animation:apkSheet 9s ease infinite;position:absolute;left:50%;top:50%;z-index:6;width:212px;pointer-events:none}
+.apk-badge{animation:apkBadge 9s ease infinite}
+.apk-d0{animation:apkDot0 9s ease infinite}.apk-d1{animation:apkDot1 9s ease infinite}.apk-d2{animation:apkDot2 9s ease infinite}.apk-d3{animation:apkDot3 9s ease infinite}.apk-d4{animation:apkDot4 9s ease infinite}.apk-d5{animation:apkDot5 9s ease infinite}
+`}</style>
+            <div style={{background:"#0F1620",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
+              <div style={{display:"flex",alignItems:"center",gap:7,padding:"13px 15px",borderBottom:"1px solid #232B38"}}>
+                <span style={{width:22,height:22,borderRadius:6,background:"#4F6B8C",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#fff",fontWeight:700}}>O</span>
+                <span style={{fontSize:12,fontWeight:600,color:"#E8EFF8"}}>June calendar</span>
+                <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:4,fontSize:9.5,color:"#8FB0C9"}}><Lock size={11}/>Secure</span>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,padding:14}}>
+                {APPROVAL_IMAGES.map((src,i)=>(
+                  <div key={i} style={{position:"relative",borderRadius:9,overflow:"hidden"}}>
+                    <img src={src} alt="" style={{width:"100%",height:48,objectFit:"cover",display:"block"}}/>
+                    <span className={"apk-d"+i} style={{position:"absolute",top:5,right:5,width:9,height:9,borderRadius:"50%",background:"#E0B973",boxShadow:"0 0 0 2px rgba(15,22,32,.6)"}}/>
+                  </div>
+                ))}
+              </div>
+              <div style={{padding:"0 14px 14px"}}>
+                <div className="apk-badge" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,padding:9,borderRadius:10,background:"rgba(95,191,146,0.12)",border:"1px solid rgba(95,191,146,0.4)"}}><CheckCircle size={15} color="#5FBF92"/><span style={{fontSize:11.5,color:"#7FCFA6",fontWeight:600}}>Approved by client</span></div>
+              </div>
+            </div>
+            <div className="apk-prev">
+              <div style={{background:"#fff",borderRadius:12,overflow:"hidden",border:"0.5px solid rgba(0,0,0,.12)",boxShadow:"0 22px 46px rgba(0,0,0,.5)"}}>
+                <div style={{display:"flex",alignItems:"center",gap:7,padding:"8px 10px"}}>
+                  <span style={{width:24,height:24,borderRadius:"50%",padding:2,background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)"}}><span style={{display:"block",width:"100%",height:"100%",borderRadius:"50%",background:"#4F6B8C",color:"#fff",fontSize:10,display:"flex",alignItems:"center",justifyContent:"center"}}>T</span></span>
+                  <span style={{fontSize:11,fontWeight:700,color:"#111"}}>tawaslobeach</span>
+                </div>
+                <img src={APPROVAL_IMAGES[0]} alt="" style={{width:"100%",height:120,objectFit:"cover",display:"block"}}/>
+                <div style={{padding:"8px 10px 10px",fontSize:11,color:"#111",lineHeight:1.45}}><span style={{fontWeight:700}}>tawaslobeach</span> Golden hour by the bay. Book your June staycation. <span style={{color:"#385185"}}>#TawasloBeach</span></div>
+              </div>
+            </div>
+            <div className="apk-sheet">
+              <div style={{background:"#0F1620",border:"0.5px solid rgba(150,175,205,0.2)",borderRadius:13,overflow:"hidden",boxShadow:"0 22px 46px rgba(0,0,0,.55)"}}>
+                <div style={{padding:"11px 14px 9px",borderBottom:"1px solid #232B38",display:"flex",alignItems:"center",gap:7}}><CheckCircle size={15} color="#5FBF92"/><span style={{fontSize:12.5,fontWeight:600,color:"#E8EFF8"}}>Approval link ready</span></div>
+                <div style={{padding:"12px 14px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,background:"#080D14",border:"1px solid #232B38",borderRadius:9,padding:"8px 10px",marginBottom:11}}><Link size={13} color="#7E94A8"/><span style={{fontSize:10.5,color:"#CFE0F0",fontFamily:"monospace"}}>tawaslo.com/a/k9Xd2p7q</span></div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"#1FA855",color:"#fff",fontSize:11.5,fontWeight:600,padding:9,borderRadius:9}}><MessageCircle size={14}/>WhatsApp</div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,background:"transparent",border:"0.5px solid rgba(150,175,205,.3)",color:"#CFE0F0",fontSize:11.5,fontWeight:600,padding:9,borderRadius:9}}><Mail size={14}/>Email</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="apk-chip" style={{position:"absolute",bottom:-12,left:-14,display:"inline-flex",alignItems:"center",gap:7,background:"#1FA855",color:"#fff",fontSize:11,fontWeight:600,padding:"8px 13px",borderRadius:11,boxShadow:"0 6px 16px rgba(31,168,85,.35)"}}><Send size={14}/>Send to client</div>
+          </div>
+        </div>
       </div>
 
       {/* Platform strip */}
@@ -7864,6 +8008,184 @@ function TrialBanner() {
   );
 }
 
+// ── Public client approval page ─────────────────────────────────────
+// Opens at tawaslo.com/a/<token> with no login. Loads the batch of posts
+// for that token (via /api/approval), shows the month as a calendar on
+// desktop and a clean agenda on phones, and lets the client swipe carousels
+// and Approve / Request changes per post or all at once. Falls back to a
+// demo calendar if the token has no data yet, so the link always renders.
+function ClientApprovalPage({ token }) {
+  const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
+  useEffect(() => { const f = () => setVw(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  const phone = vw < 620;
+
+  const DEMO = { agency:{ name:"Octo Fusion", logo:null }, client:{ name:"Tawaslo Beach Resort" }, month:"June 2026", expires:7, firstDow:1, days:30,
+    posts:[
+      { id:"d2", day:"Tue", date:2, time:"6:00 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#7FC9A8)"], caption:"Golden hour hits different by the water. Book your June staycation and watch the sun melt into the Gulf.", tags:"#TawasloBeach #SunsetVibes", status:"pending" },
+      { id:"d4", day:"Thu", date:4, time:"1:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#5A3B2C,#B5824E)"], caption:"Bottomless weekend brunch is back. Fresh seafood, live grill and a sea view that does the talking.", tags:"#BrunchBH #Manama", status:"pending" },
+      { id:"d6", day:"Sat", date:6, time:"5:00 PM", platform:"ig", type:"Carousel", media:["linear-gradient(135deg,#2C3E4F,#5B7BA8)","linear-gradient(135deg,#3A2C4F,#7B5BA8)","linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Three reasons to spend Saturday poolside. Swipe for the cabana, the cocktails and the calm.", tags:"#PoolDay #SummerBH", status:"pending" },
+      { id:"d11", day:"Thu", date:11, time:"12:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Celebrate Eid by the sea. Two nights, breakfast for two and late checkout.", tags:"#EidBH", status:"pending" },
+      { id:"d13", day:"Sat", date:13, time:"6:00 PM", platform:"ig", type:"Single", media:["linear-gradient(135deg,#4F2C3A,#A85B74)"], caption:"Switch off this weekend. Our signature 60 minute ritual is 20 percent off through June.", tags:"#SpaDay #SelfCare", status:"pending" },
+      { id:"d20", day:"Sat", date:20, time:"5:30 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#4F9EC9)"], caption:"From above, the blue goes on forever. Your summer starts here.", tags:"#SeaView #DroneBH", status:"pending" },
+    ] };
+
+  const [data, setData] = useState(null);
+  const [view, setView] = useState("cal");
+  const [cur, setCur] = useState(null);
+  const [slide, setSlide] = useState(0);
+  const [commenting, setCommenting] = useState(false);
+  const [comment, setComment] = useState("");
+  const touch = useRef(null);
+
+  useEffect(() => { let live = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"load", token }) });
+        const d = await r.json();
+        if (live) setData(d && d.posts && d.posts.length ? d : DEMO);
+      } catch (e) { if (live) setData(DEMO); }
+    })();
+    return () => { live = false; };
+  }, [token]); // eslint-disable-line
+
+  const PC = { ig:"#C13584", fb:"#1877F2" }, PN = { ig:"Instagram", fb:"Facebook" };
+  const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E" };
+  const mediaBg = (m) => (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A"));
+
+  if (!data) return <div style={{ minHeight:"100vh", background:"#0A0F18", display:"flex", alignItems:"center", justifyContent:"center", color:"#9CB3C9", fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
+
+  const posts = data.posts || [];
+  const byDate = {}; posts.forEach(p => { byDate[p.date] = p; });
+  const pendingN = posts.filter(p => p.status === "pending" || p.status === "revised").length;
+  const approvedN = posts.filter(p => p.status === "approved").length;
+
+  const respond = (id, decision, note) => {
+    setData(prev => ({ ...prev, posts: prev.posts.map(p => p.id === id ? { ...p, status:decision, comment:note || p.comment } : p) }));
+    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respond", token, postId:id, decision, comment:note || "" }) }); } catch (e) { /* ignore */ }
+  };
+  const respondAll = (decision) => {
+    setData(prev => ({ ...prev, posts: prev.posts.map(p => (p.status === "pending" || p.status === "revised") ? { ...p, status:decision } : p) }));
+    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respondAll", token, decision }) }); } catch (e) { /* ignore */ }
+  };
+
+  const openPost = (id) => { setCur(id); setSlide(0); setCommenting(false); setComment(""); setView("post"); window.scrollTo(0, 0); };
+  const P = posts.find(x => x.id === cur);
+
+  const wrap = { minHeight:"100vh", background:"#0A0F18", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
+  const inner = { maxWidth: 700, margin:"0 auto" };
+  const ag = data.agency || {}, cl = data.client || {};
+
+  const header = (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: phone ? 14 : 18 }}>
+      {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:"#4F6B8C", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
+      <span style={{ fontSize:14, fontWeight:600 }}>{ag.name || "Your agency"}</span>
+      <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:"#8FB0C9", background:"rgba(79,107,140,0.16)", padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
+    </div>
+  );
+
+  const statDot = (st) => <span style={{ width:7, height:7, borderRadius:"50%", background:SC[st]||"#E0B973", flexShrink:0 }}/>;
+
+  if (view === "post" && P) {
+    const multi = (P.media || []).length > 1;
+    const story = P.type === "Story";
+    const done = P.status === "approved" || P.status === "changes";
+    return (
+      <div style={wrap}><div style={{ maxWidth:440, margin:"0 auto" }}>
+        <div onClick={()=>setView("cal")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:"#9CB3C9", fontSize:12.5, cursor:"pointer" }}><ArrowLeft size={16}/>Back to {data.month || "calendar"}<span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5 }}><Clock size={13}/>{P.day} {P.date} &middot; {P.time}</span></div>
+        {P.status === "revised" && <div style={{ background:"rgba(201,162,78,0.1)", border:"0.5px solid rgba(201,162,78,0.34)", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:11.5, color:"#E6D6AE" }}><Sparkles size={13} style={{ verticalAlign:-2 }}/> Updated since you last saw it. Please take another look.</div>}
+        <div style={{ background:"#fff", borderRadius:14, overflow:"hidden", border: P.status==="revised" ? "1.5px solid #C9A24E" : "0.5px solid rgba(0,0,0,0.1)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
+            <span style={{ width:32, height:32, borderRadius:"50%", padding:2, background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)" }}><span style={{ display:"block", width:"100%", height:"100%", borderRadius:"50%", background:"#4F6B8C", color:"#fff", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>{(cl.name||"C")[0]}</span></span>
+            <span style={{ lineHeight:1.2 }}><span style={{ display:"block", fontSize:13, fontWeight:600, color:"#111" }}>{(cl.handle)||(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span><span style={{ display:"block", fontSize:11, color:"#888" }}>{PN[P.platform]}</span></span>
+            <span style={{ marginLeft:"auto", fontSize:18, color:"#222" }}>&middot;&middot;&middot;</span>
+          </div>
+          <div
+            onTouchStart={(e)=>{ touch.current = e.touches[0].clientX; }}
+            onTouchEnd={(e)=>{ if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (dx < -40 && slide < P.media.length-1) setSlide(slide+1); else if (dx > 40 && slide > 0) setSlide(slide-1); touch.current = null; }}
+            style={{ aspectRatio: story ? "9 / 16" : "1 / 1", maxHeight: phone ? "66vh" : 430, background: mediaBg(P.media[slide]), position:"relative", display:"flex", alignItems:"flex-end", justifyContent:"center", overflow:"hidden", touchAction:"pan-y" }}>
+            <span style={{ position:"absolute", top:12, right:12, background:"rgba(0,0,0,0.4)", color:"#fff", fontSize:10.5, padding:"3px 10px", borderRadius:20 }}>{multi ? (slide+1)+"/"+P.media.length : P.type}</span>
+            {multi && slide>0 && <span onClick={()=>setSlide(slide-1)} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronLeft size={18}/></span>}
+            {multi && slide<P.media.length-1 && <span onClick={()=>setSlide(slide+1)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronRight size={18}/></span>}
+            {multi && <span style={{ position:"absolute", bottom:12, left:0, right:0, display:"flex", justifyContent:"center", gap:5 }}>{P.media.map((_,k)=><span key={k} style={{ width:k===slide?16:6, height:6, borderRadius:6, background:k===slide?"#4F6B8C":"rgba(255,255,255,0.6)", transition:"width .2s" }}/>)}</span>}
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:15, padding:"10px 13px 4px", color:"#222", fontSize:20 }}><Heart size={20}/><MessageCircle size={20}/><Send size={20}/><Bookmark size={20} style={{ marginLeft:"auto" }}/></div>
+          <div style={{ padding:"2px 13px 14px", fontSize:13, color:"#111", lineHeight:1.5 }}><span style={{ fontWeight:600 }}>{(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span> {P.caption} <span style={{ color:"#385185" }}>{P.tags}</span></div>
+        </div>
+        <div style={{ marginTop:14 }}>
+          {done ? (
+            <div style={{ textAlign:"center", padding:12, borderRadius:11, background: P.status==="approved"?"rgba(95,191,146,0.12)":"rgba(217,138,106,0.12)", border:`0.5px solid ${P.status==="approved"?"rgba(95,191,146,0.4)":"rgba(217,138,106,0.4)"}`, color:P.status==="approved"?"#7FCFA6":"#D98A6A", fontSize:13, fontWeight:600 }}>{P.status==="approved" ? "Approved — thank you" : "Changes requested"}</div>
+          ) : commenting ? (
+            <div>
+              <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="What would you like changed?" style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                <button onClick={()=>setCommenting(false)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>{ respond(P.id, "changes", comment.trim()); }} style={{ flex:1, padding:"12px", borderRadius:11, background:"#4F6B8C", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>Send request</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setCommenting(true)} style={{ flex:1, background:"transparent", border:"0.5px solid rgba(150,175,205,0.32)", color:"#CFE0F0", fontSize:13, padding:12, borderRadius:11, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>respond(P.id, "approved")} style={{ flex:1, background:"#2F6E54", border:"none", color:"#fff", fontSize:13, fontWeight:600, padding:12, borderRadius:11, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><CheckCircle size={15}/>Approve this post</button>
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign:"center", fontSize:11, color:"#7E94A8", marginTop:12 }}>No account needed. This link expires in {data.expires || 7} days. Powered by Tawaslo</div>
+      </div></div>
+    );
+  }
+
+  const agendaRow = (p) => (
+    <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:"0.5px solid rgba(150,175,205,0.1)", cursor:"pointer" }}>
+      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}><span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
+      <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:"#7E94A8", marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
+      {p.status==="approved" ? <CheckCircle size={17} color="#5FBF92"/> : p.status==="revised" ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#C9A24E", background:"rgba(201,162,78,0.16)", padding:"3px 8px", borderRadius:20 }}><Sparkles size={11}/>New</span> : statDot(p.status)}
+      <ChevronRight size={16} color="#5C7082"/>
+    </div>
+  );
+
+  const calGrid = () => {
+    const dows = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+    const cells = [];
+    for (let i=0;i<(data.firstDow||1);i++) cells.push(<div key={"b"+i}/>);
+    for (let d=1; d<=(data.days||30); d++) {
+      const p = byDate[d];
+      if (p) {
+        const c = SC[p.status]||"#E0B973", rev = p.status==="revised";
+        cells.push(<div key={d} onClick={()=>openPost(p.id)} style={{ minHeight:62, border: rev?"1px solid #C9A24E":`0.5px solid ${c}55`, borderRadius:9, padding:"5px 6px", background:c+(rev?"14":"10"), cursor:"pointer", position:"relative" }}>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#CFE0F0", marginBottom:3 }}>{d}</div>
+          <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]) }}/>
+          {rev ? <span style={{ position:"absolute", top:4, right:4, display:"inline-flex", alignItems:"center", gap:2, fontSize:8, color:"#C9A24E", background:"rgba(201,162,78,0.22)", padding:"2px 5px", borderRadius:9 }}><Sparkles size={9}/>New</span>
+            : p.status==="approved" ? <span style={{ position:"absolute", top:5, right:5 }}><CheckCircle size={13} color="#5FBF92"/></span>
+            : <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:c }}/>}
+        </div>);
+      } else cells.push(<div key={d} style={{ minHeight:62, border:"0.5px solid rgba(150,175,205,0.08)", borderRadius:9, padding:"5px 6px" }}><div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#5C7388" }}>{d}</div></div>);
+    }
+    return (<div style={{ padding:"14px 16px 6px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, marginBottom:5 }}>{dows.map(d=><div key={d} style={{ textAlign:"center", fontSize:10, color:"#6E869C" }}>{d}</div>)}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, paddingBottom:12 }}>{cells}</div>
+    </div>);
+  };
+
+  return (
+    <div style={wrap}><div style={inner}>
+      {header}
+      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, overflow:"hidden" }}>
+        <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:"0.5px solid rgba(150,175,205,0.12)" }}>
+          <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+            <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:"#9CB3C9", marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
+            {pendingN>0 && <div style={{ display:"flex", gap:9 }}>
+              <button onClick={()=>respondAll("changes")} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
+            </div>}
+          </div>
+        </div>
+        {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
+        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", textAlign:"center" }}>No account needed. This link expires in {data.expires || 7} days. Powered by Tawaslo</div>
+      </div>
+    </div></div>
+  );
+}
+
 export default function TawasloApp() {
   const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') !== 'light'; } catch(e){ return true; } });
   useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
@@ -8051,6 +8373,11 @@ export default function TawasloApp() {
     const cfg = SOON[page] || { Icon:Settings, title:page.charAt(0).toUpperCase()+page.slice(1), desc:"This feature is on the way." };
     return <Placeholder icon={cfg.Icon} badge="Coming soon" title={cfg.title} description={cfg.desc} features={cfg.features} ctaLabel={cfg.ctaLabel} ctaPage={cfg.ctaPage}/>;
   };
+
+  // Public client approval link (tawaslo.com/a/<token>) — no login, renders
+  // before the auth gate so clients open it straight away.
+  const apprMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/a\/([A-Za-z0-9_-]+)/);
+  if (apprMatch) return <ClientApprovalPage token={apprMatch[1]} dark={dark}/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;

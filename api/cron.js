@@ -28,6 +28,48 @@ function sb(path, opts = {}) {
 }
 
 export default async function handler(req, res) {
+  // ── Public client approval endpoint (no cron key needed) ──────────────
+  // The login-free client page (tawaslo.com/a/<token>) posts here to load a
+  // batch of posts for a token and to record approve / request-changes
+  // decisions. Guarded by the unguessable token, not the cron secret.
+  if (req.method === 'POST' && req.body && req.body.action) {
+    if (!SERVICE_KEY) return res.status(200).json({ unconfigured: true, posts: [] });
+    const { action, token } = req.body;
+    if (!token) return res.status(400).json({ error: 'token required' });
+    try {
+      if (action === 'load') {
+        const r = await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&select=*&order=scheduled_at.asc`);
+        const rows = r.ok ? await r.json() : [];
+        const posts = (rows || []).map((row) => {
+          const d = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
+          let media = [];
+          try { if (Array.isArray(row.media_urls)) media = row.media_urls; else if (typeof row.media_urls === 'string' && row.media_urls) media = JSON.parse(row.media_urls); } catch (e) { media = []; }
+          if (!media.length && row.image_url) media = [row.image_url];
+          return {
+            id: row.id, caption: row.caption || '', platform: row.platform || 'ig',
+            type: row.post_type || 'Single', media,
+            status: row.appr_status || 'pending', comment: row.appr_comment || '',
+            date: d.getDate(), day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+            time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          };
+        });
+        const now = new Date();
+        return res.status(200).json({ posts, month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), expires: 7, firstDow: new Date(now.getFullYear(), now.getMonth(), 1).getDay(), days: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() });
+      }
+      if (action === 'respond') {
+        const { postId, decision, comment } = req.body;
+        await sb(`posts?id=eq.${encodeURIComponent(postId)}&appr_token=eq.${encodeURIComponent(token)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ appr_status: decision, appr_comment: comment || null, appr_responded_at: new Date().toISOString() }) });
+        return res.status(200).json({ ok: true });
+      }
+      if (action === 'respondAll') {
+        const { decision } = req.body;
+        await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&appr_status=in.(pending,revised)`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ appr_status: decision, appr_responded_at: new Date().toISOString() }) });
+        return res.status(200).json({ ok: true });
+      }
+      return res.status(400).json({ error: 'unknown action' });
+    } catch (e) { return res.status(200).json({ error: e.message, posts: [] }); }
+  }
+
   // Auth — only the cron with the right key may trigger publishing.
   const key = (req.query && req.query.key) || req.headers['x-cron-key'];
   if (!process.env.CRON_SECRET || key !== process.env.CRON_SECRET) {
