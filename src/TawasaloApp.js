@@ -6388,6 +6388,26 @@ function LandingPage({ onGetStarted, onLogin }) {
         <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
       </div>
+
+      <div style={{marginBottom:48}}>
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <h2 style={{fontSize:24,fontWeight:900,letterSpacing:-0.4,marginBottom:8}}>AI image credits</h2>
+          <p style={{color:"#7A8BA8",fontSize:13.5}}>Generate and edit on-brand images with AI. Add a monthly pack to any plan.</p>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16,maxWidth:760,margin:"0 auto"}}>
+          {[["Starter",50,"18.90",false],["Growth",100,"24.90",true],["Agency",250,"39.90",false]].map(([nm,imgs,pr,pop])=>(
+            <div key={nm} style={{background:pop?"#101722":"#0C1017",border:`${pop?2:1}px solid ${pop?"#6E8CAB":"#232B38"}`,borderRadius:14,padding:"22px 18px 20px",position:"relative",textAlign:"center"}}>
+              {pop&&<div style={{position:"absolute",top:-11,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 13px",borderRadius:999,letterSpacing:0.4,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
+              <div style={{fontSize:11,letterSpacing:0.6,textTransform:"uppercase",color:"#9DB6D6",fontWeight:700,marginBottom:10}}>{nm}</div>
+              <div><span className="tw-num" style={{fontSize:30,fontWeight:700,color:"#F2F5F9"}}>${pr}</span><span style={{fontSize:13,color:"#7A8BA8"}}>/mo</span></div>
+              <div style={{margin:"12px 0",paddingTop:12,borderTop:"1px solid #232B38"}}><span className="tw-num" style={{fontSize:17,fontWeight:700,color:"#C7D4E3"}}>{imgs}</span><span style={{fontSize:12,color:"#7A8BA8"}}> images / month</span></div>
+              <button onClick={()=>setLandingPage('trial')} style={{width:"100%",padding:11,borderRadius:10,background:pop?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent",border:pop?"none":"1px solid #2A3444",color:pop?"#fff":"#9DB6D6",fontSize:13,fontWeight:700,cursor:"pointer"}}>Get started</button>
+            </div>
+          ))}
+        </div>
+        <p style={{textAlign:"center",color:"#3D5068",fontSize:11,marginTop:12}}>Prices in USD. Billed per client account. Cancel anytime.</p>
+      </div>
+
       <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #232B38"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
         <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?460:"auto"}}>
