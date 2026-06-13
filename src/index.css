@@ -45,6 +45,10 @@ body {
 /* Staggered list rows — items fade and slide in one after another */
 @keyframes twRowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
+/* Throb — a soft, continuous breathing pulse for live mini-graphs */
+@keyframes twThrob { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }
+.tw-throb { animation: twThrob 2.4s ease-in-out infinite; }
+
 /* Micro-interactions — tactile feedback app-wide. Buttons give a subtle press,
    form fields get a soft steel focus ring. Inline transitions still win where
    a component sets its own. */

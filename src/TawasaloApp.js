@@ -2310,7 +2310,30 @@ function AgencyDashboard() {
           <div style={{fontSize:12,color:th.text2,marginBottom:14}}>{L("Connect this client's social accounts to see their analytics here.","اربط حسابات هذا العميل الاجتماعية لرؤية تحليلاته هنا.")}</div>
           <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>{L("Connect accounts","ربط الحسابات")}</button>
         </div>
-      ):(
+      ): shownAccounts.length===1 ? (()=>{ const acc=shownAccounts[0]; const PI=PlatformIcons[acc.platform]; return (
+        <div onClick={()=>{ setViewingAccount(acc.id||0); setPlatform(acc.platform); }} style={{display:"flex",alignItems:"center",gap:18,background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:"16px 20px",marginBottom:18,flexWrap:"wrap",cursor:"pointer"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
+            <div style={{width:44,height:44,borderRadius:12,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={20} color={th.text2}/>}</div>
+            <div>
+              <div style={{fontSize:14,fontWeight:700,color:th.text}}>{acc.username?("@"+acc.username):acc.account_name}</div>
+              <div style={{fontSize:11.5,color:th.text2}}><span className="tw-num" style={{color:th.text}}>{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"—"}</span> {L("followers","متابع")}</div>
+            </div>
+          </div>
+          <div style={{width:1,height:40,background:th.border,flexShrink:0}}/>
+          <div style={{flex:1,minWidth:150,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:11,color:th.text2,flexShrink:0,lineHeight:1.3}}>{L("Reach trend","اتجاه الوصول")}<br/><span style={{fontSize:10,color:th.text3}}>{L("last 30 days","آخر ٣٠ يومًا")}</span></div>
+            <svg className="tw-throb" height="38" viewBox="0 0 200 38" preserveAspectRatio="none" style={{flex:1,minWidth:0,display:"block"}}>
+              <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6 L200,38 L0,38 Z" fill={th.accent+"22"}/>
+              <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6" fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
+            </svg>
+            <span style={{fontSize:11.5,fontWeight:700,color:th.success,flexShrink:0}}>+28%</span>
+          </div>
+          <div style={{display:"flex",gap:22,flexShrink:0}}>
+            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{fmtN(dashReach)}</div><div style={{fontSize:10,color:th.text2}}>{L("Reach 30d","الوصول ٣٠ يوم")}</div></div>
+            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{dashEng}</div><div style={{fontSize:10,color:th.text2}}>{L("Eng. rate","معدل التفاعل")}</div></div>
+          </div>
+        </div>
+      ); })() : (
         <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(shownAccounts.length,4)},minmax(0,1fr))`,gap:12,marginBottom:18}}>
           {shownAccounts.slice(0,8).map((acc,i)=>{
             const PI = PlatformIcons[acc.platform];
@@ -2332,7 +2355,7 @@ function AgencyDashboard() {
       <div style={{marginBottom:22,paddingTop:4}}>
         <div style={{fontSize:10.5,fontWeight:700,letterSpacing:"1.5px",color:th.text3,marginBottom:11}}>{L("THIS MONTH","هذا الشهر")}</div>
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
-          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {L("engagement rate across","عبر")} <span className="tw-num">{postCount||0}</span> {L("posts.","منشورًا.")}
+          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}
         </div>
         <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر ٣٠ يومًا")}</div>
       </div>
@@ -4367,13 +4390,25 @@ function AnalyticsPage() {
   const mixSegs = Object.entries(typeCounts).map(([t,n])=>{ const frac=mixTotal?n/mixTotal:0; const seg={ t, color:typeColors[t]||th.accent, label:typeLabels[t]||t, pctVal:Math.round(frac*100), dash:frac*DC, offset:-_acc*DC }; _acc+=frac; return seg; });
   const topPosts = [...(data?.recentPosts||[])].sort((a,b)=>(b.likes+b.comments)-(a.likes+a.comments)).slice(0,5);
   const maxEng = Math.max(1, ...topPosts.map(pp=>pp.likes+pp.comments));
+  // Adaptive metric column: Views (Reels) > Reach > Comments, whichever the data
+  // supports. Reach and Views come from the Insights API, which lights up once
+  // Meta approves the insights permission; until then Comments keeps it complete.
+  const tpHasViews = topPosts.some(pp=>(pp.views||0)>0);
+  const tpHasReach = topPosts.some(pp=>(pp.reach||0)>0);
+  const tpMetricKey = tpHasViews ? "views" : tpHasReach ? "reach" : "comments";
+  const tpMetricLabel = tpHasViews ? L("Views","المشاهدات") : tpHasReach ? L("Reach","الوصول") : L("Comments","التعليقات");
+  const tpFollowers = data?.summary?.followers || 0;
 
   // ── Deltas & narrative ──────────────────────────────────────────────
   const isSample = !!data?._sample;
   const hasImpr = imprSeries.some(v => v > 0);
   const seriesDelta = (s) => { if (!s || s.length < 4) return null; const h=Math.floor(s.length/2); const a=s.slice(0,h).reduce((x,y)=>x+y,0); const b=s.slice(h).reduce((x,y)=>x+y,0); return a>0 ? Math.round(((b-a)/a)*100) : null; };
-  const reachDelta = seriesDelta(reachSeries);
-  const imprDelta = hasImpr ? seriesDelta(imprSeries) : null;
+  // Suppress implausibly large swings: without per-day insights the series is
+  // estimated, so a raw "down 97%" is noise, not a real trend. Only show a delta
+  // when it is within a believable month-over-month range.
+  const sane = (d) => (d != null && Math.abs(d) <= 50) ? d : null;
+  const reachDelta = sane(seriesDelta(reachSeries));
+  const imprDelta = hasImpr ? sane(seriesDelta(imprSeries)) : null;
   const fnum = selectedAcc?.followers_count || data?.summary?.followers || totalFollowers || 0;
   const followerDelta = isSample ? Number((1.2 + (fnum % 30) / 14).toFixed(1)) : null; // believable for demo accounts only
   const engPtsDelta = isSample ? Number((0.2 + (Math.round(engRate*10) % 9) / 10).toFixed(1)) : null;
@@ -4404,7 +4439,7 @@ function AnalyticsPage() {
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>{L("Analytics","التحليلات")}{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>{L("SAMPLE PREVIEW","معاينة عينة")}</span>}</h2>
           <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{platName} &middot; {selectedAcc?.username?("@"+selectedAcc.username):selectedAcc?.account_name||selClient?.name}</p>
         </div>
-        {accounts.length > 0 && (
+        {accounts.length > 1 && (
           <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
             {accounts.map(acc => { const PI=PlatformIcons[acc.platform]; const on=selectedAcc?.id===acc.id; return (
               <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px", borderRadius:999, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card, color:on?th.accent:th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer"}}>
@@ -4506,18 +4541,20 @@ function AnalyticsPage() {
             ) : (
               <>
                 <div style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"9px 18px",borderBottom:`1px solid ${th.border}`,fontSize:10,color:th.text3,letterSpacing:0.5,textTransform:"uppercase"}}>
-                  <div>Post</div><div style={{textAlign:"right"}}>Reach</div><div style={{textAlign:"right"}}>Likes</div><div style={{textAlign:"right"}}>Eng. rate</div>
+                  <div>Post</div><div style={{textAlign:"right"}}>{tpMetricLabel}</div><div style={{textAlign:"right"}}>Likes</div><div style={{textAlign:"right"}}>Eng. rate</div>
                 </div>
                 {topPosts.map((pp,idx) => {
                   const eng = pp.likes+pp.comments;
-                  const er = pp.reach>0 ? pct(eng,pp.reach) : null;
+                  const denom = (pp.views||0)>0 ? pp.views : ((pp.reach||0)>0 ? pp.reach : tpFollowers);
+                  const er = denom>0 ? pct(eng,denom) : null;
+                  const metricVal = tpMetricKey==="views" ? (pp.views||0) : tpMetricKey==="reach" ? (pp.reach||0) : (pp.comments||0);
                   return (
                     <div key={pp.id||idx} style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"12px 18px",borderBottom:idx<topPosts.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
                       <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
                         {pp.thumbnail ? <img src={pp.thumbnail} alt="" style={{width:42,height:42,borderRadius:9,objectFit:"cover",flexShrink:0}} onError={e=>{e.target.style.display="none";}}/> : <div style={{width:42,height:42,borderRadius:9,background:th.gradient,flexShrink:0}}/>}
                         <div style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pp.caption||"(No caption)"}</div>
                       </div>
-                      <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{pp.reach>0?pp.reach.toLocaleString():"—"}</div>
+                      <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{(metricVal>0||tpMetricKey==="comments")?metricVal.toLocaleString():"—"}</div>
                       <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{pp.likes.toLocaleString()}</div>
                       <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
                         <div style={{width:46,height:6,borderRadius:3,background:th.border}}><div style={{width:`${Math.round((eng/maxEng)*100)}%`,height:"100%",borderRadius:3,background:th.accent}}/></div>
