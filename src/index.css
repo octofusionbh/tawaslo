@@ -33,6 +33,18 @@ body {
   border-radius: 8px;
 }
 
+/* Popover entrance — dropdowns and menus ease in with a soft scale and fade
+   instead of popping. Apply class tw-pop to the popover container. */
+@keyframes twPop { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.tw-pop { animation: twPop .19s cubic-bezier(.2,.7,.2,1) both; }
+
+/* Bell ring — the notification bell swings like it is ringing when tapped */
+@keyframes twBellRing { 0%,100%{transform:rotate(0);} 8%{transform:rotate(16deg);} 18%{transform:rotate(-14deg);} 28%{transform:rotate(11deg);} 38%{transform:rotate(-8deg);} 48%{transform:rotate(6deg);} 58%{transform:rotate(-4deg);} 68%{transform:rotate(2deg);} }
+.tw-bell-ring { animation: twBellRing .8s ease; transform-origin: top center; }
+
+/* Staggered list rows — items fade and slide in one after another */
+@keyframes twRowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
 /* Micro-interactions — tactile feedback app-wide. Buttons give a subtle press,
    form fields get a soft steel focus ring. Inline transitions still win where
    a component sets its own. */

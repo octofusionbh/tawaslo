@@ -708,6 +708,7 @@ function Topbar() {
   const uSub = (mode==="owner") ? "Tawaslo HQ" : agencyDisplay;
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
+  const [bellRing, setBellRing] = useState(false);
   const NOTIFS = [
     { Icon:Send, color:th.success, title:"Post published", body:"Your scheduled post went live on Facebook.", ago:"12m" },
     { Icon:MessageCircle, color:th.accent, title:"New comment", body:"Someone commented on your Instagram post.", ago:"1h" },
@@ -744,7 +745,7 @@ function Topbar() {
           {sOpen && ql && (
             <>
               <div onClick={()=>setSOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
-              <div style={{position:"absolute",top:40,left:0,zIndex:50,width:290,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 18px 44px rgba(0,0,0,0.5)",overflow:"hidden",maxHeight:400,overflowY:"auto"}}>
+              <div className="tw-pop" style={{position:"absolute",top:40,left:0,zIndex:50,width:290,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,boxShadow:"0 18px 44px rgba(0,0,0,0.5)",overflow:"hidden",maxHeight:400,overflowY:"auto",transformOrigin:"top left"}}>
                 {(pageHits.length+clientHits.length)===0 && <div style={{padding:"16px",fontSize:12,color:th.text3,textAlign:"center"}}>No matches for &ldquo;{sq}&rdquo;</div>}
                 {pageHits.length>0 && <div style={{padding:"9px 14px 4px",fontSize:9.5,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase"}}>Pages</div>}
                 {pageHits.map(([k,l])=>(
@@ -772,20 +773,20 @@ function Topbar() {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
         <div style={{position:"relative"}}>
-          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
-            <Bell size={14} color={notifOpen?th.accent:th.text2}/>
+          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); setBellRing(true); setTimeout(()=>setBellRing(false), 850); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+            <Bell className={bellRing?"tw-bell-ring":""} size={14} color={notifOpen?th.accent:th.text2}/>
             {!dotSeen && <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>}
           </button>
           {notifOpen && (
             <>
               <div onClick={()=>setNotifOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
-              <div style={{position:"absolute",right:0,top:40,zIndex:50,width:330,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden"}}>
+              <div className="tw-pop" style={{position:"absolute",right:0,top:40,zIndex:50,width:330,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden",transformOrigin:"top right"}}>
                 <div style={{padding:"12px 16px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span style={{fontSize:13,fontWeight:700}}>Notifications</span>
                   <span onClick={()=>setNotifOpen(false)} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>
                 </div>
                 {NOTIFS.map((n,i)=>(
-                  <div key={i} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none"}}>
+                  <div key={i} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none",animation:"twRowIn .32s ease both",animationDelay:(i*0.06)+"s"}}>
                     <div style={{width:30,height:30,borderRadius:9,background:n.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><n.Icon size={14} color={n.color}/></div>
                     <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.title} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {n.ago}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.body}</div></div>
                   </div>
