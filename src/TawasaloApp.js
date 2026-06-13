@@ -6806,7 +6806,7 @@ function AuthPage() {
   const [trialPlatforms,setTrialPlatforms]= useState([]);
   const [trialBrands,   setTrialBrands]   = useState("");
   const [accountType,   setAccountType]   = useState("agency");
-  const [selectedPlan,  setSelectedPlan]  = useState(() => { try { const sp = sessionStorage.getItem('tw_signup_plan'); sessionStorage.removeItem('tw_signup_plan'); const map = { pro:'professional', starter:'starter', professional:'professional', agency:'agency' }; return (sp && map[sp]) || 'professional'; } catch(e) { return 'professional'; } });
+  const [selectedPlan,  setSelectedPlan]  = useState(() => { try { const sp = sessionStorage.getItem('tw_signup_plan'); sessionStorage.removeItem('tw_signup_plan'); const map = { pro:'professional', starter:'starter', professional:'professional', agency:'agency' }; return (sp && map[sp]) || ""; } catch(e) { return ""; } });
   const [billingPeriod, setBillingPeriod] = useState("monthly");
   const [companyName,   setCompanyName]   = useState("");
   const [tosAgreed,     setTosAgreed]     = useState(false);
@@ -7123,7 +7123,7 @@ function AuthPage() {
                             <div style={{flex:1}}>
                               <span style={{fontSize:12,fontWeight:700,color:th.text}}>{p.name}</span>
                               <span style={{fontSize:11,color:th.text2}}> · {p.images} images / mo</span>
-                              {p.popular&&<span style={{fontSize:8.5,fontWeight:700,letterSpacing:0.3,textTransform:"uppercase",color:"#fff",background:th.accent,padding:"2px 6px",borderRadius:10,marginLeft:7}}>Popular</span>}
+                              {p.popular&&<span style={{fontSize:9,background:"rgba(124,58,237,0.2)",color:"#A78BFA",padding:"2px 8px",borderRadius:10,marginLeft:7}}>Most popular</span>}
                             </div>
                             <div style={{textAlign:"right"}}>
                               <div className="tw-num" style={{fontSize:13,fontWeight:700,color:th.text}}>+${p.price}</div>
@@ -7139,9 +7139,18 @@ function AuthPage() {
                     </div>
                   </div>
 
+                  {selectedPlan && (()=>{ const PP=({starter:{monthly:49,annual:39},professional:{monthly:99,annual:79},agency:{monthly:199,annual:159}})[selectedPlan]||{}; const planP=billingPeriod==="annual"?PP.annual:PP.monthly; const addP=(IMG_PACKS.find(x=>x.id===imgAddon)||{}).price||0; const tot=Math.round(((planP||0)+addP)*100)/100; const ap=approxLabel(sgeo,tot); return (
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"2px 0 12px",padding:"11px 15px",background:th.card2,border:`1px solid ${th.border}`,borderRadius:11}}>
+                      <span style={{fontSize:12,color:th.text2}}>Total today</span>
+                      <div style={{textAlign:"right"}}>
+                        <span className="tw-num" style={{fontSize:19,fontWeight:800,color:th.text}}>${tot}</span><span style={{fontSize:11,color:th.text2}}>/mo</span>
+                        {ap&&<div style={{fontSize:9.5,color:th.text3,marginTop:1}}>{ap.replace("approx ","≈ ")}</div>}
+                      </div>
+                    </div>
+                  ); })()}
                   <div style={{display:"flex",gap:8,marginTop:4}}>
                     <button onClick={()=>setSignupStep(1)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>← Back</button>
-                    <button onClick={()=>setSignupStep(3)} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
+                    <button onClick={()=>selectedPlan&&setSignupStep(3)} disabled={!selectedPlan} style={{flex:2,padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:selectedPlan?"pointer":"not-allowed",opacity:selectedPlan?1:0.5,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>Continue <ChevronRight size={15}/></button>
                   </div>
                 </>
               )}
