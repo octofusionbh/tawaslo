@@ -146,6 +146,35 @@ function shortCompany(name) {
   return w.length > 2 ? w.slice(0, 2).join(" ") : name.trim();
 }
 
+// Count-up number — animates from 0 to the target once it scrolls into view,
+// so stat figures feel live. format() controls how the running value renders.
+function CountUp({ to, duration = 1500, format, className, style }) {
+  const [val, setVal] = useState(0);
+  const ref = useRef(null);
+  const done = useRef(false);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const start = () => {
+      if (done.current) return; done.current = true;
+      const t0 = performance.now();
+      const step = (now) => {
+        const p = Math.min(1, (now - t0) / duration);
+        const e = 1 - Math.pow(1 - p, 3);
+        setVal(to * e);
+        if (p < 1) requestAnimationFrame(step); else setVal(to);
+      };
+      requestAnimationFrame(step);
+    };
+    if (typeof IntersectionObserver !== "undefined") {
+      const io = new IntersectionObserver(ents => ents.forEach(en => { if (en.isIntersecting) { start(); io.disconnect(); } }), { threshold: 0.5 });
+      io.observe(el);
+      return () => io.disconnect();
+    }
+    start();
+  }, [to, duration]);
+  return <span ref={ref} className={className} style={style}>{format ? format(val) : Math.round(val)}</span>;
+}
+
 // Privacy-blurred avatar — a soft, face-toned circle that reads like a real
 // profile photo with the identity hidden, instead of a flat initials chip.
 function BlurAvatar({ size = 28, hue = 20 }) {
@@ -5966,10 +5995,10 @@ function LandingPage({ onGetStarted, onLogin }) {
   );
 
   const Footer = () => (
-    <div style={{background:"#080B11",borderTop:"1px solid #232B38",padding:"20px 32px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:28,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
-      <div style={{fontSize:11,color:"#3D5068"}}>© 2026 Tawaslo. All rights reserved.</div>
-      <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap"}}>
+    <div style={{background:"#080B11",borderTop:"1px solid #232B38",padding:"20px 32px",display:isMobile?"flex":"grid",gridTemplateColumns:isMobile?undefined:"1fr auto 1fr",flexDirection:isMobile?"column":undefined,alignItems:"center",gap:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",justifySelf:"start"}} onClick={()=>setLandingPage('home')}><img src="/logo-transparent.png" alt="Tawaslo" style={{height:28,objectFit:"contain"}}/><span style={{fontSize:16,fontWeight:900,color:"#E8EFF8"}}>Tawaslo</span></div>
+      <div style={{fontSize:11,color:"#3D5068",justifySelf:"center",textAlign:"center"}}>© 2026 Tawaslo. All rights reserved.</div>
+      <div style={{display:"flex",alignItems:"center",gap:18,flexWrap:"wrap",justifySelf:"end"}}>
         {[["FAQ","faq"],["Privacy","privacy"],["Terms","terms"],["Contact","contact"]].map(([l,p])=><span key={l} onClick={()=>setLandingPage(p)} style={{fontSize:11.5,color:"#7A8BA8",cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.color="#E8EFF8"} onMouseLeave={e=>e.currentTarget.style.color="#7A8BA8"}>{l}</span>)}
         <div style={{display:"flex",gap:8}}>
           {[["https://www.instagram.com/tawaslo",FaInstagram],["https://www.linkedin.com/company/tawaslo",FaLinkedin]].map(([href,Ic],i)=>(
@@ -6107,7 +6136,7 @@ function LandingPage({ onGetStarted, onLogin }) {
                   <svg viewBox="0 0 400 80" style={{width:"100%",height:80,display:"block"}}>
                     <defs><linearGradient id="heroSpark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
                     <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10 L400,80 L0,80 Z" fill="url(#heroSpark)"/>
-                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
+                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="470" strokeDashoffset="470" style={{animation:"twdraw 1.9s ease-out 0.3s forwards"}}/>
                   </svg>
                 </div>
               </div>
@@ -6135,7 +6164,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             <h2 style={{fontSize:isMobile?23:30,fontWeight:800,letterSpacing:-0.7,margin:0}}>From sign-up to growth, <span style={grad}>in minutes.</span></h2>
           </div>
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?16:18,position:"relative"}}>
-            <style>{`@keyframes jflow{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}`}</style>
+            <style>{`@keyframes jflow{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}@keyframes twdraw{to{stroke-dashoffset:0}}@keyframes twrise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}`}</style>
             {!isMobile&&<div style={{position:"absolute",top:21,left:"12.5%",right:"12.5%",height:2,borderRadius:2,background:"#212C42",overflow:"hidden",zIndex:1}}><div style={{position:"absolute",top:0,left:0,height:"100%",width:"30%",background:"linear-gradient(90deg,transparent,#6E8CAB,transparent)",animation:"jflow 3.2s linear infinite"}}/></div>}
             {[
               [Link,"01","Connect accounts","Link Instagram, Facebook and LinkedIn in seconds.",false],
@@ -6211,9 +6240,9 @@ function LandingPage({ onGetStarted, onLogin }) {
             <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
               <div style={{fontSize:14,fontWeight:600,marginBottom:5}}>Analytics</div>
               <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:6}}>Reach, growth, engagement — live.</div>
-              <div className="tw-num" style={{color:"#fff",fontSize:24,fontWeight:600}}>1.24M</div>
+              <div className="tw-num" style={{color:"#fff",fontSize:24,fontWeight:600}}><CountUp to={1240000} format={v=>(v/1e6).toFixed(2)+"M"}/></div>
               <div style={{color:"#7FC9A8",fontSize:10,fontWeight:600,marginBottom:8}}>▲ 28% reach</div>
-              <svg viewBox="0 0 200 34" style={{width:"100%",height:30,display:"block"}}><path d="M0,28 L40,22 L80,25 L120,12 L160,16 L200,5" fill="none" stroke="#6E8CAB" strokeWidth="2" strokeLinecap="round"/></svg>
+              <svg viewBox="0 0 200 34" style={{width:"100%",height:30,display:"block"}}><path d="M0,28 L40,22 L80,25 L120,12 L160,16 L200,5" fill="none" stroke="#6E8CAB" strokeWidth="2" strokeLinecap="round" strokeDasharray="240" strokeDashoffset="240" style={{animation:"twdraw 1.7s ease-out 0.25s forwards"}}/></svg>
             </div>
 
             <div style={{gridColumn:isMobile?"auto":"span 2",background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
@@ -6221,7 +6250,7 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:13}}>Drag, drop, and see every client's calendar at a glance.</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}}>
                 {["M","T","W","T","F","S","S"].map((d,i)=><span key={"h"+i} style={{color:"#566173",fontSize:9,textAlign:"center"}}>{d}</span>)}
-                {[0,1,0,2,3,0,4].map((v,i)=>{ const bg=["#121826","rgba(225,48,108,0.18)","rgba(110,140,171,0.22)","rgba(24,119,242,0.18)","rgba(127,201,168,0.16)"][v]; const bd=["#232B38","rgba(225,48,108,0.35)","rgba(110,140,171,0.4)","rgba(24,119,242,0.35)","rgba(127,201,168,0.3)"][v]; return <div key={i} style={{height:26,borderRadius:6,background:bg,border:`1px solid ${bd}`}}/>; })}
+                {[0,1,0,2,3,0,4].map((v,i)=>{ const bg=["#121826","rgba(225,48,108,0.18)","rgba(110,140,171,0.22)","rgba(24,119,242,0.18)","rgba(127,201,168,0.16)"][v]; const bd=["#232B38","rgba(225,48,108,0.35)","rgba(110,140,171,0.4)","rgba(24,119,242,0.35)","rgba(127,201,168,0.3)"][v]; return <div key={i} style={{height:26,borderRadius:6,background:bg,border:`1px solid ${bd}`,animation:"twrise 0.5s ease both",animationDelay:(i*0.07)+"s"}}/>; })}
               </div>
             </div>
 
