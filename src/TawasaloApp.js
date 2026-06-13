@@ -137,6 +137,15 @@ function imgLimitOf(acct) {
   return p ? p.images : IMG_FREE;
 }
 
+// Short, card-style agency name: keeps the first two words of a long company
+// name (e.g. "Octo Fusion Collective Hub" -> "Octo Fusion") so the topbar and
+// sidebar read like a clean business card.
+function shortCompany(name) {
+  if (!name || !name.trim()) return "";
+  const w = name.trim().split(/\s+/);
+  return w.length > 2 ? w.slice(0, 2).join(" ") : name.trim();
+}
+
 // Visitor geo -> local currency, fetched once and cached, for the "approx" line.
 let _twGeo = null;
 function useGeo() {
@@ -398,7 +407,7 @@ function Sidebar() {
   const planTrial = (() => { try { return isTrialUser(userEmail); } catch(e){ return false; } })();
   const sbName = (userName && userName.trim()) ? userName.replace(/\b\w/g, c=>c.toUpperCase()) : (userEmail ? userEmail.split('@')[0].replace(/\b\w/g,c=>c.toUpperCase()) : "Account");
   const sbInit = sbName.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase() || "AC";
-  const sbSub = userCompany || (accountType==="freelancer" ? "" : accountLabelOf(accountType));
+  const sbSub = shortCompany(userCompany) || (userEmail === ADMIN_EMAIL ? "Octo Fusion" : (accountType==="freelancer" ? "" : accountLabelOf(accountType)));
   const planLabel = planTrial ? L("Free trial","نسخة تجريبية") : (userPlan ? (userPlan.charAt(0).toUpperCase()+userPlan.slice(1)) : L("Pro","احترافي"));
   const [collapsed, setCollapsed] = useState(()=>{ try{ return localStorage.getItem('tw_sidebar')==='1'; }catch(e){ return false; } });
   useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
@@ -576,7 +585,8 @@ function Topbar() {
     ? userName.replace(/\b\w/g, c=>c.toUpperCase())
     : (userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User");
   // Top-right subtitle shows the agency the user works for, not the client they're servicing.
-  const uSub = (mode==="owner") ? "Tawaslo HQ" : ((userCompany && userCompany.trim()) ? userCompany : (accountLabelOf(accountType)||"Agency"));
+  const agencyDisplay = shortCompany(userCompany) || (userEmail === ADMIN_EMAIL ? "Octo Fusion" : (accountLabelOf(accountType) || "Agency"));
+  const uSub = (mode==="owner") ? "Tawaslo HQ" : agencyDisplay;
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
   const NOTIFS = [
