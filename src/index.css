@@ -15,6 +15,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Hide scrollbars while keeping scroll — dashboards read cleaner without a
+   visible track (the look Linear / Notion use). */
+.tw-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+.tw-noscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* Light placeholder text for dark mode inputs */
 textarea::placeholder,
 input::placeholder {

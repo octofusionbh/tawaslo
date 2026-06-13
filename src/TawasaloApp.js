@@ -595,7 +595,7 @@ function Sidebar() {
       </div>
       )}
 
-      <nav style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
+      <nav className="tw-noscroll" style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
           <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
@@ -6136,7 +6136,7 @@ function LandingPage({ onGetStarted, onLogin }) {
                   <svg viewBox="0 0 400 80" style={{width:"100%",height:80,display:"block"}}>
                     <defs><linearGradient id="heroSpark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
                     <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10 L400,80 L0,80 Z" fill="url(#heroSpark)"/>
-                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="470" strokeDashoffset="470" style={{animation:"twdraw 1.9s ease-out 0.3s forwards"}}/>
+                    <path d="M0,62 L57,55 L114,58 L171,38 L228,44 L285,24 L342,30 L400,10" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="470" style={{"--len":"470",animation:"twdraw 5.5s ease-in-out infinite"}}/>
                   </svg>
                 </div>
               </div>
@@ -6164,7 +6164,7 @@ function LandingPage({ onGetStarted, onLogin }) {
             <h2 style={{fontSize:isMobile?23:30,fontWeight:800,letterSpacing:-0.7,margin:0}}>From sign-up to growth, <span style={grad}>in minutes.</span></h2>
           </div>
           <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:isMobile?16:18,position:"relative"}}>
-            <style>{`@keyframes jflow{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}@keyframes twdraw{to{stroke-dashoffset:0}}@keyframes twrise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}`}</style>
+            <style>{`@keyframes jflow{0%{transform:translateX(-120%)}100%{transform:translateX(340%)}}@keyframes twdraw{0%{stroke-dashoffset:var(--len)}42%{stroke-dashoffset:0}66%{stroke-dashoffset:0}100%{stroke-dashoffset:var(--len)}}@keyframes twrise{0%,100%{opacity:0.25;transform:translateY(4px)}20%,80%{opacity:1;transform:none}}`}</style>
             {!isMobile&&<div style={{position:"absolute",top:21,left:"12.5%",right:"12.5%",height:2,borderRadius:2,background:"#212C42",overflow:"hidden",zIndex:1}}><div style={{position:"absolute",top:0,left:0,height:"100%",width:"30%",background:"linear-gradient(90deg,transparent,#6E8CAB,transparent)",animation:"jflow 3.2s linear infinite"}}/></div>}
             {[
               [Link,"01","Connect accounts","Link Instagram, Facebook and LinkedIn in seconds.",false],
@@ -6242,7 +6242,7 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:6}}>Reach, growth, engagement — live.</div>
               <div className="tw-num" style={{color:"#fff",fontSize:24,fontWeight:600}}><CountUp to={1240000} format={v=>(v/1e6).toFixed(2)+"M"}/></div>
               <div style={{color:"#7FC9A8",fontSize:10,fontWeight:600,marginBottom:8}}>▲ 28% reach</div>
-              <svg viewBox="0 0 200 34" style={{width:"100%",height:30,display:"block"}}><path d="M0,28 L40,22 L80,25 L120,12 L160,16 L200,5" fill="none" stroke="#6E8CAB" strokeWidth="2" strokeLinecap="round" strokeDasharray="240" strokeDashoffset="240" style={{animation:"twdraw 1.7s ease-out 0.25s forwards"}}/></svg>
+              <svg viewBox="0 0 200 34" style={{width:"100%",height:30,display:"block"}}><path d="M0,28 L40,22 L80,25 L120,12 L160,16 L200,5" fill="none" stroke="#6E8CAB" strokeWidth="2" strokeLinecap="round" strokeDasharray="240" style={{"--len":"240",animation:"twdraw 5s ease-in-out infinite"}}/></svg>
             </div>
 
             <div style={{gridColumn:isMobile?"auto":"span 2",background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18}}>
@@ -6250,7 +6250,7 @@ function LandingPage({ onGetStarted, onLogin }) {
               <div style={{fontSize:11.5,color:"#7E8A9C",marginBottom:13}}>Drag, drop, and see every client's calendar at a glance.</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:5}}>
                 {["M","T","W","T","F","S","S"].map((d,i)=><span key={"h"+i} style={{color:"#566173",fontSize:9,textAlign:"center"}}>{d}</span>)}
-                {[0,1,0,2,3,0,4].map((v,i)=>{ const bg=["#121826","rgba(225,48,108,0.18)","rgba(110,140,171,0.22)","rgba(24,119,242,0.18)","rgba(127,201,168,0.16)"][v]; const bd=["#232B38","rgba(225,48,108,0.35)","rgba(110,140,171,0.4)","rgba(24,119,242,0.35)","rgba(127,201,168,0.3)"][v]; return <div key={i} style={{height:26,borderRadius:6,background:bg,border:`1px solid ${bd}`,animation:"twrise 0.5s ease both",animationDelay:(i*0.07)+"s"}}/>; })}
+                {[0,1,0,2,3,0,4].map((v,i)=>{ const bg=["#121826","rgba(225,48,108,0.18)","rgba(110,140,171,0.22)","rgba(24,119,242,0.18)","rgba(127,201,168,0.16)"][v]; const bd=["#232B38","rgba(225,48,108,0.35)","rgba(110,140,171,0.4)","rgba(24,119,242,0.35)","rgba(127,201,168,0.3)"][v]; return <div key={i} style={{height:26,borderRadius:6,background:bg,border:`1px solid ${bd}`,animation:"twrise 5s ease-in-out infinite",animationDelay:(i*0.18)+"s"}}/>; })}
               </div>
             </div>
 
