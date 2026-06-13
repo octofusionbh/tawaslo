@@ -659,8 +659,7 @@ function Sidebar() {
       {col ? null : (
       <div style={{position:"relative",margin:"0 14px 12px"}}>
         {acctOpen && <div onClick={()=>setAcctOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>}
-        {acctOpen && (
-          <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:0,right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:6,boxShadow:"0 18px 44px rgba(0,0,0,0.55)"}}>
+        <div style={{position:"absolute",bottom:"calc(100% + 8px)",left:0,right:0,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:6,boxShadow:"0 18px 44px rgba(0,0,0,0.55)",transformOrigin:"bottom center",opacity:acctOpen?1:0,transform:acctOpen?"translateY(0) scale(1)":"translateY(8px) scale(0.97)",pointerEvents:acctOpen?"auto":"none",transition:"opacity .18s ease, transform .2s cubic-bezier(.2,.7,.2,1)"}}>
             {[
               [Settings, L("Settings","الإعدادات"), ()=>setPage(mode==="owner"?"settings":"agencysets")],
               ...(mode!=="owner" ? [[CreditCard, L("Billing & plan","الفوترة والخطة"), ()=>setPage("billing")]] : []),
@@ -673,8 +672,7 @@ function Sidebar() {
             </div>
             <div style={{height:1,background:th.border,margin:"5px 4px"}}/>
             <div onClick={async()=>{ setAcctOpen(false); try{ await signOut(); }catch(e){} setIsAuthed(false); }} className="tw-acct" style={{display:"flex",alignItems:"center",gap:10,padding:"9px 10px",borderRadius:8,cursor:"pointer",color:th.danger,fontSize:12.5,fontWeight:600}}><LogOut size={16} color={th.danger}/>{L("Log out","تسجيل الخروج")}</div>
-          </div>
-        )}
+        </div>
         <div onClick={()=>setAcctOpen(o=>!o)} style={{background:th.card2,border:`1px solid ${acctOpen?th.accent:th.border}`,borderRadius:12,padding:"11px 12px",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
             <span style={{width:32,height:32,borderRadius:9,background:th.gradient,color:"#fff",fontSize:11.5,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{sbInit}</span>
