@@ -3937,21 +3937,23 @@ function SocialAccountsPage() {
         {NETWORKS.map(net => {
           const n = countOf(net.key);
           return (
-            <div key={net.key} className="tw-net" style={{ background:`linear-gradient(160deg, ${net.color}0f, ${th.card} 55%)`, border:`1px solid ${th.border}`, borderRadius:18, padding:19, boxShadow:"0 10px 26px rgba(0,0,0,0.26)", opacity:net.live?1:0.62, position:"relative", overflow:"hidden" }}>
-              <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:`linear-gradient(90deg, ${net.color}, transparent)` }}/>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:15 }}>
-                <div style={{ width:52, height:52, borderRadius:15, background:`linear-gradient(135deg, ${net.color}38, ${net.color}12)`, border:`1px solid ${net.color}33`, display:"flex", alignItems:"center", justifyContent:"center" }}><net.Icon style={{ color:net.color, fontSize:24 }}/></div>
-                {n>0 && <span style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}><span style={{ width:5, height:5, borderRadius:"50%", background:th.success }}/>{n}</span>}
+            <div key={net.key} className="tw-net" style={{ background:net.live?`linear-gradient(160deg, ${net.color}10, ${th.card} 60%)`:th.card, border:`1px solid ${net.live?net.color+'40':th.border}`, borderRadius:18, padding:19, boxShadow:"0 10px 26px rgba(0,0,0,0.26)", opacity:net.live?1:0.62, position:"relative", overflow:"hidden" }}>
+              {net.live && <div style={{ position:"absolute", top:-28, left:-12, width:130, height:96, background:`radial-gradient(circle, ${net.color}4d, transparent 70%)`, filter:"blur(9px)", pointerEvents:"none", zIndex:0 }}/>}
+              <div style={{ position:"relative", zIndex:1 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:15 }}>
+                  <div style={{ width:52, height:52, borderRadius:15, background:`linear-gradient(135deg, ${net.color}38, ${net.color}10)`, border:`1px solid ${net.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><net.Icon style={{ color:net.color, fontSize:24 }}/></div>
+                  {n>0 && <span style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, border:`1px solid ${th.success}40`, borderRadius:999, padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}><span style={{ width:5, height:5, borderRadius:"50%", background:th.success, boxShadow:`0 0 6px ${th.success}` }}/><span className="tw-num">{n}</span></span>}
+                </div>
+                <div style={{ fontSize:15, fontWeight:700 }}>{net.name}</div>
+                <div style={{ fontSize:11.5, color:th.text2, marginTop:3, marginBottom:15, minHeight:16 }}>{net.desc}</div>
+                {net.live ? (
+                  <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ width:"100%", padding:"10px", borderRadius:11, background:n>0?"rgba(255,255,255,0.04)":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, boxShadow:n>0?"none":`0 6px 18px ${th.accent}55` }}>
+                    {connecting?"Connecting…":(<><Plus size={13}/>{n>0?"Add another":"Connect"}</>)}
+                  </button>
+                ) : (
+                  <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Lock size={12}/>Coming soon</div>
+                )}
               </div>
-              <div style={{ fontSize:15, fontWeight:700 }}>{net.name}</div>
-              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, marginBottom:15, minHeight:16 }}>{net.desc}</div>
-              {net.live ? (
-                <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ width:"100%", padding:"10px", borderRadius:11, background:n>0?"transparent":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
-                  {connecting?"Connecting…":(<><Plus size={13}/>{n>0?"Add another":"Connect"}</>)}
-                </button>
-              ) : (
-                <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center" }}>Coming soon</div>
-              )}
             </div>
           );
         })}
