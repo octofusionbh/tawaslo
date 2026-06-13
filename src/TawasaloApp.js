@@ -2199,7 +2199,7 @@ function SendApprovalModal({ open, onClose, th, L, link, subtitle }) {
   const mail = "mailto:?subject=" + encodeURIComponent(L("Content plan for your approval", "خطة المحتوى للموافقة")) + "&body=" + encodeURIComponent(msg);
   const doCopy = () => { try { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch (e) { /* ignore */ } };
   const open2 = (u) => { try { window.open(u, "_blank", "noopener"); } catch (e) { /* ignore */ } };
-  return (
+  return createPortal((
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,18,0.62)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
       <div onClick={e=>e.stopPropagation()} className="tw-pop" style={{ width:382, maxWidth:"100%", background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden" }}>
         <div style={{ padding:"17px 20px 14px", borderBottom:`1px solid ${th.border}` }}>
@@ -2226,7 +2226,57 @@ function SendApprovalModal({ open, onClose, th, L, link, subtitle }) {
         </div>
       </div>
     </div>
+  ), document.body);
+}
+
+// Step before the share sheet: pick exactly which posts go into this approval
+// link — the whole month by default, or a hand-picked subset.
+function SendPickerModal({ open, onClose, th, L, rows, sel, setSel, onContinue }) {
+  if (!open) return null;
+  const PC = { ig:"#C13584", fb:"#1877F2" };
+  const PN = { ig:"Instagram", fb:"Facebook" };
+  const toggle = (id) => setSel(s => s.includes(id) ? s.filter(x=>x!==id) : [...s, id]);
+  const allOn = sel.length === rows.length && rows.length > 0;
+  const toggleAll = () => setSel(allOn ? [] : rows.map(r=>r.id));
+  const box = (on) => (
+    <span style={{ width:18, height:18, borderRadius:5, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accent:"transparent", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{on && <CheckCircle size={12} color="#fff"/>}</span>
   );
+  return createPortal((
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,18,0.62)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} className="tw-pop" style={{ width:440, maxWidth:"100%", maxHeight:"82vh", display:"flex", flexDirection:"column", background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden" }}>
+        <div style={{ padding:"16px 20px 13px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <Send size={16} color={th.accent}/>
+            <span style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("What should we send?","ماذا نرسل؟")}</span>
+            <span onClick={onClose} style={{ marginLeft:"auto", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={17}/></span>
+          </div>
+          <div style={{ marginTop:6, fontSize:12, color:th.text2 }}>{L("Pick the posts to include in this approval link.","اختر المنشورات لتضمينها في رابط الموافقة.")}</div>
+        </div>
+        <div onClick={toggleAll} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 20px", borderBottom:`1px solid ${th.border}`, cursor:"pointer", background:th.card2 }}>
+          {box(allOn)}
+          <span style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("Whole month","الشهر كامل")}</span>
+          <span style={{ marginLeft:"auto", fontSize:11, color:th.text3 }}><span className="tw-num">{rows.length}</span> {L("posts","منشور")}</span>
+        </div>
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {rows.map(r => { const on = sel.includes(r.id); return (
+            <div key={r.id} onClick={()=>toggle(r.id)} style={{ display:"flex", alignItems:"center", gap:11, padding:"11px 20px", borderBottom:`1px solid ${th.border}`, cursor:"pointer" }}>
+              {box(on)}
+              <div style={{ width:34, height:34, borderRadius:8, background:r.g, flexShrink:0, position:"relative" }}><span style={{ position:"absolute", bottom:-2, right:-2, width:12, height:12, borderRadius:4, background:PC[r.p], border:`2px solid ${th.card}` }}/></div>
+              <div style={{ minWidth:0, flex:1 }}>
+                <div style={{ fontSize:12.5, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
+                <div style={{ fontSize:10.5, color:th.text3 }}>{PN[r.p]} · {r.when}</div>
+              </div>
+              <span style={{ fontSize:10.5, color:APPR_STATUS[r.st].color }}>{L(APPR_STATUS[r.st].label,APPR_STATUS[r.st].ar)}</span>
+            </div>
+          ); })}
+        </div>
+        <div style={{ padding:"13px 20px", borderTop:`1px solid ${th.border}`, display:"flex", gap:10 }}>
+          <button onClick={onClose} style={{ padding:"11px 16px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+          <button onClick={onContinue} disabled={!sel.length} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:10, background:sel.length?th.gradient:th.card2, border:"none", color:sel.length?"#fff":th.text3, fontSize:13, fontWeight:600, cursor:sel.length?"pointer":"not-allowed" }}><Send size={14}/>{L("Continue","متابعة")} · <span className="tw-num">{sel.length}</span></button>
+        </div>
+      </div>
+    </div>
+  ), document.body);
 }
 
 // Approvals queue — every post awaiting sign-off, with live status and the
@@ -2248,6 +2298,10 @@ function ApprovalsPage() {
   const [rows, setRows] = useState(SEED);
   const [filter, setFilter] = useState("all");
   const [sendOpen, setSendOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [sel, setSel] = useState([]);
+  const [sentCount, setSentCount] = useState(0);
+  const [exported, setExported] = useState(false);
   const [needs, setNeeds] = useState(clientNeedsApproval(selClient?.id));
   const PC = { ig:"#C13584", fb:"#1877F2" };
   const PN = { ig:"Instagram", fb:"Facebook" };
@@ -2255,6 +2309,8 @@ function ApprovalsPage() {
   const counts = rows.reduce((a,r)=>{ a[r.st]=(a[r.st]||0)+1; return a; }, {});
   const shown = filter === "all" ? rows : rows.filter(r => r.st === filter);
   const toggleNeeds = () => { const v = !needs; setNeeds(v); setClientNeedsApproval(selClient?.id, v); };
+  const openPicker = () => { setSel(rows.filter(r => r.st !== "approved").map(r => r.id)); setPickerOpen(true); };
+  const confirmSend = () => { setSentCount(sel.length); setPickerOpen(false); setSendOpen(true); };
   const FILTERS = [["all",L("All","الكل")],["pending",L("Pending","بانتظار")],["approved",L("Approved","موافق")],["changes",L("Changes","تعديلات")],["draft",L("Draft","مسودة")]];
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const pill = (st) => { const s = APPR_STATUS[st]; return (
@@ -2262,7 +2318,8 @@ function ApprovalsPage() {
   ); };
   return (
     <div style={{ padding:"26px 30px", maxWidth:980 }}>
-      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("month-"+(selClient?.id||"x"))} subtitle={L("Send June's calendar to ","أرسل تقويم يونيو إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","")}/>
+      <SendPickerModal open={pickerOpen} onClose={()=>setPickerOpen(false)} th={th} L={L} rows={rows} sel={sel} setSel={setSel} onContinue={confirmSend}/>
+      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("send-"+(selClient?.id||"x")+"-"+sentCount)} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:16, marginBottom:18, flexWrap:"wrap" }}>
         <div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -2271,7 +2328,30 @@ function ApprovalsPage() {
           </div>
           <div style={{ fontSize:12.5, color:th.text2, marginTop:5 }}>{L("Track sign-off for ","تتبّع موافقات ")}{selClient?.name||L("this client","هذا العميل")}{L(". Send the month or a single post.",". أرسل الشهر أو منشوراً واحداً.")}</div>
         </div>
-        <button onClick={()=>setSendOpen(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 17px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}><Send size={15}/>{L("Send for approval","إرسال للموافقة")}</button>
+        <button onClick={openPicker} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 17px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}><Send size={15}/>{L("Send for approval","إرسال للموافقة")}</button>
+      </div>
+
+      <div style={{ ...card, padding:"16px 18px", marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:13 }}>
+          <Shield size={16} color={th.accent}/>
+          <span style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("June approvals","موافقات يونيو")}</span>
+          <span style={{ marginLeft:"auto", fontSize:11, color:th.text3 }}>{L("Link expires in ","ينتهي الرابط خلال ")}<span className="tw-num">6</span>{L(" days","أيام")}</span>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:14 }}>
+          {[["approved",L("Approved","موافق")],["pending",L("Pending","بانتظار")],["changes",L("Changes","تعديلات")]].map(([k,lbl])=>(
+            <div key={k} style={{ background:th.card2, borderRadius:10, padding:"11px 12px" }}>
+              <div className="tw-num" style={{ fontSize:22, fontWeight:700, color:APPR_STATUS[k].color }}>{counts[k]||0}</div>
+              <div style={{ fontSize:11, color:th.text2 }}>{lbl}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ height:6, borderRadius:4, overflow:"hidden", display:"flex", marginBottom:15, background:th.card2 }}>
+          {["approved","pending","changes"].map(k=>{ const w = rows.length?((counts[k]||0)/rows.length*100):0; return w>0?<div key={k} style={{ width:w+"%", background:APPR_STATUS[k].color }}/>:null; })}
+        </div>
+        <div style={{ display:"flex", gap:9, flexWrap:"wrap" }}>
+          <button onClick={openPicker} style={{ flex:1, minWidth:140, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Send size={14}/>{L("Send for approval","إرسال للموافقة")}</button>
+          <button onClick={()=>{ setExported(true); setTimeout(()=>setExported(false), 3000); }} disabled={!counts.approved} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"10px 14px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:counts.approved?th.text:th.text3, fontSize:12, fontWeight:600, cursor:counts.approved?"pointer":"not-allowed" }}><Image size={14}/>{exported?L("Preparing PDF…","يُحضّر الملف…"):L("Export approved plan as PDF","تصدير الخطة المعتمدة PDF")}</button>
+        </div>
       </div>
 
       <div style={{ ...card, padding:"12px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
