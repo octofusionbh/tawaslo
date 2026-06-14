@@ -84,8 +84,11 @@ export default async function handler(req, res) {
 
   try {
     // 1) Find up to 2 due posts (keeps each run under the 10s limit; cron runs often).
+    //    Approval gate: only publish posts that were never sent for approval
+    //    (no token) OR have been approved by the client. Anything still pending
+    //    or with changes requested is held back until it's approved.
     const dueRes = await sb(
-      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&select=*&order=scheduled_at.asc&limit=2`
+      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&or=(appr_token.is.null,appr_status.eq.approved)&select=*&order=scheduled_at.asc&limit=2`
     );
     const due = await dueRes.json();
     if (!Array.isArray(due) || due.length === 0) {
