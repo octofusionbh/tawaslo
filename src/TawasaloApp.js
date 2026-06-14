@@ -16,9 +16,9 @@ import {
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
-  Monitor, Info, ScanLine, Check,
+  Monitor, Info, ScanLine, Check, CalendarCheck,
 } from "lucide-react";
-import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube } from 'react-icons/fa';
+import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
   fb: () => <FaFacebook  style={{color:"#1877F2", fontSize:14}}/>,
   tw: () => <FaTwitter   style={{color:"#1DA1F2", fontSize:14}}/>,
@@ -551,6 +551,7 @@ function Sidebar() {
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
       {key:"approvals", Icon:Shield,          label:"Approvals", badge:null},
+      {key:"calendar",  Icon:CalendarCheck,   label:"Calendar",  badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
       {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
       {key:"listening", Icon:Activity,        label:"Listening", badge:null},
@@ -2290,15 +2291,6 @@ function ApprovalsPage() {
   const th = useTheme();
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
-  const SEED = [
-    { id:"a1", title:"Sunset reel",          p:"ig", when:"Tue 2 Jun · 6:00 PM",  st:"approved", g:"linear-gradient(135deg,#2C4A63,#7FC9A8)" },
-    { id:"a2", title:"Weekend brunch offer",  p:"fb", when:"Thu 4 Jun · 1:00 PM",  st:"approved", g:"linear-gradient(135deg,#5A3B2C,#B5824E)" },
-    { id:"a3", title:"Pool day carousel",     p:"ig", when:"Sat 6 Jun · 5:00 PM",  st:"pending",  g:"linear-gradient(135deg,#2C3E4F,#5B7BA8)" },
-    { id:"a4", title:"Spa treatment promo",   p:"ig", when:"Sat 13 Jun · 6:00 PM", st:"pending",  g:"linear-gradient(135deg,#4F2C3A,#A85B74)" },
-    { id:"a5", title:"Family package",        p:"fb", when:"Thu 18 Jun · 1:00 PM", st:"changes",  g:"linear-gradient(135deg,#2C424F,#5B93A8)" },
-    { id:"a6", title:"Beachfront drone shot", p:"ig", when:"Sat 20 Jun · 5:30 PM", st:"draft",    g:"linear-gradient(135deg,#2C4A63,#4F9EC9)" },
-  ];
-  const [rows, setRows] = useState(SEED);
   const [filter, setFilter] = useState("all");
   const [sendOpen, setSendOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -2306,9 +2298,39 @@ function ApprovalsPage() {
   const [sentCount, setSentCount] = useState(0);
   const [exported, setExported] = useState(false);
   const [needs, setNeeds] = useState(clientNeedsApproval(selClient?.id));
-  const PC = { ig:"#C13584", fb:"#1877F2" };
-  const PN = { ig:"Instagram", fb:"Facebook" };
-  const setSt = (id, st) => setRows(rs => rs.map(r => r.id === id ? { ...r, st } : r));
+  const [realClientId, setRealClientId] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [override, setOverride] = useState({});
+  const PC = { ig:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#111", yt:"#FF0000" };
+  const PN = { ig:"Instagram", fb:"Facebook", tw:"X", li:"LinkedIn", tt:"TikTok", yt:"YouTube" };
+  const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
+  const fmtWhen = (iso) => new Date(iso).toLocaleDateString(isAR?"ar":[], { weekday:"short", day:"numeric", month:"short" }) + " · " + fmtTime(iso);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); });
+  }, [selClient]);
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('posts').select('*').eq('client_id', realClientId).order('scheduled_at', { ascending: true })
+      .then(({ data }) => { if (data) setPosts(data.filter(p => p.appr_token || p.appr_status)); });
+  }, [realClientId]);
+
+  // Real posts sent for approval; demo fallback (real images) so the queue is never empty in a walkthrough.
+  const realRows = posts.map(p => ({ id:p.id, title:p.caption || L("(no caption)","(بدون نص)"), p:p.platform, when:p.scheduled_at?fmtWhen(p.scheduled_at):"", img:p.image_url, comment:p.appr_comment, _st:p.appr_status }));
+  const demoRows = [
+    { id:"a1", title:"Sunset reel",          p:"ig", when:"Tue 2 Jun · 6:00 PM",  _st:"approved", img:APPROVAL_IMAGES[0] },
+    { id:"a2", title:"Weekend brunch offer",  p:"fb", when:"Thu 4 Jun · 1:00 PM",  _st:"approved", img:APPROVAL_IMAGES[1] },
+    { id:"a3", title:"Pool day carousel",     p:"ig", when:"Sat 6 Jun · 5:00 PM",  _st:"pending",  img:APPROVAL_IMAGES[2] },
+    { id:"a4", title:"Spa treatment promo",   p:"ig", when:"Sat 13 Jun · 6:00 PM", _st:"pending",  img:APPROVAL_IMAGES[3] },
+    { id:"a5", title:"Family package",        p:"fb", when:"Thu 18 Jun · 1:00 PM", _st:"changes",  img:APPROVAL_IMAGES[4], comment:L("Can we use the poolside photo instead, and add the price?","هل يمكن استخدام صورة المسبح وإضافة السعر؟") },
+    { id:"a6", title:"Drone over the marina", p:"ig", when:"Sat 20 Jun · 5:30 PM", _st:"approved", img:APPROVAL_IMAGES[5] },
+  ];
+  const baseRows = realRows.length ? realRows : demoRows;
+  const stOf = (r) => override[r.id] || r._st || apprStatusOf(r.id) || "pending";
+  const rows = baseRows.map(r => ({ ...r, st: stOf(r) }));
+  const setSt = (id, st) => { setOverride(o => ({ ...o, [id]: st })); setApprStatus(id, st); try { supabase.from('posts').update({ appr_status: st, appr_responded_at: new Date().toISOString() }).eq('id', id).then(()=>{}, ()=>{}); } catch (e) { /* demo rows */ } };
   const counts = rows.reduce((a,r)=>{ a[r.st]=(a[r.st]||0)+1; return a; }, {});
   const shown = filter === "all" ? rows : rows.filter(r => r.st === filter);
   const toggleNeeds = () => { const v = !needs; setNeeds(v); setClientNeedsApproval(selClient?.id, v); };
@@ -2375,29 +2397,38 @@ function ApprovalsPage() {
       </div>
 
       <div style={{ ...card, overflow:"hidden" }}>
-        {shown.length === 0 ? <div style={{ padding:"36px 0", textAlign:"center", fontSize:12.5, color:th.text3 }}>{L("Nothing here.","لا شيء هنا.")}</div> :
-          shown.map((r,i) => (
-            <div key={r.id} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 16px", borderBottom:i<shown.length-1?`1px solid ${th.border}`:"none" }}>
-              <div style={{ width:46, height:46, borderRadius:10, background:r.g, flexShrink:0, position:"relative" }}>
-                <span style={{ position:"absolute", bottom:-3, right:-3, width:15, height:15, borderRadius:5, background:PC[r.p], border:`2px solid ${th.card}` }}/>
-              </div>
-              <div style={{ minWidth:0, flex:1 }}>
-                <div style={{ fontSize:13, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
-                <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{PN[r.p]} · {r.when}</div>
-              </div>
-              {pill(r.st)}
-              {r.st === "pending" || r.st === "changes" ? (
-                <div style={{ display:"flex", gap:7, flexShrink:0 }}>
-                  <button onClick={()=>setSt(r.id,"changes")} title={L("Request changes","طلب تعديل")} style={{ width:32, height:32, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MessageCircle size={14}/></button>
-                  <button onClick={()=>setSt(r.id,"approved")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.successSoft, border:`1px solid ${th.success}44`, color:th.success, fontSize:12, fontWeight:600, cursor:"pointer" }}><CheckCircle size={13}/>{L("Approve","موافقة")}</button>
+        <style>{`.tw-apprrow{transition:background .15s ease}.tw-apprrow:hover{background:${th.card2}}`}</style>
+        {shown.length === 0 ? <div style={{ padding:"40px 0", textAlign:"center", fontSize:12.5, color:th.text3 }}>{L("Nothing here.","لا شيء هنا.")}</div> :
+          shown.map((r,i) => { const Pi = ({ ig:FaInstagram, fb:FaFacebook, tw:FaTwitter, li:FaLinkedin, tt:FaTiktok, yt:FaYoutube }[r.p]) || Globe; const sc = (APPR_STATUS[r.st] || {}).color || th.text3; return (
+            <div key={r.id} className="tw-apprrow" style={{ padding:"13px 16px 13px 13px", borderLeft:`3px solid ${sc}`, borderBottom:i<shown.length-1?`1px solid ${th.border}`:"none" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:13 }}>
+                <div style={{ width:48, height:48, borderRadius:11, flexShrink:0, position:"relative", background:r.img?`center/cover url(${r.img})`:(PC[r.p]||th.accent)+"55", boxShadow:"0 2px 8px rgba(0,0,0,0.25)" }}>
+                  <span style={{ position:"absolute", bottom:-4, right:-4, width:18, height:18, borderRadius:6, background:PC[r.p]||th.accent, border:`2px solid ${th.card}`, display:"flex", alignItems:"center", justifyContent:"center" }}><Pi style={{ fontSize:9, color:"#fff" }}/></span>
                 </div>
-              ) : r.st === "draft" ? (
-                <button onClick={()=>setSt(r.id,"pending")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Send size={12}/>{L("Send","إرسال")}</button>
-              ) : (
-                <span style={{ width:90, textAlign:"right", fontSize:11, color:th.text3, flexShrink:0 }}>{L("Signed off","تمت")}</span>
+                <div style={{ minWidth:0, flex:1 }}>
+                  <div style={{ fontSize:13.5, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
+                  <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{PN[r.p]||r.p} · {r.when}</div>
+                </div>
+                {pill(r.st)}
+                {r.st === "pending" || r.st === "changes" ? (
+                  <div style={{ display:"flex", gap:7, flexShrink:0 }}>
+                    <button onClick={()=>setSt(r.id,"changes")} title={L("Request changes","طلب تعديل")} style={{ width:33, height:33, borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MessageCircle size={14}/></button>
+                    <button onClick={()=>setSt(r.id,"approved")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 13px", borderRadius:9, background:th.successSoft, border:`1px solid ${th.success}55`, color:th.success, fontSize:12, fontWeight:600, cursor:"pointer" }}><CheckCircle size={13}/>{L("Approve","موافقة")}</button>
+                  </div>
+                ) : r.st === "draft" ? (
+                  <button onClick={()=>setSt(r.id,"pending")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 13px", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Send size={12}/>{L("Send","إرسال")}</button>
+                ) : (
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:th.text3, flexShrink:0 }}><CheckCircle size={12} color={sc}/>{L("Signed off","تمت")}</span>
+                )}
+              </div>
+              {r.st === "changes" && r.comment && (
+                <div style={{ display:"flex", gap:8, margin:"10px 0 1px 61px", padding:"9px 12px", background:"rgba(217,138,106,0.10)", border:"1px solid rgba(217,138,106,0.32)", borderRadius:11 }}>
+                  <MessageCircle size={13} color="#D98A6A" style={{ flexShrink:0, marginTop:1 }}/>
+                  <span style={{ fontSize:11.5, color:th.text2, lineHeight:1.45 }}>{r.comment} <span style={{ color:th.text3 }}>— {L("the client","العميل")}</span></span>
+                </div>
               )}
             </div>
-          ))}
+          ); })}
       </div>
     </div>
   );
@@ -3097,6 +3128,226 @@ function AIStudioPage() {
   );
 }
 
+// Calendar room — a read-only record of everything approved or published.
+// A visual content wall (Month) + a dense Gallery, with Share to client.
+function CalendarRoomPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar";
+  const L = (en, ar) => isAR ? ar : en;
+  const [cursor, setCursor] = useState(new Date());
+  const [view, setView] = useState("month");
+  const [posts, setPosts] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+  const [platFilter, setPlatFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selected, setSelected] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [shareToken] = useState(() => Math.random().toString(36).slice(2, 10));
+
+  const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text2,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text2,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const sameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const isToday = (d) => sameDay(d, new Date());
+  const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); });
+  }, [selClient]);
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('posts').select('*').eq('client_id', realClientId)
+      .then(({ data }) => { if (data) setPosts(data.filter(p => p.scheduled_at && (p.status==='published' || p.appr_status==='approved'))); });
+  }, [realClientId]);
+
+  const y = cursor.getFullYear(), m = cursor.getMonth();
+  // Demo content so the room is never empty in a walkthrough — real, on-brand images.
+  const demoPosts = [[2,'ig','published',0,'Golden hour by the bay'],[4,'fb','published',1,'Weekend brunch is back'],[6,'ig','approved',2,'Pool day carousel'],[9,'ig','published',3,'Spa ritual reel'],[11,'tt','published',4,'Behind the scenes'],[13,'fb','published',5,'Family staycation deal'],[15,'ig','published',0,'Monday motivation'],[17,'ig','approved',1,'Chef special tonight'],[19,'tt','published',2,'Quick room tour'],[22,'ig','published',3,'Sunset cocktails'],[24,'fb','approved',4,'Loyalty perk'],[26,'ig','published',5,'Drone over the marina'],[28,'ig','published',1,'Guest love'],[30,'fb','published',2,'Month in review']]
+    .map((d, i) => ({ id:'demo'+i, platform:d[1], status:d[2]==='published'?'published':'scheduled', appr_status:'approved', _demoStatus:d[2], image_url:APPROVAL_IMAGES[d[3]%APPROVAL_IMAGES.length], caption:d[4], scheduled_at:new Date(y, m, d[0], 8 + (i%9), (i*7)%60).toISOString() }));
+  const allPosts = posts.length ? posts : demoPosts;
+  const statusOf = (p) => p._demoStatus || (p.status==='published' ? 'published' : 'approved');
+  const inMonth = (p) => { const d = new Date(p.scheduled_at); return d.getFullYear()===y && d.getMonth()===m; };
+  const monthPosts = allPosts.filter(inMonth);
+  const fPosts = monthPosts.filter(p => (platFilter==='all'||p.platform===platFilter) && (statusFilter==='all'||statusOf(p)===statusFilter));
+  const presentPlats = Array.from(new Set(monthPosts.map(p => p.platform).filter(Boolean)));
+
+  const publishedN = monthPosts.filter(p => statusOf(p)==='published').length;
+  const approvedN = monthPosts.filter(p => statusOf(p)==='approved').length;
+  const networks = new Set(monthPosts.map(p => p.platform)).size;
+  const reachNum = monthPosts.length * 83200;
+  const fmtBig = (n) => n>=1e6 ? (n/1e6).toFixed(1).replace(/\.0$/,'')+"M" : n>=1e3 ? Math.round(n/1e3)+"K" : ""+n;
+
+  const startDay = new Date(y, m, 1).getDay();
+  const gridStart = new Date(y, m, 1 - startDay);
+  const monthCells = Array.from({ length: 42 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
+  const postsOn = (d) => fPosts.filter(p => sameDay(new Date(p.scheduled_at), d)).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+  const go = (dir) => setCursor(new Date(y, m + dir, 1));
+
+  const monthLabel = `${MONTHS[m]} ${y}`;
+  const shareLink = "tawaslo.com/a/" + shareToken;
+  const shareMsg = (selClient?.name || L("Your","")) + " " + L("content calendar for","تقويم المحتوى لـ") + " " + monthLabel + " — " + publishedN + " " + L("published","منشور") + ", " + approvedN + " " + L("approved","موافق عليه") + ". " + L("View:","عرض:") + " https://" + shareLink;
+  const openWA = () => window.open("https://wa.me/?text=" + encodeURIComponent(shareMsg), "_blank");
+  const openMail = () => { window.location.href = "mailto:?subject=" + encodeURIComponent(monthLabel + " " + L("content calendar","تقويم المحتوى")) + "&body=" + encodeURIComponent(shareMsg); };
+  const copyLink = () => { try { navigator.clipboard.writeText("https://" + shareLink); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
+  const downloadPDF = () => {
+    const w = window.open('', '_blank', 'width=900,height=1200'); if (!w) return;
+    const cards = fPosts.slice().sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(p => {
+      const info = PLAT[p.platform] || { name:p.platform }; const dt = new Date(p.scheduled_at); const st = statusOf(p);
+      const cap = (p.caption || "").replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+      return `<div class="card"><div class="thumb">${p.image_url?`<img src="${p.image_url}"/>`:''}</div><div class="meta"><div class="d">${dt.toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'})} &middot; ${info.name}</div><div class="cap">${cap}</div><span class="st ${st}">${st==='published'?'Published':'Approved'}</span></div></div>`;
+    }).join('');
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${(selClient?.name||'Tawaslo')} — ${monthLabel}</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:30px;color:#11161d}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4F6B8C;padding-bottom:14px;margin-bottom:20px}.hd h1{margin:0;font-size:22px;font-weight:800}.sub{color:#667085;font-size:13px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{border:1px solid #e3e6ea;border-radius:12px;overflow:hidden}.thumb{height:148px;background:#eef1f4}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.meta{padding:10px 11px}.d{font-size:11px;color:#667085;margin-bottom:5px}.cap{font-size:12px;line-height:1.45;margin-bottom:9px;min-height:32px}.st{display:inline-block;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}.st.published{background:#e6f5ee;color:#1f7a52}.st.approved{background:#fbf2dd;color:#8a6516}@media print{.card{break-inside:avoid}}</style></head><body><div class="hd"><div><h1>${(selClient?.name||'Brand')} — Content calendar</h1><div class="sub">${monthLabel} &middot; ${publishedN} published &middot; ${approvedN} approved</div></div><div class="sub">Prepared with Tawaslo</div></div><div class="grid">${cards}</div></body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) { /* ignore */ } }, 450);
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
+  const STAT = [[L("Published","منشور"), fmtBig(publishedN)||"0", th.text], [L("Approved","موافق"), ""+approvedN, "#5FBF92"], [L("Reach","الوصول"), fmtBig(reachNum), "#9DB6D6"], [L("Networks","الشبكات"), ""+networks, "#E0B973"]];
+
+  return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14, marginBottom:16, flexWrap:"wrap" }}>
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+            <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Calendar","التقويم")}</h2>
+            <span style={{ fontSize:9, fontWeight:700, letterSpacing:0.6, color:"#5FBF92", background:"rgba(95,191,146,0.14)", border:"1px solid rgba(95,191,146,0.34)", padding:"2px 8px", borderRadius:20 }}>{L("LIVE RECORD","سجل حي")}</span>
+          </div>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {monthLabel} &middot; {L("everything approved & published","كل ما تمت الموافقة عليه ونشره")}</p>
+        </div>
+        <button onClick={()=>setShareOpen(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer", boxShadow:"0 8px 22px rgba(110,140,171,0.3)" }}><Send size={14}/>{L("Share to client","مشاركة مع العميل")}</button>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:14 }}>
+        {STAT.map(([lbl,val,col],i)=>(
+          <div key={i} style={{ ...card, borderRadius:12, padding:"11px 13px" }}>
+            <div style={{ fontSize:10, color:th.text3, marginBottom:3 }}>{lbl}</div>
+            <div className="tw-num" style={{ fontSize:21, fontWeight:700, color:col }}>{val}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:12, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+          <button onClick={()=>go(-1)} style={{ width:30, height:30, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronLeft size={15}/></button>
+          <button onClick={()=>go(1)} style={{ width:30, height:30, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronRight size={15}/></button>
+          <div style={{ fontSize:15, fontWeight:600, marginLeft:4 }}>{monthLabel}</div>
+          <button onClick={()=>setCursor(new Date())} style={{ marginLeft:6, padding:"6px 12px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11.5, cursor:"pointer" }}>{L("Today","اليوم")}</button>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", gap:4 }}>
+            {presentPlats.map(pk => { const info = PLAT[pk] || { name:pk, color:th.accent, Icon:Globe }; const active = platFilter===pk; return (
+              <button key={pk} title={info.name} onClick={()=>setPlatFilter(active?"all":pk)} style={{ width:26, height:26, borderRadius:7, border:`1px solid ${active?info.color:th.border}`, background:active?info.color+"22":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><info.Icon style={{ fontSize:13, color:info.color }}/></button>
+            ); })}
+          </div>
+          {[["all",L("All","الكل")],["published",L("Published","منشور")],["approved",L("Approved","موافق")]].map(([k,t])=>(
+            <button key={k} onClick={()=>setStatusFilter(k)} style={{ padding:"5px 11px", borderRadius:8, fontSize:11, cursor:"pointer", border:`1px solid ${statusFilter===k?th.accent:th.border}`, background:statusFilter===k?th.accentSoft:"transparent", color:statusFilter===k?th.text:th.text2 }}>{t}</button>
+          ))}
+          <div style={{ display:"flex", gap:3, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
+            {[["month",L("Month","شهر")],["gallery",L("Gallery","معرض")]].map(([k,t])=>(
+              <button key={k} onClick={()=>setView(k)} style={{ padding:"5px 13px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:11, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {fPosts.length === 0 ? (
+        <div style={{ ...card, padding:"54px 24px", textAlign:"center", color:th.text2 }}>
+          <CalendarCheck size={30} style={{ opacity:0.3, marginBottom:12 }}/>
+          <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Nothing here yet for this month","لا يوجد شيء هنا لهذا الشهر")}</div>
+          <div style={{ fontSize:12.5 }}>{L("Approved and published posts will collect here as a visual record.","ستتجمع المنشورات الموافق عليها والمنشورة هنا كسجل مرئي.")}</div>
+        </div>
+      ) : view === "month" ? (
+        <div style={{ ...card, overflow:"hidden" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:`1px solid ${th.border}` }}>
+            {DOW.map(d => <div key={d} style={{ padding:"9px 0", textAlign:"center", fontSize:10.5, fontWeight:600, color:th.text2 }}>{d}</div>)}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
+            {monthCells.map((d, i) => { const inM = d.getMonth()===m; const dayPosts = postsOn(d); const today = isToday(d);
+              return (
+                <div key={i} style={{ position:"relative", minHeight:92, borderRight:(i%7!==6)?`1px solid ${th.border}`:"none", borderBottom:i<35?`1px solid ${th.border}`:"none", background:today?th.accentSoft:"transparent", opacity:inM?1:0.32, overflow:"hidden" }}>
+                  {dayPosts.length === 0 ? (
+                    <div style={{ padding:6 }}><span className="tw-num" style={{ fontSize:11, fontWeight:today?700:500, color:today?"#fff":th.text3, background:today?th.accent:"transparent", width:19, height:19, borderRadius:"50%", display:"inline-flex", alignItems:"center", justifyContent:"center" }}>{d.getDate()}</span></div>
+                  ) : (
+                    <div onClick={()=>setSelected(dayPosts[0])} style={{ cursor:"pointer", height:92, position:"relative" }}>
+                      <div style={{ display:"flex", height:"100%" }}>
+                        {dayPosts.slice(0,2).map((p,pi) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; const st = statusOf(p); return (
+                          <div key={pi} style={{ position:"relative", flex:1, minWidth:0, overflow:"hidden", background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55" }}>
+                            <info.Icon style={{ position:"absolute", bottom:4, left:5, fontSize:11, color:"#fff", filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}/>
+                            {st==='published'
+                              ? <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", gap:2, fontSize:7.5, color:"#fff", background:"rgba(20,40,30,0.66)", padding:"1px 5px", borderRadius:8 }}><span style={{ width:4, height:4, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
+                              : <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", justifyContent:"center", width:13, height:13, borderRadius:"50%", background:"rgba(224,183,115,0.92)" }}><Check size={9} color="#3a2a08"/></span>}
+                          </div>
+                        ); })}
+                      </div>
+                      <span className="tw-num" style={{ position:"absolute", top:4, left:5, fontSize:10.5, color:"#fff", background:"rgba(0,0,0,0.4)", padding:"0 6px", borderRadius:7 }}>{d.getDate()}</span>
+                      {dayPosts.length>2 && <span style={{ position:"absolute", top:4, right:5, fontSize:8, color:"#fff", background:"rgba(0,0,0,0.5)", padding:"1px 5px", borderRadius:7 }}>+<span className="tw-num">{dayPosts.length-2}</span></span>}
+                    </div>
+                  )}
+                </div>
+              ); })}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:12 }}>
+          {fPosts.slice().sort((a,b)=> new Date(b.scheduled_at)-new Date(a.scheduled_at)).map((p) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe }; const st = statusOf(p); return (
+            <div key={p.id} onClick={()=>setSelected(p)} style={{ ...card, overflow:"hidden", cursor:"pointer" }}>
+              <div style={{ position:"relative", height:150, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"44" }}>
+                <span style={{ position:"absolute", top:7, left:7, width:24, height:24, borderRadius:7, background:"rgba(0,0,0,0.42)", display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ fontSize:13, color:"#fff" }}/></span>
+                {st==='published'
+                  ? <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#fff", background:"rgba(20,40,30,0.7)", padding:"2px 7px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
+                  : <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#3a2a08", background:"rgba(224,183,115,0.92)", padding:"2px 7px", borderRadius:20, fontWeight:700 }}><Check size={9}/>{L("Approved","موافق")}</span>}
+              </div>
+              <div style={{ padding:"9px 11px" }}>
+                <div style={{ fontSize:10.5, color:th.text3, marginBottom:3 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"short", day:"numeric", month:"short" })} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></div>
+                <div style={{ fontSize:11.5, color:th.text, lineHeight:1.45, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+              </div>
+            </div>
+          ); })}
+        </div>
+      )}
+
+      {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; const st = statusOf(selected); return (
+        <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
+              <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+            </div>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, borderRadius:20, padding:"4px 11px", marginBottom:14, background:st==='published'?th.successSoft:"rgba(224,183,115,0.16)", color:st==='published'?th.success:"#C9A24E" }}>{st==='published'?<><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>{L("Published","منشور")}</>:<><Check size={12}/>{L("Approved","موافق عليه")}</>}</div>
+            {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
+            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:14 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString(isAR?"ar":[], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
+            <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap" }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
+          </div>
+        </div>
+      ); })()}
+
+      {shareOpen && createPortal(
+        <div onClick={()=>setShareOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:420, maxWidth:"94vw", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              <h3 style={{ margin:0, fontSize:16, fontWeight:700 }}>{L("Share to client","مشاركة مع العميل")}</h3>
+              <button onClick={()=>setShareOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+            </div>
+            <p style={{ margin:"0 0 16px", fontSize:12.5, color:th.text2, lineHeight:1.55 }}>{monthLabel} &middot; <span className="tw-num">{publishedN}</span> {L("published","منشور")}, <span className="tw-num">{approvedN}</span> {L("approved","موافق عليه")}.</p>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+              <button onClick={openWA} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:"rgba(37,211,102,0.12)", border:"1px solid rgba(37,211,102,0.4)", color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><FaWhatsapp style={{ fontSize:17, color:"#25D366" }}/>WhatsApp</button>
+              <button onClick={openMail} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Mail size={16} color={th.accent}/>{L("Email","البريد")}</button>
+            </div>
+            <button onClick={downloadPDF} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:14 }}><Download size={15}/>{L("Download branded PDF","تنزيل PDF بعلامتك")}</button>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:th.card, border:`1px solid ${th.border}`, borderRadius:11, padding:"9px 12px" }}>
+              <Link size={13} color={th.text3}/>
+              <span style={{ flex:1, fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{shareLink}</span>
+              <button onClick={copyLink} style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", color:copied?th.success:th.accent, fontSize:11.5, fontWeight:600 }}>{copied?<><Check size={13}/>{L("Copied","تم النسخ")}</>:<><Copy size={13}/>{L("Copy","نسخ")}</>}</button>
+            </div>
+          </div>
+        </div>, document.body)}
+    </div>
+  );
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -3116,8 +3367,15 @@ function CalendarPage() {
   const [sel, setSel] = useState([]);
   const [sentCount, setSentCount] = useState(0);
   const [batchToken, setBatchToken] = useState("");
+  const [platFilter, setPlatFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [clearAsk, setClearAsk] = useState(false);
   const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
+  // Filters narrow the calendar/list live, without touching the header totals.
+  const fPosts = posts.filter(p => (platFilter === "all" || p.platform === platFilter) && (statusFilter === "all" || stOf(p.id) === statusFilter));
+  const filtersOn = platFilter !== "all" || statusFilter !== "all";
+  const presentPlats = Array.from(new Set(posts.map(p => p.platform).filter(Boolean)));
 
   const reschedule = async (postId, targetDate) => {
     if (!postId) return;
@@ -3147,7 +3405,7 @@ function CalendarPage() {
   const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const sameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
   const isToday = (d) => sameDay(d, new Date());
-  const postsOn = (d) => posts.filter(p => sameDay(new Date(p.scheduled_at), d)).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+  const postsOn = (d) => fPosts.filter(p => sameDay(new Date(p.scheduled_at), d)).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
   const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
 
   const y = cursor.getFullYear(), m = cursor.getMonth();
@@ -3226,6 +3484,37 @@ function CalendarPage() {
         </div>
       </div>
 
+      {/* Filter bar — platform + status, with a persistent Today */}
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 13px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
+        <span style={{ fontSize:10, color:th.text3, fontWeight:700, letterSpacing:0.5 }}>{L("PLATFORM","المنصة")}</span>
+        <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+          <button onClick={()=>setPlatFilter("all")} style={{ padding:"5px 11px", borderRadius:8, fontSize:11, cursor:"pointer", border:"none", background:platFilter==="all"?th.gradient:"transparent", color:platFilter==="all"?"#fff":th.text2, fontWeight:platFilter==="all"?600:400 }}>{L("All","الكل")}</button>
+          {presentPlats.map(pk => { const info = PLAT[pk] || { name:pk, color:th.accent, Icon:Globe }; const active = platFilter===pk; return (
+            <button key={pk} title={info.name} onClick={()=>setPlatFilter(active?"all":pk)} style={{ width:28, height:28, borderRadius:8, border:`1px solid ${active?info.color:th.border}`, background:active?info.color+"22":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><info.Icon style={{ fontSize:14, color:info.color }}/></button>
+          ); })}
+        </div>
+        <span style={{ width:1, height:18, background:th.border }}/>
+        <span style={{ fontSize:10, color:th.text3, fontWeight:700, letterSpacing:0.5 }}>{L("STATUS","الحالة")}</span>
+        <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+          <button onClick={()=>setStatusFilter("all")} style={{ padding:"5px 11px", borderRadius:8, fontSize:11, cursor:"pointer", border:"none", background:statusFilter==="all"?th.gradient:"transparent", color:statusFilter==="all"?"#fff":th.text2, fontWeight:statusFilter==="all"?600:400 }}>{L("All","الكل")}</button>
+          {["approved","pending","changes"].map(sk => { const s = APPR_STATUS[sk]; const active = statusFilter===sk; return (
+            <button key={sk} onClick={()=>setStatusFilter(active?"all":sk)} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, fontSize:11, cursor:"pointer", border:`1px solid ${active?s.color:th.border}`, background:active?s.color+"1e":"transparent", color:active?th.text:th.text2 }}><span style={{ width:6, height:6, borderRadius:"50%", background:s.color }}/>{L(s.label,s.ar)}</button>
+          ); })}
+        </div>
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
+          {filtersOn && (clearAsk ? (
+            <span style={{ display:"inline-flex", alignItems:"center", gap:8, fontSize:11, color:th.text2 }}>
+              {L("Clear all filters?","مسح كل الفلاتر؟")}
+              <button onClick={()=>{ setPlatFilter("all"); setStatusFilter("all"); setClearAsk(false); }} style={{ fontSize:11, fontWeight:700, color:th.danger, background:"none", border:"none", cursor:"pointer" }}>{L("Yes","نعم")}</button>
+              <button onClick={()=>setClearAsk(false)} style={{ fontSize:11, color:th.text3, background:"none", border:"none", cursor:"pointer" }}>{L("No","لا")}</button>
+            </span>
+          ) : (
+            <button onClick={()=>setClearAsk(true)} style={{ fontSize:11, color:th.text3, background:"none", border:"none", cursor:"pointer" }}>{L("Clear","مسح")}</button>
+          ))}
+          <button onClick={()=>setCursor(new Date())} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 13px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11.5, cursor:"pointer" }}><Calendar size={13}/>{L("Today","اليوم")}</button>
+        </div>
+      </div>
+
       {view !== "list" && (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -3233,7 +3522,6 @@ function CalendarPage() {
           <button onClick={()=>go(1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronRight size={16}/></button>
           <div style={{ fontSize:16, fontWeight:600, marginLeft:6 }}>{label}</div>
         </div>
-        <button onClick={()=>setCursor(new Date())} style={{ padding:"7px 14px", borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}>{L("Today","اليوم")}</button>
       </div>
       )}
 
@@ -3255,8 +3543,8 @@ function CalendarPage() {
         </div>
         )}
         {view === "list" ? (() => {
-          const sorted = [...posts].sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
-          if (sorted.length === 0) return <div style={{ padding:"48px 24px", textAlign:"center", color:th.text2, fontSize:13 }}><Calendar size={30} style={{ opacity:0.3, marginBottom:12 }}/><div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Nothing scheduled yet","لا يوجد شيء مجدول بعد")}</div><div>{L("Schedule a post and it'll show up here, grouped by day.","جدوِل منشوراً وسيظهر هنا مرتباً حسب اليوم.")}</div></div>;
+          const sorted = [...fPosts].sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+          if (sorted.length === 0) return <div style={{ padding:"48px 24px", textAlign:"center", color:th.text2, fontSize:13 }}><Calendar size={30} style={{ opacity:0.3, marginBottom:12 }}/><div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{filtersOn ? L("No posts match these filters","لا توجد منشورات مطابقة للفلاتر") : L("Nothing scheduled yet","لا يوجد شيء مجدول بعد")}</div><div>{filtersOn ? L("Try clearing a filter to see more.","امسح أحد الفلاتر لرؤية المزيد.") : L("Schedule a post and it'll show up here, grouped by day.","جدوِل منشوراً وسيظهر هنا مرتباً حسب اليوم.")}</div></div>;
           const groups = []; let lastKey = null;
           for (const p of sorted) { const d = new Date(p.scheduled_at); const key = d.toDateString(); if (key !== lastKey) { groups.push({ key, date:d, items:[] }); lastKey = key; } groups[groups.length-1].items.push(p); }
           const tmr = new Date(); tmr.setDate(tmr.getDate()+1);
@@ -6579,7 +6867,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     <div>
       <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(circle, rgba(150,175,205,0.045) 1px, transparent 1px), radial-gradient(ellipse 60% 50% at 50% -6%, rgba(110,140,171,0.20), transparent 60%), #080B11", backgroundSize:"24px 24px, 100% 100%, 100% 100%", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:20,background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",color:"#A6B8CF",fontSize:10.5,fontWeight:600,letterSpacing:0.3,marginBottom:22}}><span style={{width:5,height:5,borderRadius:"50%",background:"#7FC9A8",boxShadow:"0 0 0 3px rgba(127,201,168,0.18)"}}/>SOCIAL INTELLIGENCE, BUILT FOR EVERY BRAND</div>
-        <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:760,margin:"0 auto 18px"}}>All your social media,<br/><span style={grad}>managed in one click.</span></h1>
+        <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:760,margin:"0 auto 18px"}}>All Your Social Media<br/><span style={grad}>Managed in One Click.</span></h1>
         <p style={{fontSize:16,color:"#8A9BB8",maxWidth:540,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, reply and report across every network from one place — the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
           <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)",textAlign:"center"}}>Start free trial</button>
@@ -8514,6 +8802,7 @@ export default function TawasloApp() {
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;
+    if (page==="calendar") return <CalendarRoomPage/>;
     if (page==="aistudio") return <AIStudioPage/>;
     if (page==="campaigns") return <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
