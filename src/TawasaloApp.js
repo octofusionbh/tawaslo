@@ -3363,6 +3363,28 @@ function CalendarPage() {
   );
 }
 
+// Scroll-reveal wrapper — fades/slides its child up when it enters the viewport.
+// On mobile (disabled), renders instantly with no motion.
+function Reveal({ children, delay = 0, disabled = false, style }) {
+  const ref = useRef(null);
+  const [vis, setVis] = useState(false);
+  useEffect(() => {
+    if (disabled) { setVis(true); return; }
+    const el = ref.current; if (!el) return;
+    if (typeof IntersectionObserver === "undefined") { setVis(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) { setVis(true); io.disconnect(); } });
+    }, { threshold: 0.12 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [disabled]);
+  return (
+    <div ref={ref} style={{ ...style, opacity: vis ? 1 : 0, transform: vis ? "none" : "translateY(24px)", transition: `opacity .6s cubic-bezier(.2,.7,.2,1) ${delay}ms, transform .6s cubic-bezier(.2,.7,.2,1) ${delay}ms` }}>
+      {children}
+    </div>
+  );
+}
+
 // Reusable polished empty state — gradient-glow icon, title, body, optional CTA.
 function EmptyState({ Icon, title, body, cta, onCta, compact }) {
   const th = useTheme();
@@ -6557,10 +6579,10 @@ function LandingPage({ onGetStarted, onLogin }) {
     <div>
       <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(circle, rgba(150,175,205,0.045) 1px, transparent 1px), radial-gradient(ellipse 60% 50% at 50% -6%, rgba(110,140,171,0.20), transparent 60%), #080B11", backgroundSize:"24px 24px, 100% 100%, 100% 100%", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:20,background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",color:"#A6B8CF",fontSize:10.5,fontWeight:600,letterSpacing:0.3,marginBottom:22}}><span style={{width:5,height:5,borderRadius:"50%",background:"#7FC9A8",boxShadow:"0 0 0 3px rgba(127,201,168,0.18)"}}/>SOCIAL INTELLIGENCE, BUILT FOR EVERY BRAND</div>
-        <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:700,margin:"0 auto 18px"}}>One platform.<br/><span style={grad}>Every language. Every brand.</span></h1>
-        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:520,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, analyse and grow across every network — and the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
+        <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:760,margin:"0 auto 18px"}}>All your social media,<br/><span style={grad}>managed in one click.</span></h1>
+        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:540,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, reply and report across every network from one place — the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
-          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)"}}>Start free trial →</button>
+          <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)",textAlign:"center"}}>Start free trial</button>
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
         </div>
         <div style={{display:"flex",gap:20,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
@@ -6611,7 +6633,14 @@ function LandingPage({ onGetStarted, onLogin }) {
                 </div>
               </div>
               <div style={{flex:1,padding:16}}>
-                <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Marina Café &amp; Bistro</div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8}}>
+                  <div style={{fontSize:13,fontWeight:700}}>Marina Café &amp; Bistro</div>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"]].map(([Ic,c],i)=>(
+                      <div key={i} style={{width:21,height:21,borderRadius:6,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic style={{fontSize:11,color:c}}/></div>
+                    ))}
+                  </div>
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:14}}>
                   {[["Followers","77.6K","#7FC9A8"],["Reach","1.5M","#9DB6D6"],["Posts","128","#A78BFA"],["Engage","6.4%","#D9A45C"]].map(([l,v,c],i)=>(
                     <div key={i} style={{background:"#141923",border:"1px solid #232B38",borderRadius:10,padding:"10px 11px"}}><div style={{fontSize:9,color:"#7A8BA8",marginBottom:5}}>{l}</div><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div></div>
@@ -6738,18 +6767,24 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
             ))}
           </div>
           <div style={{marginTop:isMobile?28:34,paddingTop:24,borderTop:"1px solid #161D29"}}>
-            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.4,marginBottom:14,textAlign:"center"}}>WHAT YOU GET</div>
-            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
+            <style>{`.tw-getcard:hover{transform:translateY(-4px);border-color:#2C3A56;box-shadow:0 18px 40px rgba(0,0,0,0.45)}`}</style>
+            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.4,marginBottom:16,textAlign:"center"}}>WHAT YOU GET</div>
+            <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr 1fr":"repeat(4,1fr)",gap:14}}>
               {[
-                [Clock,"Hours back weekly","Plan a whole month in one sitting.","#7FC9A8"],
-                [Users,"Grow your audience","Post at the right time, every time.","#9DB6D6"],
-                [Building2,"Every client, one place","Separate workspaces, instant switching.","#D9A45C"],
-                [Languages,"Arabic + English","Built bilingual from day one.","#9FC2E4"],
-              ].map(([Ic,t,d,col],i)=>(
-                <div key={i} style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:13,padding:15}}>
-                  <Ic size={18} color={col}/>
-                  <div style={{fontSize:12.5,fontWeight:600,margin:"9px 0 3px"}}>{t}</div>
-                  <div style={{fontSize:10.5,color:"#7E8A9C",lineHeight:1.5}}>{d}</div>
+                [Clock,"Hours back weekly","Plan a whole month in one sitting — then let it run.","#7FC9A8","10x","faster planning"],
+                [Users,"Grow your audience","AI posts at the best time for every network.","#9DB6D6","+38%","avg. reach lift"],
+                [Building2,"Every client, one place","Separate workspaces, switch brands in a tap.","#D9A45C","∞","clients & brands"],
+                [Languages,"Arabic + English","Native bilingual captions, RTL and all.","#9FC2E4","2","languages, one click"],
+              ].map(([Ic,t,d,col,stat,statlbl],i)=>(
+                <div key={i} className="tw-getcard" style={{position:"relative",background:"linear-gradient(180deg,#0E131D,#0B0F17)",border:"1px solid #1E2838",borderRadius:16,padding:"18px 16px",overflow:"hidden",transition:"transform .18s ease, border-color .18s ease, box-shadow .18s ease"}}>
+                  <div style={{position:"absolute",top:-30,right:-30,width:90,height:90,borderRadius:"50%",background:`radial-gradient(circle, ${col}22, transparent 70%)`,pointerEvents:"none"}}/>
+                  <div style={{width:38,height:38,borderRadius:11,background:`${col}1c`,border:`1px solid ${col}33`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:13}}><Ic size={18} color={col}/></div>
+                  <div style={{fontSize:13.5,fontWeight:700,marginBottom:4,letterSpacing:-0.2}}>{t}</div>
+                  <div style={{fontSize:11,color:"#7E8A9C",lineHeight:1.55,marginBottom:13,minHeight:isMobile?"auto":34}}>{d}</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:6,paddingTop:11,borderTop:"1px solid #18212E"}}>
+                    <span className="tw-num" style={{fontSize:19,fontWeight:800,color:col,letterSpacing:-0.5}}>{stat}</span>
+                    <span style={{fontSize:9.5,color:"#6B7889",fontWeight:500}}>{statlbl}</span>
+                  </div>
                 </div>
               ))}
             </div>
@@ -6886,86 +6921,159 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:20}}>
 
-        {/* Publishing */}
+        {/* Publishing — text, visual */}
+        <Reveal disabled={isMobile}>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>PUBLISHING</div>
-            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish & schedule to all platforms</h3>
-            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Write once, publish everywhere. Schedule posts for the perfect time. Preview exactly how your post will look before it goes live.</p>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <div style={{padding:"5px 10px",borderRadius:20,background:"#E1306C18",border:"1px solid #E1306C",fontSize:11,fontWeight:700,color:"#E1306C",display:"flex",alignItems:"center",gap:5}}><FaInstagram/> Instagram</div>
-              <div style={{padding:"5px 10px",borderRadius:20,background:"#1877F218",border:"1px solid #1877F2",fontSize:11,fontWeight:700,color:"#1877F2",display:"flex",alignItems:"center",gap:5}}><FaFacebook/> Facebook</div>
-              <div style={{padding:"5px 10px",borderRadius:20,background:"#FF005018",border:"1px solid #FF0050",fontSize:11,fontWeight:700,color:"#FF0050",display:"flex",alignItems:"center",gap:5}}><FaTiktok/> TikTok</div>
-              <div style={{padding:"5px 10px",borderRadius:20,background:"#0A66C218",border:"1px solid #0A66C2",fontSize:11,fontWeight:700,color:"#0A66C2",display:"flex",alignItems:"center",gap:5}}><FaLinkedin/> LinkedIn</div>
+            <div style={{fontSize:11,fontWeight:700,color:"#9DB6D6",marginBottom:10,letterSpacing:1}}>PUBLISHING</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish and schedule to every network</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Write once, tailor it per platform, then publish now, schedule, or send for approval. Preview exactly how it looks before it goes live.</p>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+              {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"]].map(([Ic,c],i)=>(
+                <div key={i} style={{width:38,height:38,borderRadius:11,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic style={{fontSize:18,color:c}}/></div>
+              ))}
             </div>
           </div>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>SCHEDULE</div>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(3,1fr)":"repeat(7,1fr)",gap:4,marginBottom:12,textAlign:"center"}}>
               {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map(d=><div key={d} style={{fontSize:9,color:"#7A8BA8"}}>{d}</div>)}
-              {[["2",false],["3",true,"#4F6EF7"],["4",false],["5",true,"#E1306C"],["6",false],["7",true,"#4F6EF7"],["8",false]].map(([n,active,c])=>(
+              {[["2",false],["3",true,"#9DB6D6"],["4",false],["5",true,"#E1306C"],["6",false],["7",true,"#9DB6D6"],["8",false]].map(([n,active,c])=>(
                 <div key={n} style={{fontSize:10,padding:4,borderRadius:4,background:active?`${c}30`:"transparent",color:active?c:"#7A8BA8",fontWeight:active?700:400}}>{n}</div>
               ))}
             </div>
-            <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#4F6EF7",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#4F6EF7",fontSize:10}}>Tue 9:00am</span></div>
+            <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#9DB6D6",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#9DB6D6",fontSize:10}}>Tue 9:00am</span></div>
             <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#E1306C",display:"inline-block",flexShrink:0}}/>Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
           </div>
         </div>
+        </Reveal>
 
-        {/* AI Captions */}
+        {/* AI Captions — visual, text */}
+        <Reveal disabled={isMobile}>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:4}}>TOPIC</div>
             <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#7A8BA8",marginBottom:10}}>New summer collection launch</div>
             <div style={{display:"flex",gap:6,marginBottom:10}}>
-              <span style={{padding:"4px 10px",borderRadius:20,background:"#4F6EF730",fontSize:10,color:"#4F6EF7"}}>Instagram</span>
-              <span style={{padding:"4px 10px",borderRadius:20,background:"#7C3AED30",fontSize:10,color:"#7C3AED"}}>Exciting tone</span>
+              <span style={{padding:"4px 10px",borderRadius:20,background:"rgba(157,182,214,0.14)",border:"1px solid rgba(157,182,214,0.28)",fontSize:10,color:"#9DB6D6",display:"inline-flex",alignItems:"center",gap:5}}><FaInstagram style={{fontSize:10}}/>Instagram</span>
+              <span style={{padding:"4px 10px",borderRadius:20,background:"rgba(217,164,92,0.14)",border:"1px solid rgba(217,164,92,0.28)",fontSize:10,color:"#D9A45C"}}>Exciting tone</span>
             </div>
             <div style={{border:"1px solid #232B38",borderRadius:8,padding:10,marginBottom:8}}>
-              <div style={{fontSize:9,color:"#4F6EF7",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ENGLISH</div>
+              <div style={{fontSize:9,color:"#9DB6D6",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ENGLISH</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6}}>Summer is here & so is our new collection! ☀️ Fresh styles made for you. Shop now and shine! ✨ #SummerVibes #NewCollection</div>
             </div>
             <div style={{border:"1px solid #232B38",borderRadius:8,padding:10}}>
-              <div style={{fontSize:9,color:"#7C3AED",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ARABIC</div>
+              <div style={{fontSize:9,color:"#D9A45C",fontWeight:700,marginBottom:4,letterSpacing:0.5}}>ARABIC</div>
               <div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6,direction:"rtl",textAlign:"right"}}>الصيف هنا ومعه مجموعتنا الجديدة! ☀️ أزياء عصرية صُممت لك. تسوق الآن! ✨ #أزياء_الصيف #مجموعة_جديدة</div>
             </div>
           </div>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#7C3AED",marginBottom:10,letterSpacing:1}}>AI CAPTIONS</div>
-            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Write in Arabic & English — Simultaneously</h3>
-            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Our AI generates bilingual captions tailored to your brand voice, platform, and tone. Hashtags and emojis included — in both languages.</p>
+            <div style={{fontSize:11,fontWeight:700,color:"#D9A45C",marginBottom:10,letterSpacing:1}}>AI CAPTIONS</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Write Arabic and English at once</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Bilingual captions tuned to your brand voice, platform and tone. Hashtags and emojis come in both languages, with right to left handled natively.</p>
           </div>
         </div>
+        </Reveal>
 
-        {/* Analytics */}
+        {/* AI Image Studio — text, visual */}
+        <Reveal disabled={isMobile}>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:10,letterSpacing:1}}>ANALYTICS</div>
-            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Real data. Real insights.</h3>
-            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Track followers, engagement, and growth across all platforms in real time. Monthly reports ready for your clients.</p>
+            <div style={{fontSize:11,fontWeight:700,color:"#C8A6E8",marginBottom:10,letterSpacing:1}}>AI IMAGE STUDIO</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>On brand visuals in seconds</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Generate post ready images straight from a prompt. Every render gives you two mockups for a single credit, with alt text written in.</p>
+          </div>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:10,color:"#7A8BA8",fontWeight:700}}>PROMPT</span><span style={{fontSize:9,color:"#C8A6E8",background:"rgba(200,166,232,0.14)",border:"1px solid rgba(200,166,232,0.3)",borderRadius:20,padding:"2px 9px",fontWeight:700}}>1 credit · 2 mockups</span></div>
+            <div style={{background:"#0C1017",borderRadius:8,padding:"9px 11px",fontSize:11,color:"#C2CEDE",marginBottom:12,display:"flex",alignItems:"center",gap:7}}><Sparkles size={12} color="#C8A6E8"/>Iced latte on a marble table, soft daylight</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {["linear-gradient(135deg,#5A4632,#C8A06A)","linear-gradient(135deg,#3A4632,#8FB57F)"].map((g,i)=>(
+                <div key={i} style={{position:"relative",height:84,borderRadius:9,background:g,overflow:"hidden"}}><span style={{position:"absolute",bottom:6,left:6,fontSize:8.5,color:"#fff",background:"rgba(0,0,0,0.4)",borderRadius:5,padding:"2px 6px"}}>alt text ✓</span></div>
+              ))}
+            </div>
+          </div>
+        </div>
+        </Reveal>
+
+        {/* Visual Planner — visual, text */}
+        <Reveal disabled={isMobile}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:10,color:"#7A8BA8",fontWeight:700}}>JUNE</span><span style={{fontSize:9,color:"#7FC9A8"}}>14 scheduled</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+              {Array.from({length:35}).map((_,i)=>{ const day=i-0; const has={2:"#9DB6D6",4:"#E1306C",7:"#7FC9A8",9:"#D9A45C",13:"#9DB6D6",15:"#7FC9A8",18:"#E1306C",22:"#9DB6D6",25:"#D9A45C",27:"#7FC9A8"}; const c=has[i]; const inM=i>=1&&i<=30; return (
+                <div key={i} style={{height:24,borderRadius:5,background:c?`${c}26`:(inM?"#0C1017":"transparent"),border:c?`1px solid ${c}66`:"1px solid transparent",display:"flex",alignItems:"center",justifyContent:"center"}}>{c&&<span style={{width:5,height:5,borderRadius:"50%",background:c}}/>}</div>
+              ); })}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#7FC9A8",marginBottom:10,letterSpacing:1}}>VISUAL PLANNER</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>See and shape the whole month</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Drag posts across a real calendar, filter by platform or status, and bulk schedule a month in one sitting. Then let it run.</p>
+          </div>
+        </div>
+        </Reveal>
+
+        {/* Client Approvals — text, visual */}
+        <Reveal disabled={isMobile}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#5FBF92",marginBottom:10,letterSpacing:1,display:"flex",alignItems:"center",gap:8}}>CLIENT APPROVALS <span style={{fontSize:8.5,background:"rgba(95,191,146,0.16)",border:"1px solid rgba(95,191,146,0.4)",borderRadius:20,padding:"2px 8px"}}>NEW</span></div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Sign off the month before it goes live</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Send your client one secure link. They review the full calendar on any device and approve in a tap, and approved posts schedule themselves. No logins, no email threads.</p>
+          </div>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:10,color:"#7A8BA8",fontWeight:700}}>JUNE · 12 POSTS</span><span style={{fontSize:9,color:"#5FBF92",fontWeight:700}}>9 approved</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:6}}>
+              {["a","a","a","a","p","a","a","a","p","a","a","c"].map((s,i)=>{ const col={a:"#5FBF92",p:"#E0B973",c:"#D98A6A"}[s]; return (
+                <div key={i} style={{height:26,borderRadius:6,background:`${col}22`,border:`1px solid ${col}55`,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{width:6,height:6,borderRadius:"50%",background:col}}/></div>
+              ); })}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:12}}>
+              <div style={{flex:1,textAlign:"center",background:"#0C1017",borderRadius:8,padding:"7px 0",fontSize:10,color:"#5FBF92",fontWeight:700,border:"1px solid rgba(95,191,146,0.3)"}}>Approve all</div>
+              <div style={{flex:1,textAlign:"center",background:"#0C1017",borderRadius:8,padding:"7px 0",fontSize:10,color:"#7A8BA8"}}>Request a change</div>
+            </div>
+          </div>
+        </div>
+        </Reveal>
+
+        {/* Analytics — visual, text */}
+        <Reveal disabled={isMobile}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:12}}>FOLLOWER GROWTH · LAST 6 MONTHS</div>
+            <svg viewBox="0 -16 286 126" style={{width:"100%",height:"auto"}}>
+              <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#9DB6D6" stopOpacity="0.3"/><stop offset="100%" stopColor="#9DB6D6" stopOpacity="0"/></linearGradient></defs>
+              <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8 L260,110 L0,110 Z" fill="url(#cg)"/>
+              <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8" fill="none" stroke="#9DB6D6" strokeWidth="2.5" strokeLinecap="round"/>
+              {[[0,95],[52,82],[104,65],[156,45],[208,25],[260,8]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={i===5?4:3} fill="#9DB6D6" stroke={i===5?"#E8EFF8":"none"} strokeWidth="1.5"/>)}
+              {[["Jan",0],["Feb",46],["Mar",92],["Apr",138],["May",184],["Jun",230]].map(([m,x])=><text key={m} x={x} y="108" fontSize="8" fill="#3D5068">{m}</text>)}
+              <text x="256" y="-4" fontSize="9" fill="#9DB6D6" fontWeight="bold" textAnchor="middle">12.4K</text>
+            </svg>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#9FC2E4",marginBottom:10,letterSpacing:1}}>ANALYTICS</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Real data, client ready</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Track followers, reach and engagement across every network in real time, then export branded monthly reports your clients can read at a glance.</p>
             <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
-              {[["12.4K","Total Followers","#4F6EF7"],["+8.2%","Growth this month","#10B981"],["8.2K","Instagram","#E1306C"],["4.2K","Facebook","#1877F2"]].map(([v,l,c])=>(
+              {[["12.4K","Total followers","#9DB6D6"],["+8.2%","Growth this month","#5FBF92"],["8.2K","Instagram","#E1306C"],["4.2K","Facebook","#1877F2"]].map(([v,l,c])=>(
                 <div key={l} style={{background:"#141923",borderRadius:10,padding:12,textAlign:"center"}}><div style={{fontSize:18,fontWeight:900,color:c}}>{v}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{l}</div></div>
               ))}
             </div>
           </div>
-          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
-            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:12}}>FOLLOWER GROWTH · LAST 6 MONTHS</div>
-            <svg viewBox="0 -16 286 126" style={{width:"100%",height:"auto"}}>
-              <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
-              <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8 L260,110 L0,110 Z" fill="url(#cg)"/>
-              <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
-              {[[0,95],[52,82],[104,65],[156,45],[208,25],[260,8]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={i===5?4:3} fill="#4F6EF7" stroke={i===5?"#E8EFF8":"none"} strokeWidth="1.5"/>)}
-              {[["Jan",0],["Feb",46],["Mar",92],["Apr",138],["May",184],["Jun",230]].map(([m,x])=><text key={m} x={x} y="108" fontSize="8" fill="#3D5068">{m}</text>)}
-              <text x="256" y="-4" fontSize="9" fill="#4F6EF7" fontWeight="bold" textAnchor="middle">12.4K</text>
-            </svg>
-          </div>
         </div>
+        </Reveal>
 
-        {/* Inbox */}
+        {/* Unified Inbox — text, visual */}
+        <Reveal disabled={isMobile}>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#E0B973",marginBottom:10,letterSpacing:1}}>UNIFIED INBOX</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Every message in one place</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>DMs and comments from Instagram and Facebook land in a single stream. Reply, assign and resolve without ever leaving Tawaslo.</p>
+          </div>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
-            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#4F6EF7",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4}}>7</span></div>
+            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#E0B973",color:"#0C1017",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4,fontWeight:800}}>7</span></div>
             {[["Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C","/brand/ahmed.jpg"],["Sara Mohammed","What are your working hours?","4h","#1877F2","/brand/sara.jpg"],["Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050","/brand/khalid.jpg"]].map(([name,msg,time,c,photo])=>(
               <div key={name} style={{display:"flex",gap:10,alignItems:"center",padding:8,background:"#0C1017",borderRadius:8,borderLeft:`2px solid ${c}`,marginBottom:6}}>
                 <img src={photo} alt="" style={{width:28,height:28,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
@@ -6974,15 +7082,38 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
               </div>
             ))}
           </div>
+        </div>
+        </Reveal>
+
+        {/* Social Listening — visual, text */}
+        <Reveal disabled={isMobile}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}><span style={{fontSize:10,color:"#7A8BA8",fontWeight:700}}>MENTIONS</span><span style={{fontSize:9,color:"#7FC9A8"}}>▲ 32% this week</span></div>
+            {[["@marina_food","Best brunch in town, hands down 🙌","#E1306C","pos"],["@bahrain_eats","Has anyone tried their new menu?","#1877F2","neu"],["@foodie_bh","Obsessed with the iced latte ☕","#FF0050","pos"]].map(([who,txt,c,tone])=>(
+              <div key={who} style={{display:"flex",gap:9,alignItems:"flex-start",padding:8,background:"#0C1017",borderRadius:8,marginBottom:6}}>
+                <div style={{width:24,height:24,borderRadius:"50%",background:`${c}33`,border:`1px solid ${c}`,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:c}}>{who[1].toUpperCase()}</div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:10.5,fontWeight:700,color:"#C2CEDE"}}>{who}</div><div style={{fontSize:10,color:"#7A8BA8"}}>{txt}</div></div>
+                <span style={{width:7,height:7,borderRadius:"50%",background:tone==="pos"?"#5FBF92":"#9DB6D6",flexShrink:0,marginTop:4}}/>
+              </div>
+            ))}
+          </div>
           <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#F59E0B",marginBottom:10,letterSpacing:1}}>UNIFIED INBOX</div>
-            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>All messages. One place.</h3>
-            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Never miss a DM or comment again. Manage Instagram and Facebook messages together — reply, assign, and track all from one inbox.</p>
+            <div style={{fontSize:11,fontWeight:700,color:"#9DB6D6",marginBottom:10,letterSpacing:1}}>SOCIAL LISTENING</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Catch every mention and trend</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>See what people say about each brand across networks, read the sentiment at a glance, and spot trends before your competitors do.</p>
           </div>
         </div>
+        </Reveal>
 
-        {/* Multi-client */}
+        {/* Multi Client — text, visual */}
+        <Reveal disabled={isMobile}>
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#D9A45C",marginBottom:10,letterSpacing:1}}>MULTI CLIENT</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Every brand, its own space</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Each client gets a separate workspace, accounts and reports. Switch between brands in a single tap. Built for agencies and freelancers running many at once.</p>
+          </div>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>YOUR CLIENTS</div>
             {[["/brand/lumiere.jpg","Lumière Dining","Fine Dining","Active"],["/brand/velour.jpg","Velour Fashion","Retail & Fashion","Active"],["/brand/prime.jpg","Prime Properties","Real Estate","Active"],["/brand/motivo.jpg","Motivo Motors","Automotive","Pending"]].map(([logo,name,cat,status])=>(
@@ -6991,16 +7122,12 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
                   <div style={{width:28,height:28,borderRadius:6,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}><img src={logo} alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/></div>
                   <div><div style={{fontSize:12,fontWeight:600}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8"}}>{cat}</div></div>
                 </div>
-                <span style={{fontSize:10,color:status==="Active"?"#10B981":"#F59E0B",fontWeight:600}}>● {status}</span>
+                <span style={{fontSize:10,color:status==="Active"?"#5FBF92":"#E0B973",fontWeight:600}}>● {status}</span>
               </div>
             ))}
           </div>
-          <div>
-            <div style={{fontSize:11,fontWeight:700,color:"#4F6EF7",marginBottom:10,letterSpacing:1}}>MULTI-CLIENT</div>
-            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Manage all your clients from one place</h3>
-            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7}}>Switch between clients in one click. Each brand gets its own workspace, social accounts, and reports. Perfect for agencies and freelancers managing multiple brands.</p>
-          </div>
         </div>
+        </Reveal>
 
       </div>
     </div>
