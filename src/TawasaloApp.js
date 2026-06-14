@@ -3115,7 +3115,8 @@ function CalendarPage() {
   const [sendOpen, setSendOpen] = useState(false);
   const [sel, setSel] = useState([]);
   const [sentCount, setSentCount] = useState(0);
-  const stOf = (id) => apprOf[id] || apprStatusOf(id);
+  const [batchToken, setBatchToken] = useState("");
+  const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
 
   const reschedule = async (postId, targetDate) => {
@@ -3189,7 +3190,16 @@ function CalendarPage() {
   }));
   const pendingCount = apprRows.filter(r => r.st === "pending").length;
   const openPicker = () => { setSel(apprRows.filter(r => r.st !== "approved").map(r => r.id)); setPickerOpen(true); };
-  const confirmSend = () => { sel.forEach(id => setSt(id, "pending")); setSentCount(sel.length); setPickerOpen(false); setSendOpen(true); };
+  const confirmSend = async () => {
+    const tok = Math.random().toString(36).slice(2, 10);
+    setBatchToken(tok);
+    sel.forEach(id => setSt(id, "pending"));
+    setSentCount(sel.length);
+    setPickerOpen(false); setSendOpen(true);
+    // Stamp the batch token + pending status onto the chosen posts so the
+    // client's link (tawaslo.com/a/<token>) loads exactly these.
+    try { await supabase.from('posts').update({ appr_token: tok, appr_status: 'pending' }).in('id', sel); } catch (e) { /* columns may not exist yet */ }
+  };
   const chip = (p) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; return (
     <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
       <span title={L(APPR_STATUS[stOf(p.id)].label,APPR_STATUS[stOf(p.id)].ar)} style={{ width:6, height:6, borderRadius:"50%", background:APPR_STATUS[stOf(p.id)].color, flexShrink:0 }}/>
@@ -3348,7 +3358,7 @@ function CalendarPage() {
       ); })()}
 
       <SendPickerModal open={pickerOpen} onClose={()=>setPickerOpen(false)} th={th} L={L} rows={apprRows} sel={sel} setSel={setSel} onContinue={confirmSend}/>
-      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("plan-"+(selClient?.id||realClientId||"x")+"-"+sentCount)} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
+      <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={"tawaslo.com/a/" + (batchToken || "preview")} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
     </div>
   );
 }
