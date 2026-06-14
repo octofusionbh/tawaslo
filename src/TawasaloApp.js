@@ -2857,7 +2857,7 @@ function AIStudioPage() {
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
       else if (r.error) setImgErr(typeof r.error==='string'?r.error:'Could not generate.');
-      else if (r.images && r.images.length) { setImages(r.images); if (acct) { bumpImgUsed(acct, r.images.length); setCreditTick(t=>t+1); } }
+      else if (r.images && r.images.length) { setImages(r.images); if (acct) { bumpImgUsed(acct, 1); setCreditTick(t=>t+1); } }
       else setImgErr('Could not generate. Please try again.');
     } catch(e) { setImgErr('Something went wrong. Please try again.'); }
     setImgLoading(false);
@@ -3393,13 +3393,17 @@ function PublisherPage() {
   const [media, setMedia] = useState([]);
   const [selectedSlide, setSelectedSlide] = useState(null); // which image's alt text is being edited
   const [altBusy, setAltBusy] = useState(null);   // media id currently generating alt text (or 'all')
-  const [visionBusy, setVisionBusy] = useState(false); // "Read the image" in progress
   const [mediaWarning, setMediaWarning] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [igFormat, setIgFormat] = useState("feed");
   const [scheduleType, setScheduleType] = useState("now");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  const [apprShare, setApprShare] = useState(false);
+  const [apprLink2, setApprLink2] = useState("");
+  const [apprCount2, setApprCount2] = useState(0);
+  const [repeatType, setRepeatType] = useState("once");
+  const [repeatCount, setRepeatCount] = useState(4);
   const [firstComment, setFirstComment] = useState("");
   const [previewPlatform, setPreviewPlatform] = useState("ig");
   const [posting, setPosting] = useState(false);
@@ -3559,19 +3563,6 @@ function PublisherPage() {
     setAltBusy(null);
   };
 
-  // "Read the image" — vision describes the first photo and drops it into the AI topic to build from.
-  const readImage = async () => {
-    if (!firstImg?.url) return;
-    setVisionBusy(true); setShowAI(true);
-    try {
-      const res = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ mode:'vision', imageUrl: firstImg.url, details: aiTopic || "" }) });
-      const data = await res.json();
-      if (data.description) setAiTopic(data.description);
-    } catch (e) { /* non-fatal */ }
-    setVisionBusy(false);
-  };
-
   const saveDraft = async () => {
     if (!realClientId) return;
     const row = { client_id: realClientId, platform: selPlats[0] || 'ig', caption, image_url: images[0]?.url || video?.url || null, status: 'draft' };
@@ -3582,7 +3573,7 @@ function PublisherPage() {
   const loadDraft = (d) => { setCaption(d.caption || ""); setEditingDraftId(d.id); setMedia(d.image_url ? [{ id: 'd', url: d.image_url, type: 'image', name: 'media', uploading: false }] : []); setTab("compose"); };
   const deleteDraft = async (id) => { await supabase.from('posts').delete().eq('id', id); loadDrafts(); };
 
-  const handlePost = async () => {
+  const handlePost = async (apprMode) => {
     if (!caption.trim() || selectedAccounts.length === 0) return;
     if (trialEnded(userEmail)) {
       setUpgrade({ title:"Your free trial has ended", detail:"Upgrade to publish and schedule again. Your accounts, posts and analytics are all still here.", Icon:Lock });
@@ -3592,16 +3583,28 @@ function PublisherPage() {
       setUpgrade({ title:`You've reached your ${TRIAL.posts}-post trial limit`, detail:`Your free trial includes ${TRIAL.posts} posts so you can feel the full workflow. Upgrade for unlimited publishing and scheduling across all your brands.`, Icon:Send });
       return;
     }
+    const apprTok = apprMode === "client" ? Math.random().toString(36).slice(2, 10) : null;
     setPosting(true); setResults([]);
     const imgs = images.map(m => m.url);
     const imgAlts = images.map(m => (m.alt || "").trim());
     const out = [];
     for (const accId of selectedAccounts) {
       const acc = accounts.find(a => a.id === accId); if (!acc) continue;
-      if (scheduleType === "schedule" && scheduleDate && scheduleTime) {
-        const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-        const { error } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: scheduledAt }]);
-        out.push({ account: acc.account_name, success: !error, error: error?.message });
+      if ((scheduleType === "schedule" || scheduleType === "approval") && scheduleDate && scheduleTime) {
+        const baseDate = new Date(`${scheduleDate}T${scheduleTime}`);
+        const reps = repeatType === "once" ? 1 : repeatCount;
+        let ok = true, lastErr = null;
+        for (let n = 0; n < reps; n++) {
+          const d = new Date(baseDate);
+          if (repeatType === "daily") d.setDate(d.getDate() + n);
+          else if (repeatType === "weekly") d.setDate(d.getDate() + n * 7);
+          else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
+          const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
+          if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }
+          const { error } = await supabase.from('posts').insert([srow]);
+          if (error) { ok = false; lastErr = error.message; }
+        }
+        out.push({ account: acc.account_name, success: ok, error: lastErr });
       } else {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
@@ -3623,6 +3626,7 @@ function PublisherPage() {
     if (okCount && isTrialUser(userEmail)) bumpPosts(userEmail, okCount);
     if (out.every(r => r.success)) { if (editingDraftId) await supabase.from('posts').delete().eq('id', editingDraftId); resetComposer(); loadDrafts(); }
     setResults(out);
+    if (apprTok) { setApprLink2("tawaslo.com/a/" + apprTok); setApprCount2(out.filter(r => r.success).length); setApprShare(true); }
   };
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
@@ -3745,16 +3749,15 @@ function PublisherPage() {
           )}
 
           <div style={card}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:9 }}>
-              <div style={{ fontSize:12, color:th.text2 }}>{L("Caption","النص")}</div>
-              <div style={{ display:"flex", gap:7, alignItems:"center" }}>
-                {firstImg?.url && <button onClick={readImage} disabled={visionBusy} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}55`, borderRadius:8, padding:"5px 11px", cursor:"pointer", opacity:visionBusy?0.6:1 }}><ScanLine size={12}/>{visionBusy?L("Reading…","قراءة…"):L("Read the image","اقرأ الصورة")}</button>}
-                <button onClick={()=>setShowAI(!showAI)} style={{ display:"flex", alignItems:"center", gap:5, fontSize:11, color:"#fff", background:th.gradient, border:"none", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}><Sparkles size={12}/>{L("AI write","كتابة ذكية")}</button>
-              </div>
+            <div style={{ fontSize:12, color:th.text2, marginBottom:9 }}>{L("Caption","النص")}</div>
+            <div style={{ display:"flex", gap:6, marginBottom:11 }}>
+              <button onClick={()=>setShowAI(false)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px", borderRadius:10, border:`1.5px solid ${!showAI?th.accent:th.border}`, background:!showAI?th.accentSoft:th.card2, color:!showAI?th.accent:th.text2, fontSize:11.5, fontWeight:!showAI?600:400, cursor:"pointer" }}><Edit3 size={13}/>{L("I write my own","أكتبه بنفسي")}</button>
+              <button onClick={()=>setShowAI(true)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"8px", borderRadius:10, border:`1.5px solid ${showAI?th.accent:th.border}`, background:showAI?th.accentSoft:th.card2, color:showAI?th.accent:th.text2, fontSize:11.5, fontWeight:showAI?600:400, cursor:"pointer" }}><Sparkles size={13}/>{L("Ask AI to write it","اطلب من الذكاء كتابته")}</button>
             </div>
             {showAI && (
               <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:13, marginBottom:11 }}>
-                <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} placeholder="What's the post about?" style={{ ...inp, marginBottom:8 }}/>
+                <div style={{ fontSize:10.5, color:th.text3, marginBottom:6 }}>{L("Tell the AI what the post is about and it writes the caption for you.","أخبر الذكاء بموضوع المنشور وسيكتب لك النص.")}</div>
+                <input value={aiTopic} onChange={e=>setAiTopic(e.target.value)} placeholder={L("e.g. weekend brunch offer at the beach","مثال: عرض برانش نهاية الأسبوع على الشاطئ")} style={{ ...inp, marginBottom:8 }}/>
                 <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                   <select value={aiTone} onChange={e=>setAiTone(e.target.value)} style={{ ...inp, flex:1 }}>
                     <option value="engaging and professional">Engaging &amp; professional</option>
@@ -3837,12 +3840,12 @@ function PublisherPage() {
                 <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:700, color:"#E1306C", background:"#E1306C18", borderRadius:5, padding:"2px 7px" }}><FaInstagram style={{ fontSize:11 }}/>INSTAGRAM</span>
                 {images.length>1 && <span style={{ fontSize:9.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:5, padding:"2px 7px" }}>{L("SLIDE","شريحة")} <span className="tw-num">{images.findIndex(m=>m.id===effSlide)+1}</span></span>}
                 <span style={{ marginLeft:"auto", fontSize:10.5, color:altDone===images.length?th.success:th.text3 }}><span className="tw-num">{altDone}</span>/<span className="tw-num">{images.length}</span> {L("described","موصوفة")}</span>
-                {images.length>1 && <button onClick={generateAllAlt} disabled={altBusy!==null} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><Sparkles size={11}/>{altBusy==='all'?L("Writing…","كتابة…"):L("Generate all","توليد الكل")}</button>}
+                {images.length>1 && <button onClick={generateAllAlt} disabled={altBusy!==null} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><ScanLine size={11}/>{altBusy==='all'?L("Reading…","قراءة…"):L("Read all images","اقرأ كل الصور")}</button>}
               </div>
               {images.length>1 && <div style={{ fontSize:10.5, color:th.text3, marginBottom:8 }}>{L("Tap a slide above to describe it. Each carousel image keeps its own alt text.","اضغط على شريحة بالأعلى لوصفها. كل صورة في الكاروسيل لها نصها البديل.")}</div>}
               <div style={{ position:"relative" }}>
                 <textarea value={images.find(m=>m.id===effSlide)?.alt || ""} onChange={e=>setAlt(effSlide, e.target.value)} placeholder={L("Describe this image for people using screen readers…","صف هذه الصورة لمستخدمي قارئات الشاشة…")} rows={2} style={{ ...inp, resize:"vertical", lineHeight:1.5, paddingRight:108 }}/>
-                <button onClick={()=>generateAlt(effSlide)} disabled={altBusy!==null || !images.find(m=>m.id===effSlide)?.url} style={{ position:"absolute", top:8, right:8, display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"6px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><Sparkles size={11}/>{altBusy===effSlide?L("…","…"):L("Generate","توليد")}</button>
+                <button onClick={()=>generateAlt(effSlide)} disabled={altBusy!==null || !images.find(m=>m.id===effSlide)?.url} style={{ position:"absolute", top:8, right:8, display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"6px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><ScanLine size={11}/>{altBusy===effSlide?L("Reading…","قراءة…"):L("Read the image","اقرأ الصورة")}</button>
               </div>
               <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.")}</div>
             </div>
@@ -3855,16 +3858,36 @@ function PublisherPage() {
 
           <div style={card}>
             <div style={lbl}>When to post</div>
-            <div style={{ display:"flex", gap:8, marginBottom:scheduleType==="schedule"?12:0 }}>
-              {[["now","Now",Send],["schedule","Schedule",Calendar]].map(([k,t,Ic])=>(
-                <button key={k} onClick={()=>setScheduleType(k)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"9px", borderRadius:10, border:`1.5px solid ${scheduleType===k?th.accent:th.border}`, background:scheduleType===k?th.accentSoft:th.card2, color:scheduleType===k?th.accent:th.text2, fontSize:12, fontWeight:scheduleType===k?600:400, cursor:"pointer" }}><Ic size={13}/>{t}</button>
+            <div style={{ display:"flex", gap:6, marginBottom:(scheduleType==="schedule"||scheduleType==="approval")?12:0 }}>
+              {[["now",L("Publish now","انشر الآن"),Send],["schedule",L("Schedule","جدولة"),Calendar],["approval",L("Approval","موافقة"),Shield]].map(([k,t,Ic])=>(
+                <button key={k} onClick={()=>setScheduleType(k)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"9px 4px", borderRadius:10, border:`1.5px solid ${scheduleType===k?th.accent:th.border}`, background:scheduleType===k?th.accentSoft:th.card2, color:scheduleType===k?th.accent:th.text2, fontSize:11, fontWeight:scheduleType===k?600:400, cursor:"pointer", whiteSpace:"nowrap" }}><Ic size={13}/>{t}</button>
               ))}
             </div>
-            {scheduleType==="schedule" && (
+            {(scheduleType==="schedule" || scheduleType==="approval") && (
               <div>
+                {scheduleType==="approval" && <div style={{ display:"flex", gap:8, alignItems:"flex-start", background:th.accentSoft, border:`1px solid ${th.accent}44`, borderRadius:10, padding:"9px 11px", marginBottom:12 }}><Shield size={14} color={th.accent} style={{ flexShrink:0, marginTop:1 }}/><span style={{ fontSize:11, color:th.text2, lineHeight:1.5 }}>{L("Held until your client approves. Set when it should publish once they sign off.","محجوز حتى موافقة العميل. حدّد وقت النشر بعد الموافقة.")}</span></div>}
                 <div style={{ display:"flex", gap:10, marginBottom:13 }}>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
+                </div>
+                <div style={{ marginBottom:13 }}>
+                  <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Repeat","التكرار")}</div>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {[["once",L("Once","مرة")],["daily",L("Daily","يومي")],["weekly",L("Weekly","أسبوعي")],["monthly",L("Monthly","شهري")]].map(([k,t])=>(
+                      <button key={k} onClick={()=>setRepeatType(k)} style={{ flex:1, padding:"7px", borderRadius:9, border:`1.5px solid ${repeatType===k?th.accent:th.border}`, background:repeatType===k?th.accentSoft:th.card2, color:repeatType===k?th.accent:th.text2, fontSize:11, fontWeight:repeatType===k?600:400, cursor:"pointer" }}>{t}</button>
+                    ))}
+                  </div>
+                  {repeatType!=="once" && (
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:9 }}>
+                      <span style={{ fontSize:11, color:th.text2 }}>{L("How many times","عدد المرات")}</span>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginInlineStart:"auto" }}>
+                        <button onClick={()=>setRepeatCount(n=>Math.max(2,n-1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>−</button>
+                        <span className="tw-num" style={{ fontSize:13, fontWeight:600, color:th.text, minWidth:18, textAlign:"center" }}>{repeatCount}</span>
+                        <button onClick={()=>setRepeatCount(n=>Math.min(30,n+1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>+</button>
+                      </div>
+                    </div>
+                  )}
+                  {repeatType!=="once" && scheduleDate && <div style={{ fontSize:9.5, color:th.text3, marginTop:7 }}>{L("Creates ","سيُنشئ ")}{repeatCount}{L(repeatType==="daily"?" posts, one each day from the date above.":repeatType==="weekly"?" posts, one each week from the date above.":" posts, one each month from the date above."," منشوراً تباعاً من التاريخ أعلاه.")}</div>}
                 </div>
                 <div style={{ fontSize:11, color:th.text2, marginBottom:3, display:"flex", alignItems:"center", gap:6 }}><Sparkles size={12} color={th.accent}/>{L("Best time to post on","أفضل وقت للنشر على")} {(PLAT[primaryPlat]||{}).name || "Instagram"}</div>
                 <div style={{ fontSize:9.5, color:th.text3, marginBottom:11 }}>{L("Brighter cells are when your audience is most active.","الخلايا الأفتح هي أوقات نشاط جمهورك.")}</div>
@@ -3894,8 +3917,9 @@ function PublisherPage() {
 
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?L("Update draft","تحديث المسودة"):L("Save draft","حفظ كمسودة")}</button>
-            <button onClick={handlePost} disabled={posting||!caption.trim()||selectedAccounts.length===0} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0)?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
+            <button onClick={()=>handlePost(scheduleType==="approval"?"client":scheduleType==="schedule"?"me":undefined)} disabled={posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="approval"?<><Shield size={15}/>{L("Send for approval","إرسال للموافقة")}</>:scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
           </div>
+          <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
         <div style={{ position:"sticky", top:0 }}>
@@ -3920,7 +3944,7 @@ function PublisherPage() {
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
               : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
-              <div style={{ position:"relative", height:isStory?330:210, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+              <div style={{ position:"relative", height:isStory?255:165, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ textAlign:"center" }}>{video ? <Send size={24}/> : <Image size={24}/>}<div style={{ fontSize:10, marginTop:6 }}>{video ? "Video" : "Add media →"}</div></div>}
                 {images.length>1 && <><span style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.55)", borderRadius:8, padding:"2px 8px", fontSize:10, color:"#fff" }}>1/{images.length}</span><div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:5 }}>{images.map((m,i)=><span key={m.id} style={{ width:6, height:6, borderRadius:"50%", background:i===0?"#fff":"rgba(255,255,255,0.45)" }}/>)}</div></>}
               </div>
@@ -3930,7 +3954,7 @@ function PublisherPage() {
             if (effPreviewPlat === "ig" && igFormat === "story") {
               // Story preview — full-bleed media, progress bar, avatar overlay, no caption/likes.
               return (
-                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:430 }}>
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:360 }}>
                   <div style={{ position:"absolute", inset:0 }}>
                     {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#2a2f3a,#11141b)", display:"flex", alignItems:"center", justifyContent:"center", color:"#7a8494", flexDirection:"column", gap:8 }}>{video?<Send size={26}/>:<Image size={26}/>}<div style={{ fontSize:11 }}>{video?"Video story":"Add a photo or video"}</div></div>}
                   </div>
@@ -6926,14 +6950,14 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
             </div>
           </div>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
-            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:12}}>FOLLOWER GROWTH — LAST 6 MONTHS</div>
-            <svg viewBox="0 0 260 110" style={{width:"100%",height:"auto"}}>
+            <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:12}}>FOLLOWER GROWTH · LAST 6 MONTHS</div>
+            <svg viewBox="0 -16 286 126" style={{width:"100%",height:"auto"}}>
               <defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4F6EF7" stopOpacity="0.3"/><stop offset="100%" stopColor="#4F6EF7" stopOpacity="0"/></linearGradient></defs>
               <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8 L260,110 L0,110 Z" fill="url(#cg)"/>
               <path d="M0,95 L52,82 L104,65 L156,45 L208,25 L260,8" fill="none" stroke="#4F6EF7" strokeWidth="2.5" strokeLinecap="round"/>
               {[[0,95],[52,82],[104,65],[156,45],[208,25],[260,8]].map(([x,y],i)=><circle key={i} cx={x} cy={y} r={i===5?4:3} fill="#4F6EF7" stroke={i===5?"#E8EFF8":"none"} strokeWidth="1.5"/>)}
               {[["Jan",0],["Feb",46],["Mar",92],["Apr",138],["May",184],["Jun",230]].map(([m,x])=><text key={m} x={x} y="108" fontSize="8" fill="#3D5068">{m}</text>)}
-              <text x="220" y="6" fontSize="9" fill="#4F6EF7" fontWeight="bold">12.4K</text>
+              <text x="256" y="-4" fontSize="9" fill="#4F6EF7" fontWeight="bold" textAnchor="middle">12.4K</text>
             </svg>
           </div>
         </div>
