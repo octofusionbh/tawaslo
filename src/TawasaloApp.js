@@ -149,6 +149,12 @@ const APPR_STATUS = {
   approved: { label:"Approved",          ar:"تمت الموافقة",  color:"#5FBF92" },
   changes:  { label:"Changes requested", ar:"طلب تعديل",      color:"#D98A6A" },
 };
+
+// ── Brand voice — per-client reply training, powers the AI Reply Assistant ──
+const VOICE_TONES = ["Warm","Friendly","Professional","Playful","Luxury","Bold"];
+const VOICE_DEFAULT = { tones:["Warm","Friendly"], emoji:"some", language:"match", signoff:"", facts:[], dos:[], donts:[], examples:[], learn:true, refAccount:true, refLinks:[], refPaste:"" };
+function loadVoice(clientId) { try { const v = localStorage.getItem("tw_voice_" + (clientId||"x")); return v ? { ...VOICE_DEFAULT, ...JSON.parse(v) } : null; } catch (e) { return null; } }
+function saveVoice(clientId, v) { try { localStorage.setItem("tw_voice_" + (clientId||"x"), JSON.stringify(v)); } catch (e) { /* ignore */ } }
 function clientNeedsApproval(clientId) { try { return clientId ? localStorage.getItem("tw_apprdef_" + clientId) !== "0" : true; } catch (e) { return true; } }
 function setClientNeedsApproval(clientId, on) { try { if (clientId) localStorage.setItem("tw_apprdef_" + clientId, on ? "1" : "0"); } catch (e) { /* ignore */ } }
 function apprToken(id) { try { let t = localStorage.getItem("tw_apprlink_" + id); if (!t) { t = Math.random().toString(36).slice(2, 10); localStorage.setItem("tw_apprlink_" + id, t); } return t; } catch (e) { return "preview"; } }
@@ -3714,7 +3720,6 @@ function PublisherPage() {
   const [apprCount2, setApprCount2] = useState(0);
   const [repeatType, setRepeatType] = useState("once");
   const [repeatCount, setRepeatCount] = useState(4);
-  const [firstComment, setFirstComment] = useState("");
   const [previewPlatform, setPreviewPlatform] = useState("ig");
   const [posting, setPosting] = useState(false);
   const [results, setResults] = useState([]);
@@ -3846,7 +3851,9 @@ function PublisherPage() {
   const effSlide = images.find(m => m.id === selectedSlide) ? selectedSlide : (images[0]?.id || null);
   const altDone = images.filter(m => (m.alt || "").trim()).length;
   // Alt text only matters for an Instagram feed photo/carousel — not Reels, not Stories, not other networks.
-  const showAlt = igSelected && igFormat === "feed" && images.length > 0;
+  // Alt text generator shows for any image post (write your own or let AI read the image),
+  // but not on Instagram Reels/Stories where Instagram ignores alt text.
+  const showAlt = images.length > 0 && !(igSelected && igFormat !== "feed");
 
   const generateAlt = async (id) => {
     const img = images.find(m => m.id === id); if (!img?.url) return;
@@ -3919,7 +3926,7 @@ function PublisherPage() {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, firstComment: firstComment || null, igFormat }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat }) });
         const data = await res.json();
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -4147,7 +4154,7 @@ function PublisherPage() {
             <div style={card}>
               <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
                 <div style={{ fontSize:12, color:th.text2 }}>{L("Alt text","النص البديل")}</div>
-                <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:700, color:"#E1306C", background:"#E1306C18", borderRadius:5, padding:"2px 7px" }}><FaInstagram style={{ fontSize:11 }}/>INSTAGRAM</span>
+                {igSelected && <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:700, color:"#E1306C", background:"#E1306C18", borderRadius:5, padding:"2px 7px" }}><FaInstagram style={{ fontSize:11 }}/>INSTAGRAM</span>}
                 {images.length>1 && <span style={{ fontSize:9.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:5, padding:"2px 7px" }}>{L("SLIDE","شريحة")} <span className="tw-num">{images.findIndex(m=>m.id===effSlide)+1}</span></span>}
                 <span style={{ marginLeft:"auto", fontSize:10.5, color:altDone===images.length?th.success:th.text3 }}><span className="tw-num">{altDone}</span>/<span className="tw-num">{images.length}</span> {L("described","موصوفة")}</span>
                 {images.length>1 && <button onClick={generateAllAlt} disabled={altBusy!==null} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"5px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><ScanLine size={11}/>{altBusy==='all'?L("Reading…","قراءة…"):L("Read all images","اقرأ كل الصور")}</button>}
@@ -4157,14 +4164,9 @@ function PublisherPage() {
                 <textarea value={images.find(m=>m.id===effSlide)?.alt || ""} onChange={e=>setAlt(effSlide, e.target.value)} placeholder={L("Describe this image for people using screen readers…","صف هذه الصورة لمستخدمي قارئات الشاشة…")} rows={2} style={{ ...inp, resize:"vertical", lineHeight:1.5, paddingRight:108 }}/>
                 <button onClick={()=>generateAlt(effSlide)} disabled={altBusy!==null || !images.find(m=>m.id===effSlide)?.url} style={{ position:"absolute", top:8, right:8, display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"6px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><ScanLine size={11}/>{altBusy===effSlide?L("Reading…","قراءة…"):L("Read the image","اقرأ الصورة")}</button>
               </div>
-              <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.")}</div>
+              <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{igSelected ? L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.") : L("Describe the image for screen readers — better accessibility and reach.","صف الصورة لقارئات الشاشة — وصول وانتشار أفضل.")}</div>
             </div>
           )}
-
-          <div style={card}>
-            <div style={lbl}><MessageCircle size={13} style={{ verticalAlign:-2, marginRight:5 }}/>First comment <span style={{ color:th.text3 }}>(optional &middot; great for hashtags)</span></div>
-            <input value={firstComment} onChange={e=>setFirstComment(e.target.value)} placeholder="#hashtags posted as the first comment…" style={inp}/>
-          </div>
 
           <div style={card}>
             <div style={lbl}>When to post</div>
@@ -5904,6 +5906,123 @@ ${topPosts.length > 0 ? `<div class="page">
   );
 }
 
+// Brand voice drawer — references in, voice out. Stored per client; the AI Reply
+// Assistant reads this so every reply for the account stays on-brand and consistent.
+function BrandVoiceDrawer({ clientId, clientName, th, L, onClose }) {
+  const [v, setV] = useState(() => loadVoice(clientId) || VOICE_DEFAULT);
+  const [draft, setDraft] = useState({ facts:"", dos:"", donts:"", examples:"", link:"" });
+  const [built, setBuilt] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const set = (k, val) => setV(p => ({ ...p, [k]: val }));
+  const toggleTone = (t) => setV(p => ({ ...p, tones: p.tones.includes(t) ? p.tones.filter(x=>x!==t) : [...p.tones, t] }));
+  const addTo = (k) => { const val = (draft[k]||"").trim(); if (!val) return; setV(p => ({ ...p, [k]: [...p[k], val] })); setDraft(d => ({ ...d, [k]: "" })); };
+  const removeFrom = (k, i) => setV(p => ({ ...p, [k]: p[k].filter((_,j)=>j!==i) }));
+  const addLink = () => { const val = (draft.link||"").trim(); if (!val) return; setV(p => ({ ...p, refLinks:[...p.refLinks, val] })); setDraft(d => ({ ...d, link:"" })); };
+  const build = () => { const lines = (v.refPaste||"").split("\n").map(s=>s.trim()).filter(Boolean); setV(p => ({ ...p, examples: Array.from(new Set([...p.examples, ...lines])).slice(0,12) })); setBuilt(true); };
+  const save = () => { saveVoice(clientId, v); setSaved(true); setTimeout(onClose, 600); };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:13, padding:14 };
+  const lbl = { fontSize:10, color:th.text3, fontWeight:700, letterSpacing:0.5, marginBottom:9 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:12, outline:"none" };
+  const chip = (active) => ({ fontSize:11, padding:"5px 12px", borderRadius:8, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:"transparent", color:active?th.text:th.text2 });
+
+  const ListEditor = ({ k, placeholder, color }) => (
+    <div>
+      <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
+        {v[k].map((it, i) => (
+          <div key={i} style={{ display:"flex", alignItems:"center", gap:8, background:th.card2, borderRadius:9, padding:"7px 10px" }}>
+            {color && <span style={{ width:6, height:6, borderRadius:"50%", background:color, flexShrink:0 }}/>}
+            <span style={{ flex:1, fontSize:11.5, color:th.text }}>{it}</span>
+            <button onClick={()=>removeFrom(k, i)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={14}/></button>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:"flex", gap:7 }}>
+        <input value={draft[k]} onChange={e=>setDraft(d=>({ ...d, [k]:e.target.value }))} onKeyDown={e=>{ if(e.key==="Enter") addTo(k); }} placeholder={placeholder} style={inp}/>
+        <button onClick={()=>addTo(k)} style={{ padding:"0 13px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer", flexShrink:0 }}><Plus size={14}/></button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:70, display:"flex", justifyContent:"flex-end" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:460, maxWidth:"94vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, overflowY:"auto" }}>
+        <div style={{ position:"sticky", top:0, background:th.surface, borderBottom:`1px solid ${th.border}`, padding:"16px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:2 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><MessageCircle size={17} color={th.accent}/><div><div style={{ fontSize:14, fontWeight:600 }}>{L("Brand voice","نبرة العلامة")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+        </div>
+
+        <div style={{ padding:"16px 20px", display:"flex", flexDirection:"column", gap:13 }}>
+          {/* References */}
+          <div style={{ ...card, border:`1px solid ${th.accent}55` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:11 }}><Sparkles size={14} color={th.accent}/><span style={{ fontSize:12.5, fontWeight:600 }}>{L("Start from references","ابدأ من أمثلة")}</span></div>
+            <div onClick={()=>set("refAccount", !v.refAccount)} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:11, cursor:"pointer" }}>
+              <span style={{ width:34, height:20, borderRadius:11, background:v.refAccount?th.accent:th.border, position:"relative", flexShrink:0, transition:"background .2s" }}><span style={{ position:"absolute", top:2, left:v.refAccount?16:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
+              <div><div style={{ fontSize:12, color:th.text }}>{L("Learn from the connected account","تعلّم من الحساب المرتبط")}</div><div style={{ fontSize:10.5, color:th.text3 }}>{L("Reads recent posts & replies","يقرأ المنشورات والردود الأخيرة")}</div></div>
+            </div>
+            <textarea value={v.refPaste} onChange={e=>set("refPaste", e.target.value)} placeholder={L("Paste a few replies or captions, one per line — examples of how you talk…","الصق بعض الردود أو التعليقات، كل سطر مثال…")} style={{ ...inp, minHeight:64, resize:"vertical", fontFamily:"inherit" }}/>
+            <div style={{ display:"flex", gap:7, marginTop:9 }}>
+              <input value={draft.link} onChange={e=>setDraft(d=>({ ...d, link:e.target.value }))} onKeyDown={e=>{ if(e.key==="Enter") addLink(); }} placeholder={L("Add a link (website, menu)","أضف رابطاً (الموقع، القائمة)")} style={inp}/>
+              <button onClick={addLink} style={{ padding:"0 13px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer", flexShrink:0 }}><Link size={14}/></button>
+            </div>
+            {v.refLinks.length>0 && <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>{v.refLinks.map((l,i)=><span key={i} style={{ fontSize:10.5, color:th.text2, background:th.card2, borderRadius:7, padding:"3px 9px", display:"inline-flex", alignItems:"center", gap:5 }}>{l}<XCircle size={11} style={{ cursor:"pointer" }} onClick={()=>removeFrom("refLinks", i)}/></span>)}</div>}
+            <button onClick={build} style={{ width:"100%", marginTop:11, display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"10px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Wand2 size={14}/>{built?L("Voice updated from references","تم التحديث من الأمثلة"):L("Build the voice","ابنِ النبرة")}</button>
+            {built && <div style={{ fontSize:11, color:th.success, marginTop:8, display:"flex", alignItems:"center", gap:6 }}><CheckCircle size={12}/>{L("Pulled your examples in — refine below.","تم سحب أمثلتك — حسّنها بالأسفل.")}</div>}
+          </div>
+
+          {/* Personality */}
+          <div style={card}>
+            <div style={lbl}>{L("PERSONALITY","الشخصية")}</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+              {VOICE_TONES.map(t => <span key={t} onClick={()=>toggleTone(t)} style={chip(v.tones.includes(t))}>{t}</span>)}
+            </div>
+          </div>
+
+          {/* Language / emoji / sign-off */}
+          <div style={card}>
+            <div style={lbl}>{L("REPLY LANGUAGE","لغة الرد")}</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:13 }}>
+              {[["match",L("Match the customer","حسب العميل")],["en",L("English","الإنجليزية")],["ar",L("Arabic","العربية")],["both",L("Both","كلاهما")]].map(([k,t])=><span key={k} onClick={()=>set("language", k)} style={chip(v.language===k)}>{t}</span>)}
+            </div>
+            <div style={lbl}>{L("EMOJI","الرموز")}</div>
+            <div style={{ display:"flex", gap:6, marginBottom:13 }}>
+              {[["none",L("None","بدون")],["some",L("A little","قليل")],["lots",L("Lots","كثير")]].map(([k,t])=><span key={k} onClick={()=>set("emoji", k)} style={chip(v.emoji===k)}>{t}</span>)}
+            </div>
+            <div style={lbl}>{L("SIGN-OFF","التوقيع")}</div>
+            <input value={v.signoff} onChange={e=>set("signoff", e.target.value)} placeholder={L("e.g. — Marina Café 🤍","مثال: — مارينا كافيه 🤍")} style={inp}/>
+          </div>
+
+          {/* Key facts */}
+          <div style={card}>
+            <div style={lbl}>{L("KEY FACTS · ANSWERED CONSISTENTLY","حقائق · يرد عليها بثبات")}</div>
+            <ListEditor k="facts" placeholder={L("e.g. Delivery: 30–45 min in the city","مثال: التوصيل: ٣٠–٤٥ دقيقة")} color={th.accent}/>
+          </div>
+
+          {/* Do / Don't */}
+          <div style={card}>
+            <div style={lbl}>{L("ALWAYS","دائماً")}</div>
+            <div style={{ marginBottom:13 }}><ListEditor k="dos" placeholder={L("e.g. Always thank them","مثال: اشكرهم دائماً")} color={th.success}/></div>
+            <div style={lbl}>{L("NEVER","أبداً")}</div>
+            <ListEditor k="donts" placeholder={L("e.g. Never promise discounts","مثال: لا تعد بخصومات")} color="#D98A6A"/>
+          </div>
+
+          {/* Examples */}
+          <div style={card}>
+            <div style={lbl}>{L("EXAMPLE REPLIES · IT MIMICS THESE","أمثلة ردود · يحاكيها")}</div>
+            <ListEditor k="examples" placeholder={L("Paste a reply you love","الصق رداً يعجبك")} color={th.accent}/>
+            <div onClick={()=>set("learn", !v.learn)} style={{ display:"flex", alignItems:"center", gap:9, marginTop:11, cursor:"pointer" }}>
+              <span style={{ width:32, height:18, borderRadius:10, background:v.learn?th.accent:th.border, position:"relative", flexShrink:0 }}><span style={{ position:"absolute", top:2, left:v.learn?16:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
+              <span style={{ fontSize:11.5, color:th.text2 }}>{L("Keep learning from my edits & approved replies","استمر بالتعلّم من تعديلاتي وردودي")}</span>
+            </div>
+          </div>
+
+          <button onClick={save} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", marginBottom:8 }}>{saved?<><CheckCircle size={15}/>{L("Saved","تم الحفظ")}</>:<><CheckCircle size={15}/>{L("Save brand voice","حفظ النبرة")}</>}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InboxPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -5923,6 +6042,7 @@ function InboxPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [apiError, setApiError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
   const SAMPLE = [
@@ -6056,8 +6176,12 @@ function InboxPage() {
           <button onClick={sampleMode?exitSample:loadSample} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5}}>
             <Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview","معاينة")}
           </button>
+          <button onClick={()=>setVoiceOpen(true)} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${th.border}`, background:th.gradient, color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+            <Sparkles size={12}/>{L("Brand voice","نبرة العلامة")}
+          </button>
         </div>
       </div>
+      {voiceOpen && <BrandVoiceDrawer clientId={realClientId} clientName={selClient?.name} th={th} L={L} onClose={()=>setVoiceOpen(false)}/>}
 
       {!loading && messages.length>0 && (
         <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:14, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
