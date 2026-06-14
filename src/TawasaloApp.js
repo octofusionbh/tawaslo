@@ -6612,7 +6612,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{padding:isMobile?"56px 18px":"78px 32px",background:"#080B11",borderTop:"1px solid #232B38"}}>
         <div style={{maxWidth:1000,margin:"0 auto",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 320px",gap:44,alignItems:"center"}}>
           <div>
-            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10.5,color:"#9DB6D6",background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",padding:"5px 12px",borderRadius:20,letterSpacing:0.4,fontWeight:600}}><Sparkles size={12}/>NEW · CLIENT APPROVALS</span>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10.5,color:"#9DB6D6",background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",padding:"5px 12px",borderRadius:20,letterSpacing:0.4,fontWeight:600}}><Sparkles size={12}/>SEAMLESS CLIENT APPROVALS</span>
             <h2 style={{fontSize:isMobile?24:30,fontWeight:800,lineHeight:1.18,margin:"16px 0 12px",letterSpacing:-0.6}}>Sign off the whole month <span style={grad}>before a single post goes live.</span></h2>
             <p style={{fontSize:14.5,color:"#8A9BB8",lineHeight:1.65,maxWidth:430,margin:0}}>Send your client one secure link. They review the full calendar on any device, approve everything in a tap or request a change, and approved posts schedule themselves. No logins, no email threads, no screenshots.</p>
             <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:18}}>
@@ -6942,9 +6942,9 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>INBOX <span style={{background:"#4F6EF7",color:"#fff",borderRadius:10,padding:"1px 7px",fontSize:9,marginLeft:4}}>7</span></div>
-            {[["Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C",20],["Sara Mohammed","What are your working hours?","4h","#1877F2",330],["Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050",35]].map(([name,msg,time,c,hue])=>(
+            {[["Ahmed Al-Mansoori","Love your latest post! Can you share more?","2h","#E1306C","/brand/ahmed.jpg"],["Sara Mohammed","What are your working hours?","4h","#1877F2","/brand/sara.jpg"],["Khalid Hassan","Great content, keep it up! 🔥","6h","#FF0050","/brand/khalid.jpg"]].map(([name,msg,time,c,photo])=>(
               <div key={name} style={{display:"flex",gap:10,alignItems:"center",padding:8,background:"#0C1017",borderRadius:8,borderLeft:`2px solid ${c}`,marginBottom:6}}>
-                <BlurAvatar size={28} hue={hue}/>
+                <img src={photo} alt="" style={{width:28,height:28,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
                 <div style={{flex:1,minWidth:0}}><div style={{fontSize:11,fontWeight:700}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{msg}</div></div>
                 <div style={{fontSize:9,color:"#7A8BA8",flexShrink:0}}>{time}</div>
               </div>
@@ -6961,10 +6961,10 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
         <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
           <div style={{background:"#141923",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
             <div style={{fontSize:10,color:"#7A8BA8",fontWeight:700,marginBottom:10}}>YOUR CLIENTS</div>
-            {[["🍽","Lumière Dining","Fine Dining","#E1306C","#F97316","Active"],["👗","Velour Fashion","Retail & Fashion","#7C3AED","#E1306C","Active"],["🏠","Prime Properties","Real Estate","#4F6EF7","#10B981","Active"],["🚗","Motivo Motors","Automotive","#F59E0B","#EF4444","Pending"]].map(([icon,name,cat,c1,c2,status])=>(
+            {[["/brand/lumiere.jpg","Lumière Dining","Fine Dining","Active"],["/brand/velour.jpg","Velour Fashion","Retail & Fashion","Active"],["/brand/prime.jpg","Prime Properties","Real Estate","Active"],["/brand/motivo.jpg","Motivo Motors","Automotive","Pending"]].map(([logo,name,cat,status])=>(
               <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",background:"#0C1017",borderRadius:8,marginBottom:6}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <div style={{width:28,height:28,borderRadius:6,background:`linear-gradient(135deg,${c1},${c2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13}}>{icon}</div>
+                  <div style={{width:28,height:28,borderRadius:6,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}><img src={logo} alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/></div>
                   <div><div style={{fontSize:12,fontWeight:600}}>{name}</div><div style={{fontSize:10,color:"#7A8BA8"}}>{cat}</div></div>
                 </div>
                 <span style={{fontSize:10,color:status==="Active"?"#10B981":"#F59E0B",fontWeight:600}}>● {status}</span>
