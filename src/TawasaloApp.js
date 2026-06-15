@@ -3174,7 +3174,8 @@ function CalendarRoomPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [platFilter, setPlatFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selected, setSelected] = useState(null);
+  const [slide, setSlide] = useState(null); // { posts:[...], i }
+  const touchX = useRef(0);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareToken] = useState(() => Math.random().toString(36).slice(2, 10));
@@ -3224,14 +3225,40 @@ function CalendarRoomPage() {
   const openMail = () => { window.location.href = "mailto:?subject=" + encodeURIComponent(monthLabel + " " + L("content calendar","تقويم المحتوى")) + "&body=" + encodeURIComponent(shareMsg); };
   const copyLink = () => { try { navigator.clipboard.writeText("https://" + shareLink); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
   const downloadPDF = () => {
-    const w = window.open('', '_blank', 'width=900,height=1200'); if (!w) return;
-    const cards = fPosts.slice().sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(p => {
+    const w = window.open('', '_blank', 'width=1040,height=1320'); if (!w) return;
+    const esc = (s) => (s || "").replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+    const firstDow = new Date(y, m, 1).getDay();
+    const daysIn = new Date(y, m + 1, 0).getDate();
+    const byDay = {};
+    fPosts.forEach(p => { const dd = new Date(p.scheduled_at).getDate(); (byDay[dd] = byDay[dd] || []).push(p); });
+    const DOWH = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    let cells = "";
+    for (let b = 0; b < firstDow; b++) cells += '<div class="cell empty"></div>';
+    for (let d = 1; d <= daysIn; d++) {
+      const ps = (byDay[d] || []);
+      const thumbs = ps.slice(0, 2).map(p => `<div class="th" style="${p.image_url ? `background-image:url('${esc(p.image_url)}')` : 'background:#dfe4ea'}"></div>`).join('');
+      const more = ps.length > 2 ? `<span class="more">+${ps.length - 2}</span>` : '';
+      cells += `<div class="cell"><span class="dn">${d}</span>${ps.length ? `<div class="ths">${thumbs}</div>` : ''}${more}</div>`;
+    }
+    const list = fPosts.slice().sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(p => {
       const info = PLAT[p.platform] || { name:p.platform }; const dt = new Date(p.scheduled_at); const st = statusOf(p);
-      const cap = (p.caption || "").replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
-      return `<div class="card"><div class="thumb">${p.image_url?`<img src="${p.image_url}"/>`:''}</div><div class="meta"><div class="d">${dt.toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'})} &middot; ${info.name}</div><div class="cap">${cap}</div><span class="st ${st}">${st==='published'?'Published':'Approved'}</span></div></div>`;
+      const lbl = st==='published'?'Published':st==='approved'?'Approved':'Scheduled';
+      return `<div class="row"><div class="rth" style="${p.image_url?`background-image:url('${esc(p.image_url)}')`:'background:#dfe4ea'}"></div><div class="rm"><div class="rd">${dt.toLocaleDateString('en',{weekday:'short',day:'numeric',month:'short'})} &middot; ${info.name} &middot; <span class="st ${st}">${lbl}</span></div><div class="rc">${esc((p.caption||'').slice(0,140))}</div></div></div>`;
     }).join('');
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${(selClient?.name||'Tawaslo')} — ${monthLabel}</title><style>body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:30px;color:#11161d}.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4F6B8C;padding-bottom:14px;margin-bottom:20px}.hd h1{margin:0;font-size:22px;font-weight:800}.sub{color:#667085;font-size:13px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{border:1px solid #e3e6ea;border-radius:12px;overflow:hidden}.thumb{height:148px;background:#eef1f4}.thumb img{width:100%;height:100%;object-fit:cover;display:block}.meta{padding:10px 11px}.d{font-size:11px;color:#667085;margin-bottom:5px}.cap{font-size:12px;line-height:1.45;margin-bottom:9px;min-height:32px}.st{display:inline-block;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}.st.published{background:#e6f5ee;color:#1f7a52}.st.approved{background:#fbf2dd;color:#8a6516}@media print{.card{break-inside:avoid}}</style></head><body><div class="hd"><div><h1>${(selClient?.name||'Brand')} — Content calendar</h1><div class="sub">${monthLabel} &middot; ${publishedN} published &middot; ${approvedN} approved</div></div><div class="sub">Prepared with Tawaslo</div></div><div class="grid">${cards}</div></body></html>`);
-    w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) { /* ignore */ } }, 450);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(selClient?.name||'Tawaslo')} — ${monthLabel}</title><style>*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:28px;color:#11161d}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.cell,.row{break-inside:avoid}}
+.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4F6B8C;padding-bottom:12px;margin-bottom:16px}.hd h1{margin:0;font-size:21px;font-weight:800}.sub{color:#667085;font-size:12.5px}
+.dow{display:grid;grid-template-columns:repeat(7,1fr)}.dow div{font-size:10px;color:#98a0ad;font-weight:700;text-align:center;padding:5px 0}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid #e3e6ea;border-radius:10px;overflow:hidden;margin-bottom:22px}
+.cell{min-height:82px;border-right:1px solid #eef0f3;border-bottom:1px solid #eef0f3;position:relative}.cell.empty{background:#fafafa}
+.dn{position:absolute;top:4px;left:6px;font-size:10px;color:#667085;font-weight:700;z-index:2;text-shadow:0 1px 2px rgba(255,255,255,0.7)}
+.ths{display:flex;height:82px}.th{flex:1;background-size:cover;background-position:center}
+.more{position:absolute;bottom:4px;right:5px;font-size:9px;color:#fff;background:rgba(0,0,0,0.55);padding:1px 5px;border-radius:6px}
+.lt{font-size:11px;font-weight:700;letter-spacing:0.6px;color:#98a0ad;margin-bottom:10px}
+.row{display:flex;gap:11px;align-items:center;padding:9px 0;border-bottom:1px solid #eef0f3}.rth{width:44px;height:44px;border-radius:9px;background-size:cover;background-position:center;flex:0 0 auto}
+.rm{min-width:0}.rd{font-size:11px;color:#667085;margin-bottom:3px}.rc{font-size:12px;color:#27303c;line-height:1.4}
+.st{display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px}.st.published{background:#e6f5ee;color:#1f7a52}.st.approved{background:#fbf2dd;color:#8a6516}.st.scheduled{background:#eaf0f7;color:#3a5876}
+</style></head><body><div class="hd"><div><h1>${esc(selClient?.name||'Brand')} — Content calendar</h1><div class="sub">${monthLabel} &middot; ${monthPosts.length} posts &middot; ${publishedN} published &middot; ${scheduledN} scheduled</div></div><div class="sub">Prepared with Tawaslo</div></div><div class="dow">${DOWH.map(h=>`<div>${h}</div>`).join('')}</div><div class="cal">${cells}</div><div class="lt">ALL POSTS</div>${list}</body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) { /* ignore */ } }, 500);
   };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
@@ -3301,7 +3328,7 @@ function CalendarRoomPage() {
                   {dayPosts.length === 0 ? (
                     <div style={{ padding:6 }}><span className="tw-num" style={{ fontSize:11, fontWeight:today?700:500, color:today?"#fff":th.text3, background:today?th.accent:"transparent", width:19, height:19, borderRadius:"50%", display:"inline-flex", alignItems:"center", justifyContent:"center" }}>{d.getDate()}</span></div>
                   ) : (
-                    <div onClick={()=>setSelected(dayPosts[0])} style={{ cursor:"pointer", height:92, position:"relative" }}>
+                    <div onClick={()=>setSlide({ posts:dayPosts, i:0 })} style={{ cursor:"pointer", height:92, position:"relative" }}>
                       <div style={{ display:"flex", height:"100%" }}>
                         {dayPosts.slice(0,2).map((p,pi) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; const st = statusOf(p); return (
                           <div key={pi} style={{ position:"relative", flex:1, minWidth:0, overflow:"hidden", background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55" }}>
@@ -3325,7 +3352,7 @@ function CalendarRoomPage() {
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:12 }}>
           {fPosts.slice().sort((a,b)=> new Date(b.scheduled_at)-new Date(a.scheduled_at)).map((p) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe }; const st = statusOf(p); return (
-            <div key={p.id} onClick={()=>setSelected(p)} style={{ ...card, overflow:"hidden", cursor:"pointer" }}>
+            <div key={p.id} onClick={()=>setSlide({ posts:[p], i:0 })} style={{ ...card, overflow:"hidden", cursor:"pointer" }}>
               <div style={{ position:"relative", height:150, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"44" }}>
                 <span style={{ position:"absolute", top:7, left:7, width:24, height:24, borderRadius:7, background:"rgba(0,0,0,0.42)", display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ fontSize:13, color:"#fff" }}/></span>
                 {st==='published'
@@ -3343,17 +3370,33 @@ function CalendarRoomPage() {
         </div>
       )}
 
-      {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; const st = statusOf(selected); return (
-        <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
-              <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
+      {slide && (() => {
+        const posts = slide.posts; const i = Math.min(slide.i, posts.length - 1); const p = posts[i];
+        const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe }; const st = statusOf(p);
+        const sm = st==='published' ? { c:th.success, l:L("Live","مباشر") } : st==='approved' ? { c:"#C9A24E", l:L("Approved","موافق") } : { c:th.accent, l:L("Scheduled","مجدول") };
+        const go = (d) => setSlide(s => ({ ...s, i:(i + d + posts.length) % posts.length }));
+        return (
+        <div onClick={()=>setSlide(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:70, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
+          <div onClick={e=>e.stopPropagation()} onTouchStart={e=>{ touchX.current = e.touches[0].clientX; }} onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 40 && posts.length > 1) go(dx < 0 ? 1 : -1); }} style={{ width:360, maxWidth:"94vw", background:th.surface, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 30px 70px rgba(0,0,0,0.6)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:`1px solid ${th.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}><info.Icon style={{ fontSize:15, color:info.color }}/><span style={{ fontSize:12.5, fontWeight:600 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"long", day:"numeric", month:"long" })}</span></div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>{posts.length>1 && <span style={{ fontSize:10.5, color:th.text3 }}><span className="tw-num">{i+1}</span> / <span className="tw-num">{posts.length}</span></span>}<button onClick={()=>setSlide(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={18}/></button></div>
             </div>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, borderRadius:20, padding:"4px 11px", marginBottom:14, background:st==='published'?th.successSoft:st==='approved'?"rgba(224,183,115,0.16)":th.accentSoft, color:st==='published'?th.success:st==='approved'?"#C9A24E":th.accent }}>{st==='published'?<><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>{L("Published","منشور")}</>:st==='approved'?<><Check size={12}/>{L("Approved","موافق عليه")}</>:<><Clock size={12}/>{L("Scheduled","مجدول")}</>}</div>
-            {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
-            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:14 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString(isAR?"ar":[], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
-            <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap" }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
+            <div style={{ position:"relative", aspectRatio:"1 / 1", background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
+              <span style={{ position:"absolute", top:9, left:9, display:"inline-flex", alignItems:"center", gap:4, fontSize:9, color:"#fff", background:"rgba(15,30,22,0.72)", padding:"3px 9px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:sm.c }}/>{sm.l}</span>
+              {posts.length>1 && <>
+                <span onClick={()=>go(-1)} style={{ position:"absolute", top:"50%", left:8, transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><ChevronLeft size={17} color="#fff"/></span>
+                <span onClick={()=>go(1)} style={{ position:"absolute", top:"50%", right:8, transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><ChevronRight size={17} color="#fff"/></span>
+                <div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:6 }}>{posts.map((_,j)=><span key={j} onClick={()=>setSlide(s=>({ ...s, i:j }))} style={{ width:7, height:7, borderRadius:"50%", background:j===i?"#fff":"rgba(255,255,255,0.4)", cursor:"pointer" }}/>)}</div>
+              </>}
+            </div>
+            <div style={{ padding:"11px 14px" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+                <span style={{ fontSize:10.5, color:th.text3 }}>{info.name} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></span>
+                {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" style={{ fontSize:10.5, color:th.success, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4 }}><ArrowUpRight size={12}/>{L("View on Instagram","عرض على إنستغرام")}</a>}
+              </div>
+              <div style={{ fontSize:12.5, color:th.text, lineHeight:1.55, whiteSpace:"pre-wrap", maxHeight:130, overflowY:"auto" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+            </div>
           </div>
         </div>
       ); })()}
