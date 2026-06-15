@@ -2510,15 +2510,22 @@ function AgencyDashboard() {
   const [accounts, setAccounts]   = useState([]);
   const [postCount, setPostCount] = useState(0);
   const [upcoming, setUpcoming]   = useState([]);
+  const [loading, setLoading]     = useState(true);
   useEffect(() => {
     let active = true;
-    if (!selClient?.id) { setAccounts([]); setPostCount(0); setUpcoming([]); return; }
-    supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false)
-      .then(({ data }) => { if (active) setAccounts(data || []); });
-    supabase.from('posts').select('id', { count:'exact', head:true }).eq('client_id', selClient.id)
-      .then(({ count }) => { if (active) setPostCount(count || 0); });
-    supabase.from('posts').select('platform,caption,scheduled_at,status').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5)
-      .then(({ data }) => { if (active) setUpcoming((data || []).filter(p=>p.scheduled_at)); });
+    if (!selClient?.id) { setAccounts([]); setPostCount(0); setUpcoming([]); setLoading(false); return; }
+    setLoading(true);
+    Promise.all([
+      supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false),
+      supabase.from('posts').select('id', { count:'exact', head:true }).eq('client_id', selClient.id),
+      supabase.from('posts').select('platform,caption,scheduled_at,status').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5),
+    ]).then(([a, c, u]) => {
+      if (!active) return;
+      setAccounts(a.data || []);
+      setPostCount(c.count || 0);
+      setUpcoming((u.data || []).filter(p=>p.scheduled_at));
+      setLoading(false);
+    }).catch(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [selClient]);
 
@@ -2575,6 +2582,18 @@ function AgencyDashboard() {
     { label:L("Engagement","التفاعل"),  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
     { label:L("Followers","المتابعون"),   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
   ];
+  if (loading) return (
+    <div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:16 }}><div/><div style={{ display:"flex", gap:10 }}><Sk th={th} w={130} h={34} r={999}/><Sk th={th} w={120} h={38} r={11}/></div></div>
+      <Sk th={th} w="100%" h={66} r={16} mb={18}/>
+      <SkStatRow th={th} n={4}/>
+      <div style={{ display:"grid", gridTemplateColumns: isAR ? "330px 1fr" : "1fr 330px", gap:16 }}>
+        <SkChart th={th} h={150}/>
+        <SkList th={th} rows={5}/>
+      </div>
+    </div>
+  );
+
   return (
     <div>
       <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
