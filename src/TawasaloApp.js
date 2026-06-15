@@ -154,10 +154,17 @@ const APPR_STATUS = {
 const VOICE_TONES = ["Warm","Friendly","Professional","Playful","Luxury","Bold"];
 const VOICE_DEFAULT = { tones:["Warm","Friendly"], emoji:"some", language:"match", signoff:"", facts:[], dos:[], donts:[], examples:[], learn:true, refAccount:true, refLinks:[], refPaste:"" };
 function loadVoice(clientId) { try { const v = localStorage.getItem("tw_voice_" + (clientId||"x")); return v ? { ...VOICE_DEFAULT, ...JSON.parse(v) } : null; } catch (e) { return null; } }
-function saveVoice(clientId, v) { try { localStorage.setItem("tw_voice_" + (clientId||"x"), JSON.stringify(v)); } catch (e) { /* ignore */ } }
+function saveVoice(clientId, v) {
+  try { localStorage.setItem("tw_voice_" + (clientId||"x"), JSON.stringify(v)); } catch (e) { /* ignore */ }
+  // Team-shared copy on the client record (column may not exist until the SQL runs — fail quietly).
+  try { if (clientId) supabase.from('clients').update({ brand_voice: v }).eq('id', clientId).then(()=>{}, ()=>{}); } catch (e) { /* ignore */ }
+}
 
 // ── Engagement log — quietly records inbox activity so the report has real history ──
-function logEngagement(clientId, ev) { try { const k = "tw_eng_" + (clientId||"x"); const arr = JSON.parse(localStorage.getItem(k) || "[]"); arr.push({ ...ev, t: Date.now() }); localStorage.setItem(k, JSON.stringify(arr.slice(-2000))); } catch (e) { /* ignore */ } }
+function logEngagement(clientId, ev) {
+  try { const k = "tw_eng_" + (clientId||"x"); const arr = JSON.parse(localStorage.getItem(k) || "[]"); arr.push({ ...ev, t: Date.now() }); localStorage.setItem(k, JSON.stringify(arr.slice(-2000))); } catch (e) { /* ignore */ }
+  try { if (clientId) supabase.from('engagement_events').insert([{ client_id: clientId, kind: ev.kind || null, platform: ev.platform || null, type: ev.type || null, ai: !!ev.ai, rt: (typeof ev.rt === 'number' ? ev.rt : null) }]).then(()=>{}, ()=>{}); } catch (e) { /* ignore */ }
+}
 function loadEngagement(clientId) { try { return JSON.parse(localStorage.getItem("tw_eng_" + (clientId||"x")) || "[]"); } catch (e) { return []; } }
 function clientNeedsApproval(clientId) { try { return clientId ? localStorage.getItem("tw_apprdef_" + clientId) !== "0" : true; } catch (e) { return true; } }
 function setClientNeedsApproval(clientId, on) { try { if (clientId) localStorage.setItem("tw_apprdef_" + clientId, on ? "1" : "0"); } catch (e) { /* ignore */ } }
@@ -3239,6 +3246,7 @@ function CalendarRoomPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareToken] = useState(() => Math.random().toString(36).slice(2, 10));
+  const [loadingC, setLoadingC] = useState(true);
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text2,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text2,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -3253,9 +3261,9 @@ function CalendarRoomPage() {
       .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); });
   }, [selClient]);
   useEffect(() => {
-    if (!realClientId) return;
+    if (!realClientId) { setLoadingC(false); return; }
     supabase.from('posts').select('*').eq('client_id', realClientId)
-      .then(({ data }) => { if (data) setPosts(data.map(p => ({ ...p, scheduled_at: p.scheduled_at || p.published_at || p.created_at })).filter(p => p.scheduled_at)); });
+      .then(({ data }) => { if (data) setPosts(data.map(p => ({ ...p, scheduled_at: p.scheduled_at || p.published_at || p.created_at })).filter(p => p.scheduled_at)); setLoadingC(false); });
   }, [realClientId]);
 
   const y = cursor.getFullYear(), m = cursor.getMonth();
@@ -3323,6 +3331,14 @@ function CalendarRoomPage() {
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
   const STAT = [[L("Posts","منشورات"), fmtBig(monthPosts.length)||"0", th.text], [L("Scheduled","مجدول"), ""+scheduledN, "#9DB6D6"], [L("Published","منشور"), ""+publishedN, "#5FBF92"], [L("Networks","الشبكات"), ""+networks, "#E0B973"]];
+
+  if (loadingC) return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}><Sk w={180} h={20}/><Sk w={150} h={38} r={11}/></div>
+      <SkStatRow th={th} n={4}/>
+      <Sk w="100%" h={300} r={14}/>
+    </div>
+  );
 
   return (
     <div style={{ padding:"28px 32px" }}>
@@ -3620,6 +3636,7 @@ function CalendarPage() {
   const L = (en, ar) => isAR ? ar : en;
   const [view, setView] = useState("list");
   const [planOpen, setPlanOpen] = useState(false);
+  const [loadingP, setLoadingP] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -3662,9 +3679,9 @@ function CalendarPage() {
   const loadPosts = (cid) => {
     const id = cid || realClientId; if (!id) return;
     supabase.from('posts').select('*').eq('client_id', id).eq('status', 'scheduled').order('scheduled_at', { ascending: true })
-      .then(({ data }) => { if (data) setPosts(data.filter(p => p.scheduled_at)); });
+      .then(({ data }) => { if (data) setPosts(data.filter(p => p.scheduled_at)); setLoadingP(false); });
   };
-  useEffect(() => { if (realClientId) loadPosts(realClientId); }, [realClientId]);
+  useEffect(() => { if (realClientId) loadPosts(realClientId); else setLoadingP(false); }, [realClientId]);
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text2,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text2,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
   const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -3732,6 +3749,14 @@ function CalendarPage() {
       <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</span>
     </div>
   ); };
+
+  if (loadingP) return (
+    <div style={{ padding:"28px 32px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}><Sk w={160} h={20}/><div style={{ display:"flex", gap:10 }}><Sk w={150} h={36} r={999}/><Sk w={120} h={36} r={11}/></div></div>
+      <Sk w="100%" h={48} r={12} mb={14}/>
+      <SkList th={th} rows={6}/>
+    </div>
+  );
 
   return (
     <div style={{ padding:"28px 32px" }}>
@@ -6181,6 +6206,11 @@ ${topPosts.length > 0 ? `<div class="page">
 // Assistant reads this so every reply for the account stays on-brand and consistent.
 function BrandVoiceDrawer({ clientId, clientName, th, L, onClose }) {
   const [v, setV] = useState(() => loadVoice(clientId) || VOICE_DEFAULT);
+  useEffect(() => {
+    if (!clientId) return;
+    supabase.from('clients').select('brand_voice').eq('id', clientId).limit(1)
+      .then(({ data }) => { const bv = data && data[0] && data[0].brand_voice; if (bv) { setV(prev => ({ ...VOICE_DEFAULT, ...bv })); try { localStorage.setItem("tw_voice_" + clientId, JSON.stringify(bv)); } catch (e) { /* ignore */ } } }, () => {});
+  }, [clientId]);
   const [draft, setDraft] = useState({ facts:"", dos:"", donts:"", examples:"", link:"" });
   const [built, setBuilt] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -6331,7 +6361,14 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
     return () => { on = false; };
   }, []);
 
-  const events = loadEngagement(clientId);
+  const [dbEvents, setDbEvents] = useState(null);
+  useEffect(() => {
+    if (!clientId) return;
+    const start = new Date(); start.setDate(1); start.setHours(0,0,0,0);
+    supabase.from('engagement_events').select('*').eq('client_id', clientId).gte('created_at', start.toISOString())
+      .then(({ data }) => { if (data && data.length) setDbEvents(data.map(r => ({ t: new Date(r.created_at).getTime(), kind: r.kind, platform: r.platform, type: r.type, ai: r.ai, rt: r.rt }))); }, () => {});
+  }, [clientId]);
+  const events = (dbEvents && dbEvents.length) ? dbEvents : loadEngagement(clientId);
   const replies = events.filter(e => e.kind === 'reply');
   const real = replies.length >= 3;
   const liveComments = (messages || []).filter(m => m.type === 'comment').length;
@@ -6357,9 +6394,21 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
   const rtPct = rtTot ? [Math.round(u15 / rtTot * 100), Math.round(u60 / rtTot * 100), Math.round(over / rtTot * 100)] : [62, 28, 10];
   const igN = real ? replies.filter(r => r.platform === 'ig').length : 412;
   const fbN = real ? replies.filter(r => r.platform === 'fb').length : 138;
-  // representative until the AI sentiment/topic pass lands
-  const sentiment = [68, 24, 8];
-  const topics = [["Delivery & area", 96], ["Brunch pricing", 74], ["Booking & events", 58], ["Opening hours", 41]];
+  // Sentiment + top topics — real AI pass over the actual inbox messages when available,
+  // representative numbers until there are messages to read.
+  const [sentiment, setSentiment] = useState([68, 24, 8]);
+  const [topics, setTopics] = useState([["Delivery & area", 96], ["Brunch pricing", 74], ["Booking & events", 58], ["Opening hours", 41]]);
+  const [insight, setInsight] = useState({ loved:"the fast replies and the new menu", watch:"a few asked about delivery times" });
+  useEffect(() => {
+    const msgs = (messages || []).map(mm => mm && mm.text).filter(Boolean);
+    if (!msgs.length) return;
+    fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'analyze', messages: msgs }) })
+      .then(r => r.json()).then(d => {
+        if (d && d.sentiment) { const s = d.sentiment; const tot = (s.positive||0)+(s.neutral||0)+(s.negative||0) || 1; setSentiment([Math.round((s.positive||0)/tot*100), Math.round((s.neutral||0)/tot*100), Math.round((s.negative||0)/tot*100)]); }
+        if (d && Array.isArray(d.topics) && d.topics.length) setTopics(d.topics.filter(t => Array.isArray(t) && t[0]).slice(0, 4));
+        if (d && (d.loved || d.watch)) setInsight({ loved:d.loved || "", watch:d.watch || "" });
+      }).catch(() => { /* keep representative */ });
+  }, [messages]);
   const monthLabel = new Date().toLocaleDateString("en", { month: "long", year: "numeric" });
   const origin = (typeof window !== "undefined" && window.location && window.location.origin) || "";
   const TAWASLO_LOGO = origin + "/logo-transparent.png";
@@ -6406,6 +6455,7 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
         + '<div>'+sect('SENTIMENT')+'<div style="display:flex;align-items:center;gap:13px">'+donutSVG([[sentiment[0],'#1F7A52'],[sentiment[1],'#8aa0bd'],[sentiment[2],'#C97B5A']])+'<div style="font-size:11px;line-height:2;color:#5a6678"><span style="color:#1F7A52">&#9679;</span> Positive <b style="color:#222C40">'+sentiment[0]+'%</b><br><span style="color:#8aa0bd">&#9679;</span> Neutral <b style="color:#222C40">'+sentiment[1]+'%</b><br><span style="color:#C97B5A">&#9679;</span> Negative <b style="color:#222C40">'+sentiment[2]+'%</b></div></div></div>'
         + '<div>'+sect('TOP TOPICS')+topics.map(topicRow).join('')+'</div>'
       + '</div>'
+      + ((insight.loved || insight.watch) ? '<div style="background:#F3F6F2;border-left:3px solid #1F7A52;border-radius:0 8px 8px 0;padding:11px 13px;font-size:11.5px;color:#33404f;line-height:1.5;margin-bottom:22px">'+(insight.loved?'<b>What people loved:</b> '+insight.loved+'. ':'')+(insight.watch?'<b style="color:#8a6516">Watch:</b> '+insight.watch+'.':'')+'</div>' : '')
       + sect('HIGHLIGHTS')
       + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">'
         + '<div style="background:#F3F6F2;border-left:3px solid #1F7A52;border-radius:0 8px 8px 0;padding:10px 13px;font-size:11.5px;color:#33404f;line-height:1.5">&ldquo;Best brunch in town, hands down&rdquo; &mdash; <span style="color:#7b8595">became a 6-person booking the same day.</span></div>'

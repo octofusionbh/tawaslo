@@ -96,6 +96,8 @@ export default async function handler(req, res) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });
   } else if (theMode === 'reply') {
     if (!req.body.message) return res.status(400).json({ error: 'A message is required.' });
+  } else if (theMode === 'analyze') {
+    if (!Array.isArray(req.body.messages) || !req.body.messages.length) return res.status(200).json({ sentiment: null, topics: [] });
   } else if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
   }
@@ -170,6 +172,18 @@ Customer message: "${incoming}"
 
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 { "replies": ["reply option 1", "reply option 2"] }`;
+  } else if (theMode === 'analyze') {
+    // Read real inbox messages → sentiment split + top topics for the engagement report.
+    maxTokens = 500;
+    const msgs = req.body.messages.slice(0, 60).map((m, i) => `${i + 1}. ${String(m).slice(0, 180)}`).join('\n');
+    messageContent = `You are analyzing customer messages (comments and DMs) for a brand's monthly social media report. Messages may be in English or Arabic.
+
+Messages:
+${msgs}
+
+Return ONLY a JSON object (no markdown):
+{ "sentiment": { "positive": <int>, "neutral": <int>, "negative": <int> }, "topics": [["short topic or question label", <int count>]], "loved": "<one short phrase: what people praised most>", "watch": "<one short phrase: an issue or request worth watching>" }
+The three sentiment percentages must be integers that sum to 100. Give up to 4 topics, most common first. Keep "loved" and "watch" under 8 words each.`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
@@ -243,6 +257,7 @@ ${shape}`;
       if (theMode === 'ideas') return res.status(200).json({ ideas: [text] });
       if (theMode === 'hashtags') return res.status(200).json({ hashtags: [] });
       if (theMode === 'reply') return res.status(200).json({ replies: [text] });
+      if (theMode === 'analyze') return res.status(200).json({ sentiment: null, topics: [] });
       return res.status(200).json({ english: text, arabic: '' });
     }
     const parsed = JSON.parse(jsonMatch[0]);
