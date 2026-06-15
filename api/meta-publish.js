@@ -93,8 +93,10 @@ export default async function handler(req, res) {
       if (imageUrls && imageUrls.length > 1) {
         // FB multi-photo: upload each unpublished, then a feed post that attaches them
         const mediaFbids = [];
-        for (const url of imageUrls) {
-          const ph = await post(`https://graph.facebook.com/v19.0/${accountId}/photos`, { url, published: false, access_token: accessToken });
+        for (let idx = 0; idx < imageUrls.length; idx++) {
+          const photoBody = { url: imageUrls[idx], published: false, access_token: accessToken };
+          if (altTexts && altTexts[idx]) photoBody.alt_text_custom = altTexts[idx];
+          const ph = await post(`https://graph.facebook.com/v19.0/${accountId}/photos`, photoBody);
           if (ph.error) return res.status(400).json({ error: ph.error.message });
           mediaFbids.push({ media_fbid: ph.id });
         }
@@ -102,7 +104,9 @@ export default async function handler(req, res) {
       } else if (videoUrl) {
         result = await post(`https://graph.facebook.com/v19.0/${accountId}/videos`, { file_url: videoUrl, description: caption, access_token: accessToken });
       } else if (imageUrl || (imageUrls && imageUrls[0])) {
-        result = await post(`https://graph.facebook.com/v19.0/${accountId}/photos`, { url: imageUrl || imageUrls[0], caption, access_token: accessToken });
+        const photoBody = { url: imageUrl || imageUrls[0], caption, access_token: accessToken };
+        if (altText) photoBody.alt_text_custom = altText;
+        result = await post(`https://graph.facebook.com/v19.0/${accountId}/photos`, photoBody);
       } else {
         result = await post(`https://graph.facebook.com/v19.0/${accountId}/feed`, { message: caption, access_token: accessToken });
       }

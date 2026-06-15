@@ -66,6 +66,19 @@ export default async function handler(req, res) {
         await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&appr_status=in.(pending,revised)`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ appr_status: decision, appr_responded_at: new Date().toISOString() }) });
         return res.status(200).json({ ok: true });
       }
+      // ── Shareable engagement report (tawaslo.com/r/<token>) ──────────────
+      if (action === 'report-save') {
+        const { html, clientName } = req.body;
+        if (!html) return res.status(400).json({ error: 'html required' });
+        await sb('reports', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ token, client_name: clientName || null, html, created_at: new Date().toISOString() }) });
+        return res.status(200).json({ ok: true, token });
+      }
+      if (action === 'report-load') {
+        const r = await sb(`reports?token=eq.${encodeURIComponent(token)}&select=html,client_name&limit=1`);
+        const rows = r.ok ? await r.json() : [];
+        if (!rows.length) return res.status(200).json({ notfound: true });
+        return res.status(200).json({ html: rows[0].html, clientName: rows[0].client_name });
+      }
       return res.status(400).json({ error: 'unknown action' });
     } catch (e) { return res.status(200).json({ error: e.message, posts: [] }); }
   }

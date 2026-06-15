@@ -91,9 +91,11 @@ export default async function handler(req, res) {
     });
   }
 
-  // Vision modes need an image; everything else needs a topic.
+  // Vision modes need an image; reply needs a message; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });
+  } else if (theMode === 'reply') {
+    if (!req.body.message) return res.status(400).json({ error: 'A message is required.' });
   } else if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
   }
@@ -142,6 +144,32 @@ ${extras}
 
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 { "hashtags": ["#tag1", "#tag2"] }`;
+  } else if (theMode === 'reply') {
+    // Reply Assistant — generate on-brand replies, conditioned on the client's trained Brand Voice.
+    maxTokens = 600;
+    const v = req.body.voice || {};
+    const incoming = String(req.body.message || '');
+    const emojiRule = v.emoji === 'none' ? 'Use no emojis.' : v.emoji === 'lots' ? 'Use emojis freely where natural.' : 'Use a few tasteful emojis.';
+    const voiceLines = [
+      (v.tones && v.tones.length) ? `Brand personality: ${v.tones.join(', ')}.` : '',
+      emojiRule,
+      v.signoff ? `End each reply with this sign-off exactly: "${v.signoff}".` : '',
+      (v.facts && v.facts.length) ? `Use these facts, accurately and only when relevant:\n- ${v.facts.join('\n- ')}` : '',
+      (v.dos && v.dos.length) ? `Always: ${v.dos.join('; ')}.` : '',
+      (v.donts && v.donts.length) ? `Never: ${v.donts.join('; ')}.` : '',
+      (v.examples && v.examples.length) ? `Match the style of these example replies:\n- ${v.examples.slice(0, 8).join('\n- ')}` : '',
+    ].filter(Boolean).join('\n');
+    const langRule = language === 'en' ? 'Write the replies in English.'
+      : language === 'ar' ? 'Write the replies in Arabic.'
+      : language === 'both' ? 'For each reply, write the English version first, then the Arabic version underneath.'
+      : 'Reply in the same language the customer used (Arabic if they wrote Arabic, English if they wrote English).';
+    messageContent = `You are the social media community manager for ${brand || 'this brand'}, replying to a customer on ${platformName}. Write 2 short, on-brand reply options to the message below. Keep each warm, helpful and concise (1-2 sentences). ${langRule}
+${voiceLines ? '\nBrand voice to follow:\n' + voiceLines + '\n' : ''}
+Tone: ${toneText}
+Customer message: "${incoming}"
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{ "replies": ["reply option 1", "reply option 2"] }`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
@@ -155,13 +183,30 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
       ? 'Generate the caption in Arabic only. Leave "english" as an empty string.'
       : 'Generate captions in BOTH English and Arabic.';
 
+    // Optional brand voice — when the client has a trained voice and the toggle is on,
+    // condition the caption on it so it sounds like that brand, consistently.
+    const cv = req.body.voice || null;
+    let voiceBlock = '';
+    if (cv) {
+      const emojiRule = cv.emoji === 'none' ? 'Use no emojis.' : cv.emoji === 'lots' ? 'Use emojis freely where natural.' : 'Use a few tasteful emojis.';
+      const lines = [
+        (cv.tones && cv.tones.length) ? `Brand personality: ${cv.tones.join(', ')}.` : '',
+        emojiRule,
+        cv.signoff ? `Where natural, you may end with: "${cv.signoff}".` : '',
+        (cv.facts && cv.facts.length) ? `Use these facts accurately, only when relevant:\n- ${cv.facts.join('\n- ')}` : '',
+        (cv.dos && cv.dos.length) ? `Always: ${cv.dos.join('; ')}.` : '',
+        (cv.donts && cv.donts.length) ? `Never: ${cv.donts.join('; ')}.` : '',
+        (cv.examples && cv.examples.length) ? `Match the style of these examples:\n- ${cv.examples.slice(0, 8).join('\n- ')}` : '',
+      ].filter(Boolean).join('\n');
+      if (lines) voiceBlock = `\nWrite in this brand's voice:\n${lines}\n`;
+    }
+
     messageContent = `You are a social media copywriter working with brands worldwide. ${langInstruction}
 
 Topic/Product: ${topic}
 Platform: ${platformName}
 Tone: ${toneText}
-${extras}
-
+${extras}${voiceBlock}
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 ${shape}`;
   }
@@ -197,6 +242,7 @@ ${shape}`;
     if (!jsonMatch) {
       if (theMode === 'ideas') return res.status(200).json({ ideas: [text] });
       if (theMode === 'hashtags') return res.status(200).json({ hashtags: [] });
+      if (theMode === 'reply') return res.status(200).json({ replies: [text] });
       return res.status(200).json({ english: text, arabic: '' });
     }
     const parsed = JSON.parse(jsonMatch[0]);
