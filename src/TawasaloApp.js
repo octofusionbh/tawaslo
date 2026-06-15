@@ -3377,12 +3377,12 @@ function CalendarRoomPage() {
         const go = (d) => setSlide(s => ({ ...s, i:(i + d + posts.length) % posts.length }));
         return (
         <div onClick={()=>setSlide(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:70, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
-          <div onClick={e=>e.stopPropagation()} onTouchStart={e=>{ touchX.current = e.touches[0].clientX; }} onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 40 && posts.length > 1) go(dx < 0 ? 1 : -1); }} style={{ width:360, maxWidth:"94vw", background:th.surface, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 30px 70px rgba(0,0,0,0.6)" }}>
+          <div onClick={e=>e.stopPropagation()} onTouchStart={e=>{ touchX.current = e.touches[0].clientX; }} onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 40 && posts.length > 1) go(dx < 0 ? 1 : -1); }} style={{ width:300, maxWidth:"90vw", maxHeight:"85vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 30px 70px rgba(0,0,0,0.6)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:`1px solid ${th.border}` }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}><info.Icon style={{ fontSize:15, color:info.color }}/><span style={{ fontSize:12.5, fontWeight:600 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"long", day:"numeric", month:"long" })}</span></div>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>{posts.length>1 && <span style={{ fontSize:10.5, color:th.text3 }}><span className="tw-num">{i+1}</span> / <span className="tw-num">{posts.length}</span></span>}<button onClick={()=>setSlide(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={18}/></button></div>
             </div>
-            <div style={{ position:"relative", aspectRatio:"1 / 1", background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
+            <div style={{ position:"relative", aspectRatio:"1 / 1", maxHeight:"min(44vh, 300px)", flexShrink:0, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
               <span style={{ position:"absolute", top:9, left:9, display:"inline-flex", alignItems:"center", gap:4, fontSize:9, color:"#fff", background:"rgba(15,30,22,0.72)", padding:"3px 9px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:sm.c }}/>{sm.l}</span>
               {posts.length>1 && <>
                 <span onClick={()=>go(-1)} style={{ position:"absolute", top:"50%", left:8, transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><ChevronLeft size={17} color="#fff"/></span>
@@ -3390,12 +3390,12 @@ function CalendarRoomPage() {
                 <div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:6 }}>{posts.map((_,j)=><span key={j} onClick={()=>setSlide(s=>({ ...s, i:j }))} style={{ width:7, height:7, borderRadius:"50%", background:j===i?"#fff":"rgba(255,255,255,0.4)", cursor:"pointer" }}/>)}</div>
               </>}
             </div>
-            <div style={{ padding:"11px 14px" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+            <div style={{ padding:"10px 14px 12px", flex:1, minHeight:0, overflowY:"auto" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                 <span style={{ fontSize:10.5, color:th.text3 }}>{info.name} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></span>
                 {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" style={{ fontSize:10.5, color:th.success, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4 }}><ArrowUpRight size={12}/>{L("View on Instagram","عرض على إنستغرام")}</a>}
               </div>
-              <div style={{ fontSize:12.5, color:th.text, lineHeight:1.55, whiteSpace:"pre-wrap", maxHeight:130, overflowY:"auto" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+              <div style={{ fontSize:12, color:th.text, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
             </div>
           </div>
         </div>
