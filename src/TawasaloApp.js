@@ -740,11 +740,38 @@ function Topbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [dotSeen, setDotSeen] = useState(false);
   const [bellRing, setBellRing] = useState(false);
+  const [respNotifs, setRespNotifs] = useState([]);
+  const [unseenResp, setUnseenResp] = useState(0);
+  const [toast, setToast] = useState(null);
+  const toastedRef = useRef(0);
+  const agoOf = (t) => { const s = (Date.now() - new Date(t).getTime())/1000; if (s < 60) return "now"; if (s < 3600) return Math.floor(s/60)+"m"; if (s < 86400) return Math.floor(s/3600)+"h"; return Math.floor(s/86400)+"d"; };
+  useEffect(() => {
+    const ids = (clients || []).map(c => c.id).filter(Boolean);
+    if (!ids.length) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const { data } = await supabase.from('posts').select('id,caption,appr_status,appr_responded_at,client_id').not('appr_responded_at', 'is', null).in('client_id', ids).in('appr_status', ['approved','changes','revised']).order('appr_responded_at', { ascending: false }).limit(20);
+        if (!active || !data) return;
+        const byKey = {};
+        data.forEach(p => { const c = (clients || []).find(x => x.id === p.client_id); const st = p.appr_status === 'revised' ? 'changes' : p.appr_status; const key = p.client_id + '|' + st; if (!byKey[key]) byKey[key] = { client: (c && c.name) || 'A client', clientObj: c, status: st, n: 0, t: p.appr_responded_at, caption: p.caption || '' }; byKey[key].n++; if (new Date(p.appr_responded_at) > new Date(byKey[key].t)) byKey[key].t = p.appr_responded_at; });
+        const items = Object.values(byKey).sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 8);
+        setRespNotifs(items);
+        let seen = 0; try { seen = parseInt(localStorage.getItem('tw_resp_seen') || '0', 10); } catch (e) { /* ignore */ }
+        setUnseenResp(items.filter(it => new Date(it.t).getTime() > seen).length);
+        // Pop a toast the moment a genuinely-new response lands.
+        const newest = items[0];
+        if (newest) { const nt = new Date(newest.t).getTime(); if (nt > seen && nt > toastedRef.current) { toastedRef.current = nt; setToast(newest); setTimeout(() => setToast(t => (t === newest ? null : t)), 7000); } }
+      } catch (e) { /* ignore */ }
+    };
+    poll(); const iv = setInterval(poll, 30000);
+    return () => { active = false; clearInterval(iv); };
+  }, [clients]);
   const NOTIFS = [
-    { Icon:Send, color:th.success, title:"Post published", body:"Your scheduled post went live on Facebook.", ago:"12m" },
-    { Icon:MessageCircle, color:th.accent, title:"New comment", body:"Someone commented on your Instagram post.", ago:"1h" },
-    { Icon:FileText, color:th.accent2, title:"Report ready", body:"Your weekly performance report is ready.", ago:"1d" },
-    { Icon:Sparkles, color:th.warning, title:"Trial reminder", body:"You have 23 days left on your free trial.", ago:"2d" },
+    { Icon:Send, color:th.success, title:"Post published", body:"Your scheduled post went live on Facebook.", ago:"12m", to:"calendar" },
+    { Icon:MessageCircle, color:th.accent, title:"New comment", body:"Someone commented on your Instagram post.", ago:"1h", to:"inbox" },
+    { Icon:FileText, color:th.accent2, title:"Report ready", body:"Your weekly performance report is ready.", ago:"1d", to:"reports" },
+    { Icon:Sparkles, color:th.warning, title:"Trial reminder", body:"You have 23 days left on your free trial.", ago:"2d", to:"billing" },
   ];
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
@@ -804,9 +831,9 @@ function Topbar() {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
         <div style={{position:"relative"}}>
-          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); setBellRing(true); setTimeout(()=>setBellRing(false), 850); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); setUnseenResp(0); try{ localStorage.setItem('tw_resp_seen', String(Date.now())); }catch(e){} setBellRing(true); setTimeout(()=>setBellRing(false), 850); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
             <Bell className={bellRing?"tw-bell-ring":""} size={14} color={notifOpen?th.accent:th.text2}/>
-            {!dotSeen && <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>}
+            {unseenResp>0 ? <span style={{position:"absolute",top:-4,right:-4,minWidth:15,height:15,padding:"0 4px",borderRadius:8,background:th.danger,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${th.surface}`}} className="tw-num">{unseenResp}</span> : (!dotSeen && <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>)}
           </button>
           {notifOpen && (
             <>
@@ -814,10 +841,17 @@ function Topbar() {
               <div className="tw-pop" style={{position:"absolute",right:0,top:40,zIndex:50,width:330,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden",transformOrigin:"top right"}}>
                 <div style={{padding:"12px 16px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                   <span style={{fontSize:13,fontWeight:700}}>Notifications</span>
-                  <span onClick={()=>setNotifOpen(false)} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>
+                  <span onClick={()=>{ setUnseenResp(0); setToast(null); try{ localStorage.setItem('tw_resp_seen', String(Date.now())); }catch(e){} setNotifOpen(false); }} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>
                 </div>
+                {respNotifs.length>0 && <div style={{padding:"9px 16px 4px",fontSize:9.5,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase"}}>Client responses</div>}
+                {respNotifs.map((n,i)=>(
+                  <div key={'r'+i} onClick={()=>{ if(setSelClient && n.clientObj) setSelClient(n.clientObj); if(setMode) setMode("agency"); setPage("approvals"); setNotifOpen(false); }} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:`1px solid ${th.border}`,cursor:"pointer",animation:"twRowIn .32s ease both",animationDelay:(i*0.05)+"s"}}>
+                    <div style={{width:30,height:30,borderRadius:9,background:(n.status==='approved'?th.success:"#D98A6A")+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n.status==='approved'?<CheckCircle size={14} color={th.success}/>:<MessageCircle size={14} color="#D98A6A"/>}</div>
+                    <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.client} {n.status==='approved'?"approved":"requested changes"} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {agoOf(n.t)}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.status==='approved' ? (n.n+" post"+(n.n>1?"s":"")+" cleared to publish on schedule.") : ("On “"+(n.caption||"a post").slice(0,38)+"”")}</div></div>
+                  </div>
+                ))}
                 {NOTIFS.map((n,i)=>(
-                  <div key={i} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none",animation:"twRowIn .32s ease both",animationDelay:(i*0.06)+"s"}}>
+                  <div key={i} onClick={()=>{ setPage(n.to); setNotifOpen(false); }} style={{display:"flex",gap:11,padding:"12px 16px",cursor:"pointer",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none",animation:"twRowIn .32s ease both",animationDelay:((respNotifs.length+i)*0.05)+"s"}}>
                     <div style={{width:30,height:30,borderRadius:9,background:n.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><n.Icon size={14} color={n.color}/></div>
                     <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.title} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {n.ago}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.body}</div></div>
                   </div>
@@ -833,6 +867,12 @@ function Topbar() {
           </div>
         </div>
       </div>
+      {toast && createPortal((
+        <div onClick={()=>{ if(setSelClient && toast.clientObj) setSelClient(toast.clientObj); if(setMode) setMode("agency"); setPage("approvals"); setToast(null); }} style={{position:"fixed",top:70,right:22,zIndex:9999,width:300,maxWidth:"90vw",background:th.surface,border:`1px solid ${(toast.status==='approved'?th.success:'#D98A6A')}66`,borderLeft:`3px solid ${toast.status==='approved'?th.success:'#D98A6A'}`,borderRadius:13,padding:"12px 14px",boxShadow:"0 18px 44px rgba(0,0,0,0.5)",cursor:"pointer",animation:"twRowIn .35s ease both"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>{toast.status==='approved'?<CheckCircle size={15} color={th.success}/>:<MessageCircle size={15} color="#D98A6A"/>}<span style={{fontSize:12.5,fontWeight:700,color:th.text}}>{toast.client} {toast.status==='approved'?"approved":"requested changes"}</span><span style={{marginLeft:"auto",fontSize:9.5,color:th.text3}}>now</span><XCircle size={14} color={th.text3} onClick={e=>{e.stopPropagation();setToast(null);}} style={{cursor:"pointer"}}/></div>
+          <div style={{fontSize:11.5,color:th.text2,lineHeight:1.45}}>{toast.status==='approved'?(toast.n+" post"+(toast.n>1?"s":"")+" cleared to publish."):("On “"+(toast.caption||"a post").slice(0,40)+"”")}</div>
+        </div>
+      ), document.body)}
     </header>
   );
 }
