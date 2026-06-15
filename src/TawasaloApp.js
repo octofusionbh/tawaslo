@@ -3194,15 +3194,12 @@ function CalendarRoomPage() {
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('posts').select('*').eq('client_id', realClientId)
-      .then(({ data }) => { if (data) setPosts(data.filter(p => p.scheduled_at && (p.status==='published' || p.appr_status==='approved'))); });
+      .then(({ data }) => { if (data) setPosts(data.map(p => ({ ...p, scheduled_at: p.scheduled_at || p.published_at || p.created_at })).filter(p => p.scheduled_at)); });
   }, [realClientId]);
 
   const y = cursor.getFullYear(), m = cursor.getMonth();
-  // Demo content so the room is never empty in a walkthrough — real, on-brand images.
-  const demoPosts = [[2,'ig','published',0,'Golden hour by the bay'],[4,'fb','published',1,'Weekend brunch is back'],[6,'ig','approved',2,'Pool day carousel'],[9,'ig','published',3,'Spa ritual reel'],[11,'tt','published',4,'Behind the scenes'],[13,'fb','published',5,'Family staycation deal'],[15,'ig','published',0,'Monday motivation'],[17,'ig','approved',1,'Chef special tonight'],[19,'tt','published',2,'Quick room tour'],[22,'ig','published',3,'Sunset cocktails'],[24,'fb','approved',4,'Loyalty perk'],[26,'ig','published',5,'Drone over the marina'],[28,'ig','published',1,'Guest love'],[30,'fb','published',2,'Month in review']]
-    .map((d, i) => ({ id:'demo'+i, platform:d[1], status:d[2]==='published'?'published':'scheduled', appr_status:'approved', _demoStatus:d[2], image_url:APPROVAL_IMAGES[d[3]%APPROVAL_IMAGES.length], caption:d[4], scheduled_at:new Date(y, m, d[0], 8 + (i%9), (i*7)%60).toISOString() }));
-  const allPosts = posts.length ? posts : demoPosts;
-  const statusOf = (p) => p._demoStatus || (p.status==='published' ? 'published' : 'approved');
+  const allPosts = posts;
+  const statusOf = (p) => p.status==='published' ? 'published' : p.appr_status==='approved' ? 'approved' : 'scheduled';
   const inMonth = (p) => { const d = new Date(p.scheduled_at); return d.getFullYear()===y && d.getMonth()===m; };
   const monthPosts = allPosts.filter(inMonth);
   const fPosts = monthPosts.filter(p => (platFilter==='all'||p.platform===platFilter) && (statusFilter==='all'||statusOf(p)===statusFilter));
@@ -3210,8 +3207,8 @@ function CalendarRoomPage() {
 
   const publishedN = monthPosts.filter(p => statusOf(p)==='published').length;
   const approvedN = monthPosts.filter(p => statusOf(p)==='approved').length;
+  const scheduledN = monthPosts.filter(p => statusOf(p)==='scheduled').length;
   const networks = new Set(monthPosts.map(p => p.platform)).size;
-  const reachNum = monthPosts.length * 83200;
   const fmtBig = (n) => n>=1e6 ? (n/1e6).toFixed(1).replace(/\.0$/,'')+"M" : n>=1e3 ? Math.round(n/1e3)+"K" : ""+n;
 
   const startDay = new Date(y, m, 1).getDay();
@@ -3238,7 +3235,7 @@ function CalendarRoomPage() {
   };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
-  const STAT = [[L("Published","منشور"), fmtBig(publishedN)||"0", th.text], [L("Approved","موافق"), ""+approvedN, "#5FBF92"], [L("Reach","الوصول"), fmtBig(reachNum), "#9DB6D6"], [L("Networks","الشبكات"), ""+networks, "#E0B973"]];
+  const STAT = [[L("Posts","منشورات"), fmtBig(monthPosts.length)||"0", th.text], [L("Scheduled","مجدول"), ""+scheduledN, "#9DB6D6"], [L("Published","منشور"), ""+publishedN, "#5FBF92"], [L("Networks","الشبكات"), ""+networks, "#E0B973"]];
 
   return (
     <div style={{ padding:"28px 32px" }}>
@@ -3275,7 +3272,7 @@ function CalendarRoomPage() {
               <button key={pk} title={info.name} onClick={()=>setPlatFilter(active?"all":pk)} style={{ width:26, height:26, borderRadius:7, border:`1px solid ${active?info.color:th.border}`, background:active?info.color+"22":"transparent", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><info.Icon style={{ fontSize:13, color:info.color }}/></button>
             ); })}
           </div>
-          {[["all",L("All","الكل")],["published",L("Published","منشور")],["approved",L("Approved","موافق")]].map(([k,t])=>(
+          {[["all",L("All","الكل")],["scheduled",L("Scheduled","مجدول")],["approved",L("Approved","موافق")],["published",L("Published","منشور")]].map(([k,t])=>(
             <button key={k} onClick={()=>setStatusFilter(k)} style={{ padding:"5px 11px", borderRadius:8, fontSize:11, cursor:"pointer", border:`1px solid ${statusFilter===k?th.accent:th.border}`, background:statusFilter===k?th.accentSoft:"transparent", color:statusFilter===k?th.text:th.text2 }}>{t}</button>
           ))}
           <div style={{ display:"flex", gap:3, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
@@ -3290,7 +3287,7 @@ function CalendarRoomPage() {
         <div style={{ ...card, padding:"54px 24px", textAlign:"center", color:th.text2 }}>
           <CalendarCheck size={30} style={{ opacity:0.3, marginBottom:12 }}/>
           <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Nothing here yet for this month","لا يوجد شيء هنا لهذا الشهر")}</div>
-          <div style={{ fontSize:12.5 }}>{L("Approved and published posts will collect here as a visual record.","ستتجمع المنشورات الموافق عليها والمنشورة هنا كسجل مرئي.")}</div>
+          <div style={{ fontSize:12.5 }}>{L("Your scheduled, approved and published posts collect here as a visual record.","تتجمع منشوراتك المجدولة والموافق عليها والمنشورة هنا كسجل مرئي.")}</div>
         </div>
       ) : view === "month" ? (
         <div style={{ ...card, overflow:"hidden" }}>
@@ -3311,7 +3308,9 @@ function CalendarRoomPage() {
                             <info.Icon style={{ position:"absolute", bottom:4, left:5, fontSize:11, color:"#fff", filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}/>
                             {st==='published'
                               ? <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", gap:2, fontSize:7.5, color:"#fff", background:"rgba(20,40,30,0.66)", padding:"1px 5px", borderRadius:8 }}><span style={{ width:4, height:4, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
-                              : <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", justifyContent:"center", width:13, height:13, borderRadius:"50%", background:"rgba(224,183,115,0.92)" }}><Check size={9} color="#3a2a08"/></span>}
+                              : st==='approved'
+                              ? <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", justifyContent:"center", width:13, height:13, borderRadius:"50%", background:"rgba(224,183,115,0.92)" }}><Check size={9} color="#3a2a08"/></span>
+                              : <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", justifyContent:"center", width:13, height:13, borderRadius:"50%", background:"rgba(110,140,171,0.95)" }}><Clock size={8} color="#fff"/></span>}
                           </div>
                         ); })}
                       </div>
@@ -3331,7 +3330,9 @@ function CalendarRoomPage() {
                 <span style={{ position:"absolute", top:7, left:7, width:24, height:24, borderRadius:7, background:"rgba(0,0,0,0.42)", display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ fontSize:13, color:"#fff" }}/></span>
                 {st==='published'
                   ? <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#fff", background:"rgba(20,40,30,0.7)", padding:"2px 7px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
-                  : <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#3a2a08", background:"rgba(224,183,115,0.92)", padding:"2px 7px", borderRadius:20, fontWeight:700 }}><Check size={9}/>{L("Approved","موافق")}</span>}
+                  : st==='approved'
+                  ? <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#3a2a08", background:"rgba(224,183,115,0.92)", padding:"2px 7px", borderRadius:20, fontWeight:700 }}><Check size={9}/>{L("Approved","موافق")}</span>
+                  : <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#fff", background:"rgba(110,140,171,0.92)", padding:"2px 7px", borderRadius:20, fontWeight:600 }}><Clock size={9}/>{L("Scheduled","مجدول")}</span>}
               </div>
               <div style={{ padding:"9px 11px" }}>
                 <div style={{ fontSize:10.5, color:th.text3, marginBottom:3 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"short", day:"numeric", month:"short" })} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></div>
@@ -3349,7 +3350,7 @@ function CalendarRoomPage() {
               <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
               <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
-            <div style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, borderRadius:20, padding:"4px 11px", marginBottom:14, background:st==='published'?th.successSoft:"rgba(224,183,115,0.16)", color:st==='published'?th.success:"#C9A24E" }}>{st==='published'?<><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>{L("Published","منشور")}</>:<><Check size={12}/>{L("Approved","موافق عليه")}</>}</div>
+            <div style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, fontWeight:700, borderRadius:20, padding:"4px 11px", marginBottom:14, background:st==='published'?th.successSoft:st==='approved'?"rgba(224,183,115,0.16)":th.accentSoft, color:st==='published'?th.success:st==='approved'?"#C9A24E":th.accent }}>{st==='published'?<><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>{L("Published","منشور")}</>:st==='approved'?<><Check size={12}/>{L("Approved","موافق عليه")}</>:<><Clock size={12}/>{L("Scheduled","مجدول")}</>}</div>
             {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
             <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:14 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString(isAR?"ar":[], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
             <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap" }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
@@ -3960,7 +3961,7 @@ function PublisherPage() {
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
           try {
-            const { data: ins } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published' }]).select();
+            const { data: ins } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published', scheduled_at: new Date().toISOString() }]).select();
             if (ins && ins[0]) await supabase.from('posts').update({ external_id: data.postId || null, permalink: data.permalink || null, published_at: new Date().toISOString() }).eq('id', ins[0].id);
           } catch (e) { /* link columns may not exist yet — non-fatal */ }
         }
