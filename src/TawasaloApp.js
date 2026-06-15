@@ -2913,10 +2913,11 @@ function AIStudioPage() {
   const [creditTick, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
   const [justBought, setJustBought] = useState("");
   const acct = (userEmail || "").toLowerCase();   // image credits are owned by the agency, not the client
-  const isPaid = (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
-  const imgLimit = imgLimitOf(acct);
+  const unlimitedImg = ["octofusionbh@gmail.com","theoctopus.bh@gmail.com"].includes(acct);   // founder account — unlimited AI images
+  const isPaid = unlimitedImg || (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
+  const imgLimit = unlimitedImg ? Infinity : imgLimitOf(acct);
   const imgUsed = imgUsedOf(acct);
-  const noCredits = imgUsed >= imgLimit;
+  const noCredits = !unlimitedImg && imgUsed >= imgLimit;
   const curPack = imgPackOf(acct);
   const choosePack = (pack) => { setImgPackOf(acct, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
   const SIZES = [
@@ -3046,14 +3047,14 @@ function AIStudioPage() {
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
               <div>
                 <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>Image credits this month</div>
-                <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {imgLimit}</span></div>
+                <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {unlimitedImg ? "∞" : imgLimit}</span></div>
               </div>
-              <div style={{ fontSize:11, color:th.text3 }}>{curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free"} plan</div>
+              <div style={{ fontSize:11, color:th.text3 }}>{unlimitedImg ? "Founder" : (curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free")} plan</div>
             </div>
-            <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
+            <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:(unlimitedImg?8:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100)))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
-              <span><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</span>
-              <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? "Upgrade plan" : (curPack ? "Change plan" : "Get more")}</button>
+              <span>{unlimitedImg ? "Unlimited" : <><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</>}</span>
+              {!unlimitedImg && <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? "Upgrade plan" : (curPack ? "Change plan" : "Get more")}</button>}
             </div>
           </div>
           {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} activated. Your image credits are ready.</div>}
@@ -3444,12 +3445,141 @@ function CalendarRoomPage() {
   );
 }
 
+// One-Click Month — a brief becomes a full month of bilingual posts (captions + images),
+// spread across the calendar at best times, ready to schedule or send for approval.
+function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
+  const [step, setStep] = useState("brief");
+  const [theme, setTheme] = useState("");
+  const [count, setCount] = useState(8);
+  const [days, setDays] = useState([1, 3, 5]);
+  const [lang, setLang] = useState("both");
+  const [busy, setBusy] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [err, setErr] = useState("");
+  const [scheduling, setScheduling] = useState(false);
+  const [sendAppr, setSendAppr] = useState(false);
+  const DOW = ["S","M","T","W","T","F","S"];
+  const toggleDay = (d) => setDays(ds => ds.includes(d) ? ds.filter(x=>x!==d) : [...ds, d].sort((a,b)=>a-b));
+  const voice = loadVoice(clientId) || {};
+  const api = (body) => fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) }).then(r=>r.json()).catch(()=>({ error:true }));
+
+  const generate = async () => {
+    if (!theme.trim() || busy) return;
+    setErr(""); setBusy({ done:0, total:count, label:L("Thinking up ideas…","نفكر في الأفكار…") });
+    const ideasRes = await api({ mode:'ideas', topic:theme, count, brand:clientName });
+    const ideas = ((ideasRes.ideas && ideasRes.ideas.length) ? ideasRes.ideas : Array.from({ length:count }, (_,i)=>`${theme} — idea ${i+1}`)).slice(0, count);
+    const out = []; let done = 0;
+    setBusy({ done:0, total:ideas.length, label:L("Writing captions & generating images…","نكتب النصوص وننشئ الصور…") });
+    await Promise.all(ideas.map(async (idea) => {
+      const [cap, img] = await Promise.all([
+        api({ topic:idea, tone:'engaging and on-brand', lang, brand:clientName, voice }),
+        api({ mode:'image', prompt:`${idea} — ${theme}. Professional, vibrant social media photo, on brand.`, n:1, size:'1024x1024' }),
+      ]);
+      out.push({ idea, en:cap.english || "", ar:cap.arabic || "", image:(img.images && img.images[0]) || null });
+      done++; setBusy({ done, total:ideas.length, label:L("Writing captions & generating images…","نكتب النصوص وننشئ الصور…") });
+    }));
+    setPosts(out); setBusy(null); setStep("review");
+  };
+
+  const uploadDataUrl = async (dataUrl, idx) => {
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const { data: { user } } = await supabase.auth.getUser();
+      const path = `${user?.id || 'x'}/plan/${clientId}-${Date.now()}-${idx}.jpg`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { contentType:blob.type || 'image/jpeg', upsert:true });
+      if (error) return dataUrl;
+      const { data } = supabase.storage.from('media').getPublicUrl(path);
+      return (data && data.publicUrl) || dataUrl;
+    } catch (e) { return dataUrl; }
+  };
+
+  const schedule = async () => {
+    if (scheduling || !posts.length) return;
+    setScheduling(true);
+    const dates = []; const d = new Date(); d.setHours(0,0,0,0); const times = [[9,0],[13,0],[18,0]]; let ti = 0, guard = 0;
+    while (dates.length < posts.length && guard < 400) { guard++; d.setDate(d.getDate()+1); if (days.length===0 || days.includes(d.getDay())) { const t = times[ti % times.length]; ti++; const dt = new Date(d); dt.setHours(t[0], t[1], 0, 0); dates.push(dt.toISOString()); } }
+    const tok = sendAppr ? Math.random().toString(36).slice(2, 10) : null;
+    for (let i = 0; i < posts.length; i++) {
+      const p = posts[i]; let url = p.image; if (url && url.startsWith('data:')) url = await uploadDataUrl(url, i);
+      const caption = lang==='ar' ? p.ar : lang==='en' ? p.en : (p.en + (p.ar ? "\n\n" + p.ar : ""));
+      const row = { client_id:clientId, platform:'ig', caption, image_url:url || null, status:'scheduled', scheduled_at:dates[i] || new Date().toISOString() };
+      if (tok) { row.appr_token = tok; row.appr_status = 'pending'; }
+      try { await supabase.from('posts').insert([row]); } catch (e) { /* ignore */ }
+    }
+    setScheduling(false); onDone();
+  };
+
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 12px", color:th.text, fontSize:13, outline:"none" };
+  const chip = (active) => ({ fontSize:11.5, padding:"6px 12px", borderRadius:9, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:"transparent", color:active?th.text:th.text2 });
+
+  return createPortal((
+    <div onClick={()=>{ if(!busy && !scheduling) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:560, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Wand2 size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Plan my month","خطّط شهري")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <button onClick={onClose} disabled={!!busy||scheduling} style={{ background:"none", border:"none", cursor:(busy||scheduling)?"default":"pointer", color:th.text2, display:"flex", opacity:(busy||scheduling)?0.4:1 }}><XCircle size={20}/></button>
+        </div>
+
+        {busy ? (
+          <div style={{ padding:"40px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 16px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={22} color={th.accent}/></div>
+            <div style={{ fontSize:14, fontWeight:600, marginBottom:8 }}>{busy.label}</div>
+            <div style={{ width:260, maxWidth:"80%", height:7, borderRadius:5, background:th.card2, margin:"0 auto 8px", overflow:"hidden" }}><div style={{ width:Math.round(busy.done/Math.max(1,busy.total)*100)+"%", height:"100%", background:th.gradient, transition:"width .3s" }}/></div>
+            <div style={{ fontSize:11.5, color:th.text3 }}><span className="tw-num">{busy.done}</span> / <span className="tw-num">{busy.total}</span></div>
+          </div>
+        ) : step === "brief" ? (
+          <div style={{ padding:"18px 20px", overflowY:"auto" }}>
+            <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("What's the month about?","عن ماذا يدور الشهر؟")}</div>
+            <input value={theme} onChange={e=>setTheme(e.target.value)} placeholder={L("e.g. iced drinks, bagels & game-day deals","مثلاً: مشروبات مثلجة، خبز، وعروض المباريات")} style={{ ...inp, marginBottom:16 }}/>
+            <div style={{ display:"flex", gap:24, flexWrap:"wrap", marginBottom:16 }}>
+              <div><div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("How many posts?","كم منشوراً؟")}</div><div style={{ display:"flex", gap:6 }}>{[4,8,12].map(n=><span key={n} onClick={()=>setCount(n)} style={chip(count===n)}>{n}</span>)}</div></div>
+              <div><div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Language","اللغة")}</div><div style={{ display:"flex", gap:6 }}>{[["both",L("Both","كلاهما")],["en","EN"],["ar","ع"]].map(([k,t])=><span key={k} onClick={()=>setLang(k)} style={chip(lang===k)}>{t}</span>)}</div></div>
+            </div>
+            <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Post on these days","ينشر في هذه الأيام")}</div>
+            <div style={{ display:"flex", gap:6, marginBottom:16 }}>{DOW.map((d,i)=><span key={i} onClick={()=>toggleDay(i)} style={{ ...chip(days.includes(i)), width:30, textAlign:"center", padding:"6px 0" }}>{d}</span>)}</div>
+            <div onClick={()=>setSendAppr(v=>!v)} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:18 }}>
+              <span style={{ width:34, height:20, borderRadius:11, background:sendAppr?th.accent:th.border, position:"relative", flexShrink:0 }}><span style={{ position:"absolute", top:2, left:sendAppr?16:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
+              <span style={{ fontSize:12.5, color:th.text2 }}>{L("Send the month to the client for approval","أرسل الشهر للعميل للموافقة")}</span>
+            </div>
+            {loadVoice(clientId) && <div style={{ fontSize:11, color:th.success, display:"flex", alignItems:"center", gap:6, marginBottom:16 }}><MessageCircle size={12}/>{L("Using ","باستخدام ")}{clientName} {L("brand voice","نبرة العلامة")}</div>}
+            {err && <div style={{ fontSize:11.5, color:th.danger, marginBottom:12 }}>{err}</div>}
+            <button onClick={generate} disabled={!theme.trim()} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"13px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:theme.trim()?"pointer":"not-allowed", opacity:theme.trim()?1:0.5 }}><Wand2 size={15}/>{L("Generate the month","أنشئ الشهر")}</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ fontSize:13, fontWeight:600 }}><span className="tw-num">{posts.length}</span> {L("posts ready","منشور جاهز")}</div>
+              <button onClick={()=>setStep("brief")} style={{ fontSize:11.5, color:th.accent, background:"none", border:"none", cursor:"pointer" }}>{L("← Edit brief","← تعديل")}</button>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"12px 20px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:11 }}>
+              {posts.map((p,i)=>(
+                <div key={i} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, overflow:"hidden" }}>
+                  <div style={{ position:"relative", aspectRatio:"1/1", background:p.image?`center/cover url(${p.image})`:th.card2 }}>
+                    {!p.image && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={18} color={th.text3}/></div>}
+                    <button onClick={()=>setPosts(ps=>ps.filter((_,j)=>j!==i))} style={{ position:"absolute", top:6, right:6, width:22, height:22, borderRadius:"50%", background:"rgba(0,0,0,0.55)", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={14}/></button>
+                  </div>
+                  <div style={{ padding:"8px 10px", fontSize:10.5, color:th.text2, lineHeight:1.45, height:48, overflow:"hidden" }}>{p.en || p.ar || p.idea}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"13px 20px", borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1, fontSize:11.5, color:th.text2 }}>{L("Scheduled across the chosen days at best times.","مجدولة على الأيام المختارة بأفضل الأوقات.")}</div>
+              <button onClick={schedule} disabled={scheduling||!posts.length} style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(scheduling||!posts.length)?0.6:1 }}>{scheduling?<>{L("Scheduling…","جارٍ الجدولة…")}</>:<><Calendar size={15}/>{sendAppr?L("Schedule + send","جدولة وإرسال"):L("Schedule all","جدولة الكل")}</>}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body);
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
   const [view, setView] = useState("list");
+  const [planOpen, setPlanOpen] = useState(false);
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -3576,9 +3706,11 @@ function CalendarPage() {
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
+          <button onClick={()=>setPlanOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Wand2 size={14}/>{L("Plan month","خطّط الشهر")}</button>
           <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>{L("New post","منشور جديد")}</button>
         </div>
       </div>
+      {planOpen && <PlanMonthModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} onClose={()=>setPlanOpen(false)} onDone={()=>{ setPlanOpen(false); loadPosts(); }}/>}
 
       {/* Filter bar — platform + status, with a persistent Today */}
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 13px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
