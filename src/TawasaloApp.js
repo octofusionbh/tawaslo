@@ -3411,10 +3411,14 @@ function AIStudioPage() {
 // Calendar room — a read-only record of everything approved or published.
 // A visual content wall (Month) + a dense Gallery, with Share to client.
 function CalendarRoomPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const repostStory = (p) => {
+    try { sessionStorage.setItem('tw_repost', JSON.stringify({ url: p.image_url || "", caption: p.caption || "" })); } catch (e) { /* ignore */ }
+    setPage('publisher');
+  };
   const [cursor, setCursor] = useState(new Date());
   const [view, setView] = useState("month");
   const [posts, setPosts] = useState([]);
@@ -3652,6 +3656,9 @@ function CalendarRoomPage() {
                 {p.permalink && <a href={p.permalink} target="_blank" rel="noreferrer" style={{ fontSize:10.5, color:th.success, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:4 }}><ArrowUpRight size={12}/>{L("View on Instagram","عرض على إنستغرام")}</a>}
               </div>
               <div style={{ fontSize:12, color:th.text, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+              {st==='published' && p.image_url && (
+                <button onClick={()=>repostStory(p)} style={{ marginTop:12, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"10px", borderRadius:11, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><RefreshCw size={14} color={th.accent}/>{L("Repost to Story","إعادة النشر كستوري")}</button>
+              )}
             </div>
           </div>
         </div>
@@ -4203,6 +4210,7 @@ function PublisherPage() {
   const [useVoice, setUseVoice] = useState(true);
   const [pvAR, setPvAR] = useState(1); // live-preview aspect ratio, learned from the image
   const [drafts, setDrafts] = useState([]);
+  const [repostNote, setRepostNote] = useState(false); // arrived here via Repost → Story
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -4214,6 +4222,20 @@ function PublisherPage() {
     try {
       const c = sessionStorage.getItem('tw_studio_caption'); if (c) { setCaption(c); sessionStorage.removeItem('tw_studio_caption'); }
       const m = sessionStorage.getItem('tw_studio_media'); if (m) { setMedia(prev => [...prev, { id:'h'+Date.now(), name:'media', type:/\.(mp4|mov|webm)$/i.test(m)?'video':'image', url:m, uploading:false }]); sessionStorage.removeItem('tw_studio_media'); }
+      // Repost → Story: an existing post's media handed off from Analytics / Calendar.
+      const r = sessionStorage.getItem('tw_repost');
+      if (r) {
+        sessionStorage.removeItem('tw_repost');
+        const { url, caption: rc } = JSON.parse(r);
+        if (url) {
+          const isVid = /\.(mp4|mov|webm)$/i.test(url);
+          setMedia([{ id:'r'+Date.now(), name:'repost', type:isVid?'video':'image', url, uploading:false }]);
+          setIgFormat('story');
+          if (rc) setCaption(rc);
+          setTab('compose');
+          setRepostNote(true);
+        }
+      }
     } catch (e) { /* ignore */ }
   }, []);
 
@@ -4499,6 +4521,14 @@ function PublisherPage() {
       ) : (
       <div style={{ display:"grid", gridTemplateColumns:"1.5fr 1fr", gap:18, alignItems:"start" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:13 }}>
+
+          {repostNote && (
+            <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px", borderRadius:12, background:th.accentSoft, border:`1px solid ${th.accent}55` }}>
+              <RefreshCw size={15} color={th.accent}/>
+              <div style={{ flex:1, fontSize:11.5, color:th.text, lineHeight:1.45 }}>{L("We pulled this post in as a Story — your media's attached. Pick the account and publish or schedule.","أحضرنا هذا المنشور كستوري — الوسائط مرفقة. اختر الحساب ثم انشر أو جدول.")}</div>
+              <button onClick={()=>setRepostNote(false)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", flexShrink:0 }}><XCircle size={16}/></button>
+            </div>
+          )}
 
           <div style={card}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
@@ -5408,7 +5438,11 @@ function TrendingPage() {
 }
 
 function AnalyticsPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, setPage } = useApp();
+  const repostStory = (pp) => {
+    try { sessionStorage.setItem('tw_repost', JSON.stringify({ url: pp.thumbnail || pp.image_url || "", caption: pp.caption || "" })); } catch (e) { /* ignore */ }
+    setPage('publisher');
+  };
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -5687,7 +5721,8 @@ function AnalyticsPage() {
                     <div key={pp.id||idx} style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"12px 18px",borderBottom:idx<topPosts.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
                       <div style={{display:"flex",alignItems:"center",gap:11,minWidth:0}}>
                         {pp.thumbnail ? <img src={pp.thumbnail} alt="" style={{width:42,height:42,borderRadius:9,objectFit:"cover",flexShrink:0}} onError={e=>{e.target.style.display="none";}}/> : <div style={{width:42,height:42,borderRadius:9,background:th.gradient,flexShrink:0}}/>}
-                        <div style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{pp.caption||"(No caption)"}</div>
+                        <div style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{pp.caption||"(No caption)"}</div>
+                        {(pp.thumbnail||pp.image_url) && <button onClick={()=>repostStory(pp)} title={L("Repost to Story","إعادة النشر كستوري")} style={{flexShrink:0,display:"inline-flex",alignItems:"center",gap:4,padding:"4px 8px",borderRadius:8,border:`1px solid ${th.border}`,background:th.card2,color:th.text2,fontSize:10.5,fontWeight:600,cursor:"pointer"}}><RefreshCw size={11}/>{L("Story","ستوري")}</button>}
                       </div>
                       <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{(metricVal>0||tpMetricKey==="comments")?metricVal.toLocaleString():"—"}</div>
                       <div className="tw-num" style={{textAlign:"right",fontSize:13}}>{pp.likes.toLocaleString()}</div>
