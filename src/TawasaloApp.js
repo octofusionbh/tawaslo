@@ -731,9 +731,9 @@ function Sidebar() {
             <div style={{fontSize:9,color:th.text2,letterSpacing:0.4,marginTop:1,textTransform:"uppercase"}}>{t("brand.tagline","Social Intelligence")}</div>
           </div>}
         </div>
-        {!isMobile&&!col&&<button onClick={()=>setCollapsed(true)} title="Collapse sidebar" style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4,borderRadius:6}}>{isAR?<ChevronRight size={17}/>:<ChevronLeft size={17}/>}</button>}
+        {!isMobile&&!col&&<button onClick={()=>setCollapsed(true)} title={isAR?"طيّ الشريط الجانبي":"Collapse sidebar"} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4,borderRadius:6}}>{isAR?<ChevronRight size={17}/>:<ChevronLeft size={17}/>}</button>}
       </div>
-      {!isMobile&&col&&<div style={{display:"flex",justifyContent:"center",paddingBottom:8}}><button onClick={()=>setCollapsed(false)} title="Expand sidebar" style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,width:34,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:th.text2}}>{isAR?<ChevronLeft size={15}/>:<ChevronRight size={15}/>}</button></div>}
+      {!isMobile&&col&&<div style={{display:"flex",justifyContent:"center",paddingBottom:8}}><button onClick={()=>setCollapsed(false)} title={isAR?"توسيع الشريط الجانبي":"Expand sidebar"} style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,width:34,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:th.text2}}>{isAR?<ChevronLeft size={15}/>:<ChevronRight size={15}/>}</button></div>}
 
       {mode==="agency"&&!col&&(
         <div style={{padding:"0 14px 12px"}}>
@@ -1098,6 +1098,7 @@ function ClientMonogram({ name, logo, size=38, radius=11 }) {
 // Instagram-style crop: drag to position, slide to zoom, square output.
 function LogoCropper({ file, onCancel, onSave }) {
   const th = useTheme();
+  const { lang } = useApp(); const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const canvasRef = useRef(null);
   const imgRef = useRef(null);
   const off = useRef({x:0,y:0});
@@ -1128,8 +1129,8 @@ function LogoCropper({ file, onCancel, onSave }) {
   return createPortal((
     <div onClick={onCancel} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.8)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <div onClick={e=>e.stopPropagation()} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:22,width:"100%",maxWidth:330,boxShadow:th.shadow}}>
-        <h3 style={{margin:"0 0 3px",fontSize:16,fontWeight:800,color:th.text}}>Position the logo</h3>
-        <p style={{margin:"0 0 14px",fontSize:11.5,color:th.text2}}>Drag to move, slide to zoom.</p>
+        <h3 style={{margin:"0 0 3px",fontSize:16,fontWeight:800,color:th.text}}>{L("Position the logo","حدّد موضع الشعار")}</h3>
+        <p style={{margin:"0 0 14px",fontSize:11.5,color:th.text2}}>{L("Drag to move, slide to zoom.","اسحب للتحريك، حرّك للتكبير.")}</p>
         <div style={{display:"flex",justifyContent:"center",marginBottom:16}}>
           <canvas ref={canvasRef} width={F} height={F}
             onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={onUp}
@@ -1142,8 +1143,8 @@ function LogoCropper({ file, onCancel, onSave }) {
           <span style={{color:th.text3,fontSize:15,fontWeight:700}}>+</span>
         </div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={onCancel} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>Cancel</button>
-          <button onClick={save} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>Use photo</button>
+          <button onClick={onCancel} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+          <button onClick={save} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>{L("Use photo","استخدام الصورة")}</button>
         </div>
       </div>
     </div>
@@ -3020,7 +3021,7 @@ function MediaPage() {
               <div style={{ position:"relative", height:150, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 {it.video ? <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, color:th.text2 }}><Send size={22}/><span style={{ fontSize:10 }}>Video</span></div> : <img src={it.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{ position:"absolute", top:8, left:8, fontSize:9, fontWeight:700, color:"#fff", background:(PCOL[it.plat]||th.text2), borderRadius:6, padding:"2px 7px" }}>{PNAME[it.plat]||"General"}</span>
-                <button onClick={()=>remove(it.name)} title="Delete" style={{ position:"absolute", top:8, right:8, width:26, height:26, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={15}/></button>
+                <button onClick={()=>remove(it.name)} title={isAR?"حذف":"Delete"} style={{ position:"absolute", top:8, right:8, width:26, height:26, borderRadius:8, background:"rgba(0,0,0,0.55)", border:"none", cursor:"pointer", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={15}/></button>
               </div>
               <div style={{ padding:"10px 11px", display:"flex", gap:7 }}>
                 <button onClick={()=>useInPost(it.url)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"7px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={12}/>Use</button>
@@ -4479,9 +4480,9 @@ function PublisherPage() {
                     <option value="urgent and promotional">Urgent &amp; promotional</option>
                     <option value="informative and educational">Informative</option>
                   </select>
-                  <input value={aiAudience} onChange={e=>setAiAudience(e.target.value)} placeholder="Audience (optional)" style={{ ...inp, flex:1 }}/>
+                  <input value={aiAudience} onChange={e=>setAiAudience(e.target.value)} placeholder={L("Audience (optional)","الجمهور (اختياري)")} style={{ ...inp, flex:1 }}/>
                 </div>
-                <input value={aiDetails} onChange={e=>setAiDetails(e.target.value)} placeholder="Key points / call-to-action (optional)" style={{ ...inp, marginBottom:9 }}/>
+                <input value={aiDetails} onChange={e=>setAiDetails(e.target.value)} placeholder={L("Key points / call-to-action (optional)","نقاط رئيسية / دعوة لإجراء (اختياري)")} style={{ ...inp, marginBottom:9 }}/>
                 {loadVoice(selClient?.id) && (
                   <div onClick={()=>setUseVoice(v=>!v)} style={{ display:"flex", alignItems:"center", gap:9, marginBottom:10, cursor:"pointer" }}>
                     <span style={{ width:32, height:18, borderRadius:10, background:useVoice?th.accent:th.border, position:"relative", flexShrink:0, transition:"background .2s" }}><span style={{ position:"absolute", top:2, left:useVoice?16:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
@@ -4508,14 +4509,14 @@ function PublisherPage() {
                       {aiResult.english && <button onClick={()=>setCaption(aiResult.english)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use English</button>}
                       {aiResult.arabic && <button onClick={()=>setCaption(aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>Use Arabic</button>}
                       {aiResult.english && aiResult.arabic && <button onClick={()=>setCaption(aiResult.english+"\n\n"+aiResult.arabic)} style={{ flex:1, padding:"7px", borderRadius:8, background:th.accentSoft, border:`1px solid ${th.accent}`, color:th.accent, fontSize:11, cursor:"pointer" }}>Use both</button>}
-                      {(aiResult.english||aiResult.arabic) && <button onClick={()=>{ try{ navigator.clipboard.writeText([aiResult.english,aiResult.arabic].filter(Boolean).join("\n\n")); }catch(e){} }} title="Copy to clipboard" style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Copy size={12}/>Copy</button>}
+                      {(aiResult.english||aiResult.arabic) && <button onClick={()=>{ try{ navigator.clipboard.writeText([aiResult.english,aiResult.arabic].filter(Boolean).join("\n\n")); }catch(e){} }} title={L("Copy to clipboard","نسخ")} style={{ flex:1, padding:"7px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}><Copy size={12}/>{L("Copy","نسخ")}</button>}
                     </div>
                   </div>
                 )}
                 {aiResult && aiResult.error && <div style={{ marginTop:9, fontSize:11, color:th.danger }}>{aiResult.error}</div>}
               </div>
             )}
-            <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder="Write your caption…" rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
+            <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder={L("Write your caption…","اكتب التعليق…")} rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
             <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginTop:7 }}>
               <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
             </div>
@@ -5599,7 +5600,7 @@ function AnalyticsPage() {
           <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"none",overflow:"hidden"}}>
             <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,fontSize:13,fontWeight:600}}>Top performing posts</div>
             {topPosts.length===0 ? (
-              <EmptyState compact Icon={BarChart2} title="No posts to analyze yet" body="Once this account has published posts, your top performers will rank here by engagement." />
+              <EmptyState compact Icon={BarChart2} title={L("No posts to analyze yet","لا منشورات للتحليل بعد")} body={L("Once this account has published posts, your top performers will rank here by engagement.","بمجرد نشر هذا الحساب لمنشورات، ستظهر أفضل منشوراتك هنا حسب التفاعل.")} />
             ) : (
               <>
                 <div style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1fr 1.3fr",padding:"9px 18px",borderBottom:`1px solid ${th.border}`,fontSize:10,color:th.text3,letterSpacing:0.5,textTransform:"uppercase"}}>
@@ -9317,7 +9318,7 @@ function TrialBanner() {
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
         <button onClick={()=>setPage("billing")} style={{ padding:"7px 15px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>{isAR ? "ترقية" : "Upgrade"}</button>
-        <button onClick={()=>setHidden(true)} title="Dismiss" aria-label="Dismiss" style={{ width:26, height:26, borderRadius:7, background:"transparent", border:"none", color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={16}/></button>
+        <button onClick={()=>setHidden(true)} title={isAR?"إغلاق":"Dismiss"} aria-label={isAR?"إغلاق":"Dismiss"} style={{ width:26, height:26, borderRadius:7, background:"transparent", border:"none", color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={16}/></button>
       </div>
     </div>
   );
