@@ -4918,10 +4918,10 @@ function SocialAccountsPage() {
     const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments,instagram_business_manage_messages';
     // Store current page so callback can return here
     if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
-    // Exact format from Meta's OAuth Authorize reference — client_id, redirect_uri,
-    // response_type, scope only. (Dropped the non-standard force_reauth param, which can
-    // make Instagram fall back to a plain login instead of showing the consent screen.)
-    const authUrl = `https://www.instagram.com/oauth/authorize?client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}`;
+    // force_reauth=true makes Instagram always show the login + permission screen,
+    // so the user can pick the correct account and (re)grant permissions every time —
+    // instead of silently reconnecting whichever account is already signed in.
+    const authUrl = `https://www.instagram.com/oauth/authorize?client_id=${IG_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&force_reauth=true`;
     window.location.href = authUrl;
   };
 
@@ -6730,6 +6730,7 @@ function InboxPage() {
   const [accounts, setAccounts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [diag, setDiag] = useState(null);   // why the inbox is empty (posts scanned, found, error)
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('all');
   const [reply, setReply] = useState('');
@@ -6835,9 +6836,10 @@ function InboxPage() {
   };
 
   const fetchInbox = async () => {
-    setLoading(true); setApiError('');
+    setLoading(true); setApiError(''); setDiag(null);
     const allMessages = [];
     let lastError = '';
+    let posts = 0, scanned = 0, permErr = null;
     for (const acc of accounts.filter(a => a.platform === 'ig')) {
       // Comments
       try {
@@ -6849,6 +6851,7 @@ function InboxPage() {
         const data = await res.json();
         if (data.data) allMessages.push(...data.data.map(m => ({ ...m, accountName: acc.account_name })));
         else if (data.error) lastError = data.error;
+        if (data.debug) { posts += data.debug.posts || 0; scanned += data.debug.scanned || 0; if (data.debug.error && !permErr) permErr = data.debug.error; }
       } catch(e) { lastError = e.message; console.warn('Inbox comments error:', e); }
       // Direct messages — non-fatal. Instagram only returns DMs from the last 24h / where the
       // user messaged the business first, so an empty result here is normal, not an error.
@@ -6866,6 +6869,7 @@ function InboxPage() {
     setMessages(allMessages);
     if (allMessages.length > 0) setSelected(allMessages[0]);
     if (allMessages.length === 0 && lastError) setApiError(lastError);
+    if (allMessages.length === 0) setDiag({ posts, scanned, error: permErr });
     setLoading(false);
   };
 
@@ -6944,7 +6948,10 @@ function InboxPage() {
           ) : (
             <>
               <div style={{fontSize:14, fontWeight:600, color:th.text, marginBottom:6}}>{L("No activity yet","لا يوجد نشاط بعد")}</div>
-              <div>{L("Comments and DMs will appear here as soon as your posts get engagement.","ستظهر التعليقات والرسائل هنا بمجرد تفاعل الجمهور مع منشوراتك.")}</div>
+              <div>{L("This shows comments & DMs from your audience — your own comments on your posts won't appear here.","يعرض هذا تعليقات ورسائل جمهورك — لن تظهر تعليقاتك الخاصة على منشوراتك هنا.")}</div>
+              {diag && diag.error
+                ? <div style={{fontSize:11, color:th.warning, marginTop:9}}>{L("Instagram says:","تقول إنستغرام:")} {diag.error}</div>
+                : diag && diag.posts>0 ? <div style={{fontSize:11, color:th.text3, marginTop:9}}>{L("Checked","فحصنا")} <span className="tw-num">{diag.posts}</span> {L("recent posts — no audience comments yet.","منشور حديث — لا تعليقات من الجمهور بعد.")}</div> : null}
             </>
           )}
           <button onClick={loadSample} style={{marginTop:18, padding:"9px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7}}>

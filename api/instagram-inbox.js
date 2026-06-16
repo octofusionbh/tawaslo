@@ -45,12 +45,15 @@ export default async function handler(req, res) {
       if (mediaData.error) return res.status(400).json({ error: mediaData.error.message, debug: { accountId, base, mediaError: mediaData.error } });
 
       const comments = [];
-      for (const media of (mediaData.data || []).slice(0, 5)) {
+      const mediaList = (mediaData.data || []);
+      let scanned = 0, commentError = null;
+      for (const media of mediaList.slice(0, 5)) {
+        scanned++;
         const commentsRes = await fetch(
           `${base}/${media.id}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp}&limit=20&access_token=${accessToken}`
         );
         const commentsData = await commentsRes.json();
-        console.log(`Comments for ${media.id}:`, JSON.stringify(commentsData).substring(0, 300));
+        if (commentsData.error && !commentError) commentError = commentsData.error.message;
         if (commentsData.data) {
           for (const comment of commentsData.data) {
             comments.push({
@@ -69,7 +72,8 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ data: comments });
+      // Always include a diagnostic so an empty inbox can explain itself.
+      return res.status(200).json({ data: comments, debug: { posts: mediaList.length, scanned, found: comments.length, error: commentError } });
 
     } else if (type === 'messages') {
       // Fetch Instagram DMs — requires instagram_manage_messages permission
@@ -95,7 +99,7 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ data: messages });
+      return res.status(200).json({ data: messages, debug: { conversations: (convsData.data || []).length } });
     }
 
     return res.status(400).json({ error: 'Invalid type. Use "comments" or "messages"' });
