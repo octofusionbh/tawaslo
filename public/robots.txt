@@ -1,3 +1,11 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+
+# Private share links and auth pages — not for indexing
+Disallow: /a/
+Disallow: /r/
+Disallow: /reset-password
+Disallow: /api/
+
+Sitemap: https://tawaslo.com/sitemap.xml
