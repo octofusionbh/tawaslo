@@ -2476,20 +2476,22 @@ function ApprovalsPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [posts, setPosts] = useState([]);
   const [override, setOverride] = useState({});
+  const [loading, setLoading] = useState(true);
   const PC = { ig:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#111", yt:"#FF0000" };
   const PN = { ig:"Instagram", fb:"Facebook", tw:"X", li:"LinkedIn", tt:"TikTok", yt:"YouTube" };
   const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
-  const fmtWhen = (iso) => new Date(iso).toLocaleDateString(isAR?"ar":[], { weekday:"short", day:"numeric", month:"short" }) + " · " + fmtTime(iso);
+  const fmtWhen = (iso) => new Date(iso).toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short", day:"numeric", month:"short" }) + " · " + fmtTime(iso);
 
   useEffect(() => {
-    if (!selClient?.name) return;
+    if (!selClient?.name) { setLoading(false); return; }
+    setLoading(true);
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); });
+      .then(({ data }) => { if (data && data.length) setRealClientId(data[0].id); else setLoading(false); });
   }, [selClient]);
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('posts').select('*').eq('client_id', realClientId).order('scheduled_at', { ascending: true })
-      .then(({ data }) => { if (data) setPosts(data.filter(p => p.appr_token || p.appr_status)); });
+      .then(({ data }) => { if (data) setPosts(data.filter(p => p.appr_token || p.appr_status)); setLoading(false); });
   }, [realClientId]);
 
   // Real posts sent for approval; demo fallback (real images) so the queue is never empty in a walkthrough.
@@ -2516,6 +2518,14 @@ function ApprovalsPage() {
   const pill = (st) => { const s = APPR_STATUS[st]; return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:s.color, background:s.color+"1F", padding:"3px 9px", borderRadius:20, whiteSpace:"nowrap" }}><span style={{ width:5, height:5, borderRadius:"50%", background:s.color }}/>{L(s.label,s.ar)}</span>
   ); };
+  if (loading) return (
+    <div style={{ padding:"26px 30px", maxWidth:980 }}>
+      <Sk w={170} h={22} mb={7}/>
+      <Sk w={300} h={12} mb={20}/>
+      <SkStatRow th={th} n={4}/>
+      <SkCards th={th} count={6} h={150} min={220}/>
+    </div>
+  );
   return (
     <div style={{ padding:"26px 30px", maxWidth:980 }}>
       <SendPickerModal open={pickerOpen} onClose={()=>setPickerOpen(false)} th={th} L={L} rows={rows} sel={sel} setSel={setSel} onContinue={confirmSend}/>
@@ -2756,7 +2766,7 @@ function AgencyDashboard() {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div/>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>{L("Last 30 days","آخر ٣٠ يوماً")}</div>
+          <div style={{display:"flex",alignItems:"center",gap:7,background:th.card,border:`1px solid ${th.border}`,borderRadius:999,padding:"8px 14px",fontSize:12,color:th.text2}}><Calendar size={13}/>{L("Last 30 days","آخر 30 يوماً")}</div>
           <button onClick={()=>setPage("publisher")} style={{display:"flex",alignItems:"center",gap:6,padding:"10px 18px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontWeight:600,fontSize:13,cursor:"pointer"}}><Plus size={15}/>{L("New post","منشور جديد")}</button>
         </div>
       </div>
@@ -2778,7 +2788,7 @@ function AgencyDashboard() {
           </div>
           <div style={{width:1,height:40,background:th.border,flexShrink:0}}/>
           <div style={{flex:1,minWidth:150,display:"flex",alignItems:"center",gap:10}}>
-            <div style={{fontSize:11,color:th.text2,flexShrink:0,lineHeight:1.3}}>{L("Reach trend","اتجاه الوصول")}<br/><span style={{fontSize:10,color:th.text3}}>{L("last 30 days","آخر ٣٠ يومًا")}</span></div>
+            <div style={{fontSize:11,color:th.text2,flexShrink:0,lineHeight:1.3}}>{L("Reach trend","اتجاه الوصول")}<br/><span style={{fontSize:10,color:th.text3}}>{L("last 30 days","آخر 30 يومًا")}</span></div>
             <svg className="tw-throb" height="38" viewBox="0 0 200 38" preserveAspectRatio="none" style={{flex:1,minWidth:0,display:"block"}}>
               <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6 L200,38 L0,38 Z" fill={th.accent+"22"}/>
               <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6" fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
@@ -2786,7 +2796,7 @@ function AgencyDashboard() {
             <span style={{fontSize:11.5,fontWeight:700,color:th.success,flexShrink:0}}>+28%</span>
           </div>
           <div style={{display:"flex",gap:22,flexShrink:0}}>
-            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{fmtN(dashReach)}</div><div style={{fontSize:10,color:th.text2}}>{L("Reach 30d","الوصول ٣٠ يوم")}</div></div>
+            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{fmtN(dashReach)}</div><div style={{fontSize:10,color:th.text2}}>{L("Reach 30d","الوصول 30 يوم")}</div></div>
             <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{dashEng}</div><div style={{fontSize:10,color:th.text2}}>{L("Eng. rate","معدل التفاعل")}</div></div>
           </div>
         </div>
@@ -2813,7 +2823,7 @@ function AgencyDashboard() {
                   <path d={sArea} fill={th.accent+"24"}/>
                   <path d={sLine} fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
                 </svg>
-                <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول ٣٠ يوم")} <span className="tw-num" style={{color:th.text}}>{up?fmtN(Math.round(f*8.4)):"—"}</span></div>
+                <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول 30 يوم")} <span className="tw-num" style={{color:th.text}}>{up?fmtN(Math.round(f*8.4)):"—"}</span></div>
               </div>
             );
           })}
@@ -2825,7 +2835,7 @@ function AgencyDashboard() {
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
           {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}
         </div>
-        <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر ٣٠ يومًا")}</div>
+        <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر 30 يومًا")}</div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
@@ -3025,8 +3035,9 @@ function MediaPage() {
 }
 
 function AIStudioPage() {
-  const { dark, setPage, selClient, userEmail } = useApp();
+  const { dark, setPage, selClient, userEmail, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const geo = useGeo();
   const [tool, setTool] = useState("captions");
   const [topic, setTopic] = useState("");
@@ -3042,7 +3053,7 @@ function AIStudioPage() {
 
   const PLATS = [["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
   const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
-  const TOOLS = [["captions","Captions",Edit3],["ideas","Post ideas",Sparkles],["hashtags","Hashtags",TrendingUp],["images","Images",Image]];
+  const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["hashtags",L("Hashtags","الوسوم"),TrendingUp],["images",L("Images","الصور"),Image]];
   const [imgMode, setImgMode] = useState("generate");   // generate | edit
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgPreset, setImgPreset] = useState("other");
@@ -3062,9 +3073,9 @@ function AIStudioPage() {
   const curPack = imgPackOf(acct);
   const choosePack = (pack) => { setImgPackOf(acct, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
   const SIZES = [
-    { id:"other", size:"1024x1024", label:"Other",       Icon:Image },
+    { id:"other", size:"1024x1024", label:L("Other","أخرى"),       Icon:Image },
     { id:"ig",    size:"1024x1024", label:"Instagram",   Icon:FaInstagram },
-    { id:"story", size:"1024x1536", label:"Story / Reel", Icon:FaInstagram },
+    { id:"story", size:"1024x1536", label:L("Story / Reel","ستوري / ريل"), Icon:FaInstagram },
     { id:"li",    size:"1024x1024", label:"LinkedIn",    Icon:FaLinkedin },
     { id:"x",     size:"1536x1024", label:"X",           Icon:FaTwitter },
   ];
@@ -3081,10 +3092,10 @@ function AIStudioPage() {
         : { mode:'image', prompt:p, size, n:2 };
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
-      else if (r.error) setImgErr(typeof r.error==='string'?r.error:'Could not generate.');
+      else if (r.error) setImgErr(typeof r.error==='string'?r.error:L('Could not generate.','تعذّر التوليد.'));
       else if (r.images && r.images.length) { setImages(r.images); if (acct) { bumpImgUsed(acct, 1); setCreditTick(t=>t+1); } }
-      else setImgErr('Could not generate. Please try again.');
-    } catch(e) { setImgErr('Something went wrong. Please try again.'); }
+      else setImgErr(L('Could not generate. Please try again.','تعذّر التوليد. حاول مرة أخرى.'));
+    } catch(e) { setImgErr(L('Something went wrong. Please try again.','حدث خطأ ما. حاول مرة أخرى.')); }
     setImgLoading(false);
   };
   const onUploadSrc = (file) => { if(!file) return; const reader=new FileReader(); reader.onload=e=>setSrcImage(e.target.result); reader.readAsDataURL(file); };
@@ -3100,7 +3111,7 @@ function AIStudioPage() {
       const { data:url } = supabase.storage.from('media').getPublicUrl(path);
       try { sessionStorage.setItem('tw_studio_media', url.publicUrl); } catch(e){}
       setPage('publisher');
-    } catch(e) { setImgErr('Could not add to composer — try Download instead.'); }
+    } catch(e) { setImgErr(L('Could not add to composer — try Download instead.','تعذّرت الإضافة إلى المحرّر — جرّب التنزيل بدلاً من ذلك.')); }
   };
   const downloadImage = (b64) => { try { const a=document.createElement('a'); a.href=b64; a.download='tawaslo-image.png'; document.body.appendChild(a); a.click(); a.remove(); } catch(e){} };
   const editThisImage = (b64) => { setSrcImage(b64); setImgMode('edit'); setImages([]); setImgPrompt(''); };
@@ -3116,21 +3127,23 @@ function AIStudioPage() {
         const reqs = [0,1,2].map(()=>fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,lang:aiLang,brand:selClient?.name})}).then(r=>r.json()).catch(()=>({error:true})));
         const results = await Promise.all(reqs);
         const ok = results.filter(r=>r && !r.error && (r.english||r.arabic));
-        if (ok.length) setCaptions(ok); else setError("Could not generate. Please try again.");
+        if (ok.length) setCaptions(ok); else setError(L("Could not generate. Please try again.","تعذّر التوليد. حاول مرة أخرى."));
       } else if (tool === "ideas") {
         const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,mode:'ideas',count:6,brand:selClient?.name})}).then(r=>r.json());
-        if (r.ideas && r.ideas.length) setIdeas(r.ideas); else setError(r.error||"Could not generate.");
+        if (r.ideas && r.ideas.length) setIdeas(r.ideas); else setError(r.error||L("Could not generate.","تعذّر التوليد."));
       } else {
         const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,mode:'hashtags',brand:selClient?.name})}).then(r=>r.json());
-        if (r.hashtags && r.hashtags.length) setHashtags(r.hashtags); else setError(r.error||"Could not generate.");
+        if (r.hashtags && r.hashtags.length) setHashtags(r.hashtags); else setError(r.error||L("Could not generate.","تعذّر التوليد."));
       }
-    } catch (e) { setError("Something went wrong. Please try again."); }
+    } catch (e) { setError(L("Something went wrong. Please try again.","حدث خطأ ما. حاول مرة أخرى.")); }
     setLoading(false);
   };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, boxShadow:"none" };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
-  const EXAMPLES = ["Weekend brunch menu launch","Eid collection reveal","Behind the scenes in our kitchen","New product drop teaser","Customer spotlight"];
+  const EXAMPLES = isAR
+    ? ["إطلاق قائمة برانش نهاية الأسبوع","الكشف عن تشكيلة العيد","كواليس من مطبخنا","تشويق لمنتج جديد","تسليط الضوء على عميل"]
+    : ["Weekend brunch menu launch","Eid collection reveal","Behind the scenes in our kitchen","New product drop teaser","Customer spotlight"];
   const smallBtn = (active) => ({ fontSize:11, padding:"6px 11px", borderRadius:8, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2 });
 
   return (
@@ -3138,8 +3151,8 @@ function AIStudioPage() {
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
         <div style={{ width:40, height:40, borderRadius:12, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={20} color="#fff"/></div>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>AI Studio</h2>
-          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>Captions, ideas, hashtags &amp; AI images &mdash; in English &amp; Arabic</p>
+          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("AI Studio","استوديو الذكاء")}</h2>
+          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("Captions, ideas, hashtags & AI images — in English & Arabic","تعليقات وأفكار ووسوم وصور بالذكاء الاصطناعي — بالعربية والإنجليزية")}</p>
         </div>
       </div>
 
@@ -3150,80 +3163,80 @@ function AIStudioPage() {
       </div>
 
       {tool!=="images" && (<div style={{ ...card, marginBottom:18 }}>
-        <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{tool==="hashtags"?"What's the post about?":"Topic / product"}</div>
-        <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder="e.g. New weekend brunch menu launch at our Adliya cafe" rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
+        <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{tool==="hashtags"?L("What's the post about?","عمّ يدور المنشور؟"):L("Topic / product","الموضوع / المنتج")}</div>
+        <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder={L("e.g. New weekend brunch menu launch at our Adliya cafe","مثال: إطلاق قائمة برانش جديدة في مقهانا بالعدلية")} rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
           <div>
-            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Platform</div>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Platform","المنصة")}</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>{PLATS.map(([k,l])=><button key={k} onClick={()=>setPlatform(k)} style={smallBtn(platform===k)}>{l}</button>)}</div>
           </div>
           {tool!=="hashtags" && (
             <div>
-              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Tone</div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Tone","النبرة")}</div>
               <select value={tone} onChange={e=>setTone(e.target.value)} style={{ ...inp, width:"auto", padding:"7px 10px", fontSize:12 }}>
-                {TONES.map(t=><option key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</option>)}
+                {TONES.map(t=><option key={t} value={t}>{isAR ? ({"engaging and professional":"جذّاب ومهني","fun and casual":"مرح وعفوي","luxury and premium":"فاخر وراقٍ","urgent and promotional":"عاجل وترويجي","informative and educational":"إعلامي وتعليمي"}[t]||t) : (t.charAt(0).toUpperCase()+t.slice(1))}</option>)}
               </select>
             </div>
           )}
           {tool==="captions" && (
             <div>
-              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>Language</div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Language","اللغة")}</div>
               <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
                 {[["en","EN"],["ar","ع"],["both","Both"]].map(([k,t])=><button key={k} onClick={()=>setAiLang(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", background:aiLang===k?th.gradient:"transparent", color:aiLang===k?"#fff":th.text2, fontSize:11, fontWeight:aiLang===k?600:400, cursor:"pointer" }}>{t}</button>)}
               </div>
             </div>
           )}
-          <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?"Generating…":"Generate"}</button>
+          <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?L("Generating…","جارٍ التوليد…"):L("Generate","توليد")}</button>
         </div>
       </div>)}
 
       {tool==="images" && (
         <div style={{ ...card, marginBottom:14 }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:13 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:th.text, display:"flex", alignItems:"center", gap:8 }}><Image size={15} color={th.accent}/>AI images</div>
-            <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>Powered by Gemini</span>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text, display:"flex", alignItems:"center", gap:8 }}><Image size={15} color={th.accent}/>{L("AI images","صور بالذكاء الاصطناعي")}</div>
+            <span style={{ fontSize:10, color:th.text3, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={11} color={th.accent}/>{L("Powered by Gemini","مدعوم بـ Gemini")}</span>
           </div>
 
           <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 14px", marginBottom:12 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
               <div>
-                <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>Image credits this month</div>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>{L("Image credits this month","رصيد الصور هذا الشهر")}</div>
                 <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {unlimitedImg ? "∞" : imgLimit}</span></div>
               </div>
-              <div style={{ fontSize:11, color:th.text3 }}>{unlimitedImg ? "Founder" : (curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : "Free")} plan</div>
+              <div style={{ fontSize:11, color:th.text3 }}>{unlimitedImg ? L("Founder","المؤسس") : (curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : L("Free","مجاني"))} {L("plan","خطة")}</div>
             </div>
             <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:(unlimitedImg?8:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100)))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
-              <span>{unlimitedImg ? "Unlimited" : <><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> left</>}</span>
-              {!unlimitedImg && <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? "Upgrade plan" : (curPack ? "Change plan" : "Get more")}</button>}
+              <span>{unlimitedImg ? L("Unlimited","غير محدود") : <><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> {L("left","متبقٍ")}</>}</span>
+              {!unlimitedImg && <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? L("Upgrade plan","ترقية الخطة") : (curPack ? L("Change plan","تغيير الخطة") : L("Get more","المزيد"))}</button>}
             </div>
           </div>
-          {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} activated. Your image credits are ready.</div>}
+          {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} {L("activated. Your image credits are ready.","مُفعّلة. رصيد صورك جاهز.")}</div>}
 
           <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:12 }}>
-            {[["generate","Generate",Sparkles],["edit","Edit a photo",Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
+            {[["generate",L("Generate","توليد"),Sparkles],["edit",L("Edit a photo","تعديل صورة"),Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
           </div>
           {imgMode==="edit" && (
             <div style={{ marginBottom:12 }}>
               {srcImage ? (
                 <div style={{ display:"flex", alignItems:"center", gap:12, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:9 }}>
                   <img src={srcImage} alt="" style={{ width:54, height:54, borderRadius:8, objectFit:"cover" }}/>
-                  <div style={{ flex:1, fontSize:11.5, color:th.text2 }}>Photo ready — describe the change below.</div>
+                  <div style={{ flex:1, fontSize:11.5, color:th.text2 }}>{L("Photo ready — describe the change below.","الصورة جاهزة — صف التغيير بالأسفل.")}</div>
                   <button onClick={()=>setSrcImage(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><XCircle size={17}/></button>
                 </div>
               ) : (
                 <div onClick={()=>document.getElementById('ai-src').click()} style={{ border:`1.5px dashed ${th.border}`, borderRadius:10, padding:"16px", textAlign:"center", cursor:"pointer" }}>
                   <input type="file" id="ai-src" accept="image/*" style={{ display:"none" }} onChange={e=>onUploadSrc(e.target.files[0])}/>
                   <Image size={20} color={th.accent}/>
-                  <div style={{ fontSize:12, marginTop:5, color:th.text2 }}>Upload a photo to edit</div>
+                  <div style={{ fontSize:12, marginTop:5, color:th.text2 }}>{L("Upload a photo to edit","ارفع صورة لتعديلها")}</div>
                 </div>
               )}
             </div>
           )}
-          <textarea value={imgPrompt} onChange={e=>setImgPrompt(e.target.value)} placeholder={imgMode==="edit"?"e.g. remove the text in the top corner and add a warm sunset glow":"e.g. a flat-lay of weekend brunch dishes on a marble table, warm morning light"} rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
+          <textarea value={imgPrompt} onChange={e=>setImgPrompt(e.target.value)} placeholder={imgMode==="edit"?L("e.g. remove the text in the top corner and add a warm sunset glow","مثال: احذف النص في الزاوية العلوية وأضف توهج غروب دافئ"):L("e.g. a flat-lay of weekend brunch dishes on a marble table, warm morning light","مثال: لقطة علوية لأطباق برانش على طاولة رخامية بضوء صباحي دافئ")} rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
           <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
             <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>{SIZES.map(s=>{ const on=imgPreset===s.id; return <button key={s.id} onClick={()=>setImgPreset(s.id)} style={{ ...smallBtn(on), display:"flex", alignItems:"center", gap:5 }}><s.Icon size={12}/>{s.label}</button>; })}</div>
-            <button onClick={runImage} disabled={imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim()))} style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim())))?0.6:1 }}><Sparkles size={15}/>{imgLoading?(imgMode==="edit"?"Editing…":"Generating…"):(imgMode==="edit"?"Apply edit":"Generate")}</button>
+            <button onClick={runImage} disabled={imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim()))} style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(imgLoading||(imgMode==="generate"?!imgPrompt.trim():(!srcImage||!imgPrompt.trim())))?0.6:1 }}><Sparkles size={15}/>{imgLoading?(imgMode==="edit"?L("Editing…","جارٍ التعديل…"):L("Generating…","جارٍ التوليد…")):(imgMode==="edit"?L("Apply edit","تطبيق التعديل"):L("Generate","توليد"))}</button>
           </div>
         </div>
       )}
@@ -3231,8 +3244,8 @@ function AIStudioPage() {
       {tool==="images" && imgErr==="unconfigured" && (
         <div style={{ ...card, textAlign:"center", padding:"34px 24px", marginBottom:14 }}>
           <div style={{ width:46, height:46, margin:"0 auto 12px", borderRadius:13, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={22} color={th.accent}/></div>
-          <div style={{ fontSize:14.5, fontWeight:600, marginBottom:6 }}>Connect your image engine</div>
-          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto", lineHeight:1.6 }}>Add a <strong style={{color:th.text}}>Gemini API key</strong> (GEMINI_API_KEY) in your Vercel settings to turn on AI image generation and editing.</div>
+          <div style={{ fontSize:14.5, fontWeight:600, marginBottom:6 }}>{L("Connect your image engine","اربط محرّك الصور")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto", lineHeight:1.6 }}>{isAR ? <>أضف <strong style={{color:th.text}}>مفتاح Gemini API</strong> (GEMINI_API_KEY) في إعدادات Vercel لتفعيل توليد وتعديل الصور بالذكاء الاصطناعي.</> : <>Add a <strong style={{color:th.text}}>Gemini API key</strong> (GEMINI_API_KEY) in your Vercel settings to turn on AI image generation and editing.</>}</div>
         </div>
       )}
       {tool==="images" && imgErr && imgErr!=="unconfigured" && <div style={{ fontSize:12.5, color:th.danger, marginBottom:14 }}>{imgErr}</div>}
@@ -3243,9 +3256,9 @@ function AIStudioPage() {
             <div key={i} style={{ ...card, padding:0, overflow:"hidden" }}>
               <img src={b64} alt="" style={{ width:"100%", display:"block", aspectRatio:"1", objectFit:"cover" }}/>
               <div style={{ display:"flex", gap:7, padding:10 }}>
-                <button onClick={()=>useImage(b64)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>Use</button>
-                <button onClick={()=>downloadImage(b64)} title="Download" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Download size={14}/></button>
-                <button onClick={()=>editThisImage(b64)} title="Edit this image" style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Edit3 size={14}/></button>
+                <button onClick={()=>useImage(b64)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>{L("Use","استخدام")}</button>
+                <button onClick={()=>downloadImage(b64)} title={L("Download","تنزيل")} style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Download size={14}/></button>
+                <button onClick={()=>editThisImage(b64)} title={L("Edit this image","تعديل هذه الصورة")} style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"8px 11px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer" }}><Edit3 size={14}/></button>
               </div>
             </div>
           ))}
@@ -3255,8 +3268,8 @@ function AIStudioPage() {
       {tool==="images" && !imgLoading && !imgErr && images.length===0 && (
         <div style={{ ...card, textAlign:"center", padding:"36px 24px" }}>
           <div style={{ width:48, height:48, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={22} color={th.accent}/></div>
-          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{imgMode==="edit"?"Edit a photo by just asking":"On-brand images in seconds"}</div>
-          <div style={{ fontSize:12.5, color:th.text2, maxWidth:440, margin:"0 auto", lineHeight:1.6 }}>{imgMode==="edit"?"Upload a photo, then tell it what to change — remove text, add an object, swap the background.":"Describe what you want and the AI creates it. Then tweak any result with a follow-up edit."}</div>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{imgMode==="edit"?L("Edit a photo by just asking","عدّل صورة بمجرد الطلب"):L("On-brand images in seconds","صور بهوية علامتك في ثوانٍ")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:440, margin:"0 auto", lineHeight:1.6 }}>{imgMode==="edit"?L("Upload a photo, then tell it what to change — remove text, add an object, swap the background.","ارفع صورة ثم اطلب التغيير — احذف نصاً، أضف عنصراً، بدّل الخلفية."):L("Describe what you want and the AI creates it. Then tweak any result with a follow-up edit.","صف ما تريد ويُنشئه الذكاء الاصطناعي. ثم عدّل أي نتيجة بطلب لاحق.")}</div>
         </div>
       )}
 
@@ -3266,12 +3279,12 @@ function AIStudioPage() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:14 }}>
           {captions.map((c,i)=>(
             <div key={i} style={card}>
-              <div style={{ fontSize:10, color:th.text2, marginBottom:8, fontWeight:600 }}>VARIATION {i+1}</div>
+              <div style={{ fontSize:10, color:th.text2, marginBottom:8, fontWeight:600 }}>{L("VARIATION","نسخة")} {i+1}</div>
               {c.english && <div style={{ fontSize:12.5, lineHeight:1.6, marginBottom:c.arabic?10:12 }}>{c.english}</div>}
               {c.arabic && <div style={{ fontSize:13, lineHeight:1.7, direction:"rtl", textAlign:"right", marginBottom:12 }}>{c.arabic}</div>}
               <div style={{ display:"flex", gap:7 }}>
-                <button onClick={()=>useInComposer([c.english,c.arabic].filter(Boolean).join("\n\n"))} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>Use</button>
-                <button onClick={()=>copy([c.english,c.arabic].filter(Boolean).join("\n\n"),"c"+i)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>{copied==="c"+i?<><CheckCircle size={13} color={th.success}/>Copied</>:"Copy"}</button>
+                <button onClick={()=>useInComposer([c.english,c.arabic].filter(Boolean).join("\n\n"))} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><ArrowUpRight size={13}/>{L("Use","استخدام")}</button>
+                <button onClick={()=>copy([c.english,c.arabic].filter(Boolean).join("\n\n"),"c"+i)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"8px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:11, cursor:"pointer" }}>{copied==="c"+i?<><CheckCircle size={13} color={th.success}/>{L("Copied","تم النسخ")}</>:L("Copy","نسخ")}</button>
               </div>
             </div>
           ))}
@@ -3284,8 +3297,8 @@ function AIStudioPage() {
             <div key={i} style={{ ...card, padding:14, display:"flex", alignItems:"center", gap:12 }}>
               <div className="tw-num" style={{ width:26, height:26, borderRadius:8, background:th.accentSoft, color:th.accent, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12.5, fontWeight:700, flexShrink:0 }}>{i+1}</div>
               <div style={{ flex:1, fontSize:13, lineHeight:1.5 }}>{idea}</div>
-              <button onClick={()=>{ setTopic(idea); setTool("captions"); }} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.accentSoft, border:"none", color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Edit3 size={12}/>Write caption</button>
-              <button onClick={()=>copy(idea,"i"+i)} style={{ padding:"7px 12px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", flexShrink:0 }}>{copied==="i"+i?"Copied":"Copy"}</button>
+              <button onClick={()=>{ setTopic(idea); setTool("captions"); }} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:8, background:th.accentSoft, border:"none", color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Edit3 size={12}/>{L("Write caption","اكتب تعليقاً")}</button>
+              <button onClick={()=>copy(idea,"i"+i)} style={{ padding:"7px 12px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, cursor:"pointer", flexShrink:0 }}>{copied==="i"+i?L("Copied","تم النسخ"):L("Copy","نسخ")}</button>
             </div>
           ))}
         </div>
@@ -3294,8 +3307,8 @@ function AIStudioPage() {
       {tool==="hashtags" && hashtags.length>0 && (
         <div style={card}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <div style={{ fontSize:12, color:th.text2 }}><span className="tw-num">{hashtags.length}</span> hashtags</div>
-            <button onClick={()=>copy(hashtags.join(" "),"all")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>{copied==="all"?<><CheckCircle size={13}/>Copied</>:"Copy all"}</button>
+            <div style={{ fontSize:12, color:th.text2 }}><span className="tw-num">{hashtags.length}</span> {L("hashtags","وسوم")}</div>
+            <button onClick={()=>copy(hashtags.join(" "),"all")} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 14px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer" }}>{copied==="all"?<><CheckCircle size={13}/>{L("Copied","تم النسخ")}</>:L("Copy all","نسخ الكل")}</button>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             {hashtags.map((h,i)=><span key={i} style={{ fontSize:12, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"6px 12px" }}>{h}</span>)}
@@ -3306,9 +3319,9 @@ function AIStudioPage() {
       {tool!=="images" && !loading && !error && captions.length===0 && ideas.length===0 && hashtags.length===0 && (
         <div style={{ ...card, textAlign:"center", padding:"38px 24px" }}>
           <div style={{ width:48, height:48, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={22} color={th.accent}/></div>
-          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{tool==="captions"?"Bilingual captions in seconds":tool==="ideas"?"Never stare at a blank page":"The right hashtags, instantly"}</div>
-          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto 20px", lineHeight:1.6 }}>Enter a topic and hit Generate to get {tool==="captions"?"three caption variations in English and Arabic":tool==="ideas"?"fresh, on-brand post ideas":"a curated hashtag pack"}.</div>
-          <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, color:th.text3, textTransform:"uppercase", marginBottom:11 }}>Try one of these</div>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{tool==="captions"?L("Bilingual captions in seconds","تعليقات بلغتين في ثوانٍ"):tool==="ideas"?L("Never stare at a blank page","لا مزيد من الصفحة الفارغة"):L("The right hashtags, instantly","الوسوم المناسبة فوراً")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, maxWidth:430, margin:"0 auto 20px", lineHeight:1.6 }}>{isAR?<>أدخل موضوعاً واضغط توليد للحصول على {tool==="captions"?"ثلاث نسخ من التعليق بالعربية والإنجليزية":tool==="ideas"?"أفكار منشورات جديدة بهوية علامتك":"حزمة وسوم منتقاة"}.</>:<>Enter a topic and hit Generate to get {tool==="captions"?"three caption variations in English and Arabic":tool==="ideas"?"fresh, on-brand post ideas":"a curated hashtag pack"}.</>}</div>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:0.6, color:th.text3, textTransform:"uppercase", marginBottom:11 }}>{L("Try one of these","جرّب أحد هذه")}</div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", justifyContent:"center" }}>
             {EXAMPLES.map(ex=>(
               <button key={ex} onClick={()=>setTopic(ex)} style={{ fontSize:11.5, color:th.text2, background:th.card2, border:`1px solid ${th.border}`, borderRadius:999, padding:"7px 14px", cursor:"pointer" }}>{ex}</button>
@@ -3532,7 +3545,7 @@ function CalendarRoomPage() {
                   : <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#fff", background:"rgba(110,140,171,0.92)", padding:"2px 7px", borderRadius:20, fontWeight:600 }}><Clock size={9}/>{L("Scheduled","مجدول")}</span>}
               </div>
               <div style={{ padding:"9px 11px" }}>
-                <div style={{ fontSize:10.5, color:th.text3, marginBottom:3 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"short", day:"numeric", month:"short" })} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></div>
+                <div style={{ fontSize:10.5, color:th.text3, marginBottom:3 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short", day:"numeric", month:"short" })} &middot; <span className="tw-num">{fmtTime(p.scheduled_at)}</span></div>
                 <div style={{ fontSize:11.5, color:th.text, lineHeight:1.45, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
               </div>
             </div>
@@ -3549,7 +3562,7 @@ function CalendarRoomPage() {
         <div onClick={()=>setSlide(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:70, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
           <div onClick={e=>e.stopPropagation()} onTouchStart={e=>{ touchX.current = e.touches[0].clientX; }} onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - touchX.current; if (Math.abs(dx) > 40 && posts.length > 1) go(dx < 0 ? 1 : -1); }} style={{ width:300, maxWidth:"90vw", maxHeight:"85vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"0 30px 70px rgba(0,0,0,0.6)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 14px", borderBottom:`1px solid ${th.border}` }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}><info.Icon style={{ fontSize:15, color:info.color }}/><span style={{ fontSize:12.5, fontWeight:600 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar":[], { weekday:"long", day:"numeric", month:"long" })}</span></div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}><info.Icon style={{ fontSize:15, color:info.color }}/><span style={{ fontSize:12.5, fontWeight:600 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"long", day:"numeric", month:"long" })}</span></div>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>{posts.length>1 && <span style={{ fontSize:10.5, color:th.text3 }}><span className="tw-num">{i+1}</span> / <span className="tw-num">{posts.length}</span></span>}<button onClick={()=>setSlide(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={18}/></button></div>
             </div>
             <div style={{ position:"relative", aspectRatio:"1 / 1", maxHeight:"min(44vh, 300px)", flexShrink:0, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
@@ -3935,11 +3948,11 @@ function CalendarPage() {
           const groups = []; let lastKey = null;
           for (const p of sorted) { const d = new Date(p.scheduled_at); const key = d.toDateString(); if (key !== lastKey) { groups.push({ key, date:d, items:[] }); lastKey = key; } groups[groups.length-1].items.push(p); }
           const tmr = new Date(); tmr.setDate(tmr.getDate()+1);
-          const dayLabel = (d) => isToday(d) ? L("Today","اليوم") : sameDay(d,tmr) ? L("Tomorrow","غداً") : d.toLocaleDateString(isAR?"ar":[], { weekday:"long", day:"numeric", month:"long" });
+          const dayLabel = (d) => isToday(d) ? L("Today","اليوم") : sameDay(d,tmr) ? L("Tomorrow","غداً") : d.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"long", day:"numeric", month:"long" });
           return <div>{groups.map((g,gi) => (
             <div key={g.key}>
               <div style={{ padding:"9px 18px", background:th.card2, borderBottom:`1px solid ${th.border}`, borderTop:gi>0?`1px solid ${th.border}`:"none", fontSize:10.5, fontWeight:700, letterSpacing:0.5, color:th.text3, textTransform:"uppercase", display:"flex", justifyContent:"space-between" }}>
-                <span>{dayLabel(g.date)}</span><span className="tw-num" style={{ color:th.text3 }}>{g.date.toLocaleDateString(isAR?"ar":[], { day:"numeric", month:"short" })}</span>
+                <span>{dayLabel(g.date)}</span><span className="tw-num" style={{ color:th.text3 }}>{g.date.toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" })}</span>
               </div>
               {g.items.map((p,pi) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe };
                 return (
@@ -4443,7 +4456,7 @@ function PublisherPage() {
                   <button key={k} onClick={()=>setIgFormat(k)} style={{ padding:"6px 14px", borderRadius:8, border:"none", background:igFormat===k?th.gradient:"transparent", color:igFormat===k?"#fff":th.text2, fontSize:11.5, fontWeight:igFormat===k?600:400, cursor:"pointer" }}>{t}</button>
                 ))}
               </div>
-              {igFormat==="story" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Stories publish as a single photo or video and disappear after 24 hours. Caption, alt text and carousel don't apply on Instagram Stories.","تُنشر القصص كصورة أو فيديو واحد وتختفي بعد ٢٤ ساعة. النص والنص البديل والكاروسيل لا تنطبق على قصص إنستغرام.")}</div>}
+              {igFormat==="story" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Stories publish as a single photo or video and disappear after 24 hours. Caption, alt text and carousel don't apply on Instagram Stories.","تُنشر القصص كصورة أو فيديو واحد وتختفي بعد 24 ساعة. النص والنص البديل والكاروسيل لا تنطبق على قصص إنستغرام.")}</div>}
               {igFormat==="reel" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Reels use your video and caption. Alt text doesn't apply to Reels.","تستخدم الريلز الفيديو والنص. النص البديل لا ينطبق على الريلز.")}</div>}
             </div>
           )}
@@ -4730,8 +4743,9 @@ function PublisherPage() {
 }
 
 function SocialAccountsPage() {
-  const { selClient, userEmail, setPage } = useApp();
+  const { selClient, userEmail, setPage, lang } = useApp();
   const th = useTheme();
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
   const LINKEDIN_CLIENT_ID = process.env.REACT_APP_LINKEDIN_CLIENT_ID || "";
   const [upgrade, setUpgrade] = useState(null);
@@ -4746,7 +4760,7 @@ function SocialAccountsPage() {
   // Trial cap: limit connected accounts. Returns false (and prompts upgrade) when at the cap.
   const guardConnect = () => {
     if (isTrialUser(userEmail) && accounts.length >= TRIAL.accounts) {
-      setUpgrade({ title:`Trial limit: ${TRIAL.accounts} connected accounts`, detail:`Your free trial lets you connect up to ${TRIAL.accounts} social accounts so you can feel the multi-account workflow. Upgrade to connect unlimited accounts across all your brands.`, Icon:Plus });
+      setUpgrade({ title:L(`Trial limit: ${TRIAL.accounts} connected accounts`,`حدّ التجربة: ${TRIAL.accounts} حسابات مرتبطة`), detail:L(`Your free trial lets you connect up to ${TRIAL.accounts} social accounts so you can feel the multi-account workflow. Upgrade to connect unlimited accounts across all your brands.`,`تتيح لك التجربة المجانية ربط حتى ${TRIAL.accounts} حسابات لتجربة سير العمل متعدد الحسابات. قم بالترقية لربط حسابات غير محدودة عبر كل علاماتك.`), Icon:Plus });
       return false;
     }
     return true;
@@ -4842,14 +4856,14 @@ function SocialAccountsPage() {
   const friendlyConnectError = (msg) => {
     const m = String(msg || '').toLowerCase();
     if (m.includes('not available') || m.includes('development mode') || m.includes('app not active') || m.includes('isn\'t active'))
-      return "This account isn't enabled for Tawaslo yet. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com";
+      return L("This account isn't enabled for Tawaslo yet. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com","هذا الحساب غير مُفعّل لتواصلو بعد. تأكد أنه حساب أعمال أو منشئ مرتبط بصفحة فيسبوك، ثم حاول مجدداً. تحتاج مساعدة؟ support@tawaslo.com");
     if (m.includes('nonexisting field') || m.includes('no instagram') || m.includes('no business') || m.includes('not linked') || m.includes('no pages'))
-      return "We couldn't find a Business Instagram account linked to a Facebook Page on this login. Switch the account to Business or Creator and link it to a Page, then reconnect.";
+      return L("We couldn't find a Business Instagram account linked to a Facebook Page on this login. Switch the account to Business or Creator and link it to a Page, then reconnect.","لم نجد حساب إنستغرام أعمال مرتبطاً بصفحة فيسبوك على هذا الدخول. حوّل الحساب إلى أعمال أو منشئ واربطه بصفحة، ثم أعد الربط.");
     if (m.includes('permission') || m.includes('scope') || m.includes('denied'))
-      return "Some permissions weren't granted. Please reconnect and accept all of the requested permissions so we can manage the account for you.";
+      return L("Some permissions weren't granted. Please reconnect and accept all of the requested permissions so we can manage the account for you.","لم تُمنح بعض الصلاحيات. أعد الربط واقبل جميع الصلاحيات المطلوبة حتى نتمكن من إدارة الحساب نيابةً عنك.");
     if (m.includes('token') || m.includes('expired') || m.includes('session'))
-      return "Your session with the platform expired. Please reconnect to continue.";
-    return "We couldn't connect that account just now. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com";
+      return L("Your session with the platform expired. Please reconnect to continue.","انتهت جلستك مع المنصة. أعد الربط للمتابعة.");
+    return L("We couldn't connect that account just now. Make sure it's a Business or Creator account linked to a Facebook Page, then try again. Need a hand? support@tawaslo.com","تعذّر ربط هذا الحساب الآن. تأكد أنه حساب أعمال أو منشئ مرتبط بصفحة فيسبوك، ثم حاول مجدداً. تحتاج مساعدة؟ support@tawaslo.com");
   };
 
   const handleInstagramCallback = async (code) => {
@@ -4858,7 +4872,7 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('ig_redirect_client');
     setConnecting(true);
     const clientId = await resolveClientId(storedId);
-    if (!clientId) { setError('Could not find your workspace to save the account. Refresh and try again.'); setConnecting(false); return; }
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); setConnecting(false); return; }
     try {
       const res = await fetch('/api/instagram-oauth', {
         method: 'POST',
@@ -4880,7 +4894,7 @@ function SocialAccountsPage() {
         is_active: true,
       }, { onConflict: 'client_id,account_id' });
       if (upsertErr) throw new Error(upsertErr.message);
-      setSuccess(`Instagram @${acc.username} connected!`);
+      setSuccess(L(`Instagram @${acc.username} connected!`, `تم ربط إنستغرام @${acc.username}!`));
       loadAccounts(clientId);
     } catch (err) {
       setError(friendlyConnectError(err.message));
@@ -4933,7 +4947,7 @@ function SocialAccountsPage() {
           if (!res.ok) throw new Error(data.error);
 
           const clientId = await resolveClientId(realClientId);
-          if (!clientId) { setError('Could not find your workspace to save accounts. Refresh and try again.'); setConnecting(false); return; }
+          if (!clientId) { setError(L('Could not find your workspace to save accounts. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحسابات. حدّث الصفحة وحاول مجدداً.')); setConnecting(false); return; }
 
           // Save each account to Supabase
           let saveErrors = [];
@@ -4958,7 +4972,7 @@ function SocialAccountsPage() {
             return;
           }
 
-          setSuccess(`Connected ${data.accounts.length} account(s) successfully!`);
+          setSuccess(L(`Connected ${data.accounts.length} account(s) successfully!`, `تم ربط ${data.accounts.length} حساب بنجاح!`));
           setConnecting(false);
           loadAccounts(clientId);
         }
@@ -4977,14 +4991,14 @@ function SocialAccountsPage() {
     const storedId = sessionStorage.getItem('li_redirect_client');
     sessionStorage.removeItem('li_redirect_client');
     const clientId = await resolveClientId(storedId);
-    if (!clientId) { setError('Could not find your workspace to save the account. Refresh and try again.'); return; }
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
     const { error: upsertErr } = await supabase.from('social_accounts').upsert({
       client_id: clientId, platform: 'li', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
     }, { onConflict: 'client_id,account_id' });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
-    setSuccess(`LinkedIn ${acc.kind === 'organization' ? 'Page' : 'profile'} "${acc.account_name}" connected!`);
+    setSuccess(L(`LinkedIn ${acc.kind === 'organization' ? 'Page' : 'profile'} "${acc.account_name}" connected!`, `تم ربط ${acc.kind === 'organization' ? 'صفحة' : 'ملف'} لينكدإن "${acc.account_name}"!`));
     setLiOptions(null);
     loadAccounts(clientId);
   };
@@ -5001,7 +5015,7 @@ function SocialAccountsPage() {
       (data.organizations || []).forEach(o => opts.push(o));
       if (opts.length === 1) await connectLiAccount(opts[0]);
       else if (opts.length > 1) setLiOptions(opts);
-      else setError('No LinkedIn profile or Pages found to connect.');
+      else setError(L('No LinkedIn profile or Pages found to connect.','لم يتم العثور على ملف أو صفحات لينكدإن للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
     window.history.replaceState({}, '', '/social');
@@ -5009,7 +5023,7 @@ function SocialAccountsPage() {
 
   const connectLinkedin = () => {
     if (!guardConnect()) return;
-    if (!LINKEDIN_CLIENT_ID) { setError("LinkedIn isn't available yet. We're finishing its setup and it will be ready soon."); return; }
+    if (!LINKEDIN_CLIENT_ID) { setError(L("LinkedIn isn't available yet. We're finishing its setup and it will be ready soon.","لينكدإن غير متاح بعد. نُكمل إعداده وسيكون جاهزاً قريباً.")); return; }
     const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
     const scope = 'openid profile email w_member_social r_organization_admin w_organization_social';
     if (realClientId) sessionStorage.setItem('li_redirect_client', realClientId);
@@ -5024,12 +5038,12 @@ function SocialAccountsPage() {
   };
 
   const NETWORKS = [
-    { key:'ig', name:'Instagram', desc:'Business or creator', color:'#E1306C', Icon:FaInstagram, onConnect:connectInstagram, live:true },
-    { key:'fb', name:'Facebook', desc:'Pages', color:'#1877F2', Icon:FaFacebook, onConnect:connectMeta, live:true },
-    { key:'li', name:'LinkedIn', desc:'Profile & company Pages', color:'#0A66C2', Icon:FaLinkedin, onConnect:connectLinkedin, live:true },
-    { key:'tw', name:'X', desc:'Coming soon', color:'#8A93A6', Icon:FaTwitter, live:false },
-    { key:'tt', name:'TikTok', desc:'Coming soon', color:'#8A93A6', Icon:FaTiktok, live:false },
-    { key:'yt', name:'YouTube', desc:'Coming soon', color:'#FF0000', Icon:FaYoutube, live:false },
+    { key:'ig', name:'Instagram', desc:L('Business or creator','حساب أعمال أو منشئ'), color:'#E1306C', Icon:FaInstagram, onConnect:connectInstagram, live:true },
+    { key:'fb', name:'Facebook', desc:L('Pages','الصفحات'), color:'#1877F2', Icon:FaFacebook, onConnect:connectMeta, live:true },
+    { key:'li', name:'LinkedIn', desc:L('Profile & company Pages','الملف وصفحات الشركة'), color:'#0A66C2', Icon:FaLinkedin, onConnect:connectLinkedin, live:true },
+    { key:'tw', name:'X', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTwitter, live:false },
+    { key:'tt', name:'TikTok', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTiktok, live:false },
+    { key:'yt', name:'YouTube', desc:L('Coming soon','قريباً'), color:'#FF0000', Icon:FaYoutube, live:false },
   ];
   const countOf = (k) => accounts.filter(a => a.platform === k).length;
   const platformsConnected = [...new Set(accounts.map(a => a.platform))].length;
@@ -5051,17 +5065,17 @@ function SocialAccountsPage() {
       <div style={{ position:"relative", zIndex:1 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:24 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Social accounts</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Connect and manage the networks for {selClient?.name || "your brand"}</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Social accounts","الحسابات الاجتماعية")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Connect and manage the networks for","اربط وأدر الشبكات لـ")} {selClient?.name || L("your brand","علامتك")}</p>
         </div>
         <div style={{ display:"flex", gap:10 }}>
           <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
             <div style={{ fontSize:24, fontWeight:800, ...gradText }}>{accounts.length}</div>
-            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Connected</div>
+            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{L("Connected","مرتبط")}</div>
           </div>
           <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
             <div style={{ fontSize:24, fontWeight:800 }}>{platformsConnected}</div>
-            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>Networks</div>
+            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{L("Networks","الشبكات")}</div>
           </div>
         </div>
       </div>
@@ -5069,7 +5083,7 @@ function SocialAccountsPage() {
       {error && <div style={{ padding:"12px 16px", borderRadius:11, background:th.dangerSoft, color:th.danger, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><XCircle size={15}/>{error}</div>}
       {success && <div style={{ padding:"12px 16px", borderRadius:11, background:th.successSoft, color:th.success, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><CheckCircle size={15}/>{success}</div>}
 
-      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>Add a network</div>
+      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>{L("Add a network","أضف شبكة")}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(188px,1fr))", gap:15, marginBottom:32 }}>
         {NETWORKS.map(net => {
           const n = countOf(net.key);
@@ -5085,10 +5099,10 @@ function SocialAccountsPage() {
                 <div style={{ fontSize:11.5, color:th.text2, marginTop:3, marginBottom:15, minHeight:16 }}>{net.desc}</div>
                 {net.live ? (
                   <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ width:"100%", padding:"10px", borderRadius:11, background:n>0?"rgba(255,255,255,0.04)":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, boxShadow:n>0?"none":`0 6px 18px ${th.accent}55` }}>
-                    {connecting?"Connecting…":(<><Plus size={13}/>{n>0?"Add another":"Connect"}</>)}
+                    {connecting?L("Connecting…","جارٍ الربط…"):(<><Plus size={13}/>{n>0?L("Add another","أضف آخر"):L("Connect","ربط")}</>)}
                   </button>
                 ) : (
-                  <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Lock size={12}/>Coming soon</div>
+                  <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Lock size={12}/>{L("Coming soon","قريباً")}</div>
                 )}
               </div>
             </div>
@@ -5096,15 +5110,15 @@ function SocialAccountsPage() {
         })}
       </div>
 
-      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>Connected accounts {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
+      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>{L("Connected accounts","الحسابات المرتبطة")} {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
       <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.32)" }}>
         {loading ? (
           <SkList th={th} rows={3}/>
         ) : accounts.length===0 ? (
           <div style={{ padding:"52px 24px", textAlign:"center" }}>
             <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Link size={26} color={th.accent}/></div>
-            <div style={{ fontSize:15, fontWeight:600, marginBottom:5 }}>No accounts connected yet</div>
-            <div style={{ fontSize:12.5, color:th.text2 }}>Pick a network above to connect your first account.</div>
+            <div style={{ fontSize:15, fontWeight:600, marginBottom:5 }}>{L("No accounts connected yet","لا توجد حسابات مرتبطة بعد")}</div>
+            <div style={{ fontSize:12.5, color:th.text2 }}>{L("Pick a network above to connect your first account.","اختر شبكة بالأعلى لربط أول حساب لك.")}</div>
           </div>
         ) : accounts.map((acc,i) => {
           const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, bg:th.accentSoft, Icon:Globe };
@@ -5120,13 +5134,13 @@ function SocialAccountsPage() {
                   <div style={{ fontSize:11.5, color:th.text2, display:"flex", alignItems:"center", gap:7, marginTop:3 }}>
                     <span style={{ color:info.color, fontWeight:600 }}>{info.name}</span>
                     {acc.username && <span>&middot; @{acc.username}</span>}
-                    {acc.followers_count>0 && <span>&middot; {Number(acc.followers_count).toLocaleString()} followers</span>}
+                    {acc.followers_count>0 && <span>&middot; {Number(acc.followers_count).toLocaleString()} {L("followers","متابع")}</span>}
                   </div>
                 </div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                <span style={{ fontSize:10.5, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>Active</span>
-                <button className="tw-cta" onClick={()=>disconnectAccount(acc.id)} title="Disconnect" style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 12px", cursor:"pointer", color:th.text2, display:"flex", alignItems:"center", gap:6, fontSize:11.5 }}><XCircle size={14}/>Disconnect</button>
+                <span style={{ fontSize:10.5, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"5px 12px", display:"flex", alignItems:"center", gap:6 }}><span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>{L("Active","نشط")}</span>
+                <button className="tw-cta" onClick={()=>disconnectAccount(acc.id)} title={L("Disconnect","فصل")} style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 12px", cursor:"pointer", color:th.text2, display:"flex", alignItems:"center", gap:6, fontSize:11.5 }}><XCircle size={14}/>{L("Disconnect","فصل")}</button>
               </div>
             </div>
           );
@@ -5137,18 +5151,18 @@ function SocialAccountsPage() {
         <div onClick={()=>setLiOptions(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", backdropFilter:"blur(2px)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:20, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.65)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:10 }}><div style={{ width:38, height:38, borderRadius:11, background:"rgba(10,102,194,0.14)", display:"flex", alignItems:"center", justifyContent:"center" }}><FaLinkedin style={{ color:"#0A66C2", fontSize:19 }}/></div><span style={{ fontSize:15.5, fontWeight:700 }}>Connect LinkedIn</span></div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}><div style={{ width:38, height:38, borderRadius:11, background:"rgba(10,102,194,0.14)", display:"flex", alignItems:"center", justifyContent:"center" }}><FaLinkedin style={{ color:"#0A66C2", fontSize:19 }}/></div><span style={{ fontSize:15.5, fontWeight:700 }}>{L("Connect LinkedIn","ربط لينكدإن")}</span></div>
               <button onClick={()=>setLiOptions(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
-            <div style={{ fontSize:12.5, color:th.text2, margin:"4px 0 18px" }}>Choose the profile or company Page to connect.</div>
+            <div style={{ fontSize:12.5, color:th.text2, margin:"4px 0 18px" }}>{L("Choose the profile or company Page to connect.","اختر الملف أو صفحة الشركة للربط.")}</div>
             <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
               {liOptions.map((o,i)=>(
                 <div key={i} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:th.card, border:`1px solid ${th.border}`, borderRadius:13, padding:"12px 14px" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:11 }}>
                     <div style={{ width:38, height:38, borderRadius:11, background:"rgba(10,102,194,0.12)", display:"flex", alignItems:"center", justifyContent:"center" }}><FaLinkedin style={{ color:"#0A66C2", fontSize:18 }}/></div>
-                    <div><div style={{ fontSize:13, fontWeight:600 }}>{o.account_name}</div><div style={{ fontSize:10.5, color:th.text2 }}>{o.kind==='organization'?'Company Page':'Personal profile'}</div></div>
+                    <div><div style={{ fontSize:13, fontWeight:600 }}>{o.account_name}</div><div style={{ fontSize:10.5, color:th.text2 }}>{o.kind==='organization'?L('Company Page','صفحة شركة'):L('Personal profile','ملف شخصي')}</div></div>
                   </div>
-                  <button className="tw-cta" onClick={()=>connectLiAccount(o)} style={{ padding:"8px 17px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>Connect</button>
+                  <button className="tw-cta" onClick={()=>connectLiAccount(o)} style={{ padding:"8px 17px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}>{L("Connect","ربط")}</button>
                 </div>
               ))}
             </div>
@@ -5157,7 +5171,7 @@ function SocialAccountsPage() {
       )}
 
       <div style={{ marginTop:18, padding:"14px 18px", borderRadius:13, background:th.accentSoft, border:`1px solid ${th.border}`, fontSize:12, color:th.text2, lineHeight:1.6 }}>
-        <strong style={{ color:th.accent }}>Note:</strong> Instagram must be a Business/Creator account linked to a Facebook Page. LinkedIn company Pages require admin access. X, TikTok &amp; YouTube are coming soon.
+        <strong style={{ color:th.accent }}>{L("Note:","ملاحظة:")}</strong> {L("Instagram must be a Business/Creator account linked to a Facebook Page. LinkedIn company Pages require admin access. X, TikTok & YouTube are coming soon.","يجب أن يكون حساب إنستغرام حساب أعمال/منشئ مرتبطاً بصفحة فيسبوك. وتتطلب صفحات شركات لينكدإن صلاحية مشرف. منصات X وتيك توك ويوتيوب قريباً.")}
       </div>
       </div>
     </div>
@@ -5200,8 +5214,9 @@ function Placeholder({ icon:Icon, title, description, badge, features, ctaLabel,
 }
 
 function TrendingPage() {
-  const { setPage, dark } = useApp();
+  const { setPage, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [region, setRegion] = useState("worldwide");
   const [platform, setPlatform] = useState("all");
   const [regionOpen, setRegionOpen] = useState(false);
@@ -5225,12 +5240,12 @@ function TrendingPage() {
   const exitSample = () => setSampleMode(false);
 
   const REGIONS = [
-    { id:"worldwide", label:"Worldwide", flag:"\uD83C\uDF0D" },
-    { id:"gcc", label:"GCC", flag:"\uD83C\uDF0D" },
-    { id:"bahrain", label:"Bahrain", flag:"\uD83C\uDDE7\uD83C\uDDED" },
-    { id:"saudi", label:"Saudi Arabia", flag:"\uD83C\uDDF8\uD83C\uDDE6" },
-    { id:"uae", label:"United Arab Emirates", flag:"\uD83C\uDDE6\uD83C\uDDEA" },
-    { id:"usa", label:"United States", flag:"\uD83C\uDDFA\uD83C\uDDF8" },
+    { id:"worldwide", label:L("Worldwide","\u062D\u0648\u0644 \u0627\u0644\u0639\u0627\u0644\u0645"), flag:"\uD83C\uDF0D" },
+    { id:"gcc", label:L("GCC","\u062F\u0648\u0644 \u0627\u0644\u062E\u0644\u064A\u062C"), flag:"\uD83C\uDF0D" },
+    { id:"bahrain", label:L("Bahrain","\u0627\u0644\u0628\u062D\u0631\u064A\u0646"), flag:"\uD83C\uDDE7\uD83C\uDDED" },
+    { id:"saudi", label:L("Saudi Arabia","\u0627\u0644\u0633\u0639\u0648\u062F\u064A\u0629"), flag:"\uD83C\uDDF8\uD83C\uDDE6" },
+    { id:"uae", label:L("United Arab Emirates","\u0627\u0644\u0625\u0645\u0627\u0631\u0627\u062A"), flag:"\uD83C\uDDE6\uD83C\uDDEA" },
+    { id:"usa", label:L("United States","\u0627\u0644\u0648\u0644\u0627\u064A\u0627\u062A \u0627\u0644\u0645\u062A\u062D\u062F\u0629"), flag:"\uD83C\uDDFA\uD83C\uDDF8" },
   ];
   const curRegion = REGIONS.find(r=>r.id===region) || REGIONS[0];
 
@@ -5251,8 +5266,8 @@ function TrendingPage() {
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div>
-          <h2 style={{margin:0,fontSize:20,fontWeight:600,letterSpacing:-0.3}}>Trending now</h2>
-          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>Showing trends for {curRegion.label} &middot; TikTok &amp; Instagram</p>
+          <h2 style={{margin:0,fontSize:20,fontWeight:600,letterSpacing:-0.3}}>{L("Trending now","الرائج الآن")}</h2>
+          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("Showing trends for","عرض الرائج في")} {curRegion.label} &middot; TikTok &amp; Instagram</p>
         </div>
         <div style={{position:"relative"}}>
           <button onClick={()=>setRegionOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"9px 14px",cursor:"pointer",color:th.text,fontSize:13}}>
@@ -5274,22 +5289,22 @@ function TrendingPage() {
       </div>
 
       <div style={{display:"flex",gap:7,marginBottom:16,alignItems:"center"}}>
-        {[["all","All"],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
+        {[["all",L("All","الكل")],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
         ))}
-        <button onClick={sampleMode?exitSample:loadSample} style={{marginLeft:"auto",fontSize:11.5,borderRadius:999,border:`1px solid ${sampleMode?th.accent:th.border}`,background:sampleMode?th.accentSoft:th.card,color:sampleMode?th.accent:th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Eye size={12}/>{sampleMode?"Exit preview":"Preview sample"}</button>
+        <button onClick={sampleMode?exitSample:loadSample} style={{marginLeft:"auto",fontSize:11.5,borderRadius:999,border:`1px solid ${sampleMode?th.accent:th.border}`,background:sampleMode?th.accentSoft:th.card,color:sampleMode?th.accent:th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview sample","معاينة عينة")}</button>
       </div>
       {sampleMode && (
         <div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:th.accentSoft,border:`1px solid ${th.accent}55`,fontSize:12,color:th.accent,display:"flex",alignItems:"center",gap:8}}>
-          <Eye size={13}/> Showing <strong>sample trends</strong> for preview. Live TikTok &amp; Instagram trends load automatically when the data source has quota.
+          <Eye size={13}/> {isAR ? <>عرض <strong>اتجاهات تجريبية</strong> للمعاينة. تُحمّل اتجاهات TikTok وInstagram الحيّة تلقائياً عند توفّر حصة مصدر البيانات.</> : <>Showing <strong>sample trends</strong> for preview. Live TikTok &amp; Instagram trends load automatically when the data source has quota.</>}
         </div>
       )}
 
       {(!sampleMode && !connected) ? (
         <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:18,padding:32,textAlign:"center"}}>
-          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>Connect your trends source</div>
-          <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,maxWidth:460,margin:"0 auto"}}>Add your EnsembleData API token in Vercel as the environment variable <strong style={{color:th.text}}>ENSEMBLE_TOKEN</strong> to start pulling live TikTok &amp; Instagram trends here.</div>
-          <button onClick={loadSample} style={{marginTop:16,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>Preview with sample data</button>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>{L("Connect your trends source","اربط مصدر الاتجاهات")}</div>
+          <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,maxWidth:460,margin:"0 auto"}}>{isAR ? <>أضف رمز EnsembleData API في Vercel كمتغيّر بيئة <strong style={{color:th.text}}>ENSEMBLE_TOKEN</strong> لبدء جلب اتجاهات TikTok وInstagram الحيّة هنا.</> : <>Add your EnsembleData API token in Vercel as the environment variable <strong style={{color:th.text}}>ENSEMBLE_TOKEN</strong> to start pulling live TikTok &amp; Instagram trends here.</>}</div>
+          <button onClick={loadSample} style={{marginTop:16,padding:"9px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>{L("Preview with sample data","معاينة ببيانات تجريبية")}</button>
         </div>
       ) : (!sampleMode && loading) ? (
         <SkCards th={th} count={8} h={140} min={170}/>
@@ -5300,15 +5315,15 @@ function TrendingPage() {
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":"Instagram"}</span>
-                {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>Sample</span>}
-                <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?fmt(it.views)+" views":fmt(it.likes)+" likes"}</span>
+                {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>{L("Sample","عينة")}</span>}
+                <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?fmt(it.views)+" "+L("views","مشاهدة"):fmt(it.likes)+" "+L("likes","إعجاب")}</span>
               </div>
               <div style={{padding:"11px 13px"}}>
-                <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||"(no caption)"}</div>
+                <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||L("(no caption)","(بدون نص)")}</div>
                 <div style={{fontSize:10.5,color:th.text2,margin:"6px 0 9px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.author}</div>
                 <div style={{display:"flex",gap:7}}>
-                  <a href={it.url||"#"} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"7px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>View</a>
-                  <button onClick={()=>setPage("publisher")} style={{flex:1.3,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:"#fff",background:th.gradient,border:"none",borderRadius:9,padding:"7px",cursor:"pointer"}}><Sparkles size={13}/>Create post</button>
+                  <a href={it.url||"#"} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"7px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>{L("View","عرض")}</a>
+                  <button onClick={()=>setPage("publisher")} style={{flex:1.3,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:"#fff",background:th.gradient,border:"none",borderRadius:9,padding:"7px",cursor:"pointer"}}><Sparkles size={13}/>{L("Create post","إنشاء منشور")}</button>
                 </div>
               </div>
             </div>
@@ -5331,9 +5346,9 @@ function AnalyticsPage() {
   const [realClientId, setRealClientId] = useState(null);
 
   useEffect(() => {
-    if (!selClient?.name) return;
+    if (!selClient?.name) { setLoading(false); return; }
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
+      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); else setLoading(false); });
   }, [selClient]);
 
   useEffect(() => {
@@ -5510,7 +5525,7 @@ function AnalyticsPage() {
           {data.summary.totalReach > 0 && (
             <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 18px", marginBottom:14}}>
               <div style={{fontSize:14, lineHeight:1.65, color:th.text2}}>
-                {L("You reached ","وصلت إلى ")}<span className="tw-num" style={{color:th.text, fontWeight:600}}>{data.summary.totalReach.toLocaleString()}</span>{L(" people in the last 30 days"," شخص خلال آخر ٣٠ يوماً")}
+                {L("You reached ","وصلت إلى ")}<span className="tw-num" style={{color:th.text, fontWeight:600}}>{data.summary.totalReach.toLocaleString()}</span>{L(" people in the last 30 days"," شخص خلال آخر 30 يوماً")}
                 {reachDelta!=null && reachDelta!==0 && <>{L(", ","، ")}<span className="tw-num" style={{color:reachDelta>0?th.success:th.danger, fontWeight:600}}>{reachDelta>0?L("up ","بزيادة ")+Math.abs(reachDelta)+"%":L("down ","بانخفاض ")+Math.abs(reachDelta)+"%"}</span></>}
                 {topTypeLabel && <>{". "}<span style={{color:th.accent2||th.accent}}>{topTypeLabel}</span>{L(" posts are pulling your strongest engagement right now."," هي الأقوى في التفاعل حالياً.")}</>}
                 {!topTypeLabel && "."}
@@ -5520,9 +5535,9 @@ function AnalyticsPage() {
 
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
             {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null, followerDelta!=null?{txt:followerDelta+"%",up:true}:null)}
-            {metric(L("Reach · 30d","الوصول · ٣٠ يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
+            {metric(L("Reach · 30d","الوصول · 30 يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
             {hasImpr
-              ? metric(L("Impressions · 30d","الظهور · ٣٠ يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
+              ? metric(L("Impressions · 30d","الظهور · 30 يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
               : metric(L("Avg. likes","متوسط الإعجابات"), avgLikes.toLocaleString(), null, null, null)}
             {metric(L("Engagement","التفاعل"), engRate+"%", null, null, engPtsDelta!=null?{txt:engPtsDelta+"",up:true}:null)}
           </div>
@@ -5626,8 +5641,9 @@ function AnalyticsPage() {
 
 // ── Campaigns ─────────────────────────────────────────────────────────
 function CampaignsPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [realClientId, setRealClientId] = useState(null);
@@ -5679,18 +5695,18 @@ function CampaignsPage() {
   };
 
   const fmt = (n) => n >= 1000 ? (n/1000).toFixed(n >= 10000 ? 0 : 1)+'K' : String(n || 0);
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short' }) : 'TBD';
-  const STATUS = { active:{ c:th.success, l:'Active' }, scheduled:{ c:th.warning, l:'Scheduled' }, completed:{ c:th.text2, l:'Completed' } };
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(isAR?'ar-u-nu-latn':'en-GB', { day:'numeric', month:'short' }) : L('TBD','لاحقاً');
+  const STATUS = { active:{ c:th.success, l:L('Active','نشطة') }, scheduled:{ c:th.warning, l:L('Scheduled','مجدولة') }, completed:{ c:th.text2, l:L('Completed','مكتملة') } };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
 
   return (
     <div className="tw-page-in" style={{ padding:"28px 32px", maxWidth:1100 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Campaigns</h2>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>Group posts into campaigns and track them against a goal.</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Campaigns","الحملات")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("Group posts into campaigns and track them against a goal.","اجمع المنشورات في حملات وتتبّعها مقابل هدف.")}</p>
         </div>
-        <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>New campaign</button>
+        <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("New campaign","حملة جديدة")}</button>
       </div>
 
       {loading ? <SkCards th={th} count={6} h={120} min={240}/> : (
@@ -5703,12 +5719,12 @@ function CampaignsPage() {
                   <div style={{ fontSize:15, fontWeight:700, color:th.text, lineHeight:1.3 }}>{c.name}</div>
                   <span style={{ flexShrink:0, fontSize:10, fontWeight:700, color:st.c, background:st.c+'22', borderRadius:20, padding:"3px 10px" }}>{st.l}</span>
                 </div>
-                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:7 }}><Target size={13}/>{c.goal || 'No goal set'}</div>
-                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:14 }}><Calendar size={13}/>{fmtDate(c.start_date)} to {fmtDate(c.end_date)}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:7 }}><Target size={13}/>{c.goal || L('No goal set','بدون هدف')}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:14 }}><Calendar size={13}/>{fmtDate(c.start_date)} {L("to","إلى")} {fmtDate(c.end_date)}</div>
                 <div style={{ display:"flex", gap:18, paddingTop:14, borderTop:`1px solid ${th.border}` }}>
-                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{c.posts}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Posts</div></div>
-                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{fmt(c.reach)}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Reach</div></div>
-                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.accent }}>{(c.engagement||0)}%</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>Engagement</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{c.posts}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>{L("Posts","منشورات")}</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.text }}>{fmt(c.reach)}</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>{L("Reach","الوصول")}</div></div>
+                  <div><div className="tw-num" style={{ fontSize:17, fontWeight:600, color:th.accent }}>{(c.engagement||0)}%</div><div style={{ fontSize:10, color:th.text2, marginTop:2 }}>{L("Engagement","التفاعل")}</div></div>
                 </div>
               </div>
             );
@@ -5719,18 +5735,18 @@ function CampaignsPage() {
       {showCreate && (
         <div onClick={()=>setShowCreate(false)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:440, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:th.shadow }}>
-            <h3 style={{ margin:"0 0 16px", fontSize:18, fontWeight:800, color:th.text }}>New campaign</h3>
-            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Campaign name</div>
-            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Summer Collection Launch" style={{ ...inp, marginBottom:12 }}/>
-            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Goal</div>
-            <input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder="Reach 100K accounts" style={{ ...inp, marginBottom:12 }}/>
+            <h3 style={{ margin:"0 0 16px", fontSize:18, fontWeight:800, color:th.text }}>{L("New campaign","حملة جديدة")}</h3>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>{L("Campaign name","اسم الحملة")}</div>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder={L("Summer Collection Launch","إطلاق تشكيلة الصيف")} style={{ ...inp, marginBottom:12 }}/>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>{L("Goal","الهدف")}</div>
+            <input value={form.goal} onChange={e=>setForm(f=>({...f,goal:e.target.value}))} placeholder={L("Reach 100K accounts","الوصول إلى 100 ألف حساب")} style={{ ...inp, marginBottom:12 }}/>
             <div style={{ display:"flex", gap:10, marginBottom:18 }}>
-              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>Start</div><input type="date" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} style={inp}/></div>
-              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>End</div><input type="date" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))} style={inp}/></div>
+              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>{L("Start","البداية")}</div><input type="date" value={form.start} onChange={e=>setForm(f=>({...f,start:e.target.value}))} style={inp}/></div>
+              <div style={{ flex:1 }}><div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 }}>{L("End","النهاية")}</div><input type="date" value={form.end} onChange={e=>setForm(f=>({...f,end:e.target.value}))} style={inp}/></div>
             </div>
-            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:8 }}>Which accounts does this campaign run on?</div>
+            <div style={{ fontSize:11, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Which accounts does this campaign run on?","على أي حسابات تعمل هذه الحملة؟")}</div>
             <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:18 }}>
-              {accounts.length===0 && <div style={{ fontSize:11.5, color:th.text3 }}>No connected accounts for this client yet.</div>}
+              {accounts.length===0 && <div style={{ fontSize:11.5, color:th.text3 }}>{L("No connected accounts for this client yet.","لا توجد حسابات مرتبطة لهذا العميل بعد.")}</div>}
               {accounts.map(a=>{ const on=form.accts.includes(a.id); const PI=PlatformIcons[a.platform]; return (
                 <div key={a.id} onClick={()=>toggleAcct(a.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:999, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.accent:th.text2, cursor:"pointer", fontSize:11.5, fontWeight:600 }}>
                   {PI?<PI/>:<Globe size={13}/>}{a.account_name||a.username}{on&&<CheckCircle size={12}/>}
@@ -5738,8 +5754,8 @@ function CampaignsPage() {
               ); })}
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>setShowCreate(false)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Cancel</button>
-              <button onClick={createCampaign} disabled={!form.name.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:form.name.trim()?"pointer":"not-allowed", opacity:form.name.trim()?1:0.6 }}>Create campaign</button>
+              <button onClick={()=>setShowCreate(false)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+              <button onClick={createCampaign} disabled={!form.name.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:form.name.trim()?"pointer":"not-allowed", opacity:form.name.trim()?1:0.6 }}>{L("Create campaign","إنشاء الحملة")}</button>
             </div>
           </div>
         </div>
@@ -5870,8 +5886,9 @@ function StreamsPage() {
 }
 
 function AdsPage() {
-  const { selClient, dark } = useApp();
+  const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [loading, setLoading] = useState(false);
   const [adsData, setAdsData] = useState(null);
   const [error, setError] = useState('');
@@ -5934,43 +5951,43 @@ function AdsPage() {
     <div style={{ padding:"28px 32px", maxWidth:1200 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Ads performance</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Last 30 days &middot; {selClient?.name || "your brand"}</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Ads performance","أداء الإعلانات")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Last 30 days","آخر 30 يوماً")} &middot; {selClient?.name || L("your brand","علامتك")}</p>
         </div>
         <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
-          <RefreshCw size={14}/> {loading ? 'Loading…' : 'Refresh'}
+          <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
         </button>
       </div>
 
       {loading ? (
         <div><SkStatRow th={th} n={4}/><SkChart th={th}/></div>
       ) : error ? (
-        emptyState(Megaphone, "Ads insights are on the way", <>Connect a Facebook account that has ad account access to see your campaign performance here, including spend, reach and results, all in one place.</>)
+        emptyState(Megaphone, L("Ads insights are on the way","رؤى الإعلانات في الطريق"), L("Connect a Facebook account that has ad account access to see your campaign performance here, including spend, reach and results, all in one place.","اربط حساب فيسبوك لديه صلاحية حساب إعلاني لترى أداء حملاتك هنا — الإنفاق والوصول والنتائج في مكان واحد."))
       ) : !adsData ? (
-        emptyState(BarChart2, "No ad account connected", "Connect a Facebook account that has ad-account access (via Social Accounts), then reconnect to see campaign performance here.")
+        emptyState(BarChart2, L("No ad account connected","لا يوجد حساب إعلاني مرتبط"), L("Connect a Facebook account that has ad-account access (via Social Accounts), then reconnect to see campaign performance here.","اربط حساب فيسبوك لديه صلاحية حساب إعلاني (من الحسابات الاجتماعية)، ثم أعد الربط لرؤية أداء الحملات هنا."))
       ) : adsData.campaigns.length === 0 ? (
-        emptyState(Megaphone, "No campaigns in the last 30 days", "Launch a campaign in Meta Ads Manager and it'll appear here automatically.")
+        emptyState(Megaphone, L("No campaigns in the last 30 days","لا حملات في آخر 30 يوماً"), L("Launch a campaign in Meta Ads Manager and it'll appear here automatically.","أطلق حملة في مدير إعلانات ميتا وستظهر هنا تلقائياً."))
       ) : (
         <>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:16 }}>
-            {statCard("Total spend", `$${adsData.summary.totalSpend}`, "Last 30 days", th.danger, DollarSign)}
-            {statCard("Total reach", adsData.summary.totalReach.toLocaleString(), "Unique accounts", "#E1306C", Eye)}
-            {statCard("Total clicks", adsData.summary.totalClicks.toLocaleString(), `Avg CPC $${adsData.summary.avgCPC}`, th.accent, Target)}
+            {statCard(L("Total spend","إجمالي الإنفاق"), `$${adsData.summary.totalSpend}`, L("Last 30 days","آخر 30 يوماً"), th.danger, DollarSign)}
+            {statCard(L("Total reach","إجمالي الوصول"), adsData.summary.totalReach.toLocaleString(), L("Unique accounts","حسابات فريدة"), "#E1306C", Eye)}
+            {statCard(L("Total clicks","إجمالي النقرات"), adsData.summary.totalClicks.toLocaleString(), `${L("Avg CPC","متوسط تكلفة النقرة")} $${adsData.summary.avgCPC}`, th.accent, Target)}
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, marginBottom:24 }}>
-            {statCard("Impressions", adsData.summary.totalImpressions.toLocaleString(), "Total views", th.accent2, TrendingUp)}
-            {statCard("Avg CPM", `$${adsData.summary.avgCPM}`, "Per 1k impressions", th.warning, Activity)}
-            {statCard("Campaigns", adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} active`, th.success, Megaphone)}
+            {statCard(L("Impressions","مرات الظهور"), adsData.summary.totalImpressions.toLocaleString(), L("Total views","إجمالي المشاهدات"), th.accent2, TrendingUp)}
+            {statCard(L("Avg CPM","متوسط التكلفة لكل ألف"), `$${adsData.summary.avgCPM}`, L("Per 1k impressions","لكل 1000 ظهور"), th.warning, Activity)}
+            {statCard(L("Campaigns","الحملات"), adsData.campaigns.length.toString(), `${adsData.campaigns.filter(c=>c.status==='ACTIVE').length} ${L("active","نشطة")}`, th.success, Megaphone)}
           </div>
 
           <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
-            <div style={{ padding:"15px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700 }}>Campaigns</div>
+            <div style={{ padding:"15px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700 }}>{L("Campaigns","الحملات")}</div>
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                 <thead>
                   <tr style={{ background:th.card2 }}>
-                    {["Campaign","Status","Objective","Spend","Reach","Impressions","Clicks","CPC"].map(h => (
-                      <th key={h} style={{ padding:"11px 16px", textAlign:"left", fontWeight:700, color:th.text2, fontSize:10.5, textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap" }}>{h}</th>
+                    {[L("Campaign","الحملة"),L("Status","الحالة"),L("Objective","الهدف"),L("Spend","الإنفاق"),L("Reach","الوصول"),L("Impressions","الظهور"),L("Clicks","النقرات"),L("CPC","ت.النقرة")].map((h,hi) => (
+                      <th key={hi} style={{ padding:"11px 16px", textAlign:isAR?"right":"left", fontWeight:700, color:th.text2, fontSize:10.5, textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -5998,8 +6015,9 @@ function AdsPage() {
 }
 
 function ReportsPage() {
-  const { selClient, dark, clients } = useApp();
+  const { selClient, dark, clients, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [allAccounts, setAllAccounts] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [rClient, setRClient] = useState("all");
@@ -6040,10 +6058,33 @@ function ReportsPage() {
   const totalFollowers = accounts.reduce((s,a)=>s+(a.followers_count||0),0);
   const platforms = [...new Set(accounts.map(a=>a.platform))];
   const allPlatforms = [...new Set(allAccounts.map(a=>a.platform))];
-  const reportName = rClient === "all" ? "All clients" : (cName(rClient) || selClient?.name || "Report");
+  const reportName = rClient === "all" ? L("All clients","كل العملاء") : (cName(rClient) || selClient?.name || L("Report","تقرير"));
   const scopeLabel = reportName + (rPlat !== "all" ? " · " + platLabel(rPlat) : "");
 
   const exportPDF = () => {
+
+    // The exported PDF follows the dashboard language toggle.
+    const dir = isAR ? 'rtl' : 'ltr';
+    const sa = isAR ? 'right' : 'left';   // start-aligned (text)
+    const ea = isAR ? 'left' : 'right';   // end-aligned (numbers)
+    const T = isAR ? {
+      platformTag:'منصّة الذكاء الاجتماعي', monthlyReport:'تقرير وسائل التواصل الشهري', perfInsights:'الأداء والرؤى',
+      generated:'صدر في', confidentialBy:'سري — أعدّته تواصلو', execSummary:'الملخّص التنفيذي', glance:'الشهر بلمحة',
+      peopleReached:'شخص تم الوصول إليهم', totalFollowers:'إجمالي المتابعين', likesEarned:'الإعجابات', engRate:'معدل التفاعل',
+      connectedAccounts:'الحسابات المرتبطة', platformsL:'المنصات', platformPerf:'أداء المنصات', audienceLives:'أين يتواجد جمهورك',
+      connectToSee:'اربط حساباً لرؤية تفصيل منصاتك.', account:'الحساب', platform:'المنصة', followers:'المتابعون',
+      topContent:'أفضل المحتوى', bestPosts:'أفضل منشوراتك أداءً', topPost:'منشور بارز', likes:'إعجابات', comments:'تعليقات',
+      reach:'الوصول', noCaption:'(بدون نص)', socialIntel:'الذكاء الاجتماعي', confidential:'سري'
+    } : {
+      platformTag:'Social Intelligence Platform', monthlyReport:'Monthly Social Media Report', perfInsights:'Performance & Insights',
+      generated:'Generated', confidentialBy:'Confidential — Prepared by Tawaslo', execSummary:'Executive Summary', glance:'The month at a glance',
+      peopleReached:'People reached', totalFollowers:'Total followers', likesEarned:'Likes earned', engRate:'Engagement rate',
+      connectedAccounts:'Connected accounts', platformsL:'Platforms', platformPerf:'Platform Performance', audienceLives:'Where your audience lives',
+      connectToSee:'Connect an account to see your platform breakdown.', account:'Account', platform:'Platform', followers:'Followers',
+      topContent:'Top Content', bestPosts:'Your best-performing posts', topPost:'Top post', likes:'Likes', comments:'Comments',
+      reach:'Reach', noCaption:'(No caption)', socialIntel:'Social Intelligence', confidential:'Confidential'
+    };
+    const dateStr = now.toLocaleDateString(isAR?'ar-u-nu-latn':'en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
     const igAccounts = accounts.filter(a => a.platform === 'ig');
     const fbAccounts = accounts.filter(a => a.platform === 'fb');
@@ -6056,20 +6097,20 @@ function ReportsPage() {
       const thumbHtml = p.thumbnail
         ? '<img class="post-img" src="' + p.thumbnail + '" alt="" onerror="this.style.display=\'none\'"/>'
         : '<div class="post-imgph"></div>';
-      const cap = (p.caption || '(No caption)').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      const reachStat = p.reach > 0 ? '<div><div class="pstat-v">' + p.reach.toLocaleString() + '</div><div class="pstat-l">Reach</div></div>' : '';
+      const cap = (p.caption || T.noCaption).replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      const reachStat = p.reach > 0 ? '<div><div class="pstat-v">' + p.reach.toLocaleString() + '</div><div class="pstat-l">' + T.reach + '</div></div>' : '';
       return '<div class="post">' + thumbHtml +
-        '<div class="post-b"><div><div class="post-rank">#' + (i+1) + ' Top post</div>' +
+        '<div class="post-b"><div><div class="post-rank">#' + (i+1) + ' ' + T.topPost + '</div>' +
         '<div class="post-cap">' + cap + '</div></div>' +
-        '<div class="post-stats"><div><div class="pstat-v">' + p.likes.toLocaleString() + '</div><div class="pstat-l">Likes</div></div>' +
-        '<div><div class="pstat-v">' + p.comments.toLocaleString() + '</div><div class="pstat-l">Comments</div></div>' +
+        '<div class="post-stats"><div><div class="pstat-v">' + p.likes.toLocaleString() + '</div><div class="pstat-l">' + T.likes + '</div></div>' +
+        '<div><div class="pstat-v">' + p.comments.toLocaleString() + '</div><div class="pstat-l">' + T.comments + '</div></div>' +
         reachStat + '</div></div></div>';
     }).join('');
 
     const accountsHtml = accounts.map(a =>
       '<tr><td style="padding:13px 0;border-bottom:1px solid #f3f4f7;font-size:13px;font-weight:600">' + a.account_name + (a.username ? ' <span style="color:#9aa3b2;font-weight:400;font-size:11px">@' + a.username + '</span>' : '') + '</td>' +
       '<td style="padding:13px 0;border-bottom:1px solid #f3f4f7;font-size:12px;color:#6b7280">' + platLabel(a.platform) + '</td>' +
-      '<td style="padding:13px 0;border-bottom:1px solid #f3f4f7;text-align:right;font-size:14px;font-weight:700">' + (a.followers_count||0).toLocaleString() + '</td></tr>'
+      '<td style="padding:13px 0;border-bottom:1px solid #f3f4f7;text-align:' + ea + ';font-size:14px;font-weight:700">' + (a.followers_count||0).toLocaleString() + '</td></tr>'
     ).join('');
 
     // Reach trend chart for the report (real SVG line, not boxes).
@@ -6091,12 +6132,21 @@ function ReportsPage() {
       return '<div class="pbar"><div class="pbar-top"><span class="pbar-name">'+platLabel(p)+'</span><span class="pbar-val">'+f.toLocaleString()+' &middot; '+pv+'%</span></div><div class="pbar-track"><div class="pbar-fill" style="width:'+pv+'%;background:'+(platColors[p]||'#6E8CAB')+'"></div></div></div>';
     }).join('');
 
+    const sumReach = analyticsData ? analyticsData.summary.totalReach.toLocaleString() : '';
+    const sumER = analyticsData ? analyticsData.summary.engagementRate : '';
+    const heroCapAnalytics = isAR
+      ? `وصل ${reportName} إلى <strong>${sumReach}</strong> شخص هذا الشهر وحقّق معدّل تفاعل <strong>${sumER}%</strong> عبر ${accounts.length} حساب.`
+      : `${reportName} reached <strong>${sumReach}</strong> people this month and earned a <strong>${sumER}%</strong> engagement rate across ${accounts.length} ${accounts.length===1?'account':'accounts'}.`;
+    const heroCapBasic = isAR
+      ? `${reportName} حاضر على ${platforms.length} منصة عبر ${accounts.length} حساب مرتبط.`
+      : `${reportName} is present on ${platforms.length} ${platforms.length===1?'platform':'platforms'} across ${accounts.length} connected ${accounts.length===1?'account':'accounts'}.`;
+
     const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>${reportName} — ${month} Report</title>
+<html dir="${dir}"><head><meta charset="UTF-8"><title>${reportName} — ${month} Report</title>
 <style>
   @page{margin:0;size:A4}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#16181d;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#16181d;direction:${dir};-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cover{height:100vh;background:linear-gradient(150deg,#080B11 0%,#10141C 55%,#1A2230 100%);display:flex;flex-direction:column;justify-content:space-between;padding:64px;page-break-after:always;color:#fff}
   .clogo{display:flex;align-items:center;gap:13px}
   .clogo .mk{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
@@ -6143,55 +6193,55 @@ function ReportsPage() {
 </style></head><body>
 
 <div class="cover">
-  <div><div class="clogo"><div class="mk">T</div><div class="nm">Tawaslo</div></div><div class="ctag">Social Intelligence Platform</div></div>
+  <div><div class="clogo"><div class="mk">T</div><div class="nm">Tawaslo</div></div><div class="ctag">${T.platformTag}</div></div>
   <div>
-    <div class="clabel">Monthly Social Media Report</div>
+    <div class="clabel">${T.monthlyReport}</div>
     <div class="cclient">${reportName}</div>
-    <div class="csub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}Performance &amp; Insights</div>
+    <div class="csub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}${T.perfInsights}</div>
     <div class="cpill">${month}</div>
   </div>
-  <div class="cft"><div>Generated ${now.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}<br/>Confidential &mdash; Prepared by Tawaslo</div><div>tawaslo.com</div></div>
+  <div class="cft"><div>${T.generated} ${dateStr}<br/>${T.confidentialBy}</div><div>tawaslo.com</div></div>
 </div>
 
 <div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Executive Summary</div></div>
-  <div class="eyebrow">The month at a glance</div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.execSummary}</div></div>
+  <div class="eyebrow">${T.glance}</div>
   ${analyticsData ? `
-    <div class="hero"><div class="hero-num">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="hero-tag">People reached</div></div>
-    <div class="hero-cap">${reportName} reached <strong>${analyticsData.summary.totalReach.toLocaleString()}</strong> people this month and earned a <strong>${analyticsData.summary.engagementRate}%</strong> engagement rate across ${accounts.length} ${accounts.length===1?'account':'accounts'}.</div>
+    <div class="hero"><div class="hero-num">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="hero-tag">${T.peopleReached}</div></div>
+    <div class="hero-cap">${heroCapAnalytics}</div>
     <div class="chartwrap">${reachChartSvg}</div>
     <div class="hl-row">
-      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">Total followers</div></div>
-      <div class="hl"><div class="hl-v">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="hl-l">Likes earned</div></div>
-      <div class="hl"><div class="hl-v">${analyticsData.summary.engagementRate}%</div><div class="hl-l">Engagement rate</div></div>
+      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">${T.totalFollowers}</div></div>
+      <div class="hl"><div class="hl-v">${analyticsData.summary.totalLikes.toLocaleString()}</div><div class="hl-l">${T.likesEarned}</div></div>
+      <div class="hl"><div class="hl-v">${analyticsData.summary.engagementRate}%</div><div class="hl-l">${T.engRate}</div></div>
     </div>` : `
-    <div class="hero"><div class="hero-num">${totalFollowers.toLocaleString()}</div><div class="hero-tag">Total followers</div></div>
-    <div class="hero-cap">${reportName} is present on ${platforms.length} ${platforms.length===1?'platform':'platforms'} across ${accounts.length} connected ${accounts.length===1?'account':'accounts'}.</div>
+    <div class="hero"><div class="hero-num">${totalFollowers.toLocaleString()}</div><div class="hero-tag">${T.totalFollowers}</div></div>
+    <div class="hero-cap">${heroCapBasic}</div>
     <div class="hl-row">
-      <div class="hl"><div class="hl-v">${accounts.length}</div><div class="hl-l">Connected accounts</div></div>
-      <div class="hl"><div class="hl-v">${platforms.length}</div><div class="hl-l">Platforms</div></div>
-      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">Total followers</div></div>
+      <div class="hl"><div class="hl-v">${accounts.length}</div><div class="hl-l">${T.connectedAccounts}</div></div>
+      <div class="hl"><div class="hl-v">${platforms.length}</div><div class="hl-l">${T.platformsL}</div></div>
+      <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">${T.totalFollowers}</div></div>
     </div>`}
-  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
+  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>
 
 <div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Platform Performance</div></div>
-  <div class="eyebrow">Where your audience lives</div>
-  <div style="margin-bottom:46px">${platBarsHtml || '<div style="color:#9aa3b2;font-size:13px">Connect an account to see your platform breakdown.</div>'}</div>
-  <div class="eyebrow">Connected accounts</div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.platformPerf}</div></div>
+  <div class="eyebrow">${T.audienceLives}</div>
+  <div style="margin-bottom:46px">${platBarsHtml || '<div style="color:#9aa3b2;font-size:13px">'+T.connectToSee+'</div>'}</div>
+  <div class="eyebrow">${T.connectedAccounts}</div>
   <table style="width:100%;border-collapse:collapse">
-    <thead><tr><th style="text-align:left;font-size:10px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Account</th><th style="text-align:left;font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Platform</th><th style="text-align:right;font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">Followers</th></tr></thead>
+    <thead><tr><th style="text-align:${sa};font-size:10px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.account}</th><th style="text-align:${sa};font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.platform}</th><th style="text-align:${ea};font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.followers}</th></tr></thead>
     <tbody>${accountsHtml}</tbody>
   </table>
-  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
+  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>
 
 ${topPosts.length > 0 ? `<div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; Top Content</div></div>
-  <div class="eyebrow">Your best-performing posts</div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.topContent}</div></div>
+  <div class="eyebrow">${T.bestPosts}</div>
   ${postsHtml}
-  <div class="ft"><div>Tawaslo &mdash; Social Intelligence &middot; tawaslo.com</div><div>Confidential &middot; ${reportName}</div></div>
+  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>` : ''}
 
 <script>window.onload=function(){window.print();}</script>
@@ -6208,10 +6258,10 @@ ${topPosts.length > 0 ? `<div class="page">
   const chart = (analyticsData && analyticsData.chartData) ? analyticsData.chartData : [];
   const rcard = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
   const kpis = [
-    { label:"Total followers", value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
-    { label:"Connected accounts", value: String(accounts.length), Icon:Link, color:"accent" },
-    { label:"Platforms", value: String(platforms.length), Icon:Globe, color:"warning" },
-    { label:"Engagement rate", value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2" },
+    { label:L("Total followers","إجمالي المتابعين"), value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
+    { label:L("Connected accounts","الحسابات المرتبطة"), value: String(accounts.length), Icon:Link, color:"accent" },
+    { label:L("Platforms","المنصات"), value: String(platforms.length), Icon:Globe, color:"warning" },
+    { label:L("Engagement rate","معدل التفاعل"), value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2" },
   ];
 
   return (
@@ -6219,21 +6269,21 @@ ${topPosts.length > 0 ? `<div class="page">
       <div style={{marginBottom:18}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:14}}>
           <div>
-            <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>Reports</h2>
-            <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>Performance summary · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
+            <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Reports","التقارير")}</h2>
+            <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Performance summary","ملخّص الأداء")} · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
           </div>
           <button onClick={exportPDF} style={{padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"none"}}>
-            <Download size={15}/> Export PDF
+            <Download size={15}/> {L("Export PDF","تصدير PDF")}
           </button>
         </div>
         <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"center"}}>
-          <span style={{fontSize:11, color:th.text3, fontWeight:600}}>Showing</span>
+          <span style={{fontSize:11, color:th.text3, fontWeight:600}}>{L("Showing","عرض")}</span>
           <select value={rClient} onChange={e=>setRClient(e.target.value)} style={{padding:"9px 13px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card, color:th.text, fontSize:12.5, fontWeight:600, outline:"none", fontFamily:"inherit", cursor:"pointer"}}>
-            <option value="all">All clients</option>
+            <option value="all">{L("All clients","كل العملاء")}</option>
             {clients.map(c=><option key={c.id} value={String(c.id)}>{c.name}</option>)}
           </select>
           <select value={rPlat} onChange={e=>setRPlat(e.target.value)} style={{padding:"9px 13px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card, color:th.text, fontSize:12.5, fontWeight:600, outline:"none", fontFamily:"inherit", cursor:"pointer"}}>
-            <option value="all">All platforms</option>
+            <option value="all">{L("All platforms","كل المنصات")}</option>
             {allPlatforms.map(p=><option key={p} value={p}>{platLabel(p)}</option>)}
           </select>
         </div>
@@ -6241,7 +6291,11 @@ ${topPosts.length > 0 ? `<div class="page">
 
       {accounts.length>0 && (
         <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
-          {scopeLabel} reaches <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> followers across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> {accounts.length===1?"account":"accounts"} on <span className="tw-num">{platforms.length}</span> {platforms.length===1?"platform":"platforms"}{er!=null?<>, with a <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span> engagement rate</>:""}.
+          {isAR ? (
+            <>يصل {scopeLabel} إلى <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> متابع عبر <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> حساب على <span className="tw-num">{platforms.length}</span> منصة{er!=null?<>، بمعدل تفاعل <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span></>:""}.</>
+          ) : (
+            <>{scopeLabel} reaches <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> followers across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> {accounts.length===1?"account":"accounts"} on <span className="tw-num">{platforms.length}</span> {platforms.length===1?"platform":"platforms"}{er!=null?<>, with a <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span> engagement rate</>:""}.</>
+          )}
         </div>
       )}
 
@@ -6251,11 +6305,11 @@ ${topPosts.length > 0 ? `<div class="page">
 
       <div style={{display:"grid", gridTemplateColumns: chart.length ? "1.4fr 1fr" : "1fr", gap:16, marginBottom:16}}>
         <div style={{...rcard, padding:20}}>
-          <div style={{fontSize:13, fontWeight:600, marginBottom:16, display:"flex", alignItems:"center", gap:8}}><PieChart size={15} color={th.accent}/>Followers by platform</div>
-          {byPlat.length === 0 ? <div style={{fontSize:12.5, color:th.text3, padding:"10px 0"}}>Connect an account to see your reach by platform.</div> : byPlat.map(b => { const pct = totalFollowers>0 ? Math.round(b.followers/totalFollowers*100) : 0; const Ic=b.meta.I; return (
+          <div style={{fontSize:13, fontWeight:600, marginBottom:16, display:"flex", alignItems:"center", gap:8}}><PieChart size={15} color={th.accent}/>{L("Followers by platform","المتابعون حسب المنصة")}</div>
+          {byPlat.length === 0 ? <div style={{fontSize:12.5, color:th.text3, padding:"10px 0"}}>{L("Connect an account to see your reach by platform.","اربط حساباً لرؤية وصولك حسب المنصة.")}</div> : byPlat.map(b => { const pct = totalFollowers>0 ? Math.round(b.followers/totalFollowers*100) : 0; const Ic=b.meta.I; return (
             <div key={b.p} style={{marginBottom:14}}>
               <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6}}>
-                <span style={{display:"flex", alignItems:"center", gap:8, fontSize:12.5, fontWeight:600}}><Ic style={{color:b.meta.c, fontSize:15}}/>{b.meta.n} <span style={{color:th.text3, fontWeight:400}}>· {b.count} {b.count===1?"account":"accounts"}</span></span>
+                <span style={{display:"flex", alignItems:"center", gap:8, fontSize:12.5, fontWeight:600}}><Ic style={{color:b.meta.c, fontSize:15}}/>{b.meta.n} <span style={{color:th.text3, fontWeight:400}}>· {b.count} {isAR?"حساب":(b.count===1?"account":"accounts")}</span></span>
                 <span className="tw-num" style={{fontSize:12.5, color:th.text2}}>{b.followers.toLocaleString()} <span style={{color:th.text3}}>({pct}%)</span></span>
               </div>
               <div style={{height:8, background:th.card2, borderRadius:5, overflow:"hidden"}}><div style={{height:"100%", width:pct+"%", background:b.meta.c, borderRadius:5}}/></div>
@@ -6264,7 +6318,7 @@ ${topPosts.length > 0 ? `<div class="page">
         </div>
         {chart.length > 0 && (
           <div style={{...rcard, padding:20}}>
-            <div style={{fontSize:13, fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:8}}><TrendingUp size={15} color={th.accent}/>Reach · last 30 days</div>
+            <div style={{fontSize:13, fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:8}}><TrendingUp size={15} color={th.accent}/>{L("Reach · last 30 days","الوصول · آخر 30 يوماً")}</div>
             <div className="tw-num" style={{fontSize:26, fontWeight:600, marginBottom:8}}>{((analyticsData.summary&&analyticsData.summary.totalReach)||0).toLocaleString()}</div>
             {(() => { const vals=chart.map(c=>c.reach||0); const mx=Math.max(1,...vals); const W=300,H=90; const pts=vals.map((v,i)=>[(i/(Math.max(1,vals.length-1)))*W, H-(v/mx)*(H-8)-4]); const line="M"+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L"); return (
               <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%", height:90, overflow:"visible"}}>
@@ -6278,9 +6332,9 @@ ${topPosts.length > 0 ? `<div class="page">
       </div>
 
       <div style={{...rcard, overflow:"hidden"}}>
-        <div style={{padding:"14px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8}}><Users size={15} color={th.accent}/>Account breakdown</div>
+        <div style={{padding:"14px 20px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:600, display:"flex", alignItems:"center", gap:8}}><Users size={15} color={th.accent}/>{L("Account breakdown","تفصيل الحسابات")}</div>
         {accounts.length === 0 ? (
-          <EmptyState compact Icon={Link} title="No accounts connected" body="Connect your social accounts to see a full performance breakdown here." />
+          <EmptyState compact Icon={Link} title={L("No accounts connected","لا توجد حسابات مرتبطة")} body={L("Connect your social accounts to see a full performance breakdown here.","اربط حساباتك الاجتماعية لرؤية تفصيل أداء كامل هنا.")} />
         ) : accounts.map((acc,i) => { const meta=PMETA[acc.platform]||{n:acc.platform,c:th.accent,I:Globe}; const Ic=meta.I; const f=acc.followers_count||0; const pct=Math.round(f/maxF*100); return (
           <div key={acc.id} style={{display:"flex", alignItems:"center", gap:14, padding:"13px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none"}}>
             <div style={{position:"relative", width:38, height:38, borderRadius:11, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:"#fff", flexShrink:0}}>{(acc.account_name||"?").slice(0,2).toUpperCase()}<div style={{position:"absolute", right:-4, bottom:-4, width:18, height:18, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><Ic style={{color:meta.c, fontSize:10}}/></div></div>
@@ -6288,7 +6342,7 @@ ${topPosts.length > 0 ? `<div class="page">
               <div style={{fontSize:13, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{acc.account_name}{acc.username && <span style={{color:th.text3, fontWeight:400}}> · @{acc.username}</span>}</div>
               <div style={{height:6, background:th.card2, borderRadius:4, overflow:"hidden", marginTop:6, maxWidth:280}}><div style={{height:"100%", width:pct+"%", background:meta.c, borderRadius:4}}/></div>
             </div>
-            <div style={{textAlign:"right", flexShrink:0}}><div className="tw-num" style={{fontSize:15, fontWeight:600}}>{f.toLocaleString()}</div><div style={{fontSize:10.5, color:th.text3}}>followers</div></div>
+            <div style={{textAlign:"right", flexShrink:0}}><div className="tw-num" style={{fontSize:15, fontWeight:600}}>{f.toLocaleString()}</div><div style={{fontSize:10.5, color:th.text3}}>{L("followers","متابع")}</div></div>
           </div>
         ); })}
       </div>
@@ -6390,7 +6444,7 @@ function BrandVoiceDrawer({ clientId, clientName, th, L, onClose }) {
           {/* Key facts */}
           <div style={card}>
             <div style={lbl}>{L("KEY FACTS · ANSWERED CONSISTENTLY","حقائق · يرد عليها بثبات")}</div>
-            <ListEditor k="facts" placeholder={L("e.g. Delivery: 30–45 min in the city","مثال: التوصيل: ٣٠–٤٥ دقيقة")} color={th.accent}/>
+            <ListEditor k="facts" placeholder={L("e.g. Delivery: 30–45 min in the city","مثال: التوصيل: 30–45 دقيقة")} color={th.accent}/>
           </div>
 
           {/* Do / Don't */}
@@ -6946,8 +7000,10 @@ function InboxPage() {
 }
 
 function TeamPage() {
-  const { dark } = useApp();
+  const { dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const roleLabel = (r) => isAR ? ({ Owner:"المالك", Admin:"مشرف", Editor:"محرّر", Viewer:"مشاهد" }[r] || r) : r;
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("Admin");
@@ -6966,11 +7022,11 @@ function TeamPage() {
     <div style={{ padding:"28px 32px", maxWidth:880 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>Team</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>Invite teammates and manage access &middot; <span style={{ color:th.text }}>{team.length} of {SEATS} seats used</span></p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Team","الفريق")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{L(`${team.length} of ${SEATS} seats used`,`${team.length} من ${SEATS} مقاعد مستخدمة`)}</span></p>
         </div>
         <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
-          <UserPlus size={15}/> Invite member
+          <UserPlus size={15}/> {L("Invite member","دعوة عضو")}
         </button>
       </div>
 
@@ -6980,20 +7036,20 @@ function TeamPage() {
 
       {showInvite && (
         <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, marginBottom:18, boxShadow:"none" }}>
-          <div style={{ fontSize:13, fontWeight:700, marginBottom:13, display:"flex", alignItems:"center", gap:8 }}><UserPlus size={15} color={th.accent}/>Invite a team member</div>
+          <div style={{ fontSize:13, fontWeight:700, marginBottom:13, display:"flex", alignItems:"center", gap:8 }}><UserPlus size={15} color={th.accent}/>{L("Invite a team member","دعوة عضو للفريق")}</div>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
             <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" style={{ ...inp, flex:1, minWidth:200 }}/>
             <select value={inviteRole} onChange={e=>setInviteRole(e.target.value)} style={{ ...inp, minWidth:120 }}>
-              <option>Admin</option><option>Editor</option><option>Viewer</option>
+              <option value="Admin">{L("Admin","مشرف")}</option><option value="Editor">{L("Editor","محرّر")}</option><option value="Viewer">{L("Viewer","مشاهد")}</option>
             </select>
-            <button onClick={sendInvite} style={{ padding:"11px 22px", borderRadius:10, background:sent?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>{sent?<><CheckCircle size={14}/>Sent</>:"Send invite"}</button>
+            <button onClick={sendInvite} style={{ padding:"11px 22px", borderRadius:10, background:sent?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>{sent?<><CheckCircle size={14}/>{L("Sent","تم الإرسال")}</>:L("Send invite","إرسال الدعوة")}</button>
           </div>
-          <div style={{ fontSize:11, color:th.text3, marginTop:10 }}>They'll get an email invite to join {team[0]?.name ? "your" : "the"} workspace. Admins can publish &amp; manage; Editors draft; Viewers read-only.</div>
+          <div style={{ fontSize:11, color:th.text3, marginTop:10 }}>{L("They'll get an email invite to join your workspace. Admins can publish & manage; Editors draft; Viewers read-only.","سيصلهم بريد دعوة للانضمام إلى مساحتك. المشرفون ينشرون ويديرون؛ المحرّرون يكتبون المسودات؛ المشاهدون للقراءة فقط.")}</div>
         </div>
       )}
 
       <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
-        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>Members &middot; {team.length}</div>
+        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>{L("Members","الأعضاء")} &middot; {team.length}</div>
         {team.map((m,i) => (
           <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none" }}>
             <div style={{ display:"flex", alignItems:"center", gap:13 }}>
@@ -7006,16 +7062,16 @@ function TeamPage() {
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
               {editIdx===i && m.role!=="Owner" ? (
                 <select value={m.role} onChange={e=>setTeam(t=>t.map((x,j)=>j===i?{...x,role:e.target.value}:x))} style={{ fontSize:11.5, fontWeight:600, padding:"5px 9px", borderRadius:9, border:`1px solid ${th.accent}`, background:th.card2, color:th.text, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
-                  <option>Admin</option><option>Editor</option><option>Viewer</option>
+                  <option value="Admin">{L("Admin","مشرف")}</option><option value="Editor">{L("Editor","محرّر")}</option><option value="Viewer">{L("Viewer","مشاهد")}</option>
                 </select>
               ) : (
-                <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{m.role}</span>
+                <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{roleLabel(m.role)}</span>
               )}
-              <span style={{ fontSize:11.5, color:th.text2, minWidth:74, textAlign:"right" }}>{m.joined}</span>
+              <span style={{ fontSize:11.5, color:th.text2, minWidth:74, textAlign:isAR?"left":"right" }}>{m.joined}</span>
               {m.role !== "Owner" ? (
                 <div style={{ display:"flex", gap:7 }}>
-                  <button onClick={()=>setEditIdx(editIdx===i?null:i)} style={{ fontSize:11.5, fontWeight:600, color:editIdx===i?th.success:th.accent, background:"none", border:`1px solid ${editIdx===i?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editIdx===i?<><CheckCircle size={13}/>Done</>:<><Edit3 size={13}/>Edit</>}</button>
-                  <button onClick={()=>{ setTeam(t=>t.filter((_,j)=>j!==i)); setEditIdx(null); }} style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>Remove</button>
+                  <button onClick={()=>setEditIdx(editIdx===i?null:i)} style={{ fontSize:11.5, fontWeight:600, color:editIdx===i?th.success:th.accent, background:"none", border:`1px solid ${editIdx===i?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editIdx===i?<><CheckCircle size={13}/>{L("Done","تم")}</>:<><Edit3 size={13}/>{L("Edit","تعديل")}</>}</button>
+                  <button onClick={()=>{ setTeam(t=>t.filter((_,j)=>j!==i)); setEditIdx(null); }} style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>{L("Remove","إزالة")}</button>
                 </div>
               ) : <span style={{ width:62 }}/>}
             </div>
@@ -7061,9 +7117,9 @@ function BillingPage() {
   const currentPlanName = "Essential";
   const currentPeriod = "annual";
   const plans = [
-    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:"For small businesses" },
-    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:"For growing brands" },
-    { name:"Enterprise", m:199, y:159, accounts:"Unlimited", users:"20", posts:"Unlimited", popular:false, tag:"For agencies" },
+    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
+    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
+    { name:"Enterprise", m:199, y:159, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
   ];
 
   const applyPromo = async () => {
@@ -7111,13 +7167,13 @@ function BillingPage() {
           {cancelled ? (
             <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Your","خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> {L("plan ends","تنتهي في")} <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>{L("Reactivate","إعادة التفعيل")}</span></p>
           ) : (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("You're on","أنت على خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> · {currentPeriod==="annual"?L("billed yearly","فوترة سنوية"):L("billed monthly","فوترة شهرية")} · {L("renews July 1, 2026","تتجدد في ١ يوليو ٢٠٢٦")} · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>{L("Cancel subscription","إلغاء الاشتراك")}</span></p>
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("You're on","أنت على خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> · {currentPeriod==="annual"?L("billed yearly","فوترة سنوية"):L("billed monthly","فوترة شهرية")} · {L("renews July 1, 2026","تتجدد في 1 يوليو 2026")} · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>{L("Cancel subscription","إلغاء الاشتراك")}</span></p>
           )}
         </div>
         <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
           {[["monthly",L("Monthly","شهري")],["annual",L("Yearly","سنوي")]].map(([k,l])=>(
             <button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px", borderRadius:999, border:"none", background:period===k?th.gradient:"transparent", color:period===k?"#fff":th.text2, fontSize:12.5, fontWeight:period===k?600:400, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
-              {l}{k==="annual"&&<span style={{fontSize:10, fontWeight:700, color:period==="annual"?"#fff":th.success}}>{L("save 20%","وفّر ٢٠٪")}</span>}
+              {l}{k==="annual"&&<span style={{fontSize:10, fontWeight:700, color:period==="annual"?"#fff":th.success}}>{L("save 20%","وفّر 20%")}</span>}
             </button>
           ))}
         </div>
@@ -7152,8 +7208,8 @@ function BillingPage() {
               display:"flex", flexDirection:"column",
               boxShadow:featured?"0 16px 44px rgba(110,140,171,0.28)":"0 8px 24px rgba(0,0,0,0.22)",
             }}>
-              {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(110,140,171,0.5)"}}>MOST POPULAR</div>}
-              {isCurrent && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>CURRENT</div>}
+              {featured && <div style={{position:"absolute", top:-13, left:"50%", transform:"translateX(-50%)", background:th.gradient, color:"#fff", fontSize:10.5, fontWeight:700, padding:"5px 16px", borderRadius:999, letterSpacing:0.4, whiteSpace:"nowrap", boxShadow:"0 6px 18px rgba(110,140,171,0.5)"}}>{L("MOST POPULAR","الأكثر شيوعاً")}</div>}
+              {isCurrent && <div style={{position:"absolute", top:14, right:14, fontSize:10, fontWeight:700, background:th.accentSoft, color:th.accent, padding:"3px 9px", borderRadius:999}}>{L("CURRENT","الحالية")}</div>}
               <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
               <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
               <div style={{display:"flex", alignItems:"baseline", gap:6}}>
@@ -7164,24 +7220,24 @@ function BillingPage() {
               {approxLabel(geo,dPrice!=null?dPrice:price)&&<div style={{fontSize:10, color:th.text3, marginTop:2}}>{approxLabel(geo,dPrice!=null?dPrice:price).replace("approx ","≈ ")}</div>}
               {dPrice!=null
                 ? <div style={{display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"3px 9px", marginTop:6, marginBottom:12}}><Tag size={11}/>{promo.label} · {promo.code}</div>
-                : <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>}
+                : <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?L(`billed yearly · save $${save}/yr`,`فوترة سنوية · وفّر $${save}/سنة`):L("billed monthly","فوترة شهرية")}</div>}
               <div style={{fontSize:12, color:th.text2, lineHeight:2, marginBottom:18}}>
-                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.accounts} social accounts</div>
-                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.users} team member{plan.users!=="1"?"s":""}</div>
-                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.posts} posts/month</div>
-                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>AI captions (EN + AR)</div>
-                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>Analytics dashboard</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.accounts} {L("social accounts","حسابات اجتماعية")}</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.users} {isAR?"أعضاء فريق":("team member"+(plan.users!=="1"?"s":""))}</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.posts} {L("posts/month","منشور/شهر")}</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{L("AI captions (EN + AR)","تعليقات الذكاء (إنجليزي + عربي)")}</div>
+                <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{L("Analytics dashboard","لوحة تحليلات")}</div>
               </div>
               <div style={{marginTop:"auto"}}>
                 {isCurrent ? (
-                  <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center", boxSizing:"border-box"}}>Your current plan</div>
+                  <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center", boxSizing:"border-box"}}>{L("Your current plan","خطتك الحالية")}</div>
                 ) : otherCycle ? (
                   <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
-                    {busy===plan.name?"Starting checkout…":`Switch to ${period==="annual"?"yearly":"monthly"} billing`}
+                    {busy===plan.name?L("Starting checkout…","جارٍ بدء الدفع…"):L(`Switch to ${period==="annual"?"yearly":"monthly"} billing`,`التحويل إلى الفوترة ${period==="annual"?"السنوية":"الشهرية"}`)}
                   </button>
                 ) : (
                   <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
-                    {busy===plan.name?"Starting checkout…":`Upgrade to ${plan.name}`}
+                    {busy===plan.name?L("Starting checkout…","جارٍ بدء الدفع…"):L(`Upgrade to ${plan.name}`,`الترقية إلى ${plan.name}`)}
                   </button>
                 )}
               </div>
@@ -7208,27 +7264,27 @@ function BillingPage() {
           </div>
         )}
       </div>
-      <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
+      <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>{L("Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit & more · cancel anytime.","دفع آمن عبر Tap · فيزا، ماستركارد، آبل باي، بنفت وغيرها · يمكنك الإلغاء في أي وقت.")}</div>
 
       <div style={{marginTop:40}}>
         <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:4}}>
           <div style={{width:34, height:34, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><Image size={17} color={th.accent}/></div>
-          <h3 style={{fontSize:17, fontWeight:800, margin:0, letterSpacing:-0.3}}>AI image credits</h3>
+          <h3 style={{fontSize:17, fontWeight:800, margin:0, letterSpacing:-0.3}}>{L("AI image credits","رصيد صور الذكاء")}</h3>
         </div>
         {imgIsPaid ? (
           <>
             <p style={{margin:"0 0 16px 44px", fontSize:12.5, color:th.text2}}>
               {imgCurPack
-                ? <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>
-                : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. Generate and edit on-brand images across all your clients in AI Studio.</>}
+                ? (isAR ? <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> على حزمة <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span>. غيّرها في أي وقت بالأسفل.</> : <><span style={{color:th.accent, fontWeight:600}}>{agencyName}</span> is on the <span style={{color:th.accent, fontWeight:600}}>{(IMG_PACKS.find(p=>p.id===imgCurPack)||{}).name}</span> pack. Change it anytime below.</>)
+                : (isAR ? <>أضف حزمة صور شهرية لـ <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. أنشئ وعدّل صوراً بهوية علامتك عبر كل عملائك في استوديو الذكاء.</> : <>Add a monthly image pack for <span style={{color:th.accent, fontWeight:600}}>{agencyName}</span>. Generate and edit on-brand images across all your clients in AI Studio.</>)}
             </p>
             <ImagePackPicker th={th} geo={geo} currentPack={imgCurPack} onChoose={chooseImgPack}/>
-            <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>Image packs are billed to your agency, in USD. Cancel anytime.</div>
+            <div style={{fontSize:10.5, color:th.text3, marginTop:12, textAlign:"center"}}>{L("Image packs are billed to your agency, in USD. Cancel anytime.","تُفوتر حزم الصور على وكالتك بالدولار. يمكنك الإلغاء في أي وقت.")}</div>
           </>
         ) : (
           <div style={{marginLeft:44, padding:"16px 18px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, fontSize:12.5, color:th.text2, lineHeight:1.6}}>
             <Lock size={14} color={th.text3} style={{verticalAlign:-2, marginRight:7}}/>
-            AI image credits are available on any paid plan. Choose a plan above to unlock image generation and add a monthly pack.
+            {L("AI image credits are available on any paid plan. Choose a plan above to unlock image generation and add a monthly pack.","رصيد صور الذكاء متاح في أي خطة مدفوعة. اختر خطة بالأعلى لتفعيل توليد الصور وإضافة حزمة شهرية.")}
           </div>
         )}
       </div>
@@ -7269,12 +7325,12 @@ function BillingPage() {
           <div onClick={e=>e.stopPropagation()} style={{width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
             <div style={{display:"flex", alignItems:"center", gap:11, marginBottom:14}}>
               <div style={{width:40, height:40, borderRadius:11, background:th.dangerSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><XCircle size={20} color={th.danger}/></div>
-              <span style={{fontSize:16, fontWeight:700}}>Cancel subscription?</span>
+              <span style={{fontSize:16, fontWeight:700}}>{L("Cancel subscription?","إلغاء الاشتراك؟")}</span>
             </div>
-            <div style={{fontSize:13, color:th.text2, lineHeight:1.65, marginBottom:20}}>Your plan stays active until <strong style={{color:th.text}}>July 1, 2026</strong>. After that you'll move to the free tier and lose paid features. You can reactivate anytime before then.</div>
+            <div style={{fontSize:13, color:th.text2, lineHeight:1.65, marginBottom:20}}>{isAR ? <>تبقى خطتك فعّالة حتى <strong style={{color:th.text}}>1 يوليو 2026</strong>. بعدها تنتقل إلى الباقة المجانية وتفقد المزايا المدفوعة. يمكنك إعادة التفعيل في أي وقت قبل ذلك.</> : <>Your plan stays active until <strong style={{color:th.text}}>July 1, 2026</strong>. After that you'll move to the free tier and lose paid features. You can reactivate anytime before then.</>}</div>
             <div style={{display:"flex", gap:10}}>
-              <button onClick={()=>setShowCancel(false)} style={{flex:1, padding:"11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, fontWeight:600, cursor:"pointer"}}>Keep my plan</button>
-              <button onClick={()=>{ setCancelled(true); try{localStorage.setItem('tw_sub_status','cancelled');}catch(e){} setShowCancel(false); }} style={{flex:1, padding:"11px", borderRadius:10, background:th.danger, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer"}}>Cancel subscription</button>
+              <button onClick={()=>setShowCancel(false)} style={{flex:1, padding:"11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, fontWeight:600, cursor:"pointer"}}>{L("Keep my plan","الاحتفاظ بخطتي")}</button>
+              <button onClick={()=>{ setCancelled(true); try{localStorage.setItem('tw_sub_status','cancelled');}catch(e){} setShowCancel(false); }} style={{flex:1, padding:"11px", borderRadius:10, background:th.danger, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer"}}>{L("Cancel subscription","إلغاء الاشتراك")}</button>
             </div>
           </div>
         </div>
@@ -8629,8 +8685,8 @@ function AdminLogin() {
 }
 
 function AuthPage() {
-  const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding, lang, setLang } = useApp();
-  const isAR = lang === "ar";
+  const { authPage, setAuthPage, setIsAuthed, setRecovery, setShowLanding } = useApp();
+  const isAR = false; // Sign-in / sign-up is English only — language toggle lives inside the dashboard.
   const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
   const [showPw,  setShowPw]  = useState(false);
@@ -8776,11 +8832,6 @@ function AuthPage() {
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:isMobile?"24px 18px":40,overflowY:"auto"}}>
         <div style={{width:"100%",maxWidth:400}}>
-          <div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-            <button onClick={()=>setLang&&setLang(l=>l==="en"?"ar":"en")} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:11.5,fontWeight:600,borderRadius:8,padding:"6px 11px",cursor:"pointer"}}>
-              <Languages size={13}/>{isAR?"English":"عربي"}
-            </button>
-          </div>
           {/* Error / Success banners */}
           {error&&(
             <div style={{background:th.dangerSoft,border:`1px solid ${th.danger}40`,borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:th.danger}}>
@@ -9075,7 +9126,7 @@ function AuthPage() {
                 <h1 style={{margin:0,fontSize:24,fontWeight:900,letterSpacing:-0.6}}>{L("Set a new password","تعيين كلمة مرور جديدة")}</h1>
                 <p style={{margin:"6px 0 0",fontSize:13,color:th.text2}}>{L("Choose a new password for your Tawaslo account","اختر كلمة مرور جديدة لحسابك في تواصلو")}</p>
               </div>
-              {inp(L("New password (min 6 characters)","كلمة مرور جديدة (٦ أحرف على الأقل)"),pw,e=>{setPw(e.target.value);setError("");},"password")}
+              {inp(L("New password (min 6 characters)","كلمة مرور جديدة (6 أحرف على الأقل)"),pw,e=>{setPw(e.target.value);setError("");},"password")}
               <button onClick={handleUpdatePassword} disabled={loading} style={{width:"100%",padding:"13px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:loading?"not-allowed":"pointer",opacity:loading?0.7:1,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:12}}>
                 {loading?L("Updating…","جارٍ التحديث…"):L("Update password","تحديث كلمة المرور")} {!loading&&<ChevronRight size={15} style={{transform:isAR?"scaleX(-1)":"none"}}/>}
               </button>
