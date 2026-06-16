@@ -353,13 +353,18 @@ function ImagePaywallModal({ open, onClose, th, geo, used, limit, currentPack, o
 // Trial lifecycle popup: a 5-days-left nudge (once a day) and the trial-ended
 // soft paywall prompt. Data stays visible; this just encourages upgrade.
 function TrialLifecycle() {
-  const { userEmail, setPage, dark, lang } = useApp();
+  const { userEmail, setPage, dark, lang, clients } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const days = trialDaysLeft(userEmail);
   const ended = trialEnded(userEmail);
   const trialing = isTrialUser(userEmail);
+  const geo = useGeo();
   const [show, setShow] = useState(false);
+  const [stats, setStats] = useState(null); // real counts for the ended state
+  const GOLD = "#C9A24E", GOLD2 = "#E0B973";
+  const FROM_USD = 39; // cheapest plan, billed yearly
+
   useEffect(() => {
     if (!trialing) return;
     if (ended) { setShow(true); return; }
@@ -369,20 +374,110 @@ function TrialLifecycle() {
       } catch(e) { setShow(true); }
     }
   }, []); // eslint-disable-line
+
+  // Pull real "your work is safe" counts once the ended popup opens.
+  useEffect(() => {
+    if (!ended || !show) return;
+    let on = true;
+    (async () => {
+      const base = { clients: (clients||[]).length, posts: null, accounts: null };
+      try {
+        const ids = (clients||[]).map(c=>c.id).filter(Boolean);
+        if (ids.length) {
+          const [p, a] = await Promise.all([
+            supabase.from('posts').select('id', { count:'exact', head:true }).in('client_id', ids),
+            supabase.from('social_accounts').select('id', { count:'exact', head:true }).in('client_id', ids).neq('is_active', false),
+          ]);
+          base.posts = p.count || 0; base.accounts = a.count || 0;
+        } else { base.posts = 0; base.accounts = 0; }
+      } catch(e) { base.posts = base.posts ?? 0; base.accounts = base.accounts ?? 0; }
+      if (on) setStats(base);
+    })();
+    return () => { on = false; };
+  }, [ended, show]); // eslint-disable-line
+
   if (!trialing || !show) return null;
-  const title = ended ? L("Your free trial has ended","انتهت فترتك التجريبية")
-    : (isAR ? `تبقّى ${days} ${days===1?"يوم":"أيام"} في تجربتك` : `${days} ${days===1?"day":"days"} left in your trial`);
-  const body = ended
-    ? L("Your dashboard, analytics and connected accounts are all still here. Upgrade to publish, schedule and use AI again.","لوحتك وتحليلاتك وحساباتك المرتبطة لا تزال موجودة. قم بالترقية لتعود للنشر والجدولة واستخدام الذكاء الاصطناعي.")
-    : L("Keep your momentum going — upgrade now to unlock unlimited publishing, AI captions and accounts.","حافظ على زخمك — قم بالترقية الآن لفتح النشر غير المحدود وتعليقات الذكاء الاصطناعي والحسابات.");
+
+  const dismiss = () => setShow(false);
+  const goBilling = () => { setShow(false); setPage("billing"); };
+  const approx = approxLabel(geo, FROM_USD); // e.g. "approx 14.7 BHD"
+  const C = 289; // 2πr for r=46
+  const frac = Math.max(0, Math.min(1, days / TRIAL_DAYS));
+  const ringOffset = Math.round(C * (1 - frac));
+
+  const Tile = ({ Icon, color, label }) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8, background:dark?"rgba(255,255,255,0.03)":th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"10px 11px", fontSize:11.5, color:th.text }}>
+      <Icon size={15} color={color} style={{ flexShrink:0 }}/>{label}
+    </div>
+  );
+  const Stat = ({ value, label }) => (
+    <div style={{ textAlign:"center", background:dark?"rgba(255,255,255,0.03)":th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 6px" }}>
+      <div className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.accent }}>{value==null?"—":value}</div>
+      <div style={{ fontSize:9.5, color:th.text2, letterSpacing:0.4, marginTop:2 }}>{label}</div>
+    </div>
+  );
+
   return createPortal((
-    <div onClick={()=>setShow(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.78)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:430,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:26,textAlign:"center",boxShadow:th.shadow}}>
-        <div style={{width:58,height:58,borderRadius:16,background:ended?th.dangerSoft:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}>{ended?<Lock size={26} color={th.danger}/>:<Sparkles size={26} color="#fff"/>}</div>
-        <h2 style={{margin:"0 0 8px",fontSize:20,fontWeight:800,color:th.text,letterSpacing:-0.4}}>{title}</h2>
-        <p style={{margin:"0 0 22px",fontSize:13.5,color:th.text2,lineHeight:1.65}}>{body}</p>
-        <button onClick={()=>{ setShow(false); setPage("billing"); }} style={{width:"100%",padding:"13px",borderRadius:12,background:th.gradient,border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",marginBottom:10}}>{L("Upgrade now","الترقية الآن")}</button>
-        <button onClick={()=>setShow(false)} style={{width:"100%",padding:"11px",borderRadius:12,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{ended?L("Continue viewing","متابعة العرض"):L("Not now","ليس الآن")}</button>
+    <div onClick={dismiss} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.78)",backdropFilter:"blur(4px)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"relative",width:"100%",maxWidth:404,background:th.card,border:`1px solid ${ended?th.danger+"44":th.border}`,borderRadius:22,overflow:"hidden",boxShadow:th.shadow}}>
+        <div style={{height:4,width:"100%",background:ended?`linear-gradient(90deg,${th.danger},${GOLD},${th.accent})`:`linear-gradient(90deg,${GOLD},${th.accent},${th.accent2||th.accent})`}}/>
+        <div style={{position:"absolute",top:-50,left:"50%",transform:"translateX(-50%)",width:240,height:160,background:`radial-gradient(ellipse at center, ${ended?th.danger+"2E":th.accent+"33"}, transparent 70%)`,filter:"blur(10px)",pointerEvents:"none"}}/>
+        <div style={{position:"relative",padding:"24px 26px 24px"}}>
+
+          {ended ? (
+            <>
+              <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+                <div style={{width:66,height:66,borderRadius:19,background:th.dangerSoft,border:`1px solid ${th.danger}4D`,display:"flex",alignItems:"center",justifyContent:"center"}}><Lock size={29} color={th.danger}/></div>
+              </div>
+              <h2 style={{margin:"0 0 6px",fontSize:19,fontWeight:800,textAlign:"center",letterSpacing:-0.3,color:th.text}}>{L("Your free trial has ended","انتهت فترتك التجريبية")}</h2>
+              <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6,textAlign:"center"}}>{L("Everything you built is safe — pick up exactly where you left off the moment you upgrade.","كل ما أنشأته محفوظ — تابع من حيث توقفت فور الترقية.")}</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+                <Stat value={stats?stats.clients:null} label={L("CLIENTS","العملاء")}/>
+                <Stat value={stats?stats.posts:null} label={L("POSTS","المنشورات")}/>
+                <Stat value={stats?stats.accounts:null} label={L("ACCOUNTS","الحسابات")}/>
+              </div>
+              <div style={{fontSize:10.5,color:th.text3,letterSpacing:0.5,marginBottom:9}}>{L("PAUSED UNTIL YOU UPGRADE","متوقّف حتى الترقية")}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:18}}>
+                {[L("Publishing & scheduling","النشر والجدولة"),L("AI captions & image generation","تعليقات الذكاء وتوليد الصور"),L("Connecting new accounts","ربط حسابات جديدة")].map((t,i)=>(
+                  <div key={i} style={{display:"flex",alignItems:"center",gap:9,fontSize:12,color:th.text2}}><Lock size={13} color={th.text3}/>{t}</div>
+                ))}
+              </div>
+              <button onClick={goBilling} style={{width:"100%",padding:"13px",borderRadius:13,background:th.gradient,border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",marginBottom:9,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Sparkles size={16}/>{L("Upgrade now","الترقية الآن")}</button>
+              <button onClick={dismiss} style={{width:"100%",padding:"11px",borderRadius:13,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:12.5,fontWeight:600,cursor:"pointer"}}>{L("Remind me later","ذكّرني لاحقًا")}</button>
+              <div style={{textAlign:"center",fontSize:10.5,color:th.text3,marginTop:11,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><Shield size={13} color={th.success}/>{L("Your data stays saved on your account","بياناتك تبقى محفوظة في حسابك")}</div>
+            </>
+          ) : (
+            <>
+              <div style={{display:"flex",justifyContent:"center",marginBottom:14}}>
+                <div style={{position:"relative",width:104,height:104}}>
+                  <svg width="104" height="104" viewBox="0 0 104 104" style={{transform:"rotate(-90deg)"}}>
+                    <circle cx="52" cy="52" r="46" fill="none" stroke={th.border} strokeWidth="7"/>
+                    <circle cx="52" cy="52" r="46" fill="none" stroke="url(#twTrialGold)" strokeWidth="7" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={ringOffset}/>
+                    <defs><linearGradient id="twTrialGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={GOLD2}/><stop offset="1" stopColor={GOLD}/></linearGradient></defs>
+                  </svg>
+                  <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+                    <span className="tw-num" style={{fontSize:38,fontWeight:600,color:GOLD2,lineHeight:1}}>{days}</span>
+                    <span style={{fontSize:9,color:th.text2,letterSpacing:1.2,marginTop:1}}>{isAR?(days===1?"يوم":"أيام"):(days===1?"DAY LEFT":"DAYS LEFT")}</span>
+                  </div>
+                </div>
+              </div>
+              <h2 style={{margin:"0 0 6px",fontSize:19,fontWeight:800,textAlign:"center",letterSpacing:-0.3,color:th.text}}>{isAR?`تنتهي تجربتك خلال ${days} ${days===1?"يوم":"أيام"}`:`Your free trial ends in ${days} day${days===1?"":"s"}`}</h2>
+              <p style={{margin:"0 0 18px",fontSize:12.5,color:th.text2,lineHeight:1.6,textAlign:"center"}}>{L("Pick a plan now and nothing skips a beat — clients, posts and schedule all keep running.","اختر خطة الآن ولن يتوقف شيء — عملاؤك ومنشوراتك وجدولتك تستمر كما هي.")}</p>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9,marginBottom:16}}>
+                <Tile Icon={Send} color={th.accent} label={L("Publish & schedule","النشر والجدولة")}/>
+                <Tile Icon={Sparkles} color={GOLD} label={L("AI captions & images","تعليقات وصور الذكاء")}/>
+                <Tile Icon={CheckCircle} color={th.success} label={L("Client approvals","موافقات العملاء")}/>
+                <Tile Icon={Inbox} color={th.accent} label={L("Inbox replies","ردود الوارد")}/>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:7,fontSize:11.5,color:GOLD,background:`${GOLD}14`,border:`1px solid ${GOLD}38`,borderRadius:999,padding:"7px 14px",margin:"0 auto 16px",width:"fit-content"}}>
+                <Sparkles size={13}/>{isAR?`الخطط من $${FROM_USD}/شهر · وفّر 20% سنويًا`:`Plans from $${FROM_USD}/mo · save 20% yearly`}{approx?` · ${approx}`:""}
+              </div>
+              <button onClick={goBilling} style={{width:"100%",padding:"13px",borderRadius:13,background:th.gradient,border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",marginBottom:9,display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><ArrowUpRight size={16}/>{L("See plans","عرض الخطط")}</button>
+              <button onClick={dismiss} style={{width:"100%",padding:"11px",borderRadius:13,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:12.5,fontWeight:600,cursor:"pointer"}}>{L("Maybe later","ربما لاحقًا")}</button>
+              <div style={{textAlign:"center",fontSize:10.5,color:th.text3,marginTop:11}}>{L("A gentle reminder once a day — never more.","تذكير لطيف مرة واحدة يوميًا — لا أكثر.")}</div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   ), document.body);
@@ -2541,17 +2636,16 @@ function AgencyDashboard() {
     setCreatingClient(false); setAddClientOpen(false); setNewClientName("");
   };
   const [caption, setCaption] = useState("");
-  const [selPl, setSelPl] = useState(["ig","fb"]);
+  const [selPl] = useState(["ig","fb"]);
 
   // AI caption state
   const [showAI, setShowAI]       = useState(false);
   const [aiTopic, setAiTopic]     = useState("");
   const [aiTone, setAiTone]       = useState("engaging and professional");
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError]     = useState("");
+  const [, setAiError]     = useState("");
   const [aiResult, setAiResult]   = useState(null); // {english, arabic}
   const [brandOpen, setBrandOpen] = useState(false);
-  const [platOpen, setPlatOpen]   = useState(false);
   const [platform, setPlatform]   = useState("All platforms");
   const [viewingAccount, setViewingAccount] = useState(null);
   const [accounts, setAccounts]   = useState([]);
@@ -2957,7 +3051,7 @@ function AIStudioPage() {
   const [imgLoading, setImgLoading] = useState(false);
   const [imgErr, setImgErr] = useState("");
   const [payOpen, setPayOpen] = useState(false);
-  const [creditTick, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
+  const [, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
   const [justBought, setJustBought] = useState("");
   const acct = (userEmail || "").toLowerCase();   // image credits are owned by the agency, not the client
   const unlimitedImg = ["octofusionbh@gmail.com","theoctopus.bh@gmail.com"].includes(acct);   // founder account — unlimited AI images
@@ -6943,9 +7037,13 @@ function BillingPage() {
   const [notice, setNotice] = useState("");
   const [paid, setPaid] = useState(false);
   const [period, setPeriod] = useState("annual");
+  const [promoInput, setPromoInput] = useState("");
+  const [promo, setPromo] = useState(null);     // applied code: {code,type,value,label,applies}
+  const [promoErr, setPromoErr] = useState("");
+  const [promoBusy, setPromoBusy] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
-  const [imgTick, setImgTick] = useState(0);   // re-read image credits after a change
+  const [, setImgTick] = useState(0);   // re-read image credits after a change
   const imgAcct = (userEmail || "").toLowerCase();
   const imgIsPaid = (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
   const imgCurPack = imgPackOf(imgAcct);
@@ -6968,12 +7066,34 @@ function BillingPage() {
     { name:"Enterprise", m:199, y:159, accounts:"Unlimited", users:"20", posts:"Unlimited", popular:false, tag:"For agencies" },
   ];
 
+  const applyPromo = async () => {
+    const code = promoInput.trim().toUpperCase().replace(/\s/g, "");
+    if (!code || promoBusy) return;
+    setPromoBusy(true); setPromoErr("");
+    try {
+      const res = await fetch(`/api/tap?promo=${encodeURIComponent(code)}`);
+      const d = await res.json();
+      if (d && d.valid) { setPromo(d); setPromoErr(""); }
+      else { setPromo(null); setPromoErr(L("That code isn't valid or has expired.","هذا الرمز غير صالح أو منتهي الصلاحية.")); }
+    } catch (e) { setPromo(null); setPromoErr(L("Couldn't check that code. Please try again.","تعذّر التحقق من الرمز. حاول مجددًا.")); }
+    setPromoBusy(false);
+  };
+  const clearPromo = () => { setPromo(null); setPromoInput(""); setPromoErr(""); };
+  // Discounted /mo price for a plan — only when the code applies to it.
+  const discounted = (base, planName) => {
+    if (!promo) return null;
+    if (promo.applies && promo.applies !== "All plans" && promo.applies !== planName) return null;
+    let v = promo.type === "percent" ? base * (1 - promo.value / 100) : base - promo.value;
+    v = Math.round(v * 100) / 100;
+    return Math.max(1, v);
+  };
+
   const startCheckout = async (planName) => {
     setBusy(planName); setNotice("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const res = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ plan: planName, period, name: user?.user_metadata?.full_name || user?.user_metadata?.name || '', email: user?.email }) });
+        body: JSON.stringify({ plan: planName, period, name: user?.user_metadata?.full_name || user?.user_metadata?.name || '', email: user?.email, promo: (promo && promo.code) || "" }) });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
       setBusy("");
@@ -7017,6 +7137,7 @@ function BillingPage() {
       <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, alignItems:"stretch"}}>
         {plans.map(plan => {
           const price = period==="annual" ? plan.y : plan.m;
+          const dPrice = discounted(price, plan.name);
           const save = (plan.m - plan.y) * 12;
           const featured = plan.popular;
           const isYourTier = plan.name === currentPlanName;
@@ -7036,11 +7157,14 @@ function BillingPage() {
               <div style={{fontSize:16, fontWeight:800, marginBottom:3}}>{plan.name}</div>
               <div style={{fontSize:11.5, color:th.text2, marginBottom:14}}>{plan.tag}</div>
               <div style={{display:"flex", alignItems:"baseline", gap:6}}>
-                <span className="tw-num" style={{fontSize:34, fontWeight:600, color:highlight?th.accent:th.text}}>${price}</span>
+                {dPrice!=null && <span className="tw-num" style={{fontSize:19, fontWeight:600, color:th.text3, textDecoration:"line-through"}}>${price}</span>}
+                <span className="tw-num" style={{fontSize:34, fontWeight:600, color:dPrice!=null?th.success:(highlight?th.accent:th.text)}}>${dPrice!=null?dPrice:price}</span>
                 <span style={{fontSize:12, color:th.text2}}>/mo</span>
               </div>
-              {approxLabel(geo,price)&&<div style={{fontSize:10, color:th.text3, marginTop:2}}>{approxLabel(geo,price).replace("approx ","≈ ")}</div>}
-              <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>
+              {approxLabel(geo,dPrice!=null?dPrice:price)&&<div style={{fontSize:10, color:th.text3, marginTop:2}}>{approxLabel(geo,dPrice!=null?dPrice:price).replace("approx ","≈ ")}</div>}
+              {dPrice!=null
+                ? <div style={{display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"3px 9px", marginTop:6, marginBottom:12}}><Tag size={11}/>{promo.label} · {promo.code}</div>
+                : <div style={{fontSize:10.5, color:th.text3, marginTop:2, minHeight:16, marginBottom:16}}>{period==="annual"?`billed yearly · save $${save}/yr`:"billed monthly"}</div>}
               <div style={{fontSize:12, color:th.text2, lineHeight:2, marginBottom:18}}>
                 <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.accounts} social accounts</div>
                 <div><CheckCircle size={12} color={th.success} style={{verticalAlign:-1, marginRight:6}}/>{plan.users} team member{plan.users!=="1"?"s":""}</div>
@@ -7064,6 +7188,25 @@ function BillingPage() {
             </div>
           );
         })}
+      </div>
+      <div style={{maxWidth:440, margin:"20px auto 0"}}>
+        {!promo ? (
+          <>
+            <div style={{display:"flex", gap:9}}>
+              <div style={{flex:1, display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${promoErr?th.danger+"88":th.border}`, borderRadius:11, padding:"0 12px", height:42}}>
+                <Tag size={15} color={promoErr?th.danger:th.text3}/>
+                <input value={promoInput} onChange={e=>{ setPromoInput(e.target.value.toUpperCase()); if(promoErr) setPromoErr(""); }} onKeyDown={e=>{ if(e.key==="Enter") applyPromo(); }} placeholder={L("Have a promo code?","لديك رمز خصم؟")} style={{flex:1, background:"transparent", border:"none", outline:"none", color:th.text, fontSize:12.5, letterSpacing:0.5, fontFamily:"inherit", textTransform:"uppercase"}}/>
+              </div>
+              <button onClick={applyPromo} disabled={promoBusy||!promoInput.trim()} style={{height:42, padding:"0 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:(promoBusy||!promoInput.trim())?"not-allowed":"pointer", opacity:(promoBusy||!promoInput.trim())?0.5:1}}>{promoBusy?L("Checking…","جارٍ…"):L("Apply","تطبيق")}</button>
+            </div>
+            {promoErr && <div style={{display:"flex", alignItems:"center", gap:6, color:th.danger, fontSize:11.5, marginTop:8}}><XCircle size={14}/>{promoErr}</div>}
+          </>
+        ) : (
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, background:th.successSoft, border:`1px solid ${th.success}59`, borderRadius:11, padding:"0 14px", height:42}}>
+            <span style={{display:"flex", alignItems:"center", gap:8, color:th.success, fontSize:12.5, fontWeight:600}}><CheckCircle size={15}/><span style={{fontFamily:"monospace", letterSpacing:0.5}}>{promo.code}</span> {L("applied","مطبّق")} — {promo.label}</span>
+            <XCircle size={16} onClick={clearPromo} style={{color:th.text2, cursor:"pointer"}} title={L("Remove","إزالة")}/>
+          </div>
+        )}
       </div>
       <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit &amp; more · cancel anytime.</div>
 

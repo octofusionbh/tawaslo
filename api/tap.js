@@ -6,6 +6,46 @@ const PRICES = {
   Enterprise:  { monthly: 199, annual: 159 },
 };
 
+// Supabase (service role) — used only to validate promo codes server-side so a
+// discount can never be faked from the browser. Same env vars as /api/cron.
+const SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function sbq(path, opts = {}) {
+  return fetch(`${SUPA}/rest/v1/${path}`, {
+    ...opts,
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+}
+
+// Look a code up in promo_codes and apply every rule: active, not expired,
+// under its usage limit, and valid for this plan. Returns a normalized result.
+async function lookupPromo(rawCode, plan) {
+  if (!SERVICE_KEY || !rawCode) return { valid: false, reason: 'unavailable' };
+  const code = String(rawCode).toUpperCase().replace(/\s/g, '');
+  try {
+    const r = await sbq(`promo_codes?code=eq.${encodeURIComponent(code)}&select=*&limit=1`);
+    const rows = r.ok ? await r.json() : [];
+    const row = rows && rows[0];
+    if (!row) return { valid: false, reason: 'notfound' };
+    if (row.active === false) return { valid: false, reason: 'inactive' };
+    if (row.expiry) { const exp = new Date(row.expiry); if (isFinite(exp.getTime()) && exp < new Date(new Date().toDateString())) return { valid: false, reason: 'expired' }; }
+    const limit = Number(row.usage_limit) || 0, uses = Number(row.uses) || 0;
+    if (limit > 0 && uses >= limit) return { valid: false, reason: 'limit' };
+    const applies = row.applies_to || 'All plans';
+    if (plan && applies !== 'All plans' && applies !== plan) return { valid: false, reason: 'plan', applies };
+    const type = row.discount_type === 'fixed' ? 'fixed' : 'percent';
+    const value = Number(row.discount_value) || 0;
+    const label = type === 'percent' ? `${value}% off` : `$${value} off`;
+    return { valid: true, id: row.id, code, type, value, label, applies, uses, limit };
+  } catch (e) { return { valid: false, reason: 'error' }; }
+}
+
+function applyDiscount(amount, type, value) {
+  let a = type === 'percent' ? amount * (1 - (value / 100)) : amount - value;
+  a = Math.round(a * 100) / 100;
+  return Math.max(1, a); // Tap requires a positive charge
+}
+
 // Email the Tawaslo team about an event. No-op until RESEND_API_KEY is set in Vercel,
 // so this is safe to ship now and "just works" once email is configured later.
 //   RESEND_API_KEY  — from resend.com
@@ -107,6 +147,13 @@ function paymentFailedHtml({ firstName, plan, amount, currency }) {
 export default async function handler(req, res) {
   const KEY = process.env.TAP_SECRET_KEY;
 
+  // Validate a promo code: GET /api/tap?promo=CODE&plan=Professional
+  // (no Tap key needed — only checks the promo_codes table.)
+  if (req.method === 'GET' && req.query && req.query.promo) {
+    const v = await lookupPromo(req.query.promo, req.query.plan);
+    return res.status(200).json(v);
+  }
+
   // Verify a charge after redirect: GET /api/tap?charge_id=chg_xxx
   if (req.method === 'GET') {
     if (!KEY) return res.status(200).json({ configured: false });
@@ -158,8 +205,16 @@ export default async function handler(req, res) {
 
   if (!KEY) return res.status(200).json({ configured: false, error: 'Payments not connected yet. Add TAP_SECRET_KEY in Vercel.' });
 
-  const { plan, period, name, email } = req.body;
-  const amount = (PRICES[plan] || PRICES.Professional)[period === 'annual' ? 'annual' : 'monthly'];
+  const { plan, period, name, email, promo } = req.body;
+  let amount = (PRICES[plan] || PRICES.Professional)[period === 'annual' ? 'annual' : 'monthly'];
+
+  // Re-validate the promo on the server and discount the amount here, so the
+  // browser can never dictate the price it pays.
+  let promoInfo = null;
+  if (promo) {
+    const v = await lookupPromo(promo, plan);
+    if (v.valid) { amount = applyDiscount(amount, v.type, v.value); promoInfo = v; }
+  }
 
   try {
     const r = await fetch('https://api.tap.company/v2/charges/', {
@@ -167,8 +222,8 @@ export default async function handler(req, res) {
       headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         amount, currency: 'USD', customer_initiated: true, threeDSecure: true,
-        description: `Tawaslo ${plan} plan (${period || 'monthly'})`,
-        metadata: { plan, period: period || 'monthly' },
+        description: `Tawaslo ${plan} plan (${period || 'monthly'})${promoInfo ? ` · code ${promoInfo.code}` : ''}`,
+        metadata: { plan, period: period || 'monthly', ...(promoInfo ? { promo: promoInfo.code } : {}) },
         reference: { transaction: `tw_${Date.now()}` },
         customer: { first_name: (name || 'Customer').split(' ')[0] || 'Customer', email: email || 'billing@tawaslo.com' },
         source: { id: 'src_all' },
@@ -177,7 +232,11 @@ export default async function handler(req, res) {
       }),
     });
     const d = await r.json();
-    if (d && d.transaction && d.transaction.url) return res.status(200).json({ url: d.transaction.url, id: d.id });
+    if (d && d.transaction && d.transaction.url) {
+      // Count the redemption once checkout actually starts.
+      if (promoInfo) { try { await sbq(`promo_codes?id=eq.${promoInfo.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ uses: (promoInfo.uses || 0) + 1 }) }); } catch (e) { /* non-fatal */ } }
+      return res.status(200).json({ url: d.transaction.url, id: d.id });
+    }
     const msg = (d && d.errors && d.errors[0] && d.errors[0].description) || 'Could not start checkout';
     return res.status(400).json({ error: msg, details: d });
   } catch (e) { return res.status(500).json({ error: e.message }); }
