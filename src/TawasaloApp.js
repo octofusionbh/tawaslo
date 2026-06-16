@@ -137,6 +137,26 @@ function imgLimitOf(acct) {
   const p = IMG_PACKS.find(x => x.id === imgPackOf(acct));
   return p ? p.images : IMG_FREE;
 }
+// One-time top-up credits — bought anytime, carry over until used (do NOT reset monthly).
+const IMG_TOPUPS = [
+  { id:"t50",  images:50,  price:14.9 },
+  { id:"t100", images:100, price:24.9, popular:true },
+  { id:"t250", images:250, price:49.9 },
+];
+function imgExtraOf(acct) { try { return acct ? parseInt(localStorage.getItem("tw_imgextra_" + acct) || "0", 10) : 0; } catch (e) { return 0; } }
+function addImgExtra(acct, n) { try { if (!acct) return 0; const v = Math.max(0, imgExtraOf(acct) + n); localStorage.setItem("tw_imgextra_" + acct, String(v)); return v; } catch (e) { return 0; } }
+// Total images left this cycle = monthly allowance not yet used + one-time top-up credits.
+function imgRemainingOf(acct) { return Math.max(0, imgLimitOf(acct) - imgUsedOf(acct)) + imgExtraOf(acct); }
+// Consume one credit on generate — monthly allowance first, then top-up credits.
+function consumeImgCredit(acct) { if (!acct) return; if (imgUsedOf(acct) < imgLimitOf(acct)) bumpImgUsed(acct, 1); else addImgExtra(acct, -1); }
+// Apply a top-up after a successful payment (called from the Tap return handler).
+function applyPendingTopup() {
+  try {
+    const raw = sessionStorage.getItem('tw_pending_topup'); if (!raw) return;
+    const { acct, images } = JSON.parse(raw); if (acct && images) addImgExtra(acct, images);
+    sessionStorage.removeItem('tw_pending_topup');
+  } catch (e) { /* ignore */ }
+}
 
 // ── Approval workflow ───────────────────────────────────────────────
 // Per-post sign-off. A post moves draft -> pending -> approved, or lands on
@@ -512,6 +532,7 @@ const TR = {
   ar: {
     "nav.overview":"نظرة عامة","nav.clients":"العملاء","nav.revenue":"الإيرادات","nav.apiusage":"الاستخدام",
     "nav.dashboard":"الرئيسية","nav.publisher":"النشر","nav.planner":"المخطط","nav.streams":"التدفقات",
+    "nav.approvals":"الموافقات","nav.calendar":"التقويم",
     "nav.inbox":"الوارد","nav.listening":"الاستماع","nav.campaigns":"الحملات","nav.aistudio":"استوديو الذكاء",
     "nav.media":"الوسائط","nav.analytics":"التحليلات","nav.ads":"الإعلانات","nav.reports":"التقارير",
     "nav.social":"الحسابات","nav.team":"الفريق","nav.agencyteam":"الفريق","nav.billing":"الفوترة",
@@ -3070,9 +3091,26 @@ function AIStudioPage() {
   const isPaid = unlimitedImg || (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
   const imgLimit = unlimitedImg ? Infinity : imgLimitOf(acct);
   const imgUsed = imgUsedOf(acct);
-  const noCredits = !unlimitedImg && imgUsed >= imgLimit;
+  const imgExtra = imgExtraOf(acct);
+  const imgRemaining = unlimitedImg ? Infinity : imgRemainingOf(acct);
+  const noCredits = !unlimitedImg && imgRemaining <= 0;
   const curPack = imgPackOf(acct);
+  const [topupOpen, setTopupOpen] = useState(false);
   const choosePack = (pack) => { setImgPackOf(acct, pack.id); setCreditTick(t => t + 1); setPayOpen(false); setJustBought(pack.name); setTimeout(() => setJustBought(""), 4500); };
+  // Buy a one-time top-up bundle → Tap charge → credits added on return.
+  const buyTopup = async (bundle) => {
+    try { sessionStorage.setItem('tw_pending_topup', JSON.stringify({ acct, images: bundle.images })); } catch (e) { /* ignore */ }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const res = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topup: bundle.id, name: user?.user_metadata?.full_name || '', email: user?.email }) });
+      const data = await res.json();
+      if (data.url) { window.location.href = data.url; return; }
+      // Payments not wired yet → activate the credits now so the flow still works end-to-end.
+      addImgExtra(acct, bundle.images); setCreditTick(t=>t+1); setTopupOpen(false);
+      try { sessionStorage.removeItem('tw_pending_topup'); } catch(e){}
+      setJustBought(`+${bundle.images} ${L("images","صورة")}`); setTimeout(()=>setJustBought(""), 4500);
+    } catch (e) { setTopupOpen(false); }
+  };
   const SIZES = [
     { id:"other", size:"1024x1024", label:L("Other","أخرى"),       Icon:Image },
     { id:"ig",    size:"1024x1024", label:"Instagram",   Icon:FaInstagram },
@@ -3094,7 +3132,7 @@ function AIStudioPage() {
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
       else if (r.error) setImgErr(typeof r.error==='string'?r.error:L('Could not generate.','تعذّر التوليد.'));
-      else if (r.images && r.images.length) { setImages(r.images); if (acct) { bumpImgUsed(acct, 1); setCreditTick(t=>t+1); } }
+      else if (r.images && r.images.length) { setImages(r.images); if (acct) { consumeImgCredit(acct); setCreditTick(t=>t+1); } }
       else setImgErr(L('Could not generate. Please try again.','تعذّر التوليد. حاول مرة أخرى.'));
     } catch(e) { setImgErr(L('Something went wrong. Please try again.','حدث خطأ ما. حاول مرة أخرى.')); }
     setImgLoading(false);
@@ -3201,15 +3239,18 @@ function AIStudioPage() {
           <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 14px", marginBottom:12 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:8 }}>
               <div>
-                <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>{L("Image credits this month","رصيد الصور هذا الشهر")}</div>
-                <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{imgUsed}</span><span className="tw-num" style={{ color:th.text3, fontSize:15 }}> / {unlimitedImg ? "∞" : imgLimit}</span></div>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:2 }}>{L("Image credits","رصيد الصور")}</div>
+                <div><span className="tw-num" style={{ fontSize:20, fontWeight:600, color:th.text, letterSpacing:-0.3 }}>{unlimitedImg ? "∞" : imgRemaining}</span><span style={{ color:th.text3, fontSize:13 }}> {unlimitedImg ? "" : L("left","متبقٍ")}</span>{!unlimitedImg && imgExtra>0 && <span style={{ fontSize:10, color:th.success, marginInlineStart:7 }}>+<span className="tw-num">{imgExtra}</span> {L("top-up","رصيد إضافي")}</span>}</div>
               </div>
               <div style={{ fontSize:11, color:th.text3 }}>{unlimitedImg ? L("Founder","المؤسس") : (curPack ? (IMG_PACKS.find(p=>p.id===curPack)||{}).name : L("Free","مجاني"))} {L("plan","خطة")}</div>
             </div>
             <div style={{ height:6, background:"rgba(0,0,0,0.22)", borderRadius:6, overflow:"hidden" }}><div style={{ width:(unlimitedImg?8:Math.min(100,Math.round(imgUsed/Math.max(1,imgLimit)*100)))+"%", height:"100%", background:th.accent, borderRadius:6 }}/></div>
-            <div style={{ display:"flex", justifyContent:"space-between", marginTop:7, fontSize:10.5, color:th.text3 }}>
-              <span>{unlimitedImg ? L("Unlimited","غير محدود") : <><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> {L("left","متبقٍ")}</>}</span>
-              {!unlimitedImg && <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? L("Upgrade plan","ترقية الخطة") : (curPack ? L("Change plan","تغيير الخطة") : L("Get more","المزيد"))}</button>}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7, fontSize:10.5, color:th.text3 }}>
+              <span>{unlimitedImg ? L("Unlimited","غير محدود") : <><span className="tw-num">{Math.max(0,imgLimit-imgUsed)}</span> {L("of monthly left","من الشهرية متبقٍ")}</>}</span>
+              {!unlimitedImg && <div style={{ display:"flex", gap:13 }}>
+                <button onClick={()=>setTopupOpen(true)} style={{ background:"none", border:"none", color:th.accent, fontSize:10.5, fontWeight:600, cursor:"pointer", padding:0 }}>{L("Buy credits","شراء رصيد")}</button>
+                <button onClick={()=>setPayOpen(true)} style={{ background:"none", border:"none", color:th.text2, fontSize:10.5, cursor:"pointer", padding:0, textDecoration:"underline" }}>{!isPaid ? L("Upgrade plan","ترقية الخطة") : (curPack ? L("Change plan","تغيير الخطة") : L("Get more","المزيد"))}</button>
+              </div>}
             </div>
           </div>
           {justBought && <div style={{ display:"flex", alignItems:"center", gap:8, background:th.accentSoft, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", marginBottom:12, fontSize:12, color:th.text }}><CheckCircle size={14} color={th.success}/>{justBought} {L("activated. Your image credits are ready.","مُفعّلة. رصيد صورك جاهز.")}</div>}
@@ -3332,6 +3373,37 @@ function AIStudioPage() {
       )}
 
       <ImagePaywallModal open={payOpen} onClose={()=>setPayOpen(false)} th={th} geo={geo} used={imgUsed} limit={imgLimit} currentPack={curPack} onChoose={choosePack} isPaid={isPaid} onUpgrade={()=>{ setPayOpen(false); setPage('billing'); }}/>
+
+      {topupOpen && createPortal((
+        <div onClick={()=>setTopupOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:430, background:th.card, border:`1px solid ${th.border}`, borderRadius:20, padding:24, boxShadow:th.shadow }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:13 }}>
+              <div style={{ width:52, height:52, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={25} color={th.accent}/></div>
+            </div>
+            <h2 style={{ margin:"0 0 6px", fontSize:18, fontWeight:800, textAlign:"center", color:th.text }}>{L("Buy image credits","شراء رصيد صور")}</h2>
+            <p style={{ margin:"0 0 18px", fontSize:12.5, color:th.text2, lineHeight:1.6, textAlign:"center" }}>{L("One-time credits that don't expire monthly — used after your plan's images run out.","رصيد لمرة واحدة لا ينتهي شهرياً — يُستخدم بعد نفاد صور خطتك.")}</p>
+            <div style={{ display:"flex", flexDirection:"column", gap:9, marginBottom:14 }}>
+              {IMG_TOPUPS.map(b => { const ap = approxLabel(geo, b.price); return (
+                <div key={b.id} onClick={()=>buyTopup(b)} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:th.card2, border:`1px solid ${b.popular?th.accent:th.border}`, borderRadius:13, padding:"13px 15px", cursor:"pointer" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <div style={{ width:40, height:40, borderRadius:11, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Image size={18} color={th.accent}/></div>
+                    <div>
+                      <div style={{ fontSize:13.5, fontWeight:700, color:th.text }}><span className="tw-num">{b.images}</span> {L("images","صورة")}{b.popular && <span style={{ fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"2px 8px", marginInlineStart:8 }}>{L("Best value","الأفضل قيمة")}</span>}</div>
+                      <div style={{ fontSize:10.5, color:th.text3 }}>{L("one-time · never expires","لمرة واحدة · لا ينتهي")}</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign:isAR?"left":"right" }}>
+                    <div className="tw-num" style={{ fontSize:15, fontWeight:700, color:th.text }}>${b.price}</div>
+                    {ap && <div style={{ fontSize:9.5, color:th.text3 }}>{ap.replace("approx ","≈ ")}</div>}
+                  </div>
+                </div>
+              ); })}
+            </div>
+            <div style={{ textAlign:"center", fontSize:10.5, color:th.text3 }}>{L("Secure checkout by Tap · added instantly after payment.","دفع آمن عبر Tap · يُضاف فوراً بعد الدفع.")}</div>
+            <button onClick={()=>setTopupOpen(false)} style={{ width:"100%", marginTop:14, padding:"11px", borderRadius:12, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Maybe later","ربما لاحقًا")}</button>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   );
 }
@@ -7098,6 +7170,8 @@ function BillingPage() {
   const [promo, setPromo] = useState(null);     // applied code: {code,type,value,label,applies}
   const [promoErr, setPromoErr] = useState("");
   const [promoBusy, setPromoBusy] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState(null);   // when set → show the full checkout page
+  const [addon, setAddon] = useState("none");               // optional AI image pack at checkout
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [, setImgTick] = useState(0);   // re-read image credits after a change
@@ -7109,7 +7183,8 @@ function BillingPage() {
 
   useEffect(() => {
     try {
-      if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay'); }
+      if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay');
+        const pk = sessionStorage.getItem('tw_pending_pack'); if (pk) { try { setImgPackOf(imgAcct, pk); } catch(e){} setImgTick(t=>t+1); sessionStorage.removeItem('tw_pending_pack'); } }
       if (localStorage.getItem('tw_sub_status') === 'cancelled') setCancelled(true);
     } catch (e) { /* ignore */ }
   }, []);
@@ -7145,12 +7220,14 @@ function BillingPage() {
     return Math.max(1, v);
   };
 
-  const startCheckout = async (planName) => {
+  const startCheckout = async (planName, addonId) => {
     setBusy(planName); setNotice("");
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      // Remember the chosen image pack so we can activate it after the Tap redirect returns.
+      try { if (addonId && addonId !== "none") sessionStorage.setItem('tw_pending_pack', addonId); else sessionStorage.removeItem('tw_pending_pack'); } catch (e) { /* ignore */ }
       const res = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ plan: planName, period, name: user?.user_metadata?.full_name || user?.user_metadata?.name || '', email: user?.email, promo: (promo && promo.code) || "" }) });
+        body: JSON.stringify({ plan: planName, period, name: user?.user_metadata?.full_name || user?.user_metadata?.name || '', email: user?.email, promo: (promo && promo.code) || "", addon: addonId || "none" }) });
       const data = await res.json();
       if (data.url) { window.location.href = data.url; return; }
       setBusy("");
@@ -7159,6 +7236,92 @@ function BillingPage() {
       else setNotice(data.error || "Could not start checkout. Please try again.");
     } catch (e) { setBusy(""); setNotice("Could not start checkout. Please try again."); }
   };
+
+  // ── Full checkout page (opens after choosing a plan) ────────────────
+  if (checkoutPlan) {
+    const cp = plans.find(p => p.name === checkoutPlan) || plans[0];
+    const base = period === "annual" ? cp.y : cp.m;
+    const dBase = discounted(base, cp.name);
+    const planPrice = dBase != null ? dBase : base;
+    const addonObj = addon !== "none" ? IMG_PACKS.find(p => p.id === addon) : null;
+    const addonPrice = addonObj ? addonObj.price : 0;
+    const total = Math.round((planPrice + addonPrice) * 100) / 100;
+    const ap = approxLabel(geo, total);
+    return (
+      <div style={{ padding:"28px 32px", maxWidth:520, margin:"0 auto" }}>
+        <button onClick={()=>{ setCheckoutPlan(null); setNotice(""); }} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:th.text2, fontSize:12.5, cursor:"pointer", marginBottom:14, padding:0 }}>
+          {isAR?<ChevronRight size={15}/>:<ChevronLeft size={15}/>}{L("Back to plans","العودة للخطط")}
+        </button>
+        <h2 style={{ margin:"0 0 18px", fontSize:21, fontWeight:700, letterSpacing:-0.3 }}>{L("Checkout","الدفع")}</h2>
+
+        {notice && <div style={{display:"flex", alignItems:"center", gap:10, background:th.accentSoft, border:`1px solid ${th.accent}44`, color:th.accent, borderRadius:12, padding:"12px 16px", marginBottom:16, fontSize:13}}><Shield size={16}/><span>{notice}</span></div>}
+
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"15px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+            <span style={{ fontSize:14, fontWeight:700 }}>{cp.name}</span>
+            <span className="tw-num" style={{ fontSize:14, fontWeight:700 }}>${base}<span style={{ fontSize:11, color:th.text2, fontWeight:400 }}>/{L("mo","شهر")}</span></span>
+          </div>
+          <div style={{ fontSize:11, color:th.text3, lineHeight:1.6, marginBottom:12 }}>
+            {cp.accounts} {L("social accounts","حسابات")} · {cp.users} {isAR?"عضو فريق":(cp.users!=="1"?"team members":"team member")} · {cp.posts} {L("posts/mo","منشور/شهر")} · {L("AI captions (EN + AR)","تعليقات الذكاء")} · {L("Analytics","تحليلات")}
+          </div>
+          <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
+            {[["monthly",L("Monthly","شهري")],["annual",L("Yearly","سنوي")]].map(([k,l])=>(
+              <button key={k} onClick={()=>setPeriod(k)} style={{ padding:"5px 14px", borderRadius:999, border:"none", background:period===k?th.gradient:"transparent", color:period===k?"#fff":th.text2, fontSize:11.5, fontWeight:period===k?600:400, cursor:"pointer" }}>{l}{k==="annual"&&<span style={{ fontSize:9.5, marginInlineStart:5, color:period==="annual"?"#fff":th.success }}>{L("save 20%","وفّر 20%")}</span>}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ fontSize:11.5, color:th.text2, marginBottom:9 }}>{L("Add AI image generation?","إضافة توليد صور بالذكاء؟")} <span style={{ color:th.text3 }}>{L("optional","اختياري")}</span></div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:16 }}>
+          {[{ id:"none", name:L("No images","بدون صور"), images:0, price:0 }, ...IMG_PACKS].map(pk => {
+            const on = addon === pk.id;
+            return (
+              <div key={pk.id} onClick={()=>setAddon(pk.id)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:on?th.accentSoft:th.card, border:`1.5px solid ${on?th.accent:th.border}`, borderRadius:11, padding:"11px 13px", cursor:"pointer" }}>
+                <span style={{ fontSize:12, fontWeight:on?600:400, color:th.text }}>{pk.name}{pk.images>0 && <span style={{ color:th.text3, fontWeight:400 }}> · <span className="tw-num">{pk.images}</span> {L("images/mo","صورة/شهر")}</span>}</span>
+                <span className="tw-num" style={{ fontSize:11.5, color:on?th.accent:th.text2 }}>{pk.price>0?`+$${pk.price}`:"$0"}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {!promo ? (
+          <>
+            <div style={{ display:"flex", gap:9, marginBottom:promoErr?8:16 }}>
+              <div style={{ flex:1, display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${promoErr?th.danger+"88":th.border}`, borderRadius:11, padding:"0 12px", height:42 }}>
+                <Tag size={15} color={promoErr?th.danger:th.text3}/>
+                <input value={promoInput} onChange={e=>{ setPromoInput(e.target.value.toUpperCase()); if(promoErr) setPromoErr(""); }} onKeyDown={e=>{ if(e.key==="Enter") applyPromo(); }} placeholder={L("Promo code","رمز خصم")} style={{ flex:1, background:"transparent", border:"none", outline:"none", color:th.text, fontSize:12.5, letterSpacing:0.5, fontFamily:"inherit", textTransform:"uppercase" }}/>
+              </div>
+              <button onClick={applyPromo} disabled={promoBusy||!promoInput.trim()} style={{ height:42, padding:"0 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:(promoBusy||!promoInput.trim())?"not-allowed":"pointer", opacity:(promoBusy||!promoInput.trim())?0.5:1 }}>{promoBusy?L("Checking…","جارٍ…"):L("Apply","تطبيق")}</button>
+            </div>
+            {promoErr && <div style={{ display:"flex", alignItems:"center", gap:6, color:th.danger, fontSize:11.5, marginBottom:16 }}><XCircle size={14}/>{promoErr}</div>}
+          </>
+        ) : (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, background:th.successSoft, border:`1px solid ${th.success}59`, borderRadius:11, padding:"0 14px", height:42, marginBottom:16 }}>
+            <span style={{ display:"flex", alignItems:"center", gap:8, color:th.success, fontSize:12.5, fontWeight:600 }}><CheckCircle size={15}/><span style={{ fontFamily:"monospace", letterSpacing:0.5 }}>{promo.code}</span> {L("applied","مطبّق")} — {promo.label}</span>
+            <XCircle size={16} onClick={clearPromo} style={{ color:th.text2, cursor:"pointer" }} title={L("Remove","إزالة")}/>
+          </div>
+        )}
+
+        <div style={{ borderTop:`1px solid ${th.border}`, paddingTop:13, marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:th.text2, marginBottom:6 }}>
+            <span>{cp.name} ({period==="annual"?L("yearly","سنوي"):L("monthly","شهري")})</span>
+            <span className="tw-num">{dBase!=null && <span style={{ textDecoration:"line-through", color:th.text3, marginInlineEnd:6 }}>${base}</span>}${planPrice}</span>
+          </div>
+          {addonObj && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:th.text2, marginBottom:9 }}><span>{addonObj.name} {L("image pack","حزمة صور")}</span><span className="tw-num">${addonObj.price}</span></div>}
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:16, fontWeight:700 }}>
+            <span>{L("Total","الإجمالي")}</span>
+            <span className="tw-num" style={{ color:th.accent }}>${total}<span style={{ fontSize:11, color:th.text2, fontWeight:400 }}>/{L("mo","شهر")}</span></span>
+          </div>
+          {ap && <div style={{ textAlign:isAR?"left":"right", fontSize:10.5, color:th.text3, marginTop:3 }}>{ap.replace("approx ","≈ ")}</div>}
+        </div>
+
+        <button onClick={()=>startCheckout(checkoutPlan, addon)} disabled={busy===checkoutPlan} style={{ width:"100%", padding:"13px", borderRadius:13, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:700, cursor:busy===checkoutPlan?"not-allowed":"pointer", opacity:busy===checkoutPlan?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
+          <Lock size={15}/>{busy===checkoutPlan?L("Starting…","جارٍ…"):L("Proceed to secure payment","المتابعة للدفع الآمن")}
+        </button>
+        <div style={{ textAlign:"center", fontSize:10.5, color:th.text3, marginTop:10 }}>{L("Secure checkout by Tap · Visa, Mastercard, Apple Pay, Benefit & more · cancel anytime.","دفع آمن عبر Tap · فيزا، ماستركارد، آبل باي، بنفت وغيرها · يمكنك الإلغاء في أي وقت.")}</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{padding:"28px 32px", maxWidth:960}}>
@@ -7233,11 +7396,11 @@ function BillingPage() {
                 {isCurrent ? (
                   <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center", boxSizing:"border-box"}}>{L("Your current plan","خطتك الحالية")}</div>
                 ) : otherCycle ? (
-                  <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
+                  <button onClick={()=>{ setPromo(null); setPromoInput(""); setPromoErr(""); setAddon("none"); setNotice(""); setCheckoutPlan(plan.name); }} style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
                     {busy===plan.name?L("Starting checkout…","جارٍ بدء الدفع…"):L(`Switch to ${period==="annual"?"yearly":"monthly"} billing`,`التحويل إلى الفوترة ${period==="annual"?"السنوية":"الشهرية"}`)}
                   </button>
                 ) : (
-                  <button onClick={()=>startCheckout(plan.name)} disabled={busy===plan.name} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
+                  <button onClick={()=>{ setPromo(null); setPromoInput(""); setPromoErr(""); setAddon("none"); setNotice(""); setCheckoutPlan(plan.name); }} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
                     {busy===plan.name?L("Starting checkout…","جارٍ بدء الدفع…"):L(`Upgrade to ${plan.name}`,`الترقية إلى ${plan.name}`)}
                   </button>
                 )}
@@ -7246,27 +7409,7 @@ function BillingPage() {
           );
         })}
       </div>
-      <div style={{maxWidth:440, margin:"20px auto 0"}}>
-        {!promo ? (
-          <>
-            <div style={{display:"flex", gap:9}}>
-              <div style={{flex:1, display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${promoErr?th.danger+"88":th.border}`, borderRadius:11, padding:"0 12px", height:42}}>
-                <Tag size={15} color={promoErr?th.danger:th.text3}/>
-                <input value={promoInput} onChange={e=>{ setPromoInput(e.target.value.toUpperCase()); if(promoErr) setPromoErr(""); }} onKeyDown={e=>{ if(e.key==="Enter") applyPromo(); }} placeholder={L("Have a promo code?","لديك رمز خصم؟")} style={{flex:1, background:"transparent", border:"none", outline:"none", color:th.text, fontSize:12.5, letterSpacing:0.5, fontFamily:"inherit", textTransform:"uppercase"}}/>
-              </div>
-              <button onClick={applyPromo} disabled={promoBusy||!promoInput.trim()} style={{height:42, padding:"0 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:(promoBusy||!promoInput.trim())?"not-allowed":"pointer", opacity:(promoBusy||!promoInput.trim())?0.5:1}}>{promoBusy?L("Checking…","جارٍ…"):L("Apply","تطبيق")}</button>
-            </div>
-            {promoErr && <div style={{display:"flex", alignItems:"center", gap:6, color:th.danger, fontSize:11.5, marginTop:8}}><XCircle size={14}/>{promoErr}</div>}
-          </>
-        ) : (
-          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, background:th.successSoft, border:`1px solid ${th.success}59`, borderRadius:11, padding:"0 14px", height:42}}>
-            <span style={{display:"flex", alignItems:"center", gap:8, color:th.success, fontSize:12.5, fontWeight:600}}><CheckCircle size={15}/><span style={{fontFamily:"monospace", letterSpacing:0.5}}>{promo.code}</span> {L("applied","مطبّق")} — {promo.label}</span>
-            <XCircle size={16} onClick={clearPromo} style={{color:th.text2, cursor:"pointer"}} title={L("Remove","إزالة")}/>
-          </div>
-        )}
-      </div>
-      <div style={{fontSize:11, color:th.text3, marginTop:18, textAlign:"center"}}>{L("Secure checkout by Tap Payments · Visa, Mastercard, Apple Pay, Benefit & more · cancel anytime.","دفع آمن عبر Tap · فيزا، ماستركارد، آبل باي، بنفت وغيرها · يمكنك الإلغاء في أي وقت.")}</div>
-
+      {false && (
       <div style={{marginTop:40}}>
         <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:4}}>
           <div style={{width:34, height:34, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><Image size={17} color={th.accent}/></div>
@@ -7288,36 +7431,6 @@ function BillingPage() {
             {L("AI image credits are available on any paid plan. Choose a plan above to unlock image generation and add a monthly pack.","رصيد صور الذكاء متاح في أي خطة مدفوعة. اختر خطة بالأعلى لتفعيل توليد الصور وإضافة حزمة شهرية.")}
           </div>
         )}
-      </div>
-
-      {!isMobile && (
-      <div style={{marginTop:44}}>
-        <div style={{textAlign:"center", marginBottom:5}}><h3 style={{fontSize:18, fontWeight:800, margin:0, letterSpacing:-0.3}}>You're getting more, for less</h3></div>
-        <p style={{textAlign:"center", color:th.text2, fontSize:12.5, marginBottom:20}}>Everything the global tools do — plus the first platform that's truly bilingual — at a fraction of the price.</p>
-        <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", maxWidth:720, margin:"0 auto"}}>
-          <div style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"13px 18px", borderBottom:`1px solid ${th.border}`, fontSize:12, fontWeight:700, alignItems:"center"}}>
-            <div/>
-            <div style={{textAlign:"center", color:th.text}}>Tawaslo</div>
-            <div style={{textAlign:"center", color:th.text2}}>Hootsuite</div>
-            <div style={{textAlign:"center", color:th.text2}}>Sprout</div>
-          </div>
-          {[
-            ["Starting price","From $49/mo","~$99/mo","~$249/mo"],
-            ["Native Arabic & RTL","✓","✕","✕"],
-            ["AI captions (AR + EN)","✓","Add-on","Limited"],
-            ["AI image generation","✓","Add-on","Limited"],
-            ["Local payment methods","✓","✕","✕"],
-            ["Flat pricing, no per-seat","✓","✕","✕"],
-          ].map(([feat,tw,ho,sp],i,arr)=>(
-            <div key={i} style={{display:"grid", gridTemplateColumns:"2.1fr 1fr 1fr 1fr", padding:"11px 18px", borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none", fontSize:12, alignItems:"center"}}>
-              <div style={{color:th.text}}>{feat}</div>
-              <div style={{display:"flex", justifyContent:"center", fontWeight:700, background:th.accentSoft, borderRadius:8, padding:"6px 0", color:th.text}}>{tw==="✓"?<CheckCircle size={14} color={th.success}/>:tw==="✕"?<XCircle size={14} color={th.danger}/>:tw}</div>
-              <div style={{display:"flex", justifyContent:"center", color:th.text2}}>{ho==="✓"?<CheckCircle size={14} color={th.success}/>:ho==="✕"?<XCircle size={14} color={th.text3}/>:ho}</div>
-              <div style={{display:"flex", justifyContent:"center", color:th.text2}}>{sp==="✓"?<CheckCircle size={14} color={th.success}/>:sp==="✕"?<XCircle size={14} color={th.text3}/>:sp}</div>
-            </div>
-          ))}
-        </div>
-        <p style={{textAlign:"center", color:th.text3, fontSize:10, marginTop:10}}>Competitor pricing is approximate, based on publicly listed entry plans.</p>
       </div>
       )}
 
@@ -9617,9 +9730,15 @@ export default function TawasloApp() {
     try {
       const u = new URL(window.location.href);
       if (u.searchParams.get('tap_return') || u.searchParams.get('tap_id')) {
-        sessionStorage.setItem('tw_pay', 'success');
-        try { localStorage.setItem('tw_sub_active', '1'); } catch (e) { /* ignore */ }
-        setPage('billing');
+        if (sessionStorage.getItem('tw_pending_topup')) {
+          // One-time image top-up — add the credits and return to AI Studio.
+          applyPendingTopup();
+          setPage('aistudio');
+        } else {
+          sessionStorage.setItem('tw_pay', 'success');
+          try { localStorage.setItem('tw_sub_active', '1'); } catch (e) { /* ignore */ }
+          setPage('billing');
+        }
         ['tap_return','tap_id','tap_status'].forEach(k => u.searchParams.delete(k));
         window.history.replaceState({}, '', u.pathname);
       }

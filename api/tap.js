@@ -205,7 +205,29 @@ export default async function handler(req, res) {
 
   if (!KEY) return res.status(200).json({ configured: false, error: 'Payments not connected yet. Add TAP_SECRET_KEY in Vercel.' });
 
-  const { plan, period, name, email, promo } = req.body;
+  const { plan, period, name, email, promo, addon, topup } = req.body;
+
+  // One-time image-credit top-up — a standalone charge, no plan change.
+  if (topup) {
+    const TOPUPS = { t50: 14.9, t100: 24.9, t250: 49.9 };
+    if (!TOPUPS[topup]) return res.status(400).json({ error: 'unknown top-up' });
+    try {
+      const r = await fetch('https://api.tap.company/v2/charges/', {
+        method: 'POST', headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: TOPUPS[topup], currency: 'USD', customer_initiated: true, threeDSecure: true,
+          description: `Tawaslo image credits top-up (${topup})`, metadata: { topup },
+          reference: { transaction: `tw_top_${Date.now()}` },
+          customer: { first_name: (name || 'Customer').split(' ')[0] || 'Customer', email: email || 'billing@tawaslo.com' },
+          source: { id: 'src_all' }, redirect: { url: 'https://tawaslo.com/?tap_return=1' }, post: { url: 'https://tawaslo.com/api/tap' },
+        }),
+      });
+      const d = await r.json();
+      if (d && d.transaction && d.transaction.url) return res.status(200).json({ url: d.transaction.url, id: d.id });
+      return res.status(400).json({ error: (d && d.errors && d.errors[0] && d.errors[0].description) || 'Could not start checkout' });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   let amount = (PRICES[plan] || PRICES.Professional)[period === 'annual' ? 'annual' : 'monthly'];
 
   // Re-validate the promo on the server and discount the amount here, so the
@@ -215,6 +237,11 @@ export default async function handler(req, res) {
     const v = await lookupPromo(promo, plan);
     if (v.valid) { amount = applyDiscount(amount, v.type, v.value); promoInfo = v; }
   }
+
+  // Optional AI image add-on — priced server-side so the browser can't fake it.
+  const ADDONS = { lite: 18.9, plus: 24.9, max: 39.9 };
+  const addonPrice = (addon && ADDONS[addon]) ? ADDONS[addon] : 0;
+  if (addonPrice) amount = Math.round((amount + addonPrice) * 100) / 100;
 
   try {
     const r = await fetch('https://api.tap.company/v2/charges/', {
