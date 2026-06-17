@@ -4014,7 +4014,17 @@ function CalendarPage() {
   const [prodEdit, setProdEdit] = useState(false);
   const prodKey = `tw_client_products_${realClientId || selClient?.name || 'x'}`;
   useEffect(() => { try { setProducts(localStorage.getItem(prodKey) || ""); } catch (e) { setProducts(""); } }, [prodKey]);
-  const saveProducts = (v) => { setProducts(v); try { localStorage.setItem(prodKey, v); } catch (e) {} };
+  // Prefer the value stored on the client record (syncs across the team); fall back to localStorage.
+  useEffect(() => {
+    if (!realClientId) return;
+    supabase.from('clients').select('products').eq('id', realClientId).limit(1)
+      .then(({ data }) => { if (data && data[0] && data[0].products != null) setProducts(data[0].products); }, () => {});
+  }, [realClientId]);
+  const saveProducts = (v) => {
+    setProducts(v);
+    try { localStorage.setItem(prodKey, v); } catch (e) {}
+    if (realClientId) { try { supabase.from('clients').update({ products: v }).eq('id', realClientId).then(() => {}, () => {}); } catch (e) {} }
+  };
   const occList = [ ...upcomingOccasions(6), ...matchedNicheDays(products) ].sort((a,b)=>a.dObj-b.dObj).slice(0,6);
   const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
