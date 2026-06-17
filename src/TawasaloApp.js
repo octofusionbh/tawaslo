@@ -18,7 +18,7 @@ import {
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
   Monitor, Info, ScanLine, Check, CalendarCheck,
 } from "lucide-react";
-import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp } from 'react-icons/fa';
+import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
   fb: () => <FaFacebook  style={{color:"#1877F2", fontSize:14}}/>,
   tw: () => <FaTwitter   style={{color:"#1DA1F2", fontSize:14}}/>,
@@ -10267,14 +10267,24 @@ function slugify(s) { return String(s||'brand').toLowerCase().trim().replace(/[^
 
 // Social-hub link definitions, shared by the bio builder and the public page.
 const SOCIAL_DEFS = [
-  { k:'instagram', Icon:FaInstagram, label:'Instagram', pre:'https://instagram.com/', color:'#E1306C' },
-  { k:'tiktok',    Icon:FaTiktok,    label:'TikTok',    pre:'https://tiktok.com/@',  color:'#69C9D0' },
-  { k:'whatsapp',  Icon:FaWhatsapp,  label:'WhatsApp',  pre:'wa',                    color:'#25D366' },
-  { k:'x',         Icon:FaTwitter,   label:'X',         pre:'https://x.com/',        color:'#7E8794' },
-  { k:'youtube',   Icon:FaYoutube,   label:'YouTube',   pre:'https://youtube.com/@', color:'#FF0000' },
-  { k:'facebook',  Icon:FaFacebook,  label:'Facebook',  pre:'https://facebook.com/', color:'#1877F2' },
+  { k:'instagram', Icon:FaInstagram,     label:'Instagram',   pre:'https://instagram.com/',    color:'#E1306C' },
+  { k:'tiktok',    Icon:FaTiktok,        label:'TikTok',      pre:'https://tiktok.com/@',      color:'#69C9D0' },
+  { k:'snapchat',  Icon:FaSnapchatGhost, label:'Snapchat',    pre:'https://snapchat.com/add/', color:'#FFFC00' },
+  { k:'whatsapp',  Icon:FaWhatsapp,      label:'WhatsApp',    pre:'wa',                        color:'#25D366' },
+  { k:'x',         Icon:FaTwitter,       label:'X',           pre:'https://x.com/',            color:'#7E8794' },
+  { k:'youtube',   Icon:FaYoutube,       label:'YouTube',     pre:'https://youtube.com/@',     color:'#FF0000' },
+  { k:'facebook',  Icon:FaFacebook,      label:'Facebook',    pre:'https://facebook.com/',     color:'#1877F2' },
+  { k:'linkedin',  Icon:FaLinkedin,      label:'LinkedIn',    pre:'https://linkedin.com/in/',  color:'#0A66C2' },
+  { k:'telegram',  Icon:FaTelegram,      label:'Telegram',    pre:'https://t.me/',             color:'#26A5E4' },
+  { k:'pinterest', Icon:FaPinterest,     label:'Pinterest',   pre:'https://pinterest.com/',    color:'#E60023' },
+  { k:'website',   Icon:Globe,           label:'Website',     pre:'',                          color:'#9AA3AD' },
+  { k:'custom',    Icon:Globe,           label:'Custom link', pre:'',                          color:'#9AA3AD' },
 ];
-const socialUrl = (def, v) => { if(!v) return null; const s=String(v).trim(); if(/^https?:\/\//.test(s)) return s; if(def.pre==='wa') return 'https://wa.me/'+s.replace(/[^0-9]/g,''); return def.pre + s.replace(/^@/,''); };
+const SOCIAL_BY_K = SOCIAL_DEFS.reduce((m,s)=>{ m[s.k]=s; return m; },{});
+const socialDef = (k) => SOCIAL_BY_K[k] || SOCIAL_DEFS[SOCIAL_DEFS.length-1];
+// Backward compatible: old pages stored socials as an object; new ones as an array of items.
+const socialsList = (hub) => { const ss=(hub&&hub.socials); if(Array.isArray(ss)) return ss; if(ss && typeof ss==='object') return Object.keys(ss).map(k=>({ id:k, type:k, value:ss[k] })); return []; };
+const socialUrl = (def, v) => { if(!v) return null; const s=String(v).trim(); if(/^https?:\/\//.test(s)) return s; if(def.pre==='wa') return 'https://wa.me/'+s.replace(/[^0-9]/g,''); if(!def.pre) return 'https://'+s.replace(/^\/+/,''); return def.pre + s.replace(/^@/,''); };
 const mapUrlFor = (addr) => addr ? 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addr) : null;
 
 // ── Bio-page theming — presets, fonts and button styles (better than Linktree). ──
@@ -10338,6 +10348,11 @@ function LinkInBioBuilderPage() {
   const setSocial = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), socials: { ...((r.hub||{}).socials||{}), [k]: v } } }));
   const setTheme = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), theme: { ...((r.hub||{}).theme||{}), [k]: v } } }));
   const PT = resolveBioTheme(row || {});
+  const socialsArr = socialsList(row && row.hub);
+  const setSocialsArr = (arr) => setHub('socials', arr);
+  const addSocialRow = () => setSocialsArr([ ...socialsArr, { id:'s'+Date.now(), type:'instagram', value:'', label:'' } ]);
+  const setSocialRow = (id,k,v) => setSocialsArr(socialsArr.map(it=> it.id===id ? { ...it, [k]:v } : it));
+  const delSocialRow = (id) => setSocialsArr(socialsArr.filter(it=>it.id!==id));
   const addLink = () => set('links', [ ...(row.links||[]), { id:'l'+Date.now(), label:"", url:"", clicks:0 } ]);
   const setLink = (id, k, v) => set('links', (row.links||[]).map(l => l.id===id ? { ...l, [k]:v } : l));
   const delLink = (id) => set('links', (row.links||[]).filter(l => l.id!==id));
@@ -10413,13 +10428,19 @@ function LinkInBioBuilderPage() {
 
           <div style={card}>
             <div style={{ fontSize:12, color:th.text2, marginBottom:10 }}>{L("Socials, location & hours","التواصل والموقع والساعات")}</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-              {SOCIAL_DEFS.map(s => (
-                <div key={s.k} style={{ display:"flex", alignItems:"center", gap:7, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 9px" }}>
-                  <s.Icon style={{ fontSize:14, color:s.color, flexShrink:0 }}/>
-                  <input value={(row.hub?.socials?.[s.k])||""} onChange={e=>setSocial(s.k, e.target.value)} placeholder={s.k==='whatsapp'?L("number","الرقم"):L("handle or link","المعرّف أو الرابط")} style={{ flex:1, minWidth:0, background:"transparent", border:"none", color:th.text, fontSize:11.5, outline:"none" }}/>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
+              {socialsArr.length===0 && <div style={{ fontSize:10.5, color:th.text3 }}>{L("Add the socials you want to show — as many as you like.","أضف حسابات التواصل التي تريد عرضها — بأي عدد.")}</div>}
+              {socialsArr.map(it => { const d=socialDef(it.type); const Ic=d.Icon; return (
+                <div key={it.id} style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ic style={{ fontSize:14, color:d.color }}/></span>
+                  <select value={it.type} onChange={e=>setSocialRow(it.id,'type',e.target.value)} style={{ ...inp, width:"auto", padding:"7px 9px", fontSize:11.5 }}>
+                    {SOCIAL_DEFS.map(s=><option key={s.k} value={s.k}>{s.label}</option>)}
+                  </select>
+                  <input value={it.value||""} onChange={e=>setSocialRow(it.id,'value',e.target.value)} placeholder={it.type==='whatsapp'?L("phone number","رقم الهاتف"):(it.type==='custom'||it.type==='website')?"https://…":L("handle or link","المعرّف أو الرابط")} style={{ ...inp, flex:1, minWidth:0, padding:"7px 10px", fontSize:11.5 }}/>
+                  <button onClick={()=>delSocialRow(it.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.danger, display:"flex" }}><XCircle size={16}/></button>
                 </div>
-              ))}
+              ); })}
+              <button onClick={addSocialRow} style={{ display:"inline-flex", alignItems:"center", gap:6, alignSelf:"flex-start", padding:"7px 13px", borderRadius:10, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:11.5, fontWeight:600, cursor:"pointer" }}><Plus size={12}/>{L("Add social","إضافة حساب")}</button>
             </div>
             <div style={{ marginBottom:10 }}><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Location / address","الموقع / العنوان")}</div><input value={row.hub?.location||""} onChange={e=>setHub('location', e.target.value)} placeholder={L("e.g. Juffair, Fontana Tower","مثلاً: الجفير، برج فونتانا")} style={inp}/></div>
             <div><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Hours","ساعات العمل")}</div><input value={row.hub?.hours||""} onChange={e=>setHub('hours', e.target.value)} placeholder={L("e.g. Daily 8am – 11pm","مثلاً: يومياً 8ص – 11م")} style={inp}/></div>
@@ -10455,7 +10476,7 @@ function LinkInBioBuilderPage() {
               {row.avatar_url ? <img src={row.avatar_url} alt="" style={{ width:74, height:74, borderRadius:"50%", objectFit:"cover", margin:"0 auto 12px", display:"block", border:`2px solid ${row.accent}` }}/> : <div style={{ width:74, height:74, borderRadius:"50%", background:row.accent, margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:28, fontWeight:700 }}>{(row.title||"B")[0]}</div>}
               <div style={{ fontSize:16, fontWeight:700, color:PT.preset.text }}>{row.title || L("Your brand","علامتك")}</div>
               {row.bio && <div style={{ fontSize:11.5, color:PT.preset.sub, marginTop:5, lineHeight:1.5 }}>{row.bio}</div>}
-              {(()=>{ const ss=(row.hub?.socials)||{}; const active=SOCIAL_DEFS.filter(s=>ss[s.k]); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:13, marginTop:11 }}>{active.map(s=>{ const Ic=s.Icon; return <Ic key={s.k} style={{ fontSize:17, color:PT.preset.text }}/>; })}</div> : null; })()}
+              {(()=>{ const active=socialsList(row.hub).map(it=>({ d:socialDef(it.type), v:it.value })).filter(x=>x.v); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:13, marginTop:11, flexWrap:"wrap" }}>{active.map((x,i)=>{ const Ic=x.d.Icon; return <Ic key={i} style={{ fontSize:17, color:PT.preset.text }}/>; })}</div> : null; })()}
             </div>
             <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:9 }}>
               {(row.links||[]).filter(l=>l.label||l.url).length===0 ? <div style={{ textAlign:"center", fontSize:11, color:PT.preset.sub }}>{L("Add a link to see it here","أضف رابطاً ليظهر هنا")}</div> :
@@ -10503,7 +10524,7 @@ function LinkInBioPage({ slug }) {
           {data.avatar_url ? <img src={data.avatar_url} alt="" style={{ width:92, height:92, borderRadius:"50%", objectFit:"cover", margin:"0 auto 14px", display:"block", border:`3px solid ${accent}` }}/> : <div style={{ width:92, height:92, borderRadius:"50%", background:accent, margin:"0 auto 14px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:36, fontWeight:700 }}>{(data.title||"B")[0]}</div>}
           <div style={{ fontSize:21, fontWeight:700 }}>{data.title}</div>
           {data.bio && <div style={{ fontSize:13, color:TH.preset.sub, marginTop:7, lineHeight:1.55, maxWidth:340, marginInline:"auto" }}>{data.bio}</div>}
-          {(()=>{ const ss=(data.hub&&data.hub.socials)||{}; const active=SOCIAL_DEFS.map(s=>({s,url:socialUrl(s,ss[s.k])})).filter(x=>x.url); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:14 }}>{active.map(({s,url})=>{ const Ic=s.Icon; return <a key={s.k} href={url} target="_blank" rel="noreferrer" aria-label={s.label} style={{ color:TH.preset.text, display:"flex" }}><Ic style={{ fontSize:22 }}/></a>; })}</div> : null; })()}
+          {(()=>{ const active=socialsList(data.hub).map(it=>{ const d=socialDef(it.type); return { d, url:socialUrl(d, it.value) }; }).filter(x=>x.url); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:14, flexWrap:"wrap" }}>{active.map((x,i)=>{ const Ic=x.d.Icon; return <a key={i} href={x.url} target="_blank" rel="noreferrer" aria-label={x.d.label} style={{ color:TH.preset.text, display:"flex" }}><Ic style={{ fontSize:22 }}/></a>; })}</div> : null; })()}
         </div>
 
         <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:11 }}>
