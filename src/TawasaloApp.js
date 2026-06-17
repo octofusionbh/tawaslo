@@ -4499,7 +4499,7 @@ function CalendarPage() {
         </div>
       </div>
 
-      {view !== "list" && (
+      {view !== "list" && view !== "grid" && (
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <button onClick={()=>go(-1)} style={{ width:32, height:32, borderRadius:9, background:th.card, border:`1px solid ${th.border}`, color:th.text, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ChevronLeft size={16}/></button>
