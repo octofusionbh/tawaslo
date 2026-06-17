@@ -4211,6 +4211,7 @@ function PublisherPage() {
   const [pvAR, setPvAR] = useState(1); // live-preview aspect ratio, learned from the image
   const [drafts, setDrafts] = useState([]);
   const [repostNote, setRepostNote] = useState(false); // arrived here via Repost → Story
+  const [hashGroups, setHashGroups] = useState([]); // saved reusable hashtag sets (per client, localStorage)
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -4336,6 +4337,38 @@ function PublisherPage() {
   };
 
   const resetComposer = () => { setCaption(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); };
+
+  // ── Saved hashtag groups (per client, localStorage) ──────────────────
+  const hgKey = `tw_hashgroups_${selClient?.id || realClientId || 'default'}`;
+  useEffect(() => { try { const r = localStorage.getItem(hgKey); setHashGroups(r ? JSON.parse(r) : []); } catch (e) { setHashGroups([]); } }, [hgKey]);
+  const persistGroups = (gs) => { setHashGroups(gs); try { localStorage.setItem(hgKey, JSON.stringify(gs)); } catch (e) { /* ignore */ } };
+  const captionTags = [...new Set(caption.match(/#[\p{L}\p{N}_]+/gu) || [])];
+  const saveHashGroup = () => {
+    if (!captionTags.length) return;
+    if (hashGroups.some(g => g.tags.join(' ') === captionTags.join(' '))) return;
+    persistGroups([...hashGroups, { id: Date.now(), name: captionTags[0].replace('#',''), tags: captionTags }]);
+  };
+  const insertHashGroup = (g) => {
+    const toAdd = g.tags.filter(t => !caption.includes(t));
+    if (!toAdd.length) return;
+    setCaption((caption.trim() ? caption.trimEnd() + "\n\n" : "") + toAdd.join(' '));
+  };
+  const deleteHashGroup = (id) => persistGroups(hashGroups.filter(g => g.id !== id));
+
+  // ── Best time to post — recommended upcoming slots per platform ───────
+  const bestTimeSlots = () => {
+    const plat = selPlats[0] || 'ig';
+    const HRS = { ig:[11,13,19], fb:[9,13,15], li:[8,12,17], tw:[9,12,18], tt:[12,19,21], yt:[14,17,20] };
+    const hours = HRS[plat] || [11,18];
+    const now = new Date(); const out = [];
+    for (let d = 0; d < 7 && out.length < 3; d++) {
+      const day = new Date(now); day.setDate(now.getDate() + d);
+      for (const h of hours) { const s = new Date(day); s.setHours(h, 0, 0, 0); if (s > now) { out.push(s); if (out.length >= 3) break; } }
+    }
+    return out;
+  };
+  const slotKey = (s) => { const p = n => String(n).padStart(2,'0'); return { date:`${s.getFullYear()}-${p(s.getMonth()+1)}-${p(s.getDate())}`, time:`${p(s.getHours())}:${p(s.getMinutes())}` }; };
+  const pickSlot = (s) => { const k = slotKey(s); setScheduleDate(k.date); setScheduleTime(k.time); };
 
   // Per-slide alt text lives on each media item (m.alt). These helpers read/write it.
   const setAlt = (id, val) => setMedia(prev => prev.map(m => m.id === id ? { ...m, alt: val } : m));
@@ -4545,10 +4578,7 @@ function PublisherPage() {
                   return <button key={acc.id} onClick={()=>toggleAccount(acc.id)} title={sel?L("Included — click to exclude","مضمّن — اضغط للاستبعاد"):L("Click to include","اضغط للتضمين")} style={{ display:"flex", alignItems:"center", gap:7, padding:"6px 12px 6px 10px", borderRadius:999, border:`1.5px solid ${sel?info.color:th.border}`, background:sel?info.color+"1f":"transparent", color:sel?info.color:th.text3, fontSize:11.5, cursor:"pointer", opacity:sel?1:0.65 }}>{sel ? <Check size={13}/> : <info.Icon style={{ fontSize:14 }}/>}{acc.account_name}</button>; })}
               </div>
             )}
-            <div style={{ fontSize:10, color:th.text3, marginBottom:6 }}>{L("Connect to enable","اربط للتفعيل")}</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-              {["tw","li","tt","yt"].map(k => { const info = PLAT[k]; return <button key={k} onClick={()=>setPage("social")} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:999, border:`1px dashed ${th.border}`, background:"transparent", color:th.text3, fontSize:11, cursor:"pointer" }}><info.Icon style={{ fontSize:12 }}/>{info.name} <Plus size={11}/></button>; })}
-            </div>
+            <button onClick={()=>setPage("social")} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"none", border:"none", padding:0, marginTop:2, color:th.text3, fontSize:11, cursor:"pointer" }}><Plus size={12}/>{L("Add another channel","إضافة قناة أخرى")}</button>
           </div>
 
           {igSelected && (
@@ -4622,6 +4652,24 @@ function PublisherPage() {
             <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginTop:7 }}>
               <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
             </div>
+            <div style={{ marginTop:10, borderTop:`1px solid ${th.border}`, paddingTop:10 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
+                <span style={{ fontSize:10.5, color:th.text2, display:"flex", alignItems:"center", gap:5 }}><span style={{ color:th.accent, fontWeight:700 }}>#</span>{L("Hashtag groups","مجموعات الهاشتاق")}</span>
+                {captionTags.length>0 && <button onClick={saveHashGroup} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10.5, fontWeight:600, color:th.accent, background:th.accentSoft, border:"none", borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Plus size={11}/>{L("Save these tags","احفظ هذه الوسوم")} <span className="tw-num">({captionTags.length})</span></button>}
+              </div>
+              {hashGroups.length===0 ? (
+                <div style={{ fontSize:10, color:th.text3, lineHeight:1.5 }}>{L("Add #hashtags to your caption, then save them as a reusable group to drop into any post.","أضف هاشتاقات إلى النص ثم احفظها كمجموعة قابلة لإعادة الاستخدام في أي منشور.")}</div>
+              ) : (
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {hashGroups.map(g => (
+                    <span key={g.id} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 6px 4px 11px", borderRadius:999, border:`1px solid ${th.border}`, background:th.card2 }}>
+                      <button onClick={()=>insertHashGroup(g)} title={g.tags.join(' ')} style={{ background:"none", border:"none", color:th.text, fontSize:11, fontWeight:500, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:5 }}><span style={{ color:th.accent, fontWeight:700 }}>#</span>{g.name} <span className="tw-num" style={{ color:th.text3 }}>{g.tags.length}</span></button>
+                      <span onClick={()=>deleteHashGroup(g.id)} title={L("Delete","حذف")} style={{ cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={13}/></span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <div style={card}>
@@ -4687,6 +4735,14 @@ function PublisherPage() {
                 <div style={{ display:"flex", gap:10, marginBottom:13 }}>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
+                </div>
+                <div style={{ marginBottom:13 }}>
+                  <div style={{ fontSize:10.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Clock size={11} color={th.accent}/>{L("Best times to post","أفضل أوقات النشر")}<span style={{ color:th.text3 }}>· {(PLAT[selPlats[0]]||{name:"Instagram"}).name}</span></div>
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {bestTimeSlots().map((s,i)=>{ const k = slotKey(s); const active = scheduleDate===k.date && scheduleTime===k.time;
+                      return <button key={i} onClick={()=>pickSlot(s)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 11px", borderRadius:999, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2, fontSize:11, fontWeight:active?600:400, cursor:"pointer" }}>{s.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short" })} <span className="tw-num">{k.time}</span></button>;
+                    })}
+                  </div>
                 </div>
                 <div style={{ marginBottom:13 }}>
                   <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Repeat","التكرار")}</div>
