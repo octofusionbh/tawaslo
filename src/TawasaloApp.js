@@ -10330,18 +10330,29 @@ function LinkInBioBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pages, setPages] = useState([]);
   const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
 
   useEffect(() => { if (!selClient?.name) return; setLoading(true); supabase.from('clients').select('id,logo').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setCid(data[0].id); else setLoading(false); }); }, [selClient]);
   useEffect(() => {
     if (!cid) return;
-    supabase.from('bio_pages').select('*').eq('client_id', cid).limit(1).then(({ data, error }) => {
-      if (error) { setRow(defaultRow()); setLoading(false); return; }
-      if (data && data[0]) setRow(data[0]); else setRow(defaultRow());
+    supabase.from('bio_pages').select('*').eq('client_id', cid).order('created_at', { ascending: true }).then(({ data, error }) => {
+      if (error) { setPages([]); setRow(defaultRow()); setLoading(false); return; }
+      const list = data || []; setPages(list);
+      setRow(list.length ? list[0] : defaultRow());
       setLoading(false);
     });
   }, [cid, selClient]);
-  const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + String(cid||'').slice(0,4), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [], hub: {} });
+  const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + Math.random().toString(36).slice(2,6), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [], hub: {} });
+  const newPage = () => setRow(defaultRow());
+  const selectPage = (p) => setRow(p);
+  const deletePage = async () => {
+    if (!row || !row.id) { if (pages.length) setRow(pages[0]); return; }
+    if (typeof window !== "undefined" && !window.confirm(L("Delete this bio page?","حذف صفحة البايو هذه؟"))) return;
+    await supabase.from('bio_pages').delete().eq('id', row.id);
+    const remaining = pages.filter(p=>p.id!==row.id);
+    setPages(remaining); setRow(remaining.length ? remaining[0] : defaultRow());
+  };
 
   const set = (k, v) => setRow(r => ({ ...r, [k]: v }));
   const setHub = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), [k]: v } }));
@@ -10363,7 +10374,7 @@ function LinkInBioBuilderPage() {
     let res;
     if (row.id) res = await supabase.from('bio_pages').update(payload).eq('id', row.id).select();
     else res = await supabase.from('bio_pages').insert([payload]).select();
-    if (res && res.data && res.data[0]) setRow(res.data[0]);
+    if (res && res.data && res.data[0]) { const r = res.data[0]; setRow(r); setPages(ps => { const i = ps.findIndex(p=>p.id===r.id); if (i>=0) { const n=[...ps]; n[i]=r; return n; } return [...ps, r]; }); }
     setSaving(false); setSaved(true); setTimeout(()=>setSaved(false), 1600);
   };
   const publicUrl = row ? `${origin}/bio/${row.slug}` : "";
@@ -10380,9 +10391,18 @@ function LinkInBioBuilderPage() {
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
         <div>
           <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Link in bio","رابط في البايو")}</h1>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("one link for your bio, every destination inside","رابط واحد للبايو، وكل الوجهات بداخله")}</p>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("a bio page for every client, branch or campaign","صفحة بايو لكل عميل أو فرع أو حملة")}</p>
         </div>
         <button onClick={save} disabled={saving} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:saving?0.6:1 }}>{saved?<><Check size={15}/>{L("Saved","تم الحفظ")}</>:saving?L("Saving…","جارٍ الحفظ…"):<><Check size={15}/>{L("Save page","حفظ الصفحة")}</>}</button>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+        {pages.map(p => { const on = row && row.id===p.id; const clk=(p.links||[]).reduce((a,l)=>a+(l.clicks||0),0); return (
+          <button key={p.id} onClick={()=>selectPage(p)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:999, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card, color:on?th.text:th.text2, fontSize:12, fontWeight:on?600:400, cursor:"pointer" }}>{p.title || p.slug}{clk>0 && <span className="tw-num" style={{ fontSize:10, color:th.text3 }}>· {clk}</span>}</button>
+        ); })}
+        {row && !row.id && <span style={{ display:"inline-flex", alignItems:"center", padding:"7px 13px", borderRadius:999, border:`1.5px solid ${th.accent}`, background:th.accentSoft, color:th.text, fontSize:12, fontWeight:600 }}>{L("New page (unsaved)","صفحة جديدة (غير محفوظة)")}</span>}
+        <button onClick={newPage} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 12px", borderRadius:999, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("New page","صفحة جديدة")}</button>
+        {row && row.id && <button onClick={deletePage} title={L("Delete page","حذف الصفحة")} style={{ marginInlineStart:"auto", background:"none", border:"none", cursor:"pointer", color:th.danger, fontSize:11.5, display:"inline-flex", alignItems:"center", gap:4 }}><XCircle size={13}/>{L("Delete","حذف")}</button>}
       </div>
 
       <div style={{ display:"flex", alignItems:"center", gap:8, ...card, padding:"11px 14px", marginBottom:16 }}>
@@ -10488,6 +10508,166 @@ function LinkInBioBuilderPage() {
             <div style={{ textAlign:"center", fontSize:9.5, color:PT.preset.sub, marginTop:16 }}>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Public self-serve bio creator (tawaslo.com/create) — no login, token-based edit. ──
+function CreateBioPage() {
+  const editToken = (typeof window !== "undefined") ? new URLSearchParams(window.location.search).get('edit') : null;
+  const [loaded, setLoaded] = useState(!editToken);
+  const [step, setStep] = useState('form');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [slug, setSlug] = useState("");
+  const [slugState, setSlugState] = useState('idle');
+  const [email, setEmail] = useState("");
+  const [title, setTitle] = useState("");
+  const [bio, setBio] = useState("");
+  const [avatar, setAvatar] = useState("");
+  const [accent, setAccent] = useState("#7C83FF");
+  const [preset, setPreset] = useState('midnight');
+  const [socials, setSocials] = useState([]);
+  const [links, setLinks] = useState([]);
+  const [result, setResult] = useState(null);
+  const [copied, setCopied] = useState("");
+
+  useEffect(() => {
+    if (!editToken) return;
+    supabase.from('bio_pages').select('*').eq('edit_token', editToken).limit(1).then(({ data }) => {
+      const r = data && data[0];
+      if (r) { setSlug(r.slug); setTitle(r.title||""); setBio(r.bio||""); setAvatar(r.avatar_url||""); setAccent(r.accent||"#7C83FF"); setPreset((r.hub&&r.hub.theme&&r.hub.theme.preset)||'midnight'); setSocials(socialsList(r.hub)); setLinks(r.links||[]); setSlugState('ok'); }
+      setLoaded(true);
+    });
+  }, [editToken]);
+
+  useEffect(() => {
+    if (editToken) return;
+    const s = slug.trim().toLowerCase();
+    if (s.length < 3) { setSlugState('idle'); return; }
+    setSlugState('checking');
+    const t = setTimeout(() => { supabase.rpc('bio_slug_taken', { p_slug:s }).then(({ data }) => setSlugState(data ? 'taken' : 'ok'), ()=>setSlugState('idle')); }, 450);
+    return () => clearTimeout(t);
+  }, [slug, editToken]);
+
+  const addSocial = () => setSocials(a=>[...a, { id:'s'+Date.now(), type:'instagram', value:'' }]);
+  const setSocialRow = (id,k,v) => setSocials(a=>a.map(it=>it.id===id?{...it,[k]:v}:it));
+  const delSocial = (id) => setSocials(a=>a.filter(it=>it.id!==id));
+  const addLink = () => setLinks(a=>[...a, { id:'l'+Date.now(), label:'', url:'' }]);
+  const setLinkRow = (id,k,v) => setLinks(a=>a.map(it=>it.id===id?{...it,[k]:v}:it));
+  const delLink = (id) => setLinks(a=>a.filter(it=>it.id!==id));
+
+  const save = async () => {
+    setErr("");
+    const s = slug.trim().toLowerCase();
+    if (!editToken) { if (s.length<3) { setErr("Pick a link of at least 3 characters."); return; } if (slugState==='taken') { setErr("That link is taken — try another."); return; } if (!/\S+@\S+\.\S+/.test(email)) { setErr("Add your email so you can edit the page later."); return; } }
+    setBusy(true);
+    const data = { title, bio, avatar_url:avatar, accent, links, hub:{ socials, theme:{ preset } } };
+    try {
+      if (editToken) { await supabase.rpc('update_bio_page', { p_token:editToken, p_data:data }); setResult({ slug, token:editToken, edited:true }); setStep('done'); }
+      else { const { data:tok } = await supabase.rpc('create_bio_page', { p_slug:s, p_email:email.trim(), p_data:data }); if (!tok) { setErr("That link was just taken — try another."); setBusy(false); return; } setResult({ slug:s, token:tok }); setStep('done'); }
+    } catch (e) { setErr("Something went wrong. Please try again."); }
+    setBusy(false);
+  };
+
+  const origin = (typeof window!=="undefined" && window.location.origin) || "https://tawaslo.com";
+  const copy = (txt, key) => { try { navigator.clipboard.writeText(txt); setCopied(key); setTimeout(()=>setCopied(""), 1600); } catch (e) {} };
+  const wrap = { minHeight:"100vh", background:"radial-gradient(900px 520px at 50% -10%, #1B2233 0%, #080B11 60%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"40px 18px 70px", boxSizing:"border-box" };
+  const inp = { width:"100%", boxSizing:"border-box", background:"#11161F", border:"1px solid rgba(255,255,255,0.12)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13.5, outline:"none" };
+  const lbl = { fontSize:11.5, color:"#9AA3AD", marginBottom:6 };
+
+  if (!loaded) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#7E8794", fontSize:13 }}>Loading…</div></div>;
+
+  if (step === 'done' && result) {
+    const pub = `${origin}/bio/${result.slug}`;
+    const edit = `${origin}/create?edit=${result.token}`;
+    return (
+      <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:460, maxWidth:"100%", textAlign:"center" }}>
+          <div style={{ width:52, height:52, borderRadius:15, background:"rgba(95,191,146,0.16)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 16px" }}><Check size={26} color="#5FBF92"/></div>
+          <div style={{ fontSize:22, fontWeight:700 }}>{result.edited ? "Saved!" : "Your page is live 🎉"}</div>
+          <div style={{ fontSize:13, color:"#9AA3AD", marginTop:8 }}>Share this link anywhere — your Instagram bio, WhatsApp, anywhere.</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, background:"#11161F", border:"1px solid rgba(124,131,255,0.4)", borderRadius:12, padding:"12px 14px", marginTop:20 }}>
+            <span style={{ flex:1, textAlign:"left", fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{pub.replace(/^https?:\/\//,'')}</span>
+            <button onClick={()=>copy(pub,'p')} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"none", border:"none", color:copied==='p'?"#5FBF92":"#8B93FF", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{copied==='p'?<><Check size={13}/>Copied</>:<><Copy size={13}/>Copy</>}</button>
+            <a href={pub} target="_blank" rel="noreferrer" style={{ color:"#9AA3AD", display:"flex" }}><ArrowUpRight size={16}/></a>
+          </div>
+          <div style={{ fontSize:11.5, color:"#7E8794", marginTop:18, lineHeight:1.6 }}>Bookmark your private edit link to change it later:<br/><a href={edit} style={{ color:"#8B93FF", textDecoration:"none", wordBreak:"break-all" }}>{edit.replace(/^https?:\/\//,'')}</a></div>
+          <div style={{ marginTop:28, fontSize:12, color:"#5C6470" }}>Managing brands for clients? <a href="/" style={{ color:"#9AA3AD" }}>Get the full Tawaslo →</a></div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={wrap}>
+      <div style={{ width:480, maxWidth:"100%", margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:24 }}>
+          <div style={{ fontSize:26, fontWeight:700 }}>{editToken ? "Edit your page" : "Create your free bio page"}</div>
+          <div style={{ fontSize:13.5, color:"#9AA3AD", marginTop:8 }}>One link for your socials, links and more. Free, bilingual, no card.</div>
+        </div>
+
+        {!editToken && (
+          <div style={{ marginBottom:16 }}>
+            <div style={lbl}>Choose your link</div>
+            <div style={{ display:"flex", alignItems:"center", background:"#11161F", border:`1px solid ${slugState==='taken'?"#E2574B":slugState==='ok'?"#5FBF92":"rgba(255,255,255,0.12)"}`, borderRadius:11, padding:"0 12px 0 13px" }}>
+              <span style={{ fontSize:13.5, color:"#6E7681" }}>tawaslo.com/bio/</span>
+              <input value={slug} onChange={e=>setSlug(e.target.value.replace(/[^a-zA-Z0-9_-]/g,'').toLowerCase())} placeholder="yourname" style={{ flex:1, background:"transparent", border:"none", color:"#E8EFF8", fontSize:13.5, outline:"none", padding:"11px 0" }}/>
+              {slugState==='checking' && <span style={{ fontSize:11, color:"#7E8794" }}>…</span>}
+              {slugState==='ok' && <Check size={15} color="#5FBF92"/>}
+              {slugState==='taken' && <XCircle size={15} color="#E2574B"/>}
+            </div>
+            {slugState==='taken' && <div style={{ fontSize:11, color:"#E2574B", marginTop:5 }}>That link is taken — try another.</div>}
+          </div>
+        )}
+
+        <div style={{ display:"flex", gap:12, marginBottom:14 }}>
+          <div style={{ flex:1 }}><div style={lbl}>Display name</div><input value={title} onChange={e=>setTitle(e.target.value)} placeholder="Lumière Coffee" style={inp}/></div>
+          <div><div style={lbl}>Accent</div><input type="color" value={accent} onChange={e=>setAccent(e.target.value)} style={{ width:46, height:42, border:"1px solid rgba(255,255,255,0.12)", borderRadius:11, background:"#11161F", cursor:"pointer" }}/></div>
+        </div>
+        <div style={{ marginBottom:14 }}><div style={lbl}>Bio</div><textarea value={bio} onChange={e=>setBio(e.target.value)} rows={2} placeholder="A short line about you" style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/></div>
+        <div style={{ marginBottom:14 }}><div style={lbl}>Profile photo URL (optional)</div><input value={avatar} onChange={e=>setAvatar(e.target.value)} placeholder="https://…" style={inp}/></div>
+
+        <div style={{ marginBottom:16 }}>
+          <div style={lbl}>Theme</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {BIO_THEMES.map(t=>{ const on=preset===t.k; return <button key={t.k} onClick={()=>setPreset(t.k)} title={t.name} style={{ width:38, height:38, borderRadius:10, background:t.bg, border:on?"2.5px solid #8B93FF":"1px solid rgba(255,255,255,0.14)", cursor:"pointer" }}/>; })}
+          </div>
+        </div>
+
+        <div style={{ marginBottom:16 }}>
+          <div style={lbl}>Socials</div>
+          {socials.map(it=>{ const d=socialDef(it.type); const Ic=d.Icon; return (
+            <div key={it.id} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:8 }}>
+              <span style={{ width:30, height:30, borderRadius:8, background:"#11161F", border:"1px solid rgba(255,255,255,0.12)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Ic style={{ fontSize:14, color:d.color }}/></span>
+              <select value={it.type} onChange={e=>setSocialRow(it.id,'type',e.target.value)} style={{ ...inp, width:"auto", padding:"8px 9px", fontSize:12 }}>{SOCIAL_DEFS.map(s=><option key={s.k} value={s.k}>{s.label}</option>)}</select>
+              <input value={it.value||""} onChange={e=>setSocialRow(it.id,'value',e.target.value)} placeholder={it.type==='whatsapp'?"phone number":"handle or link"} style={{ ...inp, flex:1, minWidth:0, padding:"8px 10px", fontSize:12 }}/>
+              <button onClick={()=>delSocial(it.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2574B", display:"flex" }}><XCircle size={16}/></button>
+            </div>
+          ); })}
+          <button onClick={addSocial} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:10, border:"1px dashed rgba(255,255,255,0.18)", background:"transparent", color:"#8B93FF", fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={12}/>Add social</button>
+        </div>
+
+        <div style={{ marginBottom:16 }}>
+          <div style={lbl}>Link buttons</div>
+          {links.map(l=>(
+            <div key={l.id} style={{ display:"flex", gap:7, marginBottom:8 }}>
+              <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+                <input value={l.label} onChange={e=>setLinkRow(l.id,'label',e.target.value)} placeholder="Button label" style={{ ...inp, padding:"8px 11px", fontSize:12.5 }}/>
+                <input value={l.url} onChange={e=>setLinkRow(l.id,'url',e.target.value)} placeholder="https://…" style={{ ...inp, padding:"8px 11px", fontSize:12 }}/>
+              </div>
+              <button onClick={()=>delLink(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:"#E2574B", display:"flex" }}><XCircle size={16}/></button>
+            </div>
+          ))}
+          <button onClick={addLink} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:10, border:"1px dashed rgba(255,255,255,0.18)", background:"transparent", color:"#8B93FF", fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={12}/>Add link</button>
+        </div>
+
+        {!editToken && <div style={{ marginBottom:16 }}><div style={lbl}>Your email (to edit later)</div><input value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" style={inp}/></div>}
+
+        {err && <div style={{ fontSize:12, color:"#E2574B", marginBottom:12 }}>{err}</div>}
+        <button onClick={save} disabled={busy} style={{ width:"100%", padding:"14px", borderRadius:12, background:"linear-gradient(120deg,#7C83FF,#5B8DEF)", border:"none", color:"#fff", fontSize:14.5, fontWeight:600, cursor:"pointer", opacity:busy?0.6:1 }}>{busy?"Saving…":editToken?"Save changes":"Create my page →"}</button>
+        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:20 }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
       </div>
     </div>
   );
@@ -11019,6 +11199,10 @@ export default function TawasloApp() {
   // Public branded client portal (tawaslo.com/portal/<token>) — no login.
   const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
   if (portalMatch) return <ClientPortalPage token={portalMatch[1]}/>;
+
+  // Public self-serve bio creator (tawaslo.com/create) — no login.
+  const createMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/create\/?$/);
+  if (createMatch) return <CreateBioPage/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
