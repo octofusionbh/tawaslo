@@ -93,4 +93,4 @@ Submit these two WhatsApp permissions in the **same App Review cycle** as your I
 3. Record Video A (cURL send) + Video B (template create).
 4. Paste the justification text, attach the videos, add privacy URL.
 5. Submit — bundled with the Instagram permissions.
-6. While that's in review, I finish the `/api/whatsapp` backend so the inbox/broadcasts go live the moment you're approved.
+6. The backend is already built (`/api/meta-publish` handles WhatsApp send + webhook), so the inbox/broadcasts go live the moment you're approved and add the env vars.

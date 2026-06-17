@@ -1,6 +1,19 @@
 // api/meta-publish.js — Publish posts to Instagram, Facebook & LinkedIn
 // Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image.
 export default async function handler(req, res) {
+  // === WhatsApp Cloud API (folded in here to stay under Vercel's 12-function limit) ===
+  // Webhook verification — Meta calls this once (GET) when you set the callback URL.
+  if (req.method === 'GET' && req.query && req.query['hub.mode']) {
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.WA_VERIFY_TOKEN) {
+      return res.status(200).send(req.query['hub.challenge']);
+    }
+    return res.status(403).send('Forbidden');
+  }
+  // Inbound message events (Meta's webhook envelope) + outbound sends (channel:'whatsapp').
+  if (req.method === 'POST' && req.body && (req.body.channel === 'whatsapp' || req.body.object === 'whatsapp_business_account')) {
+    return handleWhatsApp(req, res);
+  }
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { platform, accountId, accessToken, caption } = req.body;
@@ -171,5 +184,82 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Unsupported platform' });
   } catch (err) {
     return res.status(500).json({ error: 'Publish failed', details: err.message });
+  }
+}
+
+// WhatsApp Cloud API handler — inbound webhook logging + outbound send/template/interactive.
+// Outbound calls pass { channel:'whatsapp', action, to, ... }. A per-client token/phoneId can
+// be supplied in the body; otherwise the account-level WA_TOKEN / WA_PHONE_ID env vars are used.
+async function handleWhatsApp(req, res) {
+  const b = req.body || {};
+
+  // --- Inbound webhook from Meta: log best-effort, then always 200 (never make Meta retry). ---
+  if (b.object === 'whatsapp_business_account') {
+    try {
+      const SB = process.env.SUPABASE_URL;
+      const KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (SB && KEY) {
+        const rows = [];
+        for (const entry of (b.entry || [])) {
+          for (const ch of (entry.changes || [])) {
+            const v = (ch && ch.value) || {};
+            for (const m of (v.messages || [])) {
+              const text = (m.text && m.text.body)
+                || (m.button && m.button.text)
+                || (m.interactive && m.interactive.list_reply && m.interactive.list_reply.title)
+                || (m.interactive && m.interactive.button_reply && m.interactive.button_reply.title)
+                || '';
+              rows.push({
+                wa_message_id: m.id,
+                direction: 'in',
+                from_number: m.from,
+                body: text,
+                msg_type: m.type,
+                received_at: new Date(Number(m.timestamp || (Date.now() / 1000)) * 1000).toISOString(),
+              });
+            }
+          }
+        }
+        if (rows.length) {
+          await fetch(`${SB}/rest/v1/wa_messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: KEY, Authorization: `Bearer ${KEY}`, Prefer: 'resolution=ignore-duplicates' },
+            body: JSON.stringify(rows),
+          }).catch(() => {});
+        }
+      }
+    } catch (e) { /* webhook must never fail */ }
+    return res.status(200).json({ received: true });
+  }
+
+  // --- Outbound: send a message / template / interactive on behalf of a business. ---
+  const token = b.token || process.env.WA_TOKEN;
+  const phoneId = b.phoneId || process.env.WA_PHONE_ID;
+  if (!token || !phoneId) {
+    return res.status(200).json({ ok: false, configured: false, message: 'WhatsApp is not connected yet. Add WA_TOKEN and WA_PHONE_ID (or connect a number) to start sending.' });
+  }
+
+  const GRAPH = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+  const to = String(b.to || '').replace(/[^0-9]/g, '');
+  const action = b.action || 'send';
+  let payload;
+  if (action === 'read') {
+    payload = { messaging_product: 'whatsapp', status: 'read', message_id: b.messageId };
+  } else if (action === 'template') {
+    payload = { messaging_product: 'whatsapp', to, type: 'template', template: { name: b.template, language: { code: b.lang || 'en_US' }, ...(b.components ? { components: b.components } : {}) } };
+  } else if (action === 'interactive') {
+    payload = { messaging_product: 'whatsapp', to, type: 'interactive', interactive: b.interactive };
+  } else {
+    payload = { messaging_product: 'whatsapp', to, type: 'text', text: { body: b.body || '' } };
+  }
+  if (!to && action !== 'read') return res.status(400).json({ error: 'Missing recipient number (to).' });
+
+  try {
+    const r = await fetch(GRAPH, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+    const data = await r.json();
+    if (data.error) return res.status(400).json({ error: data.error.message, code: data.error.code });
+    return res.status(200).json({ success: true, id: (data.messages && data.messages[0] && data.messages[0].id) || null, data });
+  } catch (e) {
+    return res.status(500).json({ error: 'WhatsApp send failed', details: e.message });
   }
 }

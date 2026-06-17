@@ -40,7 +40,7 @@ Meta hosts it, **zero platform fee**, pay only Meta's per-message base rates. No
 3. Add the **WhatsApp product** to the existing Tawaslo Meta app.
 4. Request the **`whatsapp_business_messaging`** + **`whatsapp_business_management`** permissions in App Review (separate from the IG ones — bundle into the same review cycle once June 7 clears).
 5. Create + submit **message templates** for approval (marketing/utility). Templates must be pre-approved before sending.
-6. Set the **webhook URL** to `/api/whatsapp` (verify token in env).
+6. Set the **webhook URL** to `https://tawaslo.com/api/meta-publish` (verify token = `WA_VERIFY_TOKEN`; subscribe to the `messages` field).
 
 ## 4. Features (build order)
 1. **Team inbox** — same UI as the Instagram inbox; inbound messages via webhook; agents reply within 24h window (free). **Reuses Reply Assistant + Brand Voice.**
@@ -55,14 +55,16 @@ Meta hosts it, **zero platform fee**, pay only Meta's per-message base rates. No
    - **Bot flow builder**: inbound msg → button reply → Flow form → logged lead/booking, in the client's brand voice, on the free 24h service window.
 6. **Click-to-WhatsApp** — already live in bio + share sheets (free tier).
 
-## 5. Technical
-- **Endpoint:** one consolidated `/api/whatsapp` (we're at Vercel's 12-function cap — fold send/webhook/list into one handler with an `action` param).
-- **Webhook:** GET verify + POST inbound → store in `wa_messages`.
-- **Send:** POST template/text to Graph `/{phone_id}/messages`.
-- **Tables:** `wa_contacts` (number, name, consent, tags, client_id), `wa_messages` (direction, body, status, client_id), `wa_templates` (name, category, status), `wa_broadcasts` (template, list, sent, cost).
-- **Gating:** `plan === 'agency'` (Enterprise) → full module; else upgrade prompt. Click-to-chat ungated.
-- **Env:** `WA_TOKEN`, `WA_PHONE_ID`, `WA_VERIFY_TOKEN`, `WA_WABA_ID`.
+## 5. Technical (as built)
+- **Endpoint:** folded into **`/api/meta-publish`** (we were at Vercel's 12-function cap, so WhatsApp shares that file — no new function). Requests carry `channel:'whatsapp'`.
+- **Webhook URL (set this in Meta):** `https://tawaslo.com/api/meta-publish`
+  - GET verify → checks `WA_VERIFY_TOKEN`, echoes `hub.challenge`.
+  - POST inbound (`object:'whatsapp_business_account'`) → best-effort insert into `wa_messages`, always 200.
+- **Send actions** (POST `channel:'whatsapp'`): `action:'send'` (text), `'template'`, `'interactive'` (buttons/list/flow), `'read'`. Hits Graph `/{phone_id}/messages`. Per-client `token`/`phoneId` can be passed in the body; otherwise account-level env.
+- **Tables (whatsapp-setup.sql):** `wa_messages`, `wa_contacts`. (Templates/broadcasts can live client-side until needed.)
+- **Gating:** owner account = unlimited + "demo" badge; `pro|professional|agency|enterprise` → full; blank/Starter → locked. Click-to-chat ungated.
+- **Env to add in Vercel (only when connecting):** `WA_TOKEN`, `WA_PHONE_ID`, `WA_VERIFY_TOKEN`, plus `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` for inbound logging.
 
 ## 6. What I can build now vs. what's blocked
-- **Build now:** the entire in-app module (inbox UI, broadcast composer, contacts, templates, automations, gating, the `/api/whatsapp` skeleton). Fully demoable with sample data.
+- **Build now:** the entire in-app module (inbox UI, broadcast composer, contacts, templates, automations, gating, the `/api/meta-publish` WhatsApp handler). Fully demoable with sample data.
 - **Blocked on Meta:** *live* sending/receiving — needs the WABA, phone number, template approval, and the new permissions (step 3). Bundle with the IG App Review.
