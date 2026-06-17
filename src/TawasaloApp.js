@@ -699,6 +699,7 @@ function Sidebar() {
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
       {key:"ads",       Icon:DollarSign,      label:"Ads",       badge:null},
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
+      {key:"shortlinks",Icon:Link,            label:"Links",     badge:null},
     ]},
     {section:"Account", items:[
       {key:"clients",    Icon:Building2,       label:"Clients",   badge:null},
@@ -4200,6 +4201,68 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   ), document.body);
 }
 
+// Link shortener dashboard — every branded short link for this client with its click count.
+function ShortLinksPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(null);
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+
+  useEffect(() => { if (!selClient?.name) { setLoading(false); return; } setLoading(true); supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setCid(data[0].id); else { setRows([]); setLoading(false); } }); }, [selClient]);
+  const load = (id) => { const c = id || cid; if (!c) return; setLoading(true); supabase.from('short_links').select('*').eq('client_id', c).order('created_at', { ascending: false }).then(({ data }) => { setRows(data || []); setLoading(false); }); };
+  useEffect(() => { if (cid) load(cid); }, [cid]);
+
+  const copy = (txt, id) => { try { navigator.clipboard.writeText(txt); setCopied(id); setTimeout(()=>setCopied(null), 1500); } catch (e) {} };
+  const total = rows.reduce((a,r)=>a+(r.clicks||0), 0);
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Short links","الروابط القصيرة")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("branded tawaslo.com/s/ links and their clicks","روابط tawaslo.com/s/ ونقراتها")}</p>
+        </div>
+        <div style={{ display:"flex", gap:18, alignItems:"center" }}>
+          <div style={{ textAlign:"center" }}><div className="tw-num" style={{ fontSize:22, fontWeight:700, color:th.accent }}>{rows.length}</div><div style={{ fontSize:10.5, color:th.text3 }}>{L("links","رابط")}</div></div>
+          <div style={{ textAlign:"center" }}><div className="tw-num" style={{ fontSize:22, fontWeight:700, color:th.text }}>{total.toLocaleString()}</div><div style={{ fontSize:10.5, color:th.text3 }}>{L("total clicks","إجمالي النقرات")}</div></div>
+          <button onClick={()=>load()} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}><RefreshCw size={13}/>{L("Refresh","تحديث")}</button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ ...card, padding:24, fontSize:13, color:th.text2 }}>{L("Loading…","جارٍ التحميل…")}</div>
+      ) : rows.length === 0 ? (
+        <div style={{ ...card, padding:"40px 24px", textAlign:"center" }}>
+          <Link size={28} color={th.text3} style={{ opacity:0.4, marginBottom:12 }}/>
+          <div style={{ fontSize:14.5, fontWeight:600, color:th.text, marginBottom:6 }}>{L("No short links yet","لا روابط قصيرة بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:420, margin:"0 auto" }}>{L("In the composer, add a link to your caption and hit Shorten. Your branded links and their clicks will appear here.","في المحرّر، أضف رابطاً إلى النص واضغط اختصار. ستظهر روابطك ونقراتها هنا.")}</div>
+        </div>
+      ) : (
+        <div style={{ ...card, overflow:"hidden" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1.3fr 2fr 0.6fr", padding:"11px 18px", borderBottom:`1px solid ${th.border}`, fontSize:10, color:th.text3, letterSpacing:0.5, textTransform:"uppercase" }}>
+            <div>{L("Short link","الرابط القصير")}</div><div>{L("Destination","الوجهة")}</div><div style={{ textAlign:"right" }}>{L("Clicks","النقرات")}</div>
+          </div>
+          {rows.map((r,i) => { const short = `${origin}/s/${r.code}`; return (
+            <div key={r.id} style={{ display:"grid", gridTemplateColumns:"1.3fr 2fr 0.6fr", padding:"12px 18px", borderBottom:i<rows.length-1?`1px solid ${th.border}`:"none", alignItems:"center" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                <span style={{ fontSize:12.5, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>/s/{r.code}</span>
+                <button onClick={()=>copy(short, r.id)} title={L("Copy","نسخ")} style={{ background:"none", border:"none", cursor:"pointer", color:copied===r.id?th.success:th.accent, display:"flex", flexShrink:0 }}>{copied===r.id?<Check size={13}/>:<Copy size={13}/>}</button>
+              </div>
+              <a href={r.url} target="_blank" rel="noreferrer" title={r.url} style={{ fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", textDecoration:"none" }}>{(r.url||"").replace(/^https?:\/\//,'')}</a>
+              <div className="tw-num" style={{ textAlign:"right", fontSize:14, fontWeight:700, color:th.text }}>{(r.clicks||0).toLocaleString()}</div>
+            </div>
+          ); })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -4805,6 +4868,7 @@ function PublisherPage() {
   const [repostNote, setRepostNote] = useState(false); // arrived here via Repost → Story
   const [hashGroups, setHashGroups] = useState([]); // saved reusable hashtag sets (per client, localStorage)
   const [utmCampaign, setUtmCampaign] = useState(""); // campaign name for UTM link tagging
+  const [shortening, setShortening] = useState(false);
   const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
   const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
 
@@ -4964,6 +5028,25 @@ function PublisherPage() {
       params.push('utm_source=' + src, 'utm_medium=social', 'utm_campaign=' + camp);
       return path + '?' + params.join('&') + hash;
     }));
+  };
+
+  // ── Branded link shortener — replace links in the caption with tawaslo.com/s/<code> ──
+  const shortenLinks = async () => {
+    if (shortening) return;
+    const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+    const urls = [...new Set(caption.match(/https?:\/\/[^\s]+/g) || [])].filter(u => !u.includes('/s/'));
+    if (!urls.length) return;
+    setShortening(true);
+    let cap = caption;
+    for (const u of urls) {
+      const code = Math.random().toString(36).slice(2, 7);
+      try {
+        const { error } = await supabase.from('short_links').insert([{ code, url:u, client_id: realClientId || null }]);
+        if (!error) cap = cap.split(u).join(origin + '/s/' + code);
+      } catch (e) { /* leave the original link */ }
+    }
+    setCaption(cap);
+    setShortening(false);
   };
 
   // ── Auto-watermark — overlay the client logo on an image, best-effort ──
@@ -5313,6 +5396,7 @@ function PublisherPage() {
                 <div style={{ display:"flex", gap:8 }}>
                   <input value={utmCampaign} onChange={e=>setUtmCampaign(e.target.value)} placeholder={L("Campaign name — e.g. summer_sale","اسم الحملة — مثلاً summer_sale")} style={{ flex:1, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:11.5, outline:"none" }}/>
                   <button onClick={tagLinksWithUTM} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:8, border:"none", background:th.accentSoft, color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}><Link size={11}/>{L("Tag links","وسم الروابط")}</button>
+                  <button onClick={shortenLinks} disabled={shortening} title={L("Replace links with short tawaslo.com/s/ links + click tracking","استبدل الروابط بروابط قصيرة مع تتبّع النقرات")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", opacity:shortening?0.6:1 }}><Link size={11}/>{shortening?L("Shortening…","يختصر…"):L("Shorten","اختصار")}</button>
                 </div>
                 <div style={{ fontSize:9.5, color:th.text3, marginTop:6, lineHeight:1.5 }}>{L("Adds UTM tags so Google Analytics shows exactly which post drove the traffic.","يضيف وسوم UTM ليُظهر تحليلك أي منشور جلب الزيارات بالضبط.")}</div>
               </div>
@@ -10520,6 +10604,23 @@ function LinkInBioBuilderPage() {
   );
 }
 
+// ── Branded short-link redirect (tawaslo.com/s/<code>) — counts the click, forwards. ──
+function ShortLinkRedirect({ code }) {
+  const [state, setState] = useState("go"); // go | missing
+  useEffect(() => {
+    let done = false;
+    supabase.rpc('bump_short_click', { p_code: code }).then(({ data }) => {
+      if (done) return;
+      if (data) { const u = /^https?:\/\//.test(data) ? data : 'https://' + data; window.location.replace(u); }
+      else setState("missing");
+    }, () => setState("missing"));
+    return () => { done = true; };
+  }, [code]);
+  const wrap = { minHeight:"100vh", background:"#080B11", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, boxSizing:"border-box", textAlign:"center" };
+  if (state === "missing") return <div style={wrap}><div><div style={{ fontSize:15, fontWeight:600 }}>This link isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+  return <div style={wrap}><div style={{ fontSize:13, color:"#9AA3AD" }}>Taking you there…</div></div>;
+}
+
 // ── Public self-serve bio creator (tawaslo.com/create) — no login, token-based edit. ──
 function CreateBioPage() {
   const editToken = (typeof window !== "undefined") ? new URLSearchParams(window.location.search).get('edit') : null;
@@ -11165,6 +11266,7 @@ export default function TawasloApp() {
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
+    if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;
@@ -11210,6 +11312,10 @@ export default function TawasloApp() {
   // Public self-serve bio creator (tawaslo.com/create) — no login.
   const createMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/create\/?$/);
   if (createMatch) return <CreateBioPage/>;
+
+  // Branded short link (tawaslo.com/s/<code>) — count the click and forward.
+  const shortMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/);
+  if (shortMatch) return <ShortLinkRedirect code={shortMatch[1]}/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
