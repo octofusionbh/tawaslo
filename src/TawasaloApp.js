@@ -693,6 +693,7 @@ function Sidebar() {
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
+      {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
@@ -3692,7 +3693,7 @@ function CalendarRoomPage() {
 // spread across the calendar at best times, ready to schedule or send for approval.
 function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
   const [step, setStep] = useState("brief");
-  const [theme, setTheme] = useState("");
+  const [theme, setTheme] = useState(() => { try { const t = sessionStorage.getItem('tw_plan_theme'); if (t) { sessionStorage.removeItem('tw_plan_theme'); return t; } } catch (e) {} return ""; });
   const [count, setCount] = useState(8);
   const [days, setDays] = useState([1, 3, 5]);
   const [lang, setLang] = useState("both");
@@ -3816,6 +3817,118 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
   ), document.body);
 }
 
+// AI Content Strategy — a brief becomes content pillars, a posting cadence and recurring themes.
+// Feeds directly into "Plan my month" so the strategy turns into scheduled posts.
+function StrategyModal({ clientId, clientName, th, L, isAR, onClose, onUseInPlan }) {
+  const [brief, setBrief] = useState("");
+  const [audience, setAudience] = useState("");
+  const [lang, setLang] = useState("both");
+  const [busy, setBusy] = useState(false);
+  const [strat, setStrat] = useState(null);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
+  const voice = loadVoice(clientId) || {};
+
+  const generate = async () => {
+    if (!brief.trim() || busy) return;
+    setErr(""); setBusy(true); setStrat(null);
+    try {
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ mode:'strategy', topic:brief, audience, lang, brand:clientName, voice }) }).then(x=>x.json());
+      if (r && r.pillars) setStrat(r); else setErr(L("Couldn't build the strategy. Try again.","تعذّر بناء الاستراتيجية. حاول مجدداً."));
+    } catch (e) { setErr(L("Couldn't build the strategy. Try again.","تعذّر بناء الاستراتيجية. حاول مجدداً.")); }
+    setBusy(false);
+  };
+
+  const copyAll = () => {
+    if (!strat) return;
+    const lines = [
+      strat.summary, "",
+      L("PILLARS","الركائز"),
+      ...(strat.pillars||[]).map(p => `• ${p.name} — ${p.description}` + (p.examples?.length ? `\n   - ${p.examples.join('\n   - ')}` : '')),
+      "", L("CADENCE","الإيقاع"),
+      `${strat.cadence?.postsPerWeek || ''}/week` + (strat.cadence?.byPlatform?.length ? ` (${strat.cadence.byPlatform.map(b=>b.join(': ')).join(', ')})` : ''),
+      strat.cadence?.note || "",
+      "", L("THEMES","المحاور"), (strat.themes||[]).join(', '),
+    ].filter(x=>x!==undefined).join('\n');
+    try { navigator.clipboard.writeText(lines); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ }
+  };
+
+  const useInPlan = () => { try { sessionStorage.setItem('tw_plan_theme', (strat?.themes||[]).slice(0,3).join(', ') || brief); } catch (e) {} onUseInPlan(); };
+
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 12px", color:th.text, fontSize:13, outline:"none" };
+  const chip = (active) => ({ fontSize:11.5, padding:"6px 12px", borderRadius:9, cursor:"pointer", border:`1px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:"transparent", color:active?th.text:th.text2 });
+
+  return createPortal((
+    <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Sparkles size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Content strategy","استراتيجية المحتوى")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
+        </div>
+
+        {busy ? (
+          <div style={{ padding:"46px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 16px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={22} color={th.accent}/></div>
+            <div style={{ fontSize:14, fontWeight:600 }}>{L("Building your strategy…","نبني استراتيجيتك…")}</div>
+            <div style={{ fontSize:11.5, color:th.text3, marginTop:6 }}>{L("Pillars, cadence and themes","الركائز والإيقاع والمحاور")}</div>
+          </div>
+        ) : !strat ? (
+          <div style={{ padding:"18px 20px", overflowY:"auto" }}>
+            <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("What's the brand about and what are the goals?","عن ماذا تدور العلامة وما الأهداف؟")}</div>
+            <textarea value={brief} onChange={e=>setBrief(e.target.value)} rows={3} placeholder={L("e.g. specialty coffee shop in Manama — grow footfall, build a loyal community, highlight seasonal drinks","مثلاً: مقهى مختص في المنامة — زيادة الزيارات وبناء مجتمع وفيّ وإبراز المشروبات الموسمية")} style={{ ...inp, marginBottom:14, resize:"vertical", lineHeight:1.5 }}/>
+            <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Audience (optional)","الجمهور (اختياري)")}</div>
+            <input value={audience} onChange={e=>setAudience(e.target.value)} placeholder={L("e.g. young professionals, families, students","مثلاً: المهنيون الشباب، العائلات، الطلاب")} style={{ ...inp, marginBottom:14 }}/>
+            <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Language","اللغة")}</div>
+            <div style={{ display:"flex", gap:6, marginBottom:18 }}>{[["both",L("Both","كلاهما")],["en","EN"],["ar","ع"]].map(([k,t])=><span key={k} onClick={()=>setLang(k)} style={chip(lang===k)}>{t}</span>)}</div>
+            {loadVoice(clientId) && <div style={{ fontSize:11, color:th.success, display:"flex", alignItems:"center", gap:6, marginBottom:14 }}><MessageCircle size={12}/>{L("Using ","باستخدام ")}{clientName} {L("brand voice","نبرة العلامة")}</div>}
+            {err && <div style={{ fontSize:11.5, color:th.danger, marginBottom:12 }}>{err}</div>}
+            <button onClick={generate} disabled={!brief.trim()} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"13px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:600, cursor:brief.trim()?"pointer":"not-allowed", opacity:brief.trim()?1:0.5 }}><Sparkles size={15}/>{L("Build strategy","ابنِ الاستراتيجية")}</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
+              {strat.summary && <div style={{ fontSize:13, color:th.text, lineHeight:1.6, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:12, padding:"11px 13px", marginBottom:16 }}>{strat.summary}</div>}
+
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, textTransform:"uppercase", marginBottom:9 }}>{L("Content pillars","ركائز المحتوى")}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+                {(strat.pillars||[]).map((p,i)=>(
+                  <div key={i} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"12px 13px" }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:th.text, marginBottom:4 }}>{p.name}</div>
+                    <div style={{ fontSize:11, color:th.text2, lineHeight:1.5, marginBottom:7 }}>{p.description}</div>
+                    {(p.examples||[]).map((ex,j)=><div key={j} style={{ fontSize:10.5, color:th.text3, lineHeight:1.5, display:"flex", gap:6 }}><span style={{ color:th.accent }}>›</span>{ex}</div>)}
+                  </div>
+                ))}
+              </div>
+
+              {strat.cadence && <>
+                <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, textTransform:"uppercase", marginBottom:9 }}>{L("Posting cadence","إيقاع النشر")}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:14, flexWrap:"wrap", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"12px 14px", marginBottom:18 }}>
+                  <div style={{ textAlign:"center" }}><div className="tw-num" style={{ fontSize:22, fontWeight:700, color:th.accent }}>{strat.cadence.postsPerWeek}</div><div style={{ fontSize:9.5, color:th.text3 }}>{L("posts / week","منشور / أسبوع")}</div></div>
+                  <div style={{ width:1, height:34, background:th.border }}/>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", flex:1 }}>
+                    {(strat.cadence.byPlatform||[]).map((b,i)=><span key={i} style={{ fontSize:11, color:th.text2, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"5px 10px" }}>{b[0]} <span className="tw-num" style={{ fontWeight:700, color:th.text }}>{b[1]}</span></span>)}
+                  </div>
+                </div>
+              </>}
+
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, textTransform:"uppercase", marginBottom:9 }}>{L("Recurring themes","المحاور المتكررة")}</div>
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                {(strat.themes||[]).map((t,i)=><span key={i} style={{ fontSize:11.5, color:th.text, background:th.card2, border:`1px solid ${th.border}`, borderRadius:999, padding:"6px 13px" }}>{t}</span>)}
+              </div>
+            </div>
+            <div style={{ padding:"13px 20px", borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:10 }}>
+              <button onClick={()=>{ setStrat(null); }} style={{ fontSize:11.5, color:th.accent, background:"none", border:"none", cursor:"pointer" }}>{L("← Edit brief","← تعديل")}</button>
+              <button onClick={copyAll} style={{ marginInlineStart:"auto", display:"flex", alignItems:"center", gap:6, padding:"10px 14px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:copied?th.success:th.text, fontSize:12, fontWeight:600, cursor:"pointer" }}>{copied?<><Check size={14}/>{L("Copied","تم النسخ")}</>:<><Copy size={13}/>{L("Copy","نسخ")}</>}</button>
+              <button onClick={useInPlan} style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}><Wand2 size={15}/>{L("Use in month plan","استخدم في خطة الشهر")}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body);
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -3823,6 +3936,7 @@ function CalendarPage() {
   const L = (en, ar) => isAR ? ar : en;
   const [view, setView] = useState("list");
   const [planOpen, setPlanOpen] = useState(false);
+  const [strategyOpen, setStrategyOpen] = useState(false);
   const [loadingP, setLoadingP] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
@@ -3958,11 +4072,13 @@ function CalendarPage() {
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
+          <button onClick={()=>setStrategyOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Sparkles size={14} color={th.accent}/>{L("Strategy","الاستراتيجية")}</button>
           <button onClick={()=>setPlanOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Wand2 size={14}/>{L("Plan month","خطّط الشهر")}</button>
           <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>{L("New post","منشور جديد")}</button>
         </div>
       </div>
       {planOpen && <PlanMonthModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} onClose={()=>setPlanOpen(false)} onDone={()=>{ setPlanOpen(false); loadPosts(); }}/>}
+      {strategyOpen && <StrategyModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} isAR={isAR} onClose={()=>setStrategyOpen(false)} onUseInPlan={()=>{ setStrategyOpen(false); setPlanOpen(true); }}/>}
 
       {/* Filter bar — platform + status, with a persistent Today */}
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 13px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
@@ -9541,6 +9657,187 @@ function TrialBanner() {
 // desktop and a clean agenda on phones, and lets the client swipe carousels
 // and Approve / Request changes per post or all at once. Falls back to a
 // demo calendar if the token has no data yet, so the link always renders.
+// ── Link-in-bio builder (dashboard) ──────────────────────────────────
+// A hosted bio mini-page per client: link blocks + latest posts + click tracking.
+function slugify(s) { return String(s||'brand').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'brand'; }
+
+function LinkInBioBuilderPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [row, setRow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+
+  useEffect(() => { if (!selClient?.name) return; setLoading(true); supabase.from('clients').select('id,logo').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setCid(data[0].id); else setLoading(false); }); }, [selClient]);
+  useEffect(() => {
+    if (!cid) return;
+    supabase.from('bio_pages').select('*').eq('client_id', cid).limit(1).then(({ data, error }) => {
+      if (error) { setRow(defaultRow()); setLoading(false); return; }
+      if (data && data[0]) setRow(data[0]); else setRow(defaultRow());
+      setLoading(false);
+    });
+  }, [cid, selClient]);
+  const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + String(cid||'').slice(0,4), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [] });
+
+  const set = (k, v) => setRow(r => ({ ...r, [k]: v }));
+  const addLink = () => set('links', [ ...(row.links||[]), { id:'l'+Date.now(), label:"", url:"", clicks:0 } ]);
+  const setLink = (id, k, v) => set('links', (row.links||[]).map(l => l.id===id ? { ...l, [k]:v } : l));
+  const delLink = (id) => set('links', (row.links||[]).filter(l => l.id!==id));
+
+  const save = async () => {
+    if (!row || saving) return; setSaving(true);
+    const payload = { client_id:cid, slug:row.slug, title:row.title, bio:row.bio, avatar_url:row.avatar_url, accent:row.accent, show_posts:row.show_posts, links:row.links||[], updated_at:new Date().toISOString() };
+    let res;
+    if (row.id) res = await supabase.from('bio_pages').update(payload).eq('id', row.id).select();
+    else res = await supabase.from('bio_pages').insert([payload]).select();
+    if (res && res.data && res.data[0]) setRow(res.data[0]);
+    setSaving(false); setSaved(true); setTimeout(()=>setSaved(false), 1600);
+  };
+  const publicUrl = row ? `${origin}/bio/${row.slug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) {} };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" };
+  const totalClicks = row ? (row.links||[]).reduce((a,l)=>a+(l.clicks||0),0) : 0;
+
+  if (loading || !row) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Link in bio","رابط في البايو")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("one link for your bio, every destination inside","رابط واحد للبايو، وكل الوجهات بداخله")}</p>
+        </div>
+        <button onClick={save} disabled={saving} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:saving?0.6:1 }}>{saved?<><Check size={15}/>{L("Saved","تم الحفظ")}</>:saving?L("Saving…","جارٍ الحفظ…"):<><Check size={15}/>{L("Save page","حفظ الصفحة")}</>}</button>
+      </div>
+
+      <div style={{ display:"flex", alignItems:"center", gap:8, ...card, padding:"11px 14px", marginBottom:16 }}>
+        <Link size={14} color={th.text3}/>
+        <span style={{ flex:1, fontSize:12.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{publicUrl}</span>
+        <button onClick={copyUrl} style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", color:copied?th.success:th.accent, fontSize:12, fontWeight:600 }}>{copied?<><Check size={13}/>{L("Copied","نُسخ")}</>:<><Copy size={13}/>{L("Copy","نسخ")}</>}</button>
+        <a href={publicUrl} target="_blank" rel="noreferrer" style={{ color:th.text3, display:"flex" }}><ArrowUpRight size={15}/></a>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1.4fr 1fr", gap:18, alignItems:"start" }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={card}>
+            <div style={{ fontSize:12, color:th.text2, marginBottom:9 }}>{L("Page details","تفاصيل الصفحة")}</div>
+            <div style={{ marginBottom:10 }}><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Title","العنوان")}</div><input value={row.title||""} onChange={e=>set('title', e.target.value)} style={inp}/></div>
+            <div style={{ marginBottom:10 }}><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Bio","نبذة")}</div><textarea value={row.bio||""} onChange={e=>set('bio', e.target.value)} rows={2} placeholder={L("A short line about the brand","سطر قصير عن العلامة")} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/></div>
+            <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+              <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Avatar image URL","رابط صورة الأفاتار")}</div><input value={row.avatar_url||""} onChange={e=>set('avatar_url', e.target.value)} placeholder="https://…" style={inp}/></div>
+              <div><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Accent","اللون")}</div><input type="color" value={row.accent||"#7C83FF"} onChange={e=>set('accent', e.target.value)} style={{ width:42, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer" }}/></div>
+            </div>
+            <div onClick={()=>set('show_posts', !row.show_posts)} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginTop:13 }}>
+              <span style={{ width:34, height:20, borderRadius:11, background:row.show_posts?th.accent:th.border, position:"relative", flexShrink:0 }}><span style={{ position:"absolute", top:2, left:row.show_posts?16:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
+              <span style={{ fontSize:12.5, color:th.text2 }}>{L("Show the latest published posts","عرض آخر المنشورات المنشورة")}</span>
+            </div>
+          </div>
+
+          <div style={card}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ fontSize:12, color:th.text2 }}>{L("Links","الروابط")}</div>
+              <span style={{ fontSize:10.5, color:th.text3 }}>{L("Total clicks","إجمالي النقرات")}: <span className="tw-num" style={{ color:th.accent, fontWeight:600 }}>{totalClicks}</span></span>
+            </div>
+            {(row.links||[]).map(l => (
+              <div key={l.id} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:9 }}>
+                <div style={{ flex:1, display:"flex", flexDirection:"column", gap:6 }}>
+                  <input value={l.label} onChange={e=>setLink(l.id,'label',e.target.value)} placeholder={L("Button label (e.g. Order now)","اسم الزر (مثلاً اطلب الآن)")} style={{ ...inp, padding:"7px 11px" }}/>
+                  <input value={l.url} onChange={e=>setLink(l.id,'url',e.target.value)} placeholder="https://…" style={{ ...inp, padding:"7px 11px", fontSize:12 }}/>
+                </div>
+                <span style={{ fontSize:10, color:th.text3, width:54, textAlign:"center" }}><span className="tw-num" style={{ display:"block", fontSize:14, fontWeight:700, color:th.text }}>{l.clicks||0}</span>{L("clicks","نقرة")}</span>
+                <button onClick={()=>delLink(l.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.danger, display:"flex" }}><XCircle size={17}/></button>
+              </div>
+            ))}
+            <button onClick={addLink} style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:4, padding:"8px 14px", borderRadius:10, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Add link","إضافة رابط")}</button>
+          </div>
+        </div>
+
+        <div style={{ ...card, padding:0, overflow:"hidden", position:"sticky", top:14 }}>
+          <div style={{ fontSize:10, color:th.text3, padding:"10px 14px", borderBottom:`1px solid ${th.border}`, letterSpacing:0.5, textTransform:"uppercase" }}>{L("Live preview","معاينة حية")}</div>
+          <div style={{ background:"#0B0F16", padding:"26px 20px", minHeight:300 }}>
+            <div style={{ textAlign:"center" }}>
+              {row.avatar_url ? <img src={row.avatar_url} alt="" style={{ width:74, height:74, borderRadius:"50%", objectFit:"cover", margin:"0 auto 12px", display:"block", border:`2px solid ${row.accent}` }}/> : <div style={{ width:74, height:74, borderRadius:"50%", background:row.accent, margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:28, fontWeight:700 }}>{(row.title||"B")[0]}</div>}
+              <div style={{ fontSize:16, fontWeight:700, color:"#fff" }}>{row.title || L("Your brand","علامتك")}</div>
+              {row.bio && <div style={{ fontSize:11.5, color:"#9AA3AD", marginTop:5, lineHeight:1.5 }}>{row.bio}</div>}
+            </div>
+            <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:9 }}>
+              {(row.links||[]).filter(l=>l.label||l.url).length===0 ? <div style={{ textAlign:"center", fontSize:11, color:"#5C6470" }}>{L("Add a link to see it here","أضف رابطاً ليظهر هنا")}</div> :
+                (row.links||[]).filter(l=>l.label||l.url).map(l=>(
+                  <div key={l.id} style={{ padding:"11px", borderRadius:11, background:"rgba(255,255,255,0.06)", border:`1px solid ${row.accent}55`, color:"#fff", fontSize:12.5, fontWeight:600, textAlign:"center" }}>{l.label || l.url}</div>
+                ))}
+            </div>
+            {row.show_posts && <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:5 }}>{[0,1,2].map(i=><div key={i} style={{ aspectRatio:"1/1", borderRadius:7, background:"rgba(255,255,255,0.05)" }}/>)}</div>}
+            <div style={{ textAlign:"center", fontSize:9.5, color:"#5C6470", marginTop:16 }}>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Public link-in-bio page (tawaslo.com/bio/<slug>) ─────────────────
+function LinkInBioPage({ slug }) {
+  const [data, setData] = useState(undefined); // undefined=loading, null=not found
+  const [posts, setPosts] = useState([]);
+  useEffect(() => {
+    supabase.from('bio_pages').select('*').eq('slug', slug).limit(1).then(({ data }) => {
+      const row = data && data[0]; setData(row || null);
+      if (row && row.show_posts && row.client_id) {
+        supabase.from('posts').select('image_url,permalink,caption').eq('client_id', row.client_id).eq('status','published').order('published_at',{ascending:false}).limit(6)
+          .then(({ data:ps }) => { if (ps) setPosts(ps.filter(p=>p.image_url)); });
+      }
+    });
+  }, [slug]);
+
+  const click = (l) => { try { supabase.rpc('bump_bio_click', { p_slug:slug, p_link_id:l.id }); } catch (e) {} const u = /^https?:\/\//.test(l.url) ? l.url : 'https://' + l.url; window.open(u, '_blank', 'noopener'); };
+
+  const wrap = { minHeight:"100vh", background:"radial-gradient(1200px 600px at 50% -10%, #141B27 0%, #080B11 60%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", display:"flex", justifyContent:"center", padding:"40px 18px 60px", boxSizing:"border-box" };
+  if (data === undefined) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This page isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+  const accent = data.accent || "#7C83FF";
+  const links = (data.links||[]).filter(l=>l.url || l.label);
+
+  return (
+    <div style={wrap}>
+      <div style={{ width:440, maxWidth:"100%" }}>
+        <div style={{ textAlign:"center" }}>
+          {data.avatar_url ? <img src={data.avatar_url} alt="" style={{ width:92, height:92, borderRadius:"50%", objectFit:"cover", margin:"0 auto 14px", display:"block", border:`3px solid ${accent}` }}/> : <div style={{ width:92, height:92, borderRadius:"50%", background:accent, margin:"0 auto 14px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:36, fontWeight:700 }}>{(data.title||"B")[0]}</div>}
+          <div style={{ fontSize:21, fontWeight:700 }}>{data.title}</div>
+          {data.bio && <div style={{ fontSize:13, color:"#9AA3AD", marginTop:7, lineHeight:1.55, maxWidth:340, marginInline:"auto" }}>{data.bio}</div>}
+        </div>
+
+        <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:11 }}>
+          {links.map(l => (
+            <button key={l.id} onClick={()=>click(l)} style={{ width:"100%", padding:"15px", borderRadius:14, background:"rgba(255,255,255,0.06)", border:`1px solid ${accent}66`, color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", transition:"transform .12s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }} onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>{l.label || l.url}</button>
+          ))}
+        </div>
+
+        {data.show_posts && posts.length>0 && (
+          <div style={{ marginTop:26 }}>
+            <div style={{ fontSize:10.5, color:"#7E8794", letterSpacing:0.5, textTransform:"uppercase", marginBottom:10, textAlign:"center" }}>Latest posts</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
+              {posts.map((p,i)=>(
+                <a key={i} href={p.permalink||"#"} target="_blank" rel="noreferrer" style={{ aspectRatio:"1/1", borderRadius:9, overflow:"hidden", background:`center/cover url(${p.image_url})`, display:"block" }} title={p.caption||""}/>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:30 }}>
+          <a href="https://tawaslo.com" target="_blank" rel="noreferrer" style={{ color:"#5C6470", textDecoration:"none" }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientApprovalPage({ token }) {
   const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => { const f = () => setVw(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -9883,6 +10180,7 @@ export default function TawasloApp() {
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
+    if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;
@@ -9916,6 +10214,10 @@ export default function TawasloApp() {
   // Public shareable engagement report (tawaslo.com/r/<token>) — no login.
   const repMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
   if (repMatch) return <ClientReportPage token={repMatch[1]}/>;
+
+  // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
+  const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
+  if (bioMatch) return <LinkInBioPage slug={bioMatch[1]}/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;

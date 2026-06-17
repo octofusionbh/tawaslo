@@ -184,6 +184,29 @@ ${msgs}
 Return ONLY a JSON object (no markdown):
 { "sentiment": { "positive": <int>, "neutral": <int>, "negative": <int> }, "topics": [["short topic or question label", <int count>]], "loved": "<one short phrase: what people praised most>", "watch": "<one short phrase: an issue or request worth watching>" }
 The three sentiment percentages must be integers that sum to 100. Give up to 4 topics, most common first. Keep "loved" and "watch" under 8 words each.`;
+  } else if (theMode === 'strategy') {
+    // Content strategy generator — a brief becomes pillars, cadence and themes.
+    maxTokens = 1100;
+    const langRule = language === 'ar'
+      ? 'Write ALL text fields (names, descriptions, examples, themes, notes, summary) in Arabic.'
+      : 'Write all text fields in English.';
+    messageContent = `You are a senior social media strategist building a content strategy for a brand. ${langRule}
+
+Brand: ${brand || 'the brand'}
+Brief / goals: ${topic}
+${audience ? `Audience: ${audience}` : ''}
+${details ? `Extra context: ${details}` : ''}
+${platform ? `Primary platform: ${platformName}` : ''}
+
+Produce a practical, specific content strategy. Give 4 content pillars (each with a short name, a one-sentence description, and 2 concrete example post ideas), a recommended weekly cadence with a per-platform breakdown, 5 recurring content themes, and a one-line strategy summary.
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "summary": "one-line strategy summary",
+  "pillars": [ { "name": "Pillar name", "description": "one sentence", "examples": ["idea 1", "idea 2"] } ],
+  "cadence": { "postsPerWeek": 5, "byPlatform": [["Instagram", 3], ["Facebook", 2]], "note": "short cadence note" },
+  "themes": ["theme 1", "theme 2", "theme 3", "theme 4", "theme 5"]
+}`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
