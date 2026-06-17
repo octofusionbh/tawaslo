@@ -10265,6 +10265,51 @@ function TrialBanner() {
 // A hosted bio mini-page per client: link blocks + latest posts + click tracking.
 function slugify(s) { return String(s||'brand').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40) || 'brand'; }
 
+// Social-hub link definitions, shared by the bio builder and the public page.
+const SOCIAL_DEFS = [
+  { k:'instagram', Icon:FaInstagram, label:'Instagram', pre:'https://instagram.com/', color:'#E1306C' },
+  { k:'tiktok',    Icon:FaTiktok,    label:'TikTok',    pre:'https://tiktok.com/@',  color:'#69C9D0' },
+  { k:'whatsapp',  Icon:FaWhatsapp,  label:'WhatsApp',  pre:'wa',                    color:'#25D366' },
+  { k:'x',         Icon:FaTwitter,   label:'X',         pre:'https://x.com/',        color:'#7E8794' },
+  { k:'youtube',   Icon:FaYoutube,   label:'YouTube',   pre:'https://youtube.com/@', color:'#FF0000' },
+  { k:'facebook',  Icon:FaFacebook,  label:'Facebook',  pre:'https://facebook.com/', color:'#1877F2' },
+];
+const socialUrl = (def, v) => { if(!v) return null; const s=String(v).trim(); if(/^https?:\/\//.test(s)) return s; if(def.pre==='wa') return 'https://wa.me/'+s.replace(/[^0-9]/g,''); return def.pre + s.replace(/^@/,''); };
+const mapUrlFor = (addr) => addr ? 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addr) : null;
+
+// ── Bio-page theming — presets, fonts and button styles (better than Linktree). ──
+const BIO_THEMES = [
+  { k:'midnight', name:'Midnight', bg:'radial-gradient(1100px 560px at 50% -8%, #141B27 0%, #080B11 62%)', text:'#E8EFF8', sub:'#9AA3AD', card:'rgba(255,255,255,0.05)', dark:true },
+  { k:'mono',     name:'Mono',     bg:'#0A0A0A', text:'#FFFFFF', sub:'#9A9A9A', card:'rgba(255,255,255,0.06)', dark:true },
+  { k:'forest',   name:'Forest',   bg:'linear-gradient(165deg,#16302A,#0A1D18)', text:'#EAF4EF', sub:'#9DBBB0', card:'rgba(255,255,255,0.07)', dark:true },
+  { k:'ocean',    name:'Ocean',    bg:'linear-gradient(165deg,#0C3A52,#06202E)', text:'#E6F4FB', sub:'#9FC4D6', card:'rgba(255,255,255,0.07)', dark:true },
+  { k:'plum',     name:'Plum',     bg:'linear-gradient(165deg,#2C1A3A,#140C1E)', text:'#F1E8FA', sub:'#B9A6CC', card:'rgba(255,255,255,0.07)', dark:true },
+  { k:'cream',    name:'Cream',    bg:'#F4EEE4', text:'#2B2722', sub:'#7A736A', card:'rgba(0,0,0,0.04)', dark:false },
+  { k:'sand',     name:'Sand',     bg:'linear-gradient(165deg,#ECD9BC,#DCBC92)', text:'#3A2E1F', sub:'#6E5C45', card:'rgba(255,255,255,0.45)', dark:false },
+  { k:'rose',     name:'Rosé',     bg:'linear-gradient(165deg,#F6DCE3,#EAB9C8)', text:'#4A2330', sub:'#8A5566', card:'rgba(255,255,255,0.5)', dark:false },
+  { k:'sunset',   name:'Sunset',   bg:'linear-gradient(165deg,#F4A85C,#DB5570)', text:'#3A1726', sub:'#7A3247', card:'rgba(255,255,255,0.42)', dark:false },
+];
+const BIO_FONTS = [
+  { k:'sans',    name:'Sans',    stack:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif" },
+  { k:'rounded', name:'Rounded', stack:"'Trebuchet MS',Verdana,sans-serif" },
+  { k:'serif',   name:'Serif',   stack:"Georgia,'Times New Roman',serif" },
+  { k:'mono',    name:'Mono',    stack:"'Courier New',monospace" },
+];
+const BIO_BTNS = [ {k:'soft',name:'Soft'}, {k:'filled',name:'Filled'}, {k:'outline',name:'Outline'}, {k:'pill',name:'Pill'} ];
+const resolveBioTheme = (row) => {
+  const t = (row && row.hub && row.hub.theme) || {};
+  const preset = BIO_THEMES.find(x=>x.k===t.preset) || BIO_THEMES[0];
+  const font = (BIO_FONTS.find(x=>x.k===t.font) || BIO_FONTS[0]).stack;
+  const btn = t.btn || 'soft';
+  const accent = (row && row.accent) || '#7C83FF';
+  const radius = btn==='pill' ? 999 : 14;
+  let btnStyle;
+  if (btn==='filled') btnStyle = { background:accent, border:`1px solid ${accent}`, color:'#fff', borderRadius:radius };
+  else if (btn==='outline') btnStyle = { background:'transparent', border:`1.5px solid ${preset.dark?'rgba(255,255,255,0.45)':'rgba(0,0,0,0.28)'}`, color:preset.text, borderRadius:radius };
+  else btnStyle = { background:preset.card, border:`1px solid ${accent}66`, color:preset.text, borderRadius:radius };
+  return { preset, font, accent, btn, btnStyle };
+};
+
 function LinkInBioBuilderPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -10286,16 +10331,20 @@ function LinkInBioBuilderPage() {
       setLoading(false);
     });
   }, [cid, selClient]);
-  const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + String(cid||'').slice(0,4), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [] });
+  const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + String(cid||'').slice(0,4), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [], hub: {} });
 
   const set = (k, v) => setRow(r => ({ ...r, [k]: v }));
+  const setHub = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), [k]: v } }));
+  const setSocial = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), socials: { ...((r.hub||{}).socials||{}), [k]: v } } }));
+  const setTheme = (k, v) => setRow(r => ({ ...r, hub: { ...(r.hub||{}), theme: { ...((r.hub||{}).theme||{}), [k]: v } } }));
+  const PT = resolveBioTheme(row || {});
   const addLink = () => set('links', [ ...(row.links||[]), { id:'l'+Date.now(), label:"", url:"", clicks:0 } ]);
   const setLink = (id, k, v) => set('links', (row.links||[]).map(l => l.id===id ? { ...l, [k]:v } : l));
   const delLink = (id) => set('links', (row.links||[]).filter(l => l.id!==id));
 
   const save = async () => {
     if (!row || saving) return; setSaving(true);
-    const payload = { client_id:cid, slug:row.slug, title:row.title, bio:row.bio, avatar_url:row.avatar_url, accent:row.accent, show_posts:row.show_posts, links:row.links||[], updated_at:new Date().toISOString() };
+    const payload = { client_id:cid, slug:row.slug, title:row.title, bio:row.bio, avatar_url:row.avatar_url, accent:row.accent, show_posts:row.show_posts, links:row.links||[], hub:row.hub||{}, updated_at:new Date().toISOString() };
     let res;
     if (row.id) res = await supabase.from('bio_pages').update(payload).eq('id', row.id).select();
     else res = await supabase.from('bio_pages').insert([payload]).select();
@@ -10361,24 +10410,61 @@ function LinkInBioBuilderPage() {
             ))}
             <button onClick={addLink} style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:4, padding:"8px 14px", borderRadius:10, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Add link","إضافة رابط")}</button>
           </div>
+
+          <div style={card}>
+            <div style={{ fontSize:12, color:th.text2, marginBottom:10 }}>{L("Socials, location & hours","التواصل والموقع والساعات")}</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+              {SOCIAL_DEFS.map(s => (
+                <div key={s.k} style={{ display:"flex", alignItems:"center", gap:7, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 9px" }}>
+                  <s.Icon style={{ fontSize:14, color:s.color, flexShrink:0 }}/>
+                  <input value={(row.hub?.socials?.[s.k])||""} onChange={e=>setSocial(s.k, e.target.value)} placeholder={s.k==='whatsapp'?L("number","الرقم"):L("handle or link","المعرّف أو الرابط")} style={{ flex:1, minWidth:0, background:"transparent", border:"none", color:th.text, fontSize:11.5, outline:"none" }}/>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginBottom:10 }}><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Location / address","الموقع / العنوان")}</div><input value={row.hub?.location||""} onChange={e=>setHub('location', e.target.value)} placeholder={L("e.g. Juffair, Fontana Tower","مثلاً: الجفير، برج فونتانا")} style={inp}/></div>
+            <div><div style={{ fontSize:10.5, color:th.text3, marginBottom:5 }}>{L("Hours","ساعات العمل")}</div><input value={row.hub?.hours||""} onChange={e=>setHub('hours', e.target.value)} placeholder={L("e.g. Daily 8am – 11pm","مثلاً: يومياً 8ص – 11م")} style={inp}/></div>
+          </div>
+
+          <div style={card}>
+            <div style={{ fontSize:12, color:th.text2, marginBottom:10 }}>{L("Theme","المظهر")}</div>
+            <div style={{ fontSize:10.5, color:th.text3, marginBottom:7 }}>{L("Background","الخلفية")}</div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+              {BIO_THEMES.map(t=>{ const on=((row.hub?.theme?.preset)||'midnight')===t.k; return (
+                <button key={t.k} onClick={()=>setTheme('preset', t.k)} title={t.name} style={{ width:36, height:36, borderRadius:9, background:t.bg, border:on?`2.5px solid ${th.accent}`:`1px solid ${th.border}`, cursor:"pointer" }}/>
+              ); })}
+            </div>
+            <div style={{ fontSize:10.5, color:th.text3, marginBottom:7 }}>{L("Font","الخط")}</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+              {BIO_FONTS.map(f=>{ const on=((row.hub?.theme?.font)||'sans')===f.k; return (
+                <button key={f.k} onClick={()=>setTheme('font', f.k)} style={{ padding:"6px 13px", borderRadius:8, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2, fontSize:12, fontFamily:f.stack, cursor:"pointer" }}>{f.name}</button>
+              ); })}
+            </div>
+            <div style={{ fontSize:10.5, color:th.text3, marginBottom:7 }}>{L("Button style","شكل الأزرار")}</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {BIO_BTNS.map(b=>{ const on=((row.hub?.theme?.btn)||'soft')===b.k; return (
+                <button key={b.k} onClick={()=>setTheme('btn', b.k)} style={{ padding:"6px 13px", borderRadius:b.k==='pill'?999:8, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2, fontSize:11.5, cursor:"pointer" }}>{b.name}</button>
+              ); })}
+            </div>
+          </div>
         </div>
 
         <div style={{ ...card, padding:0, overflow:"hidden", position:"sticky", top:14 }}>
           <div style={{ fontSize:10, color:th.text3, padding:"10px 14px", borderBottom:`1px solid ${th.border}`, letterSpacing:0.5, textTransform:"uppercase" }}>{L("Live preview","معاينة حية")}</div>
-          <div style={{ background:"#0B0F16", padding:"26px 20px", minHeight:300 }}>
+          <div style={{ background:PT.preset.bg, fontFamily:PT.font, padding:"26px 20px", minHeight:300 }}>
             <div style={{ textAlign:"center" }}>
               {row.avatar_url ? <img src={row.avatar_url} alt="" style={{ width:74, height:74, borderRadius:"50%", objectFit:"cover", margin:"0 auto 12px", display:"block", border:`2px solid ${row.accent}` }}/> : <div style={{ width:74, height:74, borderRadius:"50%", background:row.accent, margin:"0 auto 12px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:28, fontWeight:700 }}>{(row.title||"B")[0]}</div>}
-              <div style={{ fontSize:16, fontWeight:700, color:"#fff" }}>{row.title || L("Your brand","علامتك")}</div>
-              {row.bio && <div style={{ fontSize:11.5, color:"#9AA3AD", marginTop:5, lineHeight:1.5 }}>{row.bio}</div>}
+              <div style={{ fontSize:16, fontWeight:700, color:PT.preset.text }}>{row.title || L("Your brand","علامتك")}</div>
+              {row.bio && <div style={{ fontSize:11.5, color:PT.preset.sub, marginTop:5, lineHeight:1.5 }}>{row.bio}</div>}
+              {(()=>{ const ss=(row.hub?.socials)||{}; const active=SOCIAL_DEFS.filter(s=>ss[s.k]); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:13, marginTop:11 }}>{active.map(s=>{ const Ic=s.Icon; return <Ic key={s.k} style={{ fontSize:17, color:PT.preset.text }}/>; })}</div> : null; })()}
             </div>
             <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:9 }}>
-              {(row.links||[]).filter(l=>l.label||l.url).length===0 ? <div style={{ textAlign:"center", fontSize:11, color:"#5C6470" }}>{L("Add a link to see it here","أضف رابطاً ليظهر هنا")}</div> :
+              {(row.links||[]).filter(l=>l.label||l.url).length===0 ? <div style={{ textAlign:"center", fontSize:11, color:PT.preset.sub }}>{L("Add a link to see it here","أضف رابطاً ليظهر هنا")}</div> :
                 (row.links||[]).filter(l=>l.label||l.url).map(l=>(
-                  <div key={l.id} style={{ padding:"11px", borderRadius:11, background:"rgba(255,255,255,0.06)", border:`1px solid ${row.accent}55`, color:"#fff", fontSize:12.5, fontWeight:600, textAlign:"center" }}>{l.label || l.url}</div>
+                  <div key={l.id} style={{ padding:"11px", ...PT.btnStyle, fontSize:12.5, fontWeight:600, textAlign:"center" }}>{l.label || l.url}</div>
                 ))}
             </div>
-            {row.show_posts && <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:5 }}>{[0,1,2].map(i=><div key={i} style={{ aspectRatio:"1/1", borderRadius:7, background:"rgba(255,255,255,0.05)" }}/>)}</div>}
-            <div style={{ textAlign:"center", fontSize:9.5, color:"#5C6470", marginTop:16 }}>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
+            {row.show_posts && <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:5 }}>{[0,1,2].map(i=><div key={i} style={{ aspectRatio:"1/1", borderRadius:7, background:PT.preset.card }}/>)}</div>}
+            <div style={{ textAlign:"center", fontSize:9.5, color:PT.preset.sub, marginTop:16 }}>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
           </div>
         </div>
       </div>
@@ -10405,27 +10491,37 @@ function LinkInBioPage({ slug }) {
   const wrap = { minHeight:"100vh", background:"radial-gradient(1200px 600px at 50% -10%, #141B27 0%, #080B11 60%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", display:"flex", justifyContent:"center", padding:"40px 18px 60px", boxSizing:"border-box" };
   if (data === undefined) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
   if (data === null) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This page isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
-  const accent = data.accent || "#7C83FF";
+  const TH = resolveBioTheme(data);
+  const accent = TH.accent;
   const links = (data.links||[]).filter(l=>l.url || l.label);
+  const wrapT = { ...wrap, background:TH.preset.bg, color:TH.preset.text, fontFamily:TH.font };
 
   return (
-    <div style={wrap}>
+    <div style={wrapT}>
       <div style={{ width:440, maxWidth:"100%" }}>
         <div style={{ textAlign:"center" }}>
           {data.avatar_url ? <img src={data.avatar_url} alt="" style={{ width:92, height:92, borderRadius:"50%", objectFit:"cover", margin:"0 auto 14px", display:"block", border:`3px solid ${accent}` }}/> : <div style={{ width:92, height:92, borderRadius:"50%", background:accent, margin:"0 auto 14px", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:36, fontWeight:700 }}>{(data.title||"B")[0]}</div>}
           <div style={{ fontSize:21, fontWeight:700 }}>{data.title}</div>
-          {data.bio && <div style={{ fontSize:13, color:"#9AA3AD", marginTop:7, lineHeight:1.55, maxWidth:340, marginInline:"auto" }}>{data.bio}</div>}
+          {data.bio && <div style={{ fontSize:13, color:TH.preset.sub, marginTop:7, lineHeight:1.55, maxWidth:340, marginInline:"auto" }}>{data.bio}</div>}
+          {(()=>{ const ss=(data.hub&&data.hub.socials)||{}; const active=SOCIAL_DEFS.map(s=>({s,url:socialUrl(s,ss[s.k])})).filter(x=>x.url); return active.length? <div style={{ display:"flex", justifyContent:"center", gap:16, marginTop:14 }}>{active.map(({s,url})=>{ const Ic=s.Icon; return <a key={s.k} href={url} target="_blank" rel="noreferrer" aria-label={s.label} style={{ color:TH.preset.text, display:"flex" }}><Ic style={{ fontSize:22 }}/></a>; })}</div> : null; })()}
         </div>
 
         <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:11 }}>
           {links.map(l => (
-            <button key={l.id} onClick={()=>click(l)} style={{ width:"100%", padding:"15px", borderRadius:14, background:"rgba(255,255,255,0.06)", border:`1px solid ${accent}66`, color:"#fff", fontSize:14, fontWeight:600, cursor:"pointer", transition:"transform .12s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }} onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>{l.label || l.url}</button>
+            <button key={l.id} onClick={()=>click(l)} style={{ width:"100%", padding:"15px", ...TH.btnStyle, fontSize:14, fontWeight:600, cursor:"pointer", transition:"transform .12s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }} onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>{l.label || l.url}</button>
           ))}
         </div>
 
+        {(()=>{ const hub=data.hub||{}; if(!hub.location && !hub.hours) return null; return (
+          <div style={{ marginTop:18, background:TH.preset.card, border:`1px solid ${accent}33`, borderRadius:14, padding:"13px 15px" }}>
+            {hub.location && <a href={mapUrlFor(hub.location)} target="_blank" rel="noreferrer" style={{ display:"flex", alignItems:"center", gap:9, textDecoration:"none", color:TH.preset.text }}><Globe size={15} color={accent}/><span style={{ flex:1, fontSize:12.5 }}>{hub.location}</span><ArrowUpRight size={14} color={TH.preset.sub}/></a>}
+            {hub.hours && <div style={{ display:"flex", alignItems:"center", gap:9, marginTop:hub.location?9:0, color:TH.preset.sub }}><Clock size={15} color={accent}/><span style={{ fontSize:12.5 }}>{hub.hours}</span></div>}
+          </div>
+        ); })()}
+
         {data.show_posts && posts.length>0 && (
           <div style={{ marginTop:26 }}>
-            <div style={{ fontSize:10.5, color:"#7E8794", letterSpacing:0.5, textTransform:"uppercase", marginBottom:10, textAlign:"center" }}>Latest posts</div>
+            <div style={{ fontSize:10.5, color:TH.preset.sub, letterSpacing:0.5, textTransform:"uppercase", marginBottom:10, textAlign:"center" }}>Latest posts</div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6 }}>
               {posts.map((p,i)=>(
                 <a key={i} href={p.permalink||"#"} target="_blank" rel="noreferrer" style={{ aspectRatio:"1/1", borderRadius:9, overflow:"hidden", background:`center/cover url(${p.image_url})`, display:"block" }} title={p.caption||""}/>
@@ -10434,8 +10530,8 @@ function LinkInBioPage({ slug }) {
           </div>
         )}
 
-        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:30 }}>
-          <a href="https://tawaslo.com" target="_blank" rel="noreferrer" style={{ color:"#5C6470", textDecoration:"none" }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></a>
+        <div style={{ textAlign:"center", fontSize:11, color:TH.preset.sub, marginTop:30, opacity:0.85 }}>
+          <a href="https://tawaslo.com" target="_blank" rel="noreferrer" style={{ color:TH.preset.sub, textDecoration:"none" }}>Powered by <span style={{ fontWeight:600 }}>Tawaslo</span></a>
         </div>
       </div>
     </div>
