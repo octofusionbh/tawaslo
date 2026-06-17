@@ -4006,6 +4006,200 @@ const matchedNicheDays = (productsStr) => {
     .map(o => { const dt = nextOccurrence(o.md); return { ...o, dObj:dt, days:Math.round((dt-now)/86400000), niche:true }; });
 };
 
+// Evergreen recycling — a pool of your best posts that refills the calendar so it never goes empty.
+function EvergreenModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
+  const [cands, setCands] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [weeks, setWeeks] = useState(4);
+  const [perWeek, setPerWeek] = useState(3);
+  const [busy, setBusy] = useState(false);
+  const [filled, setFilled] = useState(null);
+
+  useEffect(() => {
+    if (!clientId) { setLoading(false); return; }
+    supabase.from('posts').select('id,caption,image_url,evergreen,status,scheduled_at').eq('client_id', clientId).not('image_url','is',null).order('created_at',{ascending:false}).limit(60)
+      .then(({ data }) => { setCands(data||[]); setLoading(false); }, () => setLoading(false));
+  }, [clientId]);
+
+  const pool = cands.filter(c => c.evergreen);
+  const toggle = async (c) => {
+    const nv = !c.evergreen;
+    setCands(prev => prev.map(x => x.id===c.id ? { ...x, evergreen:nv } : x));
+    try { await supabase.from('posts').update({ evergreen:nv }).eq('id', c.id); } catch (e) { /* needs the evergreen column */ }
+  };
+
+  const DAYS = [1,3,5]; // Mon, Wed, Fri
+  const refill = async () => {
+    if (!pool.length || busy) return; setBusy(true);
+    const def = (accounts||[]).find(a=>a.platform==='ig') || (accounts||[])[0] || {};
+    const taken = new Set(cands.filter(c=>c.status!=='published' && c.scheduled_at).map(c=>new Date(c.scheduled_at).toDateString()));
+    const now = new Date(); now.setHours(0,0,0,0);
+    const target = weeks * perWeek;
+    const pickDays = DAYS.slice(0, Math.min(perWeek, 3));
+    const slots = [];
+    for (let d=1; d<=weeks*7 && slots.length<target; d++){ const dt=new Date(now); dt.setDate(now.getDate()+d); if (pickDays.includes(dt.getDay()) && !taken.has(dt.toDateString())) { dt.setHours(13,0,0,0); slots.push(dt); taken.add(dt.toDateString()); } }
+    let pi=0, ok=0;
+    for (const slot of slots) { const src = pool[pi%pool.length]; pi++; const row={ client_id:clientId, platform:def.platform||'ig', account_id:def.account_id||null, caption:src.caption, image_url:src.image_url, status:'scheduled', scheduled_at:slot.toISOString() }; try { const { error } = await supabase.from('posts').insert([row]); if(!error) ok++; } catch(e){} }
+    setBusy(false); setFilled(ok); setTimeout(()=>onDone(), 1100);
+  };
+
+  const stepper = (val, set, min, max) => (
+    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+      <button onClick={()=>set(n=>Math.max(min,n-1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>−</button>
+      <span className="tw-num" style={{ fontSize:14, fontWeight:600, minWidth:18, textAlign:"center" }}>{val}</span>
+      <button onClick={()=>set(n=>Math.min(max,n+1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>+</button>
+    </div>
+  );
+
+  return createPortal((
+    <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><RefreshCw size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Evergreen recycling","إعادة تدوير دائم")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Keep the calendar full with your best posts","حافظ على امتلاء التقويم بأفضل منشوراتك")}</div></div></div>
+          <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
+        </div>
+
+        {filled != null ? (
+          <div style={{ padding:"44px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.successSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={22} color={th.success}/></div>
+            <div style={{ fontSize:14.5, fontWeight:600 }}>{L("Refilled","تمت التعبئة")} <span className="tw-num">{filled}</span> {L("slots","فترة")}</div>
+          </div>
+        ) : busy ? (
+          <div style={{ padding:"44px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><RefreshCw size={22} color={th.accent}/></div>
+            <div style={{ fontSize:14, fontWeight:600 }}>{L("Refilling the calendar…","جارٍ تعبئة التقويم…")}</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding:"14px 20px 0", fontSize:11.5, color:th.text2, lineHeight:1.55 }}>{L("Tap your best posts to add them to the evergreen pool, then refill upcoming open days with them.","اضغط أفضل منشوراتك لإضافتها إلى المجموعة الدائمة، ثم عبّئ الأيام القادمة الفارغة بها.")}</div>
+            <div style={{ flex:1, overflowY:"auto", padding:"12px 20px" }}>
+              {loading ? <div style={{ fontSize:12.5, color:th.text3, padding:"20px 0" }}>{L("Loading…","جارٍ التحميل…")}</div>
+              : cands.length === 0 ? <div style={{ fontSize:12.5, color:th.text2, padding:"20px 0", textAlign:"center" }}>{L("Publish or schedule some posts with images first.","انشر أو جدوِل منشورات بصور أولاً.")}</div>
+              : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(96px,1fr))", gap:8 }}>
+                  {cands.map(c => (
+                    <div key={c.id} onClick={()=>toggle(c)} title={c.caption||""} style={{ position:"relative", aspectRatio:"1/1", borderRadius:10, overflow:"hidden", cursor:"pointer", background:`center/cover url(${c.image_url})`, boxShadow:c.evergreen?`0 0 0 2.5px ${th.accent}`:"none" }}>
+                      {c.evergreen && <span style={{ position:"absolute", top:5, right:5, width:20, height:20, borderRadius:"50%", background:th.accent, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><RefreshCw size={11}/></span>}
+                      {!c.evergreen && <div style={{ position:"absolute", inset:0, background:"rgba(8,12,20,0.25)" }}/>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ padding:"13px 20px", borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+              <div style={{ fontSize:11.5, color:th.text2 }}><span className="tw-num">{pool.length}</span> {L("in pool","في المجموعة")}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}><span style={{ fontSize:11, color:th.text3 }}>{L("weeks","أسابيع")}</span>{stepper(weeks, setWeeks, 1, 12)}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}><span style={{ fontSize:11, color:th.text3 }}>{L("per week","أسبوعياً")}</span>{stepper(perWeek, setPerWeek, 1, 3)}</div>
+              <button onClick={refill} disabled={!pool.length} style={{ marginInlineStart:"auto", display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:pool.length?"pointer":"not-allowed", opacity:pool.length?1:0.5 }}><RefreshCw size={15}/>{L("Refill calendar","عبّئ التقويم")}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body);
+}
+
+// Bulk CSV scheduler — drop a spreadsheet of captions + dates and schedule a whole batch at once.
+function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
+  const [rows, setRows] = useState([]);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [doneCount, setDoneCount] = useState(null);
+  const TEMPLATE = "caption,date,time,image_url,platform\nNew summer menu is live!,2026-06-25,12:00,,ig\nWeekend brunch — book now,2026-06-27,18:00,,ig\nMidweek treat 🍰,2026-07-01,13:00,,ig\n";
+
+  const splitLine = (l) => { const out=[]; let cur="", q=false; for (let i=0;i<l.length;i++){ const c=l[i]; if (q){ if(c==='"'){ if(l[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; } else { if(c==='"') q=true; else if(c===',') { out.push(cur); cur=""; } else cur+=c; } } out.push(cur); return out.map(s=>s.trim()); };
+  const parseCSV = (txt) => {
+    const lines = (txt||"").split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return [];
+    const header = splitLine(lines[0]).map(h=>h.toLowerCase());
+    const known = ['caption','date','time','image_url','image','platform','url'];
+    const hasHeader = header.some(h => known.includes(h));
+    const cols = hasHeader ? header : ['caption','date','time'];
+    const data = hasHeader ? lines.slice(1) : lines;
+    return data.map(l => { const cells = splitLine(l); const r = {}; cols.forEach((c,i)=>{ r[c]=cells[i]||""; });
+      const date=(r.date||"").trim(), time=(r.time||"").trim()||"12:00";
+      const dt = new Date(`${date}T${time}`);
+      return { caption:r.caption||"", date, time, image_url:r.image_url||r.image||r.url||"", platform:(r.platform||"").toLowerCase(), valid: !!(r.caption && date && !isNaN(dt.getTime())), dt }; })
+      .filter(r => r.caption);
+  };
+  const onFile = (f) => { if (!f) return; const rd = new FileReader(); rd.onload = () => { setText(String(rd.result)); setRows(parseCSV(String(rd.result))); }; rd.readAsText(f); };
+  const dlTemplate = () => { try { const blob = new Blob([TEMPLATE], { type:'text/csv' }); const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = 'tawaslo-bulk-template.csv'; a.click(); URL.revokeObjectURL(u); } catch (e) {} };
+  const validRows = rows.filter(r => r.valid);
+
+  const schedule = async () => {
+    if (!clientId || busy || !validRows.length) return;
+    setBusy(true);
+    const def = (accounts||[]).find(a=>a.platform==='ig') || (accounts||[])[0] || {};
+    let ok = 0;
+    for (const r of validRows) {
+      const plat = r.platform || def.platform || 'ig';
+      const acc = (accounts||[]).find(a=>a.platform===plat) || def;
+      const row = { client_id:clientId, platform:plat, account_id:acc.account_id||null, caption:r.caption, image_url:r.image_url||null, status:'scheduled', scheduled_at:r.dt.toISOString() };
+      try { const { error } = await supabase.from('posts').insert([row]); if (!error) ok++; } catch (e) { /* ignore */ }
+    }
+    setBusy(false); setDoneCount(ok); setTimeout(() => onDone(), 900);
+  };
+
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 12px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" };
+
+  return createPortal((
+    <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><FileText size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Bulk schedule from CSV","جدولة جماعية من ملف CSV")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Upload a spreadsheet of posts","ارفع جدولاً بالمنشورات")}</div></div></div>
+          <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
+        </div>
+
+        {doneCount != null ? (
+          <div style={{ padding:"44px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.successSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={22} color={th.success}/></div>
+            <div style={{ fontSize:14.5, fontWeight:600 }}><span className="tw-num">{doneCount}</span> {L("posts scheduled","منشور مجدول")}</div>
+          </div>
+        ) : busy ? (
+          <div style={{ padding:"44px 24px", textAlign:"center" }}>
+            <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Calendar size={22} color={th.accent}/></div>
+            <div style={{ fontSize:14, fontWeight:600 }}>{L("Scheduling your posts…","جارٍ جدولة منشوراتك…")}</div>
+          </div>
+        ) : rows.length === 0 ? (
+          <div style={{ padding:"18px 20px", overflowY:"auto" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ fontSize:12, color:th.text2 }}>{L("Columns: caption, date (YYYY-MM-DD), time, image_url, platform","الأعمدة: caption, date, time, image_url, platform")}</div>
+              <button onClick={dlTemplate} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600, color:th.accent, background:"none", border:"none", cursor:"pointer" }}><Download size={12}/>{L("Template","قالب")}</button>
+            </div>
+            <label style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, padding:"24px", border:`1.5px dashed ${th.border}`, borderRadius:12, cursor:"pointer", marginBottom:14 }}>
+              <FileText size={22} color={th.accent}/>
+              <div style={{ fontSize:13, fontWeight:600 }}>{L("Choose a .csv file","اختر ملف .csv")}</div>
+              <div style={{ fontSize:11, color:th.text3 }}>{L("or paste rows below","أو الصق الصفوف بالأسفل")}</div>
+              <input type="file" accept=".csv,text/csv" style={{ display:"none" }} onChange={e=>onFile(e.target.files && e.target.files[0])}/>
+            </label>
+            <textarea value={text} onChange={e=>{ setText(e.target.value); }} placeholder={"caption,date,time\n" + L("New post!,2026-06-25,12:00","منشور جديد!,2026-06-25,12:00")} rows={5} style={{ ...inp, resize:"vertical", lineHeight:1.5, fontFamily:"monospace", fontSize:11.5 }}/>
+            <button onClick={()=>setRows(parseCSV(text))} disabled={!text.trim()} style={{ width:"100%", marginTop:12, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:text.trim()?"pointer":"not-allowed", opacity:text.trim()?1:0.5 }}>{L("Preview posts","معاينة المنشورات")}</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding:"12px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <div style={{ fontSize:13, fontWeight:600 }}><span className="tw-num">{validRows.length}</span> {L("ready","جاهز")}{rows.length>validRows.length && <span style={{ color:th.danger, fontWeight:400 }}> · <span className="tw-num">{rows.length-validRows.length}</span> {L("skipped (bad date)","مُتجاهَل (تاريخ خاطئ)")}</span>}</div>
+              <button onClick={()=>{ setRows([]); }} style={{ fontSize:11.5, color:th.accent, background:"none", border:"none", cursor:"pointer" }}>{L("← Back","← رجوع")}</button>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:"10px 20px" }}>
+              {rows.map((r,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 0", borderBottom:i<rows.length-1?`1px solid ${th.border}`:"none", opacity:r.valid?1:0.5 }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:r.valid?th.success:th.danger, flexShrink:0 }}/>
+                  <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.caption}</div><div style={{ fontSize:10.5, color:th.text3 }}>{r.valid ? <span className="tw-num">{r.dt.toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" })} · {r.time}</span> : L("invalid date","تاريخ غير صالح")} · {(r.platform||'ig').toUpperCase()}</div></div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"13px 20px", borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:12 }}>
+              <div style={{ flex:1, fontSize:11.5, color:th.text2 }}>{L("All scheduled as drafts you can still edit.","تُجدول كمسودات يمكنك تعديلها.")}</div>
+              <button onClick={schedule} disabled={!validRows.length} style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:validRows.length?1:0.5 }}><Calendar size={15}/>{L("Schedule","جدولة")} <span className="tw-num">{validRows.length}</span></button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  ), document.body);
+}
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -4014,6 +4208,8 @@ function CalendarPage() {
   const [view, setView] = useState("list");
   const [planOpen, setPlanOpen] = useState(false);
   const [strategyOpen, setStrategyOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [evergreenOpen, setEvergreenOpen] = useState(false);
   const [loadingP, setLoadingP] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
@@ -4216,6 +4412,8 @@ function CalendarPage() {
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
+          <button onClick={()=>setEvergreenOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><RefreshCw size={14} color={th.accent}/>{L("Evergreen","دائم الخضرة")}</button>
+          <button onClick={()=>setBulkOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><FileText size={14} color={th.accent}/>{L("Bulk","رفع جماعي")}</button>
           <button onClick={()=>setStrategyOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Sparkles size={14} color={th.accent}/>{L("Strategy","الاستراتيجية")}</button>
           <button onClick={()=>setPlanOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Wand2 size={14}/>{L("Plan month","خطّط الشهر")}</button>
           <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>{L("New post","منشور جديد")}</button>
@@ -4251,6 +4449,8 @@ function CalendarPage() {
         </div>
       </div>
       {strategyOpen && <StrategyModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} isAR={isAR} onClose={()=>setStrategyOpen(false)} onUseInPlan={()=>{ setStrategyOpen(false); setPlanOpen(true); }}/>}
+      {bulkOpen && <BulkUploadModal clientId={realClientId} accounts={accounts} th={th} L={L} isAR={isAR} onClose={()=>setBulkOpen(false)} onDone={()=>{ setBulkOpen(false); loadPosts(); }}/>}
+      {evergreenOpen && <EvergreenModal clientId={realClientId} accounts={accounts} th={th} L={L} isAR={isAR} onClose={()=>setEvergreenOpen(false)} onDone={()=>{ setEvergreenOpen(false); loadPosts(); }}/>}
 
       {/* Filter bar — platform + status, with a persistent Today */}
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 13px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
