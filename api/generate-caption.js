@@ -3,7 +3,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { topic, platform, tone, lang, audience, details, brand, mode, count, imageUrl } = req.body;
+  const { topic, platform, tone, lang, audience, details, brand, mode, count, imageUrl, dialect } = req.body;
+
+  // Arabic dialect control — a real differentiator for the GCC/MENA market.
+  const DIALECTS = {
+    gulf: 'Write the Arabic in natural Gulf (Khaleeji) dialect, as spoken in Bahrain, Saudi, UAE, Kuwait, Qatar and Oman.',
+    saudi: 'Write the Arabic in natural Saudi dialect.',
+    egyptian: 'Write the Arabic in natural Egyptian dialect.',
+    levantine: 'Write the Arabic in natural Levantine (Shami) dialect.',
+    msa: 'Write the Arabic in clean Modern Standard Arabic (fusha).',
+  };
+  const dialectInstruction = (dialect && DIALECTS[dialect]) ? ' ' + DIALECTS[dialect] : '';
 
   const platformNames = {
     ig: 'Instagram', fb: 'Facebook', tw: 'Twitter/X',
@@ -187,9 +197,9 @@ The three sentiment percentages must be integers that sum to 100. Give up to 4 t
   } else if (theMode === 'strategy') {
     // Content strategy generator — a brief becomes pillars, cadence and themes.
     maxTokens = 1100;
-    const langRule = language === 'ar'
+    const langRule = (language === 'ar'
       ? 'Write ALL text fields (names, descriptions, examples, themes, notes, summary) in Arabic.'
-      : 'Write all text fields in English.';
+      : 'Write all text fields in English.') + (language !== 'en' ? dialectInstruction : '');
     messageContent = `You are a senior social media strategist building a content strategy for a brand. ${langRule}
 
 Brand: ${brand || 'the brand'}
@@ -214,11 +224,11 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
       ? '{\n  "english": "",\n  "arabic": "النص العربي مع إيموجي وهاشتاق مناسب"\n}'
       : '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": "النص العربي مع إيموجي وهاشتاق مناسب"\n}';
 
-    const langInstruction = language === 'en'
+    const langInstruction = (language === 'en'
       ? 'Generate the caption in English only. Leave "arabic" as an empty string.'
       : language === 'ar'
       ? 'Generate the caption in Arabic only. Leave "english" as an empty string.'
-      : 'Generate captions in BOTH English and Arabic.';
+      : 'Generate captions in BOTH English and Arabic.') + (language !== 'en' ? dialectInstruction : '');
 
     // Optional brand voice — when the client has a trained voice and the toggle is on,
     // condition the caption on it so it sounds like that brand, consistently.

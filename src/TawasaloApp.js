@@ -3929,6 +3929,62 @@ function StrategyModal({ clientId, clientName, th, L, isAR, onClose, onUseInPlan
   ), document.body);
 }
 
+// GCC / Hijri occasion calendar — Ramadan, Eid, Islamic dates and Gulf National Days.
+// Dates are approximate (lunar dates depend on moon sighting) and meant for planning ahead.
+const GCC_OCCASIONS = [
+  { en:"Islamic New Year",        ar:"رأس السنة الهجرية",   date:"2026-06-26", kind:"islamic" },
+  { en:"Ashura",                  ar:"عاشوراء",             date:"2026-07-05", kind:"islamic" },
+  { en:"Prophet's Birthday",      ar:"المولد النبوي",       date:"2026-09-04", kind:"islamic" },
+  { en:"Saudi National Day",      ar:"اليوم الوطني السعودي", date:"2026-09-23", kind:"national" },
+  { en:"Oman National Day",       ar:"العيد الوطني العماني", date:"2026-11-18", kind:"national" },
+  { en:"UAE National Day",        ar:"اليوم الوطني الإماراتي", date:"2026-12-02", kind:"national" },
+  { en:"Bahrain National Day",    ar:"اليوم الوطني البحريني", date:"2026-12-16", kind:"national" },
+  { en:"Qatar National Day",      ar:"اليوم الوطني القطري",   date:"2026-12-18", kind:"national" },
+  { en:"Kuwait National Day",     ar:"اليوم الوطني الكويتي",  date:"2027-02-25", kind:"national" },
+  { en:"Ramadan begins",          ar:"بداية رمضان",          date:"2027-02-18", kind:"ramadan" },
+  { en:"Eid al-Fitr",             ar:"عيد الفطر",            date:"2027-03-20", kind:"eid" },
+  { en:"Eid al-Adha",             ar:"عيد الأضحى",           date:"2027-05-27", kind:"eid" },
+];
+const upcomingOccasions = (n = 4) => {
+  const now = new Date(); now.setHours(0,0,0,0);
+  return GCC_OCCASIONS.map(o => ({ ...o, dObj:new Date(o.date + "T00:00:00") }))
+    .filter(o => o.dObj >= now).sort((a,b) => a.dObj - b.dObj).slice(0, n)
+    .map(o => ({ ...o, days: Math.round((o.dObj - now) / 86400000) }));
+};
+
+// Niche "national days" matched to what a client sells (F&B, hospitality, retail, beauty…).
+// Annual dates (MM-DD); some are approximate. Matched against the client's products keywords.
+const NICHE_DAYS = [
+  { en:"International Coffee Day",  ar:"اليوم العالمي للقهوة",   md:"10-01", tags:["coffee","cafe","café","espresso","latte","barista","roastery"] },
+  { en:"National Bagel Day",       ar:"يوم الخبز الحلقي",        md:"01-15", tags:["bagel","bakery","breakfast","bread"] },
+  { en:"World Croissant Day",      ar:"يوم الكرواسون",          md:"01-30", tags:["croissant","bakery","pastry","french"] },
+  { en:"World Baking Day",         ar:"يوم الخبز",              md:"05-17", tags:["bakery","cake","pastry","bread","dessert","patisserie"] },
+  { en:"World Chocolate Day",      ar:"اليوم العالمي للشوكولاتة", md:"07-07", tags:["chocolate","dessert","cake","bakery","sweets"] },
+  { en:"World Pizza Day",          ar:"اليوم العالمي للبيتزا",   md:"02-09", tags:["pizza","italian","pasta"] },
+  { en:"World Pasta Day",          ar:"اليوم العالمي للباستا",   md:"10-25", tags:["pasta","italian","pizza"] },
+  { en:"National Burger Day",      ar:"يوم البرغر",             md:"05-28", tags:["burger","grill","fastfood","beef","diner"] },
+  { en:"International Sushi Day",   ar:"اليوم العالمي للسوشي",    md:"06-18", tags:["sushi","japanese","ramen","asian"] },
+  { en:"World Ice Cream Day",      ar:"يوم الآيس كريم",          md:"07-19", tags:["ice cream","icecream","gelato","dessert","frozen"] },
+  { en:"International Tea Day",     ar:"اليوم العالمي للشاي",     md:"05-21", tags:["tea","cafe","matcha","chai"] },
+  { en:"National Donut Day",       ar:"يوم الدونات",            md:"06-05", tags:["donut","doughnut","bakery","dessert"] },
+  { en:"World Vegan Day",          ar:"اليوم العالمي للنباتيين", md:"11-01", tags:["vegan","plant","healthy","salad","organic"] },
+  { en:"World Food Day",           ar:"يوم الأغذية العالمي",     md:"10-16", tags:["food","restaurant","kitchen","catering","dining"] },
+  { en:"World Cocktail Day",       ar:"اليوم العالمي للكوكتيل",  md:"05-13", tags:["cocktail","bar","drinks","mocktail","juice","beverage"] },
+  { en:"World Tourism Day",        ar:"يوم السياحة العالمي",     md:"09-27", tags:["hotel","tourism","travel","resort","hospitality","staycation"] },
+  { en:"World Wellness / Spa Day", ar:"يوم العافية والسبا",      md:"06-21", tags:["spa","wellness","yoga","fitness","gym","massage","salon"] },
+  { en:"International Women's Day", ar:"اليوم العالمي للمرأة",    md:"03-08", tags:["beauty","salon","fashion","gifts","flowers","cosmetics","spa"] },
+  { en:"World Health Day",         ar:"يوم الصحة العالمي",       md:"04-07", tags:["fitness","gym","wellness","health","clinic","healthy","nutrition"] },
+  { en:"Valentine's Day",          ar:"عيد الحب",               md:"02-14", tags:["gifts","flowers","restaurant","dessert","chocolate","jewelry","cake"] },
+];
+const nextOccurrence = (md) => { const [m,d] = md.split("-").map(Number); const now = new Date(); now.setHours(0,0,0,0); let dt = new Date(now.getFullYear(), m-1, d); if (dt < now) dt = new Date(now.getFullYear()+1, m-1, d); return dt; };
+const matchedNicheDays = (productsStr) => {
+  const toks = (productsStr||"").toLowerCase().split(/[,\n]+/).map(s=>s.trim()).filter(s=>s.length>=3);
+  if (!toks.length) return [];
+  const now = new Date(); now.setHours(0,0,0,0);
+  return NICHE_DAYS.filter(o => o.tags.some(t => toks.some(k => t.includes(k) || k.includes(t))))
+    .map(o => { const dt = nextOccurrence(o.md); return { ...o, dObj:dt, days:Math.round((dt-now)/86400000), niche:true }; });
+};
+
 function CalendarPage() {
   const { selClient, dark, setPage, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -3954,6 +4010,12 @@ function CalendarPage() {
   const [platFilter, setPlatFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clearAsk, setClearAsk] = useState(false);
+  const [products, setProducts] = useState("");
+  const [prodEdit, setProdEdit] = useState(false);
+  const prodKey = `tw_client_products_${realClientId || selClient?.name || 'x'}`;
+  useEffect(() => { try { setProducts(localStorage.getItem(prodKey) || ""); } catch (e) { setProducts(""); } }, [prodKey]);
+  const saveProducts = (v) => { setProducts(v); try { localStorage.setItem(prodKey, v); } catch (e) {} };
+  const occList = [ ...upcomingOccasions(6), ...matchedNicheDays(products) ].sort((a,b)=>a.dObj-b.dObj).slice(0,6);
   const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
   // Filters narrow the calendar/list live, without touching the header totals.
@@ -4078,6 +4140,34 @@ function CalendarPage() {
         </div>
       </div>
       {planOpen && <PlanMonthModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} onClose={()=>setPlanOpen(false)} onDone={()=>{ setPlanOpen(false); loadPosts(); }}/>}
+
+      {/* GCC/Hijri + product-matched occasions — Ramadan, Eid, National & niche product days */}
+      <div style={{ padding:"11px 14px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:th.text2, flexShrink:0 }}><Calendar size={13} color={th.accent}/>{L("Upcoming occasions","المناسبات القادمة")}</span>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", flex:1 }}>
+            {occList.map((o,i)=>{
+              const tint = o.niche ? "#C77BBA" : (o.kind==="ramadan"||o.kind==="eid") ? "#5FBF92" : o.kind==="national" ? "#E0B973" : th.accent;
+              return (
+                <button key={i} onClick={()=>{ try{ sessionStorage.setItem('tw_plan_theme', (isAR?o.ar:o.en) + (isAR?" — حملة":" campaign")); }catch(e){} setPlanOpen(true); }} title={L("Plan a campaign around this","خطّط حملة حول هذه المناسبة")} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"6px 11px", borderRadius:999, border:`1px solid ${o.niche?tint+"66":th.border}`, background:th.card2, cursor:"pointer" }}>
+                  <span style={{ width:7, height:7, borderRadius:"50%", background:tint, flexShrink:0 }}/>
+                  <span style={{ fontSize:11.5, color:th.text, fontWeight:500 }}>{isAR?o.ar:o.en}</span>
+                  <span className="tw-num" style={{ fontSize:10, color:th.text3 }}>{o.days===0?L("today","اليوم"):L("in ","خلال ")+o.days+L("d","ي")}</span>
+                </button>
+              );
+            })}
+          </div>
+          <span style={{ fontSize:9.5, color:th.text3, flexShrink:0 }}>{L("dates approx.","تقريبية")}</span>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10, paddingTop:10, borderTop:`1px solid ${th.border}` }}>
+          <span style={{ fontSize:10.5, color:th.text3, flexShrink:0 }}>{L("What does this client sell?","ماذا يبيع هذا العميل؟")}</span>
+          {prodEdit ? (
+            <input autoFocus value={products} onChange={e=>saveProducts(e.target.value)} onBlur={()=>setProdEdit(false)} onKeyDown={e=>{ if(e.key==='Enter') setProdEdit(false); }} placeholder={L("e.g. coffee, bagels, desserts","مثلاً: قهوة، خبز، حلويات")} style={{ flex:1, background:th.card2, border:`1px solid ${th.accent}`, borderRadius:8, padding:"6px 10px", color:th.text, fontSize:11.5, outline:"none" }}/>
+          ) : (
+            <button onClick={()=>setProdEdit(true)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:`1px solid ${th.border}`, background:th.card2, color:products?th.text:th.accent, fontSize:11, fontWeight:500, cursor:"pointer" }}>{products ? <><span style={{ color:th.text2 }}>{products}</span><Edit3 size={11}/></> : <><Plus size={11}/>{L("Add products for tailored days","أضف المنتجات لمناسبات مخصصة")}</>}</button>
+          )}
+        </div>
+      </div>
       {strategyOpen && <StrategyModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} isAR={isAR} onClose={()=>setStrategyOpen(false)} onUseInPlan={()=>{ setStrategyOpen(false); setPlanOpen(true); }}/>}
 
       {/* Filter bar — platform + status, with a persistent Today */}
@@ -4321,6 +4411,7 @@ function PublisherPage() {
   const [aiAudience, setAiAudience] = useState("");
   const [aiDetails, setAiDetails] = useState("");
   const [aiLang, setAiLang] = useState("both");
+  const [aiDialect, setAiDialect] = useState("gulf");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState(null);
   const [useVoice, setUseVoice] = useState(true);
@@ -4444,7 +4535,7 @@ function PublisherPage() {
     setAiLoading(true); setAiResult(null);
     try {
       const res = await fetch('/api/generate-caption', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: aiTopic, tone: aiTone, audience: aiAudience, details: aiDetails, lang: aiLang, platform: selPlats[0] || 'ig', brand: selClient?.name, voice: useVoice ? loadVoice(selClient?.id) : null }) });
+        body: JSON.stringify({ topic: aiTopic, tone: aiTone, audience: aiAudience, details: aiDetails, lang: aiLang, dialect: aiDialect, platform: selPlats[0] || 'ig', brand: selClient?.name, voice: useVoice ? loadVoice(selClient?.id) : null }) });
       const data = await res.json();
       setAiResult(data);
       if (isTrialUser(userEmail) && !data.error) bumpAiUses(userEmail);
@@ -4736,6 +4827,16 @@ function PublisherPage() {
                     <span style={{ width:32, height:18, borderRadius:10, background:useVoice?th.accent:th.border, position:"relative", flexShrink:0, transition:"background .2s" }}><span style={{ position:"absolute", top:2, left:useVoice?16:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
                     <span style={{ fontSize:11.5, color:th.text2 }}>{useVoice?L("Using ","باستخدام "):L("Use ","استخدم ")}<span style={{ color:th.text, fontWeight:600 }}>{selClient?.name}</span> {L("brand voice","نبرة العلامة")}</span>
                     <MessageCircle size={12} color={useVoice?th.accent:th.text3}/>
+                  </div>
+                )}
+                {aiLang !== "en" && (
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:9, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10.5, color:th.text2 }}>{L("Arabic dialect","اللهجة العربية")}</span>
+                    <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                      {[["gulf",L("Gulf","خليجي")],["saudi",L("Saudi","سعودي")],["egyptian",L("Egyptian","مصري")],["levantine",L("Levantine","شامي")],["msa",L("Standard","فصحى")]].map(([k,t])=>(
+                        <button key={k} onClick={()=>setAiDialect(k)} style={{ fontSize:10.5, padding:"4px 10px", borderRadius:8, cursor:"pointer", border:`1px solid ${aiDialect===k?th.accent:th.border}`, background:aiDialect===k?th.accentSoft:"transparent", color:aiDialect===k?th.text:th.text2, fontWeight:aiDialect===k?600:400 }}>{t}</button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 <div style={{ display:"flex", alignItems:"center", gap:8, justifyContent:"space-between" }}>
