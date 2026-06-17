@@ -16,7 +16,7 @@ import {
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
-  Monitor, Info, ScanLine, Check, CalendarCheck,
+  Monitor, Info, ScanLine, Check, CalendarCheck, Zap,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -693,7 +693,9 @@ function Sidebar() {
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
+      {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
+      {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
@@ -4201,6 +4203,340 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   ), document.body);
 }
 
+// WhatsApp Business module — click-to-chat link builder (free, all plans), plus the
+// gated team inbox / broadcasts / flows / report (Professional + Enterprise).
+function WhatsAppPage() {
+  const { selClient, dark, lang, userPlan, userEmail, agencyName } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const WA = "#25D366";
+  const isDemoAcct = /theoctopus\.bh@gmail\.com|octofusionbh@gmail\.com/i.test(String(userEmail || ""));
+  // Strict gating: only known paid plans unlock; blank/unknown stays locked. The owner
+  // account is always unlimited (for demos) and clearly flagged "just for demonstration".
+  const waFull = isDemoAcct || /pro|prof|agency|enter/i.test(String(userPlan || ""));
+  const waUnlimited = isDemoAcct;
+  const waIncluded = /agency|enter/i.test(String(userPlan || "")) ? 5000 : 1000;
+  const [tab, setTab] = useState("link");
+
+  // ---- Click-to-chat link builder (fully functional, no API) ----
+  const [num, setNum] = useState("");
+  const [msg, setMsg] = useState(L("Hi! I saw you on Instagram and I'd like to know more about", "مرحباً! شفتكم على إنستغرام وحاب أعرف أكثر عن") + " ");
+  const cleanNum = String(num).replace(/[^0-9]/g, "");
+  const waLink = cleanNum ? `https://wa.me/${cleanNum}${msg ? "?text=" + encodeURIComponent(msg) : ""}` : "";
+  const qrSrc = waLink ? `https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=0&data=${encodeURIComponent(waLink)}` : "";
+  const [copied, setCopied] = useState(false);
+  const copy = (t) => { try { navigator.clipboard.writeText(t); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} };
+  const [shortRes, setShortRes] = useState(null);
+  const [shortBusy, setShortBusy] = useState(false);
+  const makeShort = async () => {
+    if (!waLink) return; setShortBusy(true);
+    const code = Math.random().toString(36).slice(2, 8);
+    try { await supabase.from('short_links').insert([{ code, url: waLink, client_id: selClient?.id || null }]); } catch (e) {}
+    const origin = (typeof window !== "undefined" ? window.location.origin : "");
+    setShortRes(`${origin}/s/${code}`); setShortBusy(false);
+  };
+
+  // ---- WhatsApp performance report (export) ----
+  const reportStats = [
+    [L("Messages handled", "رسائل تمت"), "1,482"],
+    [L("Response rate", "نسبة الرد"), "98%"],
+    [L("Avg. first reply", "متوسط أول رد"), L("3 min", "٣ د")],
+    [L("Broadcasts sent", "حملات مُرسلة"), "6"],
+    [L("Leads & bookings", "عملاء وحجوزات"), "214"],
+    [L("Credits used", "رصيد مستخدم"), "1,240"],
+  ];
+  const exportReport = () => {
+    const rows = reportStats.map(([k, v]) => `<tr><td style="padding:10px 0;color:#555;font-size:13px">${k}</td><td style="padding:10px 0;text-align:right;font-size:18px;font-weight:600">${v}</td></tr>`).join('');
+    const html = `<html><head><meta charset="utf-8"><title>WhatsApp report</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:620px;margin:34px auto;padding:0 22px;color:#1a1a1a"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><div style="width:30px;height:30px;border-radius:8px;background:#25D366;display:flex;align-items:center;justify-content:center;color:#04342C;font-weight:700">W</div><h1 style="font-size:21px;margin:0">WhatsApp report — ${selClient?.name || ''}</h1></div><div style="font-size:12px;color:#888;margin:0 0 20px 40px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div><table style="width:100%;border-collapse:collapse">${rows}</table></body></html>`;
+    try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
+  };
+
+  const TABS = [
+    ["link", L("Click-to-chat link", "رابط محادثة"), MessageCircle, true],
+    ["inbox", L("Shared inbox", "الوارد"), Inbox, waFull],
+    ["broadcast", L("Broadcasts", "حملات"), Megaphone, waFull],
+    ["flows", L("Flows & auto-reply", "تدفقات ورد آلي"), Zap, waFull],
+    ["report", L("Report", "تقرير"), PieChart, waFull],
+  ];
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 16 };
+  const lockBadge = <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#0A0F18", background:"#E0B973", padding:"2px 7px", borderRadius:20 }}><Lock size={9}/>{L("Enterprise / Pro", "احترافي")}</span>;
+
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+          <div style={{ width:38, height:38, borderRadius:11, background:WA, display:"flex", alignItems:"center", justifyContent:"center" }}><FaWhatsapp style={{ fontSize:22, color:"#04342C" }}/></div>
+          <div>
+            <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>WhatsApp</h1>
+            <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("Inbox, broadcasts & automated flows — for", "وارد وحملات وتدفقات آلية — لـ")} {selClient?.name || L("your client", "عميلك")}</p>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          {isDemoAcct && <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:600, color:"#0A0F18", background:"#E0B973", padding:"6px 12px", borderRadius:999 }}><Eye size={13}/>{L("Just for demonstration", "لأغراض العرض فقط")}</span>}
+          <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, color:th.text2, background:th.card2, border:`1px solid ${th.border}`, padding:"6px 12px", borderRadius:999 }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:"#E0B973" }}/>{L("Not connected yet — link in Settings", "غير مربوط بعد — اربطه من الإعدادات")}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:18 }}>
+        {TABS.map(([k, lbl, Icon, ok]) => (
+          <button key={k} onClick={() => setTab(k)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 13px", borderRadius:10, border:`1px solid ${tab===k?WA:th.border}`, background:tab===k?"rgba(37,211,102,0.10)":th.card, color:tab===k?th.text:th.text2, fontSize:12.5, fontWeight:tab===k?600:400, cursor:"pointer" }}>
+            <Icon size={14}/>{lbl}{!ok && <Lock size={11} style={{ opacity:0.6 }}/>}
+          </button>
+        ))}
+      </div>
+
+      {tab === "link" && (
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) 300px", gap:16, alignItems:"start" }}>
+          <div style={{ ...card, padding:20 }}>
+            <div style={{ fontSize:11, fontWeight:600, color:WA, letterSpacing:0.4, marginBottom:4 }}>{L("FREE · WORKS ON EVERY PLAN", "مجاني · على كل الباقات")}</div>
+            <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:3 }}>{L("Click-to-chat link builder", "منشئ رابط المحادثة")}</div>
+            <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:18 }}>{L("Make a link that opens WhatsApp with your number and a ready-to-send message. Drop it in an Instagram bio, an ad, or a button.", "أنشئ رابطاً يفتح واتساب برقمك ورسالة جاهزة للإرسال. ضعه في بايو إنستغرام أو إعلان أو زر.")}</div>
+
+            <label style={{ fontSize:11.5, color:th.text2, display:"block", marginBottom:5 }}>{L("WhatsApp number (with country code)", "رقم واتساب (مع رمز الدولة)")}</label>
+            <input value={num} onChange={e=>setNum(e.target.value)} placeholder="973 3300 0000" inputMode="tel" style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", color:th.text, fontSize:13.5, outline:"none", marginBottom:14 }}/>
+
+            <label style={{ fontSize:11.5, color:th.text2, display:"block", marginBottom:5 }}>{L("Ready message the customer will send", "الرسالة الجاهزة التي سيرسلها العميل")}</label>
+            <textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={3} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", color:th.text, fontSize:13, outline:"none", resize:"vertical", fontFamily:"inherit", lineHeight:1.5 }}/>
+
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Your link", "رابطك")}</div>
+              <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                <div style={{ flex:1, minWidth:200, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 13px", fontSize:12, color:waLink?th.text:th.text3, wordBreak:"break-all" }}>{waLink || L("Enter a number to generate…", "أدخل رقماً للإنشاء…")}</div>
+                <button onClick={()=>copy(waLink)} disabled={!waLink} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"10px 14px", borderRadius:10, background:waLink?th.gradient:th.card2, border:"none", color:waLink?"#fff":th.text3, fontSize:12.5, fontWeight:600, cursor:waLink?"pointer":"default" }}><Copy size={13}/>{copied?L("Copied","تم"):L("Copy","نسخ")}</button>
+              </div>
+              <div style={{ display:"flex", gap:8, marginTop:10, flexWrap:"wrap" }}>
+                <button onClick={makeShort} disabled={!waLink||shortBusy} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:waLink?th.text:th.text3, fontSize:12, cursor:waLink?"pointer":"default" }}><Link size={13}/>{shortBusy?L("Creating…","جارٍ…"):L("Make a branded short link","رابط مختصر بعلامتك")}</button>
+                {waLink && <a href={waLink} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:"rgba(37,211,102,0.12)", border:`1px solid ${WA}`, color:th.text, fontSize:12, textDecoration:"none" }}><FaWhatsapp style={{ fontSize:14, color:WA }}/>{L("Test it","جرّبه")}</a>}
+              </div>
+              {shortRes && <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"center" }}><span style={{ flex:1, fontSize:12.5, color:WA, fontWeight:600, wordBreak:"break-all" }}>{shortRes}</span><button onClick={()=>copy(shortRes)} style={{ padding:"7px 11px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11.5, cursor:"pointer" }}><Copy size={12}/></button></div>}
+            </div>
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ ...card, padding:16, textAlign:"center" }}>
+              <div style={{ fontSize:11.5, color:th.text2, marginBottom:10 }}>{L("QR code", "رمز QR")}</div>
+              {qrSrc ? <img src={qrSrc} alt="QR" style={{ width:170, height:170, borderRadius:10, background:"#fff", padding:8 }}/> : <div style={{ width:170, height:170, borderRadius:10, background:th.card2, margin:"0 auto", display:"flex", alignItems:"center", justifyContent:"center", color:th.text3, fontSize:11 }}>{L("Enter a number", "أدخل رقماً")}</div>}
+              <div style={{ fontSize:11, color:th.text3, marginTop:10, lineHeight:1.5 }}>{L("Print it on a flyer, menu or table card — scan opens the chat.", "اطبعه على فلاير أو منيو — المسح يفتح المحادثة.")}</div>
+            </div>
+            <div style={{ background:"#0B141A", borderRadius:16, padding:14 }}>
+              <div style={{ fontSize:10.5, color:"#8FA3AD", marginBottom:8 }}>{L("Preview", "معاينة")}</div>
+              <div style={{ background:"#075E54", borderRadius:"12px 12px 4px 12px", padding:"9px 12px", marginInlineStart:"auto", maxWidth:"90%", fontSize:12.5, color:"#E9FFEF", lineHeight:1.5, minHeight:18 }}>{msg || L("Your message appears here…", "رسالتك تظهر هنا…")}</div>
+              <div style={{ textAlign:"end", fontSize:10, color:"#8FA3AD", marginTop:4 }}>{L("ready to send", "جاهزة للإرسال")} ✓✓</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab !== "link" && !waFull && (
+        <div style={{ ...card, padding:"40px 26px", textAlign:"center" }}>
+          <div style={{ width:52, height:52, borderRadius:14, background:"#E0B97322", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><Lock size={22} color="#E0B973"/></div>
+          <div style={{ fontSize:16, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Available on Professional & Enterprise", "متاح في الباقتين الاحترافية والمؤسسية")}</div>
+          <div style={{ fontSize:13, color:th.text2, lineHeight:1.6, maxWidth:460, margin:"0 auto 18px" }}>{L("The shared inbox, broadcasts and automated flows are part of the WhatsApp module. Upgrade to turn them on — the click-to-chat link builder stays free.", "الوارد المشترك والحملات والتدفقات الآلية ضمن وحدة واتساب. رقِّ باقتك لتفعيلها — منشئ الرابط يبقى مجانياً.")}</div>
+          <button onClick={()=>{ try{ window.dispatchEvent(new CustomEvent('tw-go-billing')); }catch(e){} }} style={{ padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("See plans", "شاهد الباقات")}</button>
+        </div>
+      )}
+
+      {tab === "inbox" && waFull && (
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11.5, color:th.text2, background:th.card2, border:`1px dashed ${th.border}`, borderRadius:10, padding:"9px 13px", marginBottom:14 }}><Eye size={13}/>{L("Preview with sample chats — goes live once WhatsApp is connected.", "معاينة بمحادثات تجريبية — تعمل فعلياً بعد ربط واتساب.")}</div>
+          <div style={{ ...card, overflow:"hidden" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"11px 15px", borderBottom:`1px solid ${th.border}` }}>
+              <span style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Shared inbox", "الوارد المشترك")}</span>
+              <span style={{ fontSize:11, background:th.success+"22", color:th.success, padding:"2px 9px", borderRadius:20 }}>{L("replies free · 24h window", "ردود مجانية · ٢٤ ساعة")}</span>
+            </div>
+            <div style={{ padding:16 }}>
+              <div style={{ display:"flex", gap:10, marginBottom:12 }}>
+                <div style={{ width:34, height:34, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:th.text2, flexShrink:0 }}>س</div>
+                <div style={{ background:th.card2, borderRadius:"12px 12px 12px 4px", padding:"9px 13px", fontSize:13, color:th.text, lineHeight:1.5 }}>{L("Is delivery available today to Riffa?", "هل التوصيل متاح اليوم للرفاع؟")}<div style={{ fontSize:10.5, color:th.text3, marginTop:3 }}>Sara · 2m</div></div>
+              </div>
+              <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:6 }}>
+                <div style={{ background:WA, borderRadius:"12px 12px 4px 12px", padding:"9px 13px", fontSize:13, color:"#04342C", lineHeight:1.5, maxWidth:"80%" }}>{L("Yes, available today to Riffa 🌿 within 2 hours. Want me to confirm your order?", "نعم متوفر اليوم للرفاع 🌿 خلال ساعتين. تحب نأكد طلبك؟")}</div>
+              </div>
+              <div style={{ border:`1px dashed ${th.border}`, borderRadius:10, padding:"10px 13px", display:"flex", alignItems:"center", gap:9, marginTop:10 }}>
+                <Sparkles size={15} color={th.accent}/><span style={{ fontSize:12, color:th.text2, lineHeight:1.4 }}>{L("AI drafted this in", "كتبها الذكاء بـ")} <b style={{ color:th.text }}>{selClient?.name || L("the client's", "العميل")}</b> {L("Gulf brand voice — one tap to send.", "نبرة خليجية — بضغطة ترسلها.")}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "broadcast" && waFull && (
+        <div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+            <div style={{ flex:1, ...card, padding:"12px 15px" }}>
+              <div style={{ fontSize:11, color:th.text2 }}>{L("Broadcast credits this month", "رصيد الحملات هذا الشهر")}</div>
+              {waUnlimited ? (
+                <>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span style={{ fontSize:20, fontWeight:700, color:th.text }}>{L("Unlimited", "غير محدود")}</span><span style={{ fontSize:11.5, color:th.text3 }}>{L("demo account", "حساب عرض")}</span></div>
+                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div style={{ width:"100%", height:"100%", background:WA }}/></div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span className="tw-num" style={{ fontSize:20, fontWeight:700, color:th.text }}>{(waIncluded-1240).toLocaleString()}</span><span style={{ fontSize:11.5, color:th.text3 }}>/ {waIncluded.toLocaleString()} {L("left", "متبقّي")}</span></div>
+                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div style={{ width:`${(1240/waIncluded)*100}%`, height:"100%", background:WA }}/></div>
+                </>
+              )}
+            </div>
+            <button style={{ ...card, padding:"12px 16px", color:th.text, fontSize:12.5, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Plus size={14}/>{L("Buy more credits", "شراء رصيد")}</button>
+          </div>
+          <div style={{ ...card, padding:18 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:12 }}>{L("New broadcast", "حملة جديدة")}</div>
+            <div style={{ fontSize:11, color:th.text3, marginBottom:5 }}>{L("Approved template", "قالب معتمد")}</div>
+            <div style={{ background:th.card2, borderRadius:10, padding:"11px 13px", fontSize:13, color:th.text, lineHeight:1.5, marginBottom:14 }}>🌿 {L("Weekend offer — 20% off everything. Order now!", "عرض نهاية الأسبوع — خصم ٢٠٪ على كل شي. اطلب الآن!")}<span style={{ marginInlineStart:8, fontSize:10.5, background:th.success+"22", color:th.success, padding:"1px 8px", borderRadius:20 }}>{L("approved", "معتمد")}</span></div>
+            <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+              {[[L("Audience","الجمهور"),"1,240",L("opted-in","موافقون")],[L("Est. cost","التكلفة"),"$14.88","Saudi rate"],[L("Send","الإرسال"),L("Now","الآن"),L("or schedule","أو جدوِل")]].map(([a,b,c],i)=>(
+                <div key={i} style={{ flex:1, minWidth:120, background:th.card2, borderRadius:10, padding:"10px 12px" }}><div style={{ fontSize:11, color:th.text2 }}>{a}</div><div style={{ fontSize:15, fontWeight:600, color:th.text }}>{b}</div><div style={{ fontSize:10.5, color:th.text3 }}>{c}</div></div>
+              ))}
+            </div>
+            <button style={{ width:"100%", background:WA, border:"none", color:"#04342C", fontSize:13, fontWeight:700, padding:"12px", borderRadius:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Send size={15}/>{L("Schedule broadcast", "جدولة الحملة")}</button>
+          </div>
+        </div>
+      )}
+
+      {tab === "flows" && waFull && (
+        <div>
+          <div style={{ fontSize:13, color:th.text2, lineHeight:1.6, marginBottom:16 }}>{L("Build an automated path once — buttons, an in-chat question form, and a follow-up. WhatsApp runs it for you.", "ابنِ مساراً آلياً مرة واحدة — أزرار ونموذج أسئلة داخل المحادثة ومتابعة. واتساب يشغّله نيابةً عنك.")}</div>
+          <div style={{ maxWidth:440 }}>
+            {[
+              [Zap, th.accent, L("When customer sends", "عندما يرسل العميل"), L("\"book\" · \"حجز\"", "\"حجز\""), L("free · 24h", "مجاني")],
+              [MessageCircle, th.accent, L("Auto-reply with buttons", "رد آلي بأزرار"), L("Book a table · Menu · Talk to us", "احجز · المنيو · كلّمنا"), null],
+              [Edit3, WA, L("Question box (WhatsApp Flow)", "نموذج أسئلة (Flow)"), L("Name · Date · Guests — inside the chat", "الاسم · التاريخ · العدد — داخل المحادثة"), null],
+              [CheckCircle, th.success, L("Booking logged + confirmed", "تسجيل وتأكيد الحجز"), L("saved to Tawaslo as a lead", "يُحفظ كعميل محتمل"), null],
+              [Clock, th.text2, L("Follow-up · 1 day later", "متابعة · بعد يوم"), L("\"Want to confirm your booking?\"", "\"تبي تأكد الحجز؟\""), L("1 credit", "رصيد ١")],
+            ].map(([Icon, c, title, sub, tag], i, arr) => (
+              <div key={i}>
+                <div style={{ ...card, padding:"12px 14px", display:"flex", alignItems:"center", gap:11 }}>
+                  <div style={{ width:30, height:30, borderRadius:8, background:c+"22", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Icon size={16} color={c}/></div>
+                  <div style={{ flex:1 }}><div style={{ fontSize:13, fontWeight:600, color:th.text }}>{title}</div><div style={{ fontSize:11.5, color:th.text2 }}>{sub}</div></div>
+                  {tag && <span style={{ fontSize:10.5, background:th.card2, color:th.text2, padding:"2px 8px", borderRadius:20 }}>{tag}</span>}
+                </div>
+                {i < arr.length-1 && <div style={{ width:0, height:14, borderInlineStart:`2px ${i>=arr.length-2?"dashed":"solid"} ${th.border}`, marginInlineStart:28 }}/>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "report" && waFull && (
+        <div style={{ ...card, padding:20 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:16 }}>
+            <div><div style={{ fontSize:15, fontWeight:600, color:th.text }}>{L("WhatsApp performance", "أداء واتساب")}</div><div style={{ fontSize:12, color:th.text2 }}>{L("Last 30 days", "آخر ٣٠ يوماً")} · {selClient?.name || ""}</div></div>
+            <button onClick={exportReport} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Download size={13}/>{L("Export report", "تصدير التقرير")}</button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12 }}>
+            {reportStats.map(([k, v], i) => (
+              <div key={i} style={{ background:th.card2, borderRadius:12, padding:"14px 15px" }}><div style={{ fontSize:11.5, color:th.text2 }}>{k}</div><div className="tw-num" style={{ fontSize:24, fontWeight:700, color:th.text, marginTop:3 }}>{v}</div></div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Suggested content — pull blog/news RSS feeds in as ready-to-draft post ideas.
+function SuggestedPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [feeds, setFeeds] = useState([]);
+  const [newFeed, setNewFeed] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const fkey = `tw_feeds_${selClient?.id || selClient?.name || 'x'}`;
+  useEffect(() => { try { const r = localStorage.getItem(fkey); setFeeds(r ? JSON.parse(r) : []); } catch (e) { setFeeds([]); } }, [fkey]);
+  const persist = (f) => { setFeeds(f); try { localStorage.setItem(fkey, JSON.stringify(f)); } catch (e) {} };
+  const addFeed = () => { let u = newFeed.trim(); if (!u) return; if (!/^https?:\/\//.test(u)) u = 'https://' + u; if (feeds.includes(u)) { setNewFeed(""); return; } persist([...feeds, u]); setNewFeed(""); };
+  const removeFeed = (u) => persist(feeds.filter(x => x !== u));
+  const load = () => { if (!feeds.length) { setItems([]); return; } setLoading(true); fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'rss', urls:feeds }) }).then(r => r.json()).then(d => { setItems(Array.isArray(d.items) ? d.items : []); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { load(); }, [feeds]);
+  const draft = (it) => { try { sessionStorage.setItem('tw_studio_caption', it.title + (it.link ? ("\n\n" + it.link) : "")); sessionStorage.setItem('tw_studio_aitopic', it.title); } catch (e) {} setPage('publisher'); };
+  const SRC_COLORS = ['#E0832B','#5FBF92','#7C83FF','#E2574B','#C77BBA','#5AA9C9'];
+  const srcColor = (s) => { let h = 0; for (const c of (s || '')) h = (h * 31 + c.charCodeAt(0)) % SRC_COLORS.length; return SRC_COLORS[h]; };
+  const fmtDate = (d) => { const t = new Date(d); if (isNaN(t.getTime())) return ""; const days = Math.round((Date.now() - t.getTime()) / 86400000); return days <= 0 ? L("today","اليوم") : days === 1 ? L("1 day ago","قبل يوم") : days < 30 ? L(days + " days ago", "قبل " + days + " يوم") : t.toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" }); };
+  const exportDigest = () => {
+    const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+    const rowsH = items.map(it => `<div style="padding:14px 0;border-bottom:1px solid #eee"><div style="font-size:11px;color:#888">${esc(it.source)} · ${esc(fmtDate(it.date))}</div><div style="font-size:15px;font-weight:600;margin:3px 0">${esc(it.title)}</div><div style="font-size:12.5px;color:#555;line-height:1.5">${esc(it.snippet)}</div><a href="${esc(it.link)}" style="font-size:11.5px;color:#4F6B8C">${esc(it.link)}</a></div>`).join('');
+    const html = `<html><head><meta charset="utf-8"><title>Content digest</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:30px auto;padding:0 20px;color:#1a1a1a"><h1 style="font-size:22px">Suggested content — ${esc(selClient?.name||'')}</h1><div style="font-size:12px;color:#888;margin-bottom:18px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${rowsH}</body></html>`;
+    try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
+  };
+
+  const featured = items[0];
+  const rest = items.slice(1);
+  const draftBtn = (it, big) => <button onClick={()=>draft(it)} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, padding:big?"9px 15px":"8px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:big?12.5:11.5, fontWeight:600, cursor:"pointer", flex:big?"none":1, whiteSpace:"nowrap" }}><Sparkles size={big?14:12}/>{L("Draft a post","حوّله لمنشور")}</button>;
+  const readBtn = (it, big) => <a href={it.link||"#"} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, padding:big?"9px 14px":"8px 11px", borderRadius:9, background:big?"rgba(255,255,255,0.12)":th.card2, border:big?"none":`1px solid ${th.border}`, color:big?"#E8EFF8":th.text2, fontSize:big?12.5:11.5, textDecoration:"none", flexShrink:0 }}><ArrowUpRight size={13}/>{big?L("Read","اقرأ"):""}</a>;
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Suggested content","محتوى مقترح")}</h1>
+          <p style={{ margin:"4px 0 0", fontSize:12.5, color:th.text2 }}>{L("Fresh stories from your sources — one tap to a draft","قصص جديدة من مصادرك — بضغطة تصبح مسودة")}</p>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button onClick={load} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}><RefreshCw size={13}/>{L("Refresh","تحديث")}</button>
+          {items.length>0 && <button onClick={exportDigest} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}><Download size={13}/>{L("Export digest","تصدير الملخّص")}</button>}
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:18 }}>
+        {feeds.map(u => { let host=u; try{ host=new URL(u).hostname.replace(/^www\./,''); }catch(e){} return (
+          <span key={u} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"6px 8px 6px 12px", borderRadius:999, background:th.card, border:`1px solid ${th.border}` }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:srcColor(host) }}/>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{host}</span>
+            <span onClick={()=>removeFeed(u)} style={{ cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={13}/></span>
+          </span>
+        ); })}
+        <div style={{ display:"flex", gap:6, flex:1, minWidth:200 }}>
+          <input value={newFeed} onChange={e=>setNewFeed(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') addFeed(); }} placeholder={L("Paste an RSS feed URL…","الصق رابط RSS…")} style={{ flex:1, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"8px 12px", color:th.text, fontSize:12, outline:"none" }}/>
+          <button onClick={addFeed} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"8px 14px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Add feed","إضافة")}</button>
+        </div>
+      </div>
+
+      {feeds.length===0 ? (
+        <div style={{ background:th.card, border:`1px dashed ${th.border}`, borderRadius:18, padding:"42px 24px", textAlign:"center" }}>
+          <Sparkles size={28} color={th.accent} style={{ opacity:0.5, marginBottom:12 }}/>
+          <div style={{ fontSize:14.5, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Add a feed to get started","أضف مصدراً للبدء")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:440, margin:"0 auto" }}>{L("Paste the RSS link of the client's blog or an industry news site. Fresh articles appear here, ready to turn into posts.","الصق رابط RSS لمدونة العميل أو موقع أخبار في مجاله. ستظهر المقالات الجديدة هنا جاهزة لتحويلها لمنشورات.")}</div>
+        </div>
+      ) : loading ? (
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, fontSize:13, color:th.text2 }}>{L("Fetching the latest articles…","جارٍ جلب أحدث المقالات…")}</div>
+      ) : items.length===0 ? (
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:"36px 24px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No articles found in these feeds. Check the URL is a valid RSS feed.","لم نجد مقالات في هذه المصادر. تأكد أن الرابط هو خلاصة RSS صحيحة.")}</div>
+      ) : (
+        <>
+          {featured && (
+            <div style={{ position:"relative", borderRadius:18, overflow:"hidden", marginBottom:14, minHeight:200, background: featured.image ? `center/cover url(${featured.image})` : th.gradient }}>
+              <div style={{ position:"absolute", inset:0, background:"linear-gradient(180deg,rgba(8,12,20,0.15),rgba(8,12,20,0.88))" }}/>
+              <div style={{ position:"absolute", top:14, left:14 }}><span style={{ fontSize:9.5, fontWeight:700, color:"#0A0F18", background:"#E0B973", padding:"3px 9px", borderRadius:20 }}>{L("FEATURED","مميّز")}</span></div>
+              <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:18 }}>
+                <div style={{ fontSize:10.5, color:"#C2CBD6", marginBottom:6 }}>{featured.source} · {fmtDate(featured.date)}</div>
+                <div style={{ fontSize:18, fontWeight:600, color:"#fff", lineHeight:1.3, maxWidth:"85%" }}>{featured.title}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:12, flexWrap:"wrap" }}>{draftBtn(featured, true)}{readBtn(featured, true)}</div>
+              </div>
+            </div>
+          )}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(230px,1fr))", gap:12 }}>
+            {rest.map((it,i) => (
+              <div key={i} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+                <div style={{ height:96, background: it.image ? `center/cover url(${it.image})` : th.card2, position:"relative" }}><span style={{ position:"absolute", top:9, left:9, fontSize:9, fontWeight:600, color:"#0A0F18", background:srcColor(it.source), padding:"2px 8px", borderRadius:20 }}>{it.source}</span></div>
+                <div style={{ padding:"12px 13px", display:"flex", flexDirection:"column", flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:500, color:th.text, lineHeight:1.4, height:54, overflow:"hidden" }}>{it.title}</div>
+                  <div style={{ fontSize:10.5, color:th.text3, margin:"6px 0 11px" }}>{fmtDate(it.date)}</div>
+                  <div style={{ display:"flex", gap:7, marginTop:"auto" }}>{draftBtn(it, false)}{readBtn(it, false)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Link shortener dashboard — every branded short link for this client with its click count.
 function ShortLinksPage() {
   const { selClient, dark, lang } = useApp();
@@ -4881,6 +5217,7 @@ function PublisherPage() {
   useEffect(() => {
     try {
       const c = sessionStorage.getItem('tw_studio_caption'); if (c) { setCaption(c); sessionStorage.removeItem('tw_studio_caption'); }
+      const at = sessionStorage.getItem('tw_studio_aitopic'); if (at) { setAiTopic(at); setShowAI(true); sessionStorage.removeItem('tw_studio_aitopic'); }
       const m = sessionStorage.getItem('tw_studio_media'); if (m) { setMedia(prev => [...prev, { id:'h'+Date.now(), name:'media', type:/\.(mp4|mov|webm)$/i.test(m)?'video':'image', url:m, uploading:false }]); sessionStorage.removeItem('tw_studio_media'); }
       // Repost → Story: an existing post's media handed off from Analytics / Calendar.
       const r = sessionStorage.getItem('tw_repost');
@@ -11267,6 +11604,8 @@ export default function TawasloApp() {
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
+    if (page==="suggested") return <SuggestedPage/>;
+    if (page==="whatsapp") return <WhatsAppPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;

@@ -101,6 +101,38 @@ export default async function handler(req, res) {
     });
   }
 
+  // ── RSS / suggested content — fetch & parse blog/news feeds into post ideas. ──
+  if (theMode === 'rss') {
+    const urls = Array.isArray(req.body.urls) ? req.body.urls.slice(0, 5) : (req.body.url ? [req.body.url] : []);
+    if (!urls.length) return res.status(200).json({ items: [] });
+    const clean = (s) => String(s || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/<[^>]+>/g, '').replace(/&#?\w+;/g, ' ').replace(/\s+/g, ' ').trim();
+    const fetchFeed = async (u) => {
+      try {
+        const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 6000);
+        const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 TawasloBot' }, signal: ctrl.signal }); clearTimeout(timer);
+        const xml = await r.text();
+        let host = u; try { host = new URL(u).hostname.replace(/^www\./, ''); } catch (e) {}
+        const blocks = xml.match(/<(item|entry)\b[\s\S]*?<\/(item|entry)>/gi) || [];
+        const out = [];
+        for (const b of blocks.slice(0, 12)) {
+          const pick = (tag) => { const m = b.match(new RegExp('<' + tag + '[^>]*>([\\s\\S]*?)<\\/' + tag + '>', 'i')); return m ? m[1] : ''; };
+          const title = clean(pick('title'));
+          let link = clean(pick('link'));
+          if (!link) { const lm = b.match(/<link[^>]*href=["']([^"']+)["']/i); if (lm) link = lm[1]; }
+          const snippet = clean(pick('description') || pick('summary') || pick('content')).slice(0, 180);
+          const date = clean(pick('pubDate') || pick('updated') || pick('published'));
+          let image = null;
+          const mm = b.match(/<(?:media:content|media:thumbnail|enclosure)[^>]*url=["']([^"']+)["']/i); if (mm) image = mm[1];
+          if (!image) { const im = b.match(/<img[^>]*src=["']([^"']+)["']/i); if (im) image = im[1]; }
+          if (title) out.push({ title, link, snippet, date, source: host, image });
+        }
+        return out;
+      } catch (e) { return []; }
+    };
+    const all = (await Promise.all(urls.map(fetchFeed))).flat();
+    return res.status(200).json({ items: all.slice(0, 16) });
+  }
+
   // Vision modes need an image; reply needs a message; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });
