@@ -4235,6 +4235,12 @@ function CalendarPage() {
   const [igMedia, setIgMedia] = useState([]);        // real IG feed media for the Grid view
   const [gridLoading, setGridLoading] = useState(false);
   const [gridDrag, setGridDrag] = useState(null); // post id being dragged in the Grid view
+  const [accounts, setAccounts] = useState([]);    // connected social accounts for this client
+  useEffect(() => {
+    if (!realClientId) { setAccounts([]); return; }
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
+      .then(({ data }) => { if (data) setAccounts(data); });
+  }, [realClientId]);
   const prodKey = `tw_client_products_${realClientId || selClient?.name || 'x'}`;
   useEffect(() => { try { setProducts(localStorage.getItem(prodKey) || ""); } catch (e) { setProducts(""); } }, [prodKey]);
   // Prefer the value stored on the client record (syncs across the team); fall back to localStorage.
