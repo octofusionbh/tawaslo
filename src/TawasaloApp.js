@@ -533,7 +533,7 @@ const TR = {
     "nav.overview":"نظرة عامة","nav.clients":"العملاء","nav.revenue":"الإيرادات","nav.apiusage":"الاستخدام",
     "nav.dashboard":"الرئيسية","nav.publisher":"النشر","nav.planner":"المخطط","nav.streams":"التدفقات",
     "nav.approvals":"الموافقات","nav.calendar":"التقويم",
-    "nav.inbox":"الوارد","nav.listening":"الاستماع","nav.campaigns":"الحملات","nav.aistudio":"استوديو الذكاء",
+    "nav.inbox":"الوارد","nav.listening":"الرائج","nav.campaigns":"الحملات","nav.aistudio":"استوديو الذكاء",
     "nav.media":"الوسائط","nav.analytics":"التحليلات","nav.ads":"الإعلانات","nav.reports":"التقارير",
     "nav.social":"الحسابات","nav.team":"الفريق","nav.agencyteam":"الفريق","nav.billing":"الفوترة",
     "nav.settings":"الإعدادات","nav.agencysets":"الإعدادات",
@@ -687,7 +687,7 @@ function Sidebar() {
       {key:"calendar",  Icon:CalendarCheck,   label:"Calendar",  badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
       {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
-      {key:"listening", Icon:Activity,        label:"Listening", badge:null},
+      {key:"listening", Icon:Activity,        label:"Trending", badge:null},
     ]},
     {section:"Create", items:[
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
@@ -902,13 +902,13 @@ function Topbar() {
     promos:"Promo Codes", gifts:"Gift Cards & Gifting", support:"Support Inbox",
     apiusage:"API & Usage", team:"Team", settings:"Settings",
     dashboard:"Dashboard", publisher:"Publisher", streams:"Streams",
-    inbox:"Inbox", listening:"Listening", campaigns:"Campaigns",
+    inbox:"Inbox", listening:"Trending", campaigns:"Campaigns",
     aistudio:"AI Studio", media:"Media", analytics:"Analytics",
     reports:"Reports", agencyteam:"Team", billing:"Billing", agencysets:"Settings",
   };
   // Global search — jumps to any page, or opens a client.
   const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
-  const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Listening"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
+  const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
   const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql)).slice(0,7) : [];
   const clientHits = ql ? (clients||[]).filter(c=>(c.name||"").toLowerCase().includes(ql)).slice(0,5) : [];
@@ -6147,9 +6147,16 @@ function TrendingPage() {
         </div>
       ) : (!sampleMode && loading) ? (
         <SkCards th={th} count={8} h={140} min={170}/>
+      ) : (!sampleMode && items.length===0) ? (
+        <div style={{background:th.card,border:`1px dashed ${th.border}`,borderRadius:18,padding:32,textAlign:"center"}}>
+          <Radio size={26} style={{opacity:0.3,marginBottom:10}}/>
+          <div style={{fontSize:15,fontWeight:600,marginBottom:6}}>{L("Live trends are taking a break","الاتجاهات الحيّة في استراحة")}</div>
+          <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,maxWidth:480,margin:"0 auto"}}>{isAR ? <>تتحدّث الاتجاهات يومياً. إذا استمر هذا، فغالباً نفدت حصة مصدر البيانات (EnsembleData) — جدّد الرصيد لعودة الاتجاهات الحيّة تلقائياً.</> : <>Trends refresh once a day. If this sticks around, your trends source (EnsembleData) is likely out of quota — top up its credits and live trends return automatically.</>}</div>
+          <button onClick={loadSample} style={{marginTop:16,padding:"9px 18px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Eye size={14}/>{L("Preview sample instead","معاينة عينة بدلاً")}</button>
+        </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
-          {((sampleMode||items.length===0)?sampleShown:items).map((it,i)=>(
+          {(sampleMode?sampleShown:items).map((it,i)=>(
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}

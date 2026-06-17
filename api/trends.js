@@ -111,10 +111,10 @@ export default async function handler(req, res) {
     items.sort((a, b) => (b.views + b.likes) - (a.views + a.likes));
     items = items.slice(0, 24);
     if (items.length > 0) {
-      // Good data: keep it fresh 24h, then serve the last good set (stale) for up to 7 days
-      // while revalidating in the background — so users always see trends and we only spend
-      // ~1 upstream call per region per day against the free quota.
-      res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=604800");
+      // Good data: fresh for 24h (one upstream call per region per day against the free
+      // quota), then serve the last good set for at most 1 more day while it revalidates.
+      // After that it goes empty (honest "taking a break" state) rather than showing stale.
+      res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
     } else {
       // Empty (e.g. daily quota hit): retry sooner so it recovers quickly after reset.
       res.setHeader("Cache-Control", "s-maxage=600");
