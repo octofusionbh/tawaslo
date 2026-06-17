@@ -3067,6 +3067,7 @@ function AIStudioPage() {
   const [platform, setPlatform] = useState("ig");
   const [tone, setTone] = useState("engaging and professional");
   const [aiLang, setAiLang] = useState("both");
+  const [aiDialect, setAiDialect] = useState("gulf");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [captions, setCaptions] = useState([]);
@@ -3164,7 +3165,7 @@ function AIStudioPage() {
     setLoading(true); setError(""); setCaptions([]); setIdeas([]); setHashtags([]);
     try {
       if (tool === "captions") {
-        const reqs = [0,1,2].map(()=>fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,lang:aiLang,brand:selClient?.name})}).then(r=>r.json()).catch(()=>({error:true})));
+        const reqs = [0,1,2].map(()=>fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,tone,lang:aiLang,dialect:aiDialect,brand:selClient?.name,voice:loadVoice(selClient?.id)})}).then(r=>r.json()).catch(()=>({error:true})));
         const results = await Promise.all(reqs);
         const ok = results.filter(r=>r && !r.error && (r.english||r.arabic));
         if (ok.length) setCaptions(ok); else setError(L("Could not generate. Please try again.","تعذّر التوليد. حاول مرة أخرى."));
@@ -3226,7 +3227,20 @@ function AIStudioPage() {
               </div>
             </div>
           )}
-          <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?L("Generating…","جارٍ التوليد…"):L("Generate","توليد")}</button>
+          {tool==="captions" && aiLang!=="en" && (
+            <div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Arabic dialect","اللهجة العربية")}</div>
+              <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                {[["gulf",L("Gulf","خليجي")],["saudi",L("Saudi","سعودي")],["egyptian",L("Egyptian","مصري")],["levantine",L("Levantine","شامي")],["msa",L("Standard","فصحى")]].map(([k,t])=>(
+                  <button key={k} onClick={()=>setAiDialect(k)} style={{ fontSize:10.5, padding:"5px 11px", borderRadius:8, cursor:"pointer", border:`1px solid ${aiDialect===k?th.accent:th.border}`, background:aiDialect===k?th.accentSoft:"transparent", color:aiDialect===k?th.text:th.text2, fontWeight:aiDialect===k?600:400 }}>{t}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {tool==="captions" && loadVoice(selClient?.id) && (
+            <div style={{ marginLeft:"auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:5, fontSize:10.5, color:th.success }}><MessageCircle size={12}/>{L("Using ","باستخدام ")}{selClient?.name} {L("brand voice","نبرة العلامة")}</div>
+          )}
+          <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft: (tool==="captions" && loadVoice(selClient?.id)) ? 0 : "auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?L("Generating…","جارٍ التوليد…"):L("Generate","توليد")}</button>
         </div>
       </div>)}
 
@@ -3697,6 +3711,7 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
   const [count, setCount] = useState(8);
   const [days, setDays] = useState([1, 3, 5]);
   const [lang, setLang] = useState("both");
+  const [dialect, setDialect] = useState("gulf");
   const [busy, setBusy] = useState(null);
   const [posts, setPosts] = useState([]);
   const [err, setErr] = useState("");
@@ -3716,7 +3731,7 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
     setBusy({ done:0, total:ideas.length, label:L("Writing captions & generating images…","نكتب النصوص وننشئ الصور…") });
     await Promise.all(ideas.map(async (idea) => {
       const [cap, img] = await Promise.all([
-        api({ topic:idea, tone:'engaging and on-brand', lang, brand:clientName, voice }),
+        api({ topic:idea, tone:'engaging and on-brand', lang, dialect, brand:clientName, voice }),
         api({ mode:'image', prompt:`${idea} — ${theme}. Professional, vibrant social media photo, on brand.`, n:1, size:'1024x1024' }),
       ]);
       out.push({ idea, en:cap.english || "", ar:cap.arabic || "", image:(img.images && img.images[0]) || null });
@@ -3779,6 +3794,12 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
               <div><div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("How many posts?","كم منشوراً؟")}</div><div style={{ display:"flex", gap:6 }}>{[4,8,12].map(n=><span key={n} onClick={()=>setCount(n)} style={chip(count===n)}>{n}</span>)}</div></div>
               <div><div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Language","اللغة")}</div><div style={{ display:"flex", gap:6 }}>{[["both",L("Both","كلاهما")],["en","EN"],["ar","ع"]].map(([k,t])=><span key={k} onClick={()=>setLang(k)} style={chip(lang===k)}>{t}</span>)}</div></div>
             </div>
+            {lang!=="en" && (
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Arabic dialect","اللهجة العربية")}</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>{[["gulf",L("Gulf","خليجي")],["saudi",L("Saudi","سعودي")],["egyptian",L("Egyptian","مصري")],["levantine",L("Levantine","شامي")],["msa",L("Standard","فصحى")]].map(([k,t])=><span key={k} onClick={()=>setDialect(k)} style={chip(dialect===k)}>{t}</span>)}</div>
+              </div>
+            )}
             <div style={{ fontSize:11, color:th.text2, fontWeight:600, marginBottom:7 }}>{L("Post on these days","ينشر في هذه الأيام")}</div>
             <div style={{ display:"flex", gap:6, marginBottom:16 }}>{DOW.map((d,i)=><span key={i} onClick={()=>toggleDay(i)} style={{ ...chip(days.includes(i)), width:30, textAlign:"center", padding:"6px 0" }}>{d}</span>)}</div>
             <div onClick={()=>setSendAppr(v=>!v)} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:18 }}>
@@ -4014,6 +4035,10 @@ function CalendarPage() {
   const [products, setProducts] = useState("");
   const [prodEdit, setProdEdit] = useState(false);
   const [aiDays, setAiDays] = useState([]); // AI-found observance days for this client's products
+  const [igProfile, setIgProfile] = useState(null); // real IG profile for the Grid view
+  const [igMedia, setIgMedia] = useState([]);        // real IG feed media for the Grid view
+  const [gridLoading, setGridLoading] = useState(false);
+  const [gridDrag, setGridDrag] = useState(null); // post id being dragged in the Grid view
   const prodKey = `tw_client_products_${realClientId || selClient?.name || 'x'}`;
   useEffect(() => { try { setProducts(localStorage.getItem(prodKey) || ""); } catch (e) { setProducts(""); } }, [prodKey]);
   // Prefer the value stored on the client record (syncs across the team); fall back to localStorage.
@@ -4040,6 +4065,17 @@ function CalendarPage() {
     }, 900);
     return () => { cancelled = true; clearTimeout(t); };
   }, [products, isAR]);
+  // Pull the real Instagram profile + feed when the Grid view is open.
+  useEffect(() => {
+    if (view !== "grid") return;
+    const acc = accounts.find(a => a.platform === "ig" && a.access_token);
+    if (!acc) { setIgProfile(null); setIgMedia([]); return; }
+    let cancelled = false; setGridLoading(true);
+    fetch('/api/instagram-inbox', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ type:'profile', accountId: acc.account_id, accessToken: acc.access_token }) })
+      .then(r => r.json()).then(d => { if (cancelled) return; setIgProfile(d.profile || null); setIgMedia(Array.isArray(d.media) ? d.media : []); setGridLoading(false); })
+      .catch(() => { if (!cancelled) setGridLoading(false); });
+    return () => { cancelled = true; };
+  }, [view, accounts]);
   const aiOcc = (aiDays || []).filter(o => o && /^\d{1,2}-\d{1,2}$/.test(o.md || "")).map(o => { const dt = nextOccurrence(o.md); const now = new Date(); now.setHours(0,0,0,0); return { ...o, dObj:dt, days:Math.round((dt-now)/86400000), niche:true }; });
   const allNiche = [ ...matchedNicheDays(products), ...aiOcc ];
   const seenOcc = new Set();
@@ -4061,6 +4097,22 @@ function CalendarPage() {
     setPosts(prev => prev.map(x => x.id === postId ? { ...x, scheduled_at: nd.toISOString() } : x));
     setDragId(null); setDragOver(null);
     await supabase.from('posts').update({ scheduled_at: nd.toISOString() }).eq('id', postId);
+  };
+
+  // Grid drag-to-rearrange: reorder scheduled posts visually, keeping the same set of
+  // time slots — the dropped post takes the target's place and the slots reassign by order.
+  const regridSchedule = async (fromId, toId) => {
+    if (!fromId || fromId === toId) return;
+    const sched = [...posts].filter(p => p.status !== "published" && p.image_url).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
+    const slots = sched.map(p => p.scheduled_at);
+    const order = sched.map(p => p.id);
+    const fi = order.indexOf(fromId); if (fi < 0) return;
+    order.splice(fi, 1);
+    let ti = order.indexOf(toId); if (ti < 0) ti = order.length;
+    order.splice(ti, 0, fromId);
+    const updates = order.map((id, i) => ({ id, scheduled_at: slots[i] }));
+    setPosts(prev => prev.map(p => { const u = updates.find(x => x.id === p.id); return u ? { ...p, scheduled_at: u.scheduled_at } : p; }));
+    for (const u of updates) { try { await supabase.from('posts').update({ scheduled_at: u.scheduled_at }).eq('id', u.id); } catch (e) { /* ignore */ } }
   };
 
   useEffect(() => {
@@ -4160,7 +4212,7 @@ function CalendarPage() {
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
-            {[["list",L("List","قائمة")],["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
+            {[["list",L("List","قائمة")],["grid",L("Grid","شبكة")],["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
@@ -4263,12 +4315,67 @@ function CalendarPage() {
       )}
 
       <div style={{ ...card, overflow:"hidden" }}>
-        {view !== "list" && (
+        {view !== "list" && view !== "grid" && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:`1px solid ${th.border}` }}>
           {DOW.map(d => <div key={d} style={{ padding:"10px 0", textAlign:"center", fontSize:11, fontWeight:600, color:th.text2, letterSpacing:0.3 }}>{d}</div>)}
         </div>
         )}
-        {view === "list" ? (() => {
+        {view === "grid" ? (() => {
+          // Visual Instagram grid planner — real profile + live feed, with scheduled posts on top.
+          const prof = igProfile || {};
+          const acc0 = accounts.find(a => a.platform === "ig") || accounts[0] || {};
+          const handle = prof.username || acc0.account_name || (selClient?.name || "brand").toLowerCase().replace(/\s+/g,"");
+          const avatar = prof.profile_picture_url || selClient?.logo;
+          const dispName = prof.name || selClient?.name || handle;
+          const bio = prof.biography || "";
+          const schedTiles = [...fPosts].filter(p => p.status !== "published" && p.image_url).sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).map(p => ({ key:p.id, url:p.image_url, scheduled:true, post:p }));
+          const liveTiles = igMedia.length
+            ? igMedia.map(m => ({ key:m.id, url:m.url, scheduled:false, permalink:m.permalink }))
+            : [...fPosts].filter(p => p.status === "published" && p.image_url).sort((a,b)=> new Date(b.scheduled_at)-new Date(a.scheduled_at)).map(p => ({ key:p.id, url:p.image_url, scheduled:false, post:p }));
+          const tiles = [...schedTiles, ...liveTiles];
+          const postCount = prof.media_count != null ? prof.media_count : liveTiles.length;
+          const stat = (v) => v==null ? "—" : (typeof v==="number" ? v.toLocaleString() : v);
+          return (
+            <div style={{ padding:"22px 20px", background:dark?"#0B0F16":"#fafafa" }}>
+              <div style={{ maxWidth:470, margin:"0 auto" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:22, marginBottom:16 }}>
+                  {avatar ? <img src={avatar} alt="" style={{ width:74, height:74, borderRadius:"50%", objectFit:"cover", padding:2, background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)" }}/> : <div style={{ width:74, height:74, borderRadius:"50%", background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:28, fontWeight:700 }}>{(dispName||"B")[0]}</div>}
+                  <div style={{ flex:1, display:"flex", justifyContent:"space-around", textAlign:"center" }}>
+                    {[[stat(postCount), L("posts","منشور")],[stat(prof.followers_count), L("followers","متابع")],[stat(prof.follows_count), L("following","يتابع")]].map((s,i)=>(
+                      <div key={i}><div className="tw-num" style={{ fontSize:17, fontWeight:700, color:th.text }}>{s[0]}</div><div style={{ fontSize:11.5, color:th.text2 }}>{s[1]}</div></div>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{dispName}</div>
+                  <div style={{ fontSize:12.5, color:th.text2 }}>@{handle}</div>
+                  {bio && <div style={{ fontSize:12.5, color:th.text, lineHeight:1.5, marginTop:4, whiteSpace:"pre-wrap" }}>{bio}</div>}
+                </div>
+                {gridLoading && !igProfile && <div style={{ fontSize:11.5, color:th.text3, marginBottom:10, display:"flex", alignItems:"center", gap:6 }}><Clock size={12}/>{L("Loading live profile…","تحميل الملف المباشر…")}</div>}
+                {tiles.length === 0 ? (
+                  <div style={{ padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("Connect an Instagram account and schedule posts to preview the feed grid.","اربط حساب إنستغرام وجدوِل منشورات لمعاينة شبكة الحساب.")}</div>
+                ) : (
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:3 }}>
+                    {tiles.map(t => { const dragging = t.scheduled && gridDrag === t.post.id; return (
+                      <div key={t.key}
+                        draggable={t.scheduled}
+                        onDragStart={t.scheduled ? ()=>setGridDrag(t.post.id) : undefined}
+                        onDragOver={t.scheduled && gridDrag ? (e)=>e.preventDefault() : undefined}
+                        onDrop={t.scheduled && gridDrag ? (e)=>{ e.preventDefault(); regridSchedule(gridDrag, t.post.id); setGridDrag(null); } : undefined}
+                        onDragEnd={()=>setGridDrag(null)}
+                        onClick={()=>{ if (t.post) setSelected(t.post); else if (t.permalink) window.open(t.permalink, '_blank', 'noopener'); }}
+                        style={{ position:"relative", aspectRatio:"1/1", background:`center/cover url(${t.url})`, cursor:t.scheduled?"grab":"pointer", overflow:"hidden", opacity:dragging?0.35:1, boxShadow:(t.scheduled && gridDrag && !dragging)?`inset 0 0 0 2px ${th.accent}`:"none" }}>
+                        {t.scheduled && <div style={{ position:"absolute", inset:0, background:"rgba(8,12,20,0.34)", display:"flex", alignItems:"flex-start", justifyContent:"flex-end", padding:6 }}><span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, fontWeight:600, color:"#fff", background:"rgba(8,12,20,0.6)", padding:"2px 6px", borderRadius:20 }}><Clock size={9}/>{new Date(t.post.scheduled_at).toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" })}</span></div>}
+                        {t.post && t.post.label && <span style={{ position:"absolute", bottom:6, left:6, width:9, height:9, borderRadius:"50%", background:labelColor(t.post.label), border:"1.5px solid rgba(255,255,255,0.9)" }}/>}
+                      </div>
+                    ); })}
+                  </div>
+                )}
+                <div style={{ textAlign:"center", fontSize:10.5, color:th.text3, marginTop:14, lineHeight:1.6 }}>{L("Scheduled posts (dated) sit above the live feed. Drag a scheduled tile to rearrange — the schedule reshuffles to match.","المنشورات المجدولة (بالتاريخ) تظهر فوق الخلاصة المباشرة. اسحب مربعاً مجدولاً لإعادة الترتيب — وتُعاد الجدولة تلقائياً.")}</div>
+              </div>
+            </div>
+          );
+        })() : view === "list" ? (() => {
           const sorted = [...fPosts].sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at));
           if (sorted.length === 0) return <div style={{ padding:"48px 24px", textAlign:"center", color:th.text2, fontSize:13 }}><Calendar size={30} style={{ opacity:0.3, marginBottom:12 }}/><div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:6 }}>{filtersOn ? L("No posts match these filters","لا توجد منشورات مطابقة للفلاتر") : L("Nothing scheduled yet","لا يوجد شيء مجدول بعد")}</div><div>{filtersOn ? L("Try clearing a filter to see more.","امسح أحد الفلاتر لرؤية المزيد.") : L("Schedule a post and it'll show up here, grouped by day.","جدوِل منشوراً وسيظهر هنا مرتباً حسب اليوم.")}</div></div>;
           const groups = []; let lastKey = null;

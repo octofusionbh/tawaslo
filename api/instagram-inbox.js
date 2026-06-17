@@ -27,6 +27,26 @@ export default async function handler(req, res) {
     }
   }
 
+  // Real profile + feed for the Grid planner (photo, bio, followers, following, posts).
+  if (type === 'profile') {
+    try {
+      const meRes = await fetch(`${base}/me?fields=user_id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url&access_token=${accessToken}`);
+      const me = await meRes.json();
+      if (me.error) return res.status(400).json({ error: me.error.message });
+      const mediaRes = await fetch(`${base}/me/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count&limit=24&access_token=${accessToken}`);
+      const md = await mediaRes.json();
+      const media = (md.data || []).map(m => ({
+        id: m.id,
+        url: m.media_type === 'VIDEO' ? (m.thumbnail_url || m.media_url) : m.media_url,
+        permalink: m.permalink, caption: m.caption || '', type: m.media_type,
+        time: m.timestamp, likes: m.like_count || 0, comments: m.comments_count || 0,
+      })).filter(m => m.url);
+      return res.status(200).json({ profile: me, media });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to fetch profile', details: err.message });
+    }
+  }
+
   if (!accountId) return res.status(400).json({ error: 'Missing accountId' });
 
   try {
