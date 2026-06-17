@@ -4009,6 +4009,7 @@ function CalendarPage() {
   const [batchToken, setBatchToken] = useState("");
   const [platFilter, setPlatFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [labelFilter, setLabelFilter] = useState("all");
   const [clearAsk, setClearAsk] = useState(false);
   const [products, setProducts] = useState("");
   const [prodEdit, setProdEdit] = useState(false);
@@ -4047,8 +4048,9 @@ function CalendarPage() {
   const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
   // Filters narrow the calendar/list live, without touching the header totals.
-  const fPosts = posts.filter(p => (platFilter === "all" || p.platform === platFilter) && (statusFilter === "all" || stOf(p.id) === statusFilter));
-  const filtersOn = platFilter !== "all" || statusFilter !== "all";
+  const fPosts = posts.filter(p => (platFilter === "all" || p.platform === platFilter) && (statusFilter === "all" || stOf(p.id) === statusFilter) && (labelFilter === "all" || p.label === labelFilter));
+  const presentLabels = Array.from(new Set(posts.map(p => p.label).filter(Boolean)));
+  const filtersOn = platFilter !== "all" || statusFilter !== "all" || labelFilter !== "all";
   const presentPlats = Array.from(new Set(posts.map(p => p.platform).filter(Boolean)));
 
   const reschedule = async (postId, targetDate) => {
@@ -4215,11 +4217,21 @@ function CalendarPage() {
             <button key={sk} onClick={()=>setStatusFilter(active?"all":sk)} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, fontSize:11, cursor:"pointer", border:`1px solid ${active?s.color:th.border}`, background:active?s.color+"1e":"transparent", color:active?th.text:th.text2 }}><span style={{ width:6, height:6, borderRadius:"50%", background:s.color }}/>{L(s.label,s.ar)}</button>
           ); })}
         </div>
+        {presentLabels.length > 0 && <>
+          <span style={{ width:1, height:18, background:th.border }}/>
+          <span style={{ fontSize:10, color:th.text3, fontWeight:700, letterSpacing:0.5 }}>{L("LABEL","التصنيف")}</span>
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+            <button onClick={()=>setLabelFilter("all")} style={{ padding:"5px 11px", borderRadius:8, fontSize:11, cursor:"pointer", border:"none", background:labelFilter==="all"?th.gradient:"transparent", color:labelFilter==="all"?"#fff":th.text2, fontWeight:labelFilter==="all"?600:400 }}>{L("All","الكل")}</button>
+            {presentLabels.map(lb => { const active = labelFilter===lb; const c = labelColor(lb); return (
+              <button key={lb} onClick={()=>setLabelFilter(active?"all":lb)} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, fontSize:11, cursor:"pointer", border:`1px solid ${active?c:th.border}`, background:active?c+"1e":"transparent", color:active?th.text:th.text2 }}><span style={{ width:6, height:6, borderRadius:"50%", background:c }}/>{lb}</button>
+            ); })}
+          </div>
+        </>}
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
           {filtersOn && (clearAsk ? (
             <span style={{ display:"inline-flex", alignItems:"center", gap:8, fontSize:11, color:th.text2 }}>
               {L("Clear all filters?","مسح كل الفلاتر؟")}
-              <button onClick={()=>{ setPlatFilter("all"); setStatusFilter("all"); setClearAsk(false); }} style={{ fontSize:11, fontWeight:700, color:th.danger, background:"none", border:"none", cursor:"pointer" }}>{L("Yes","نعم")}</button>
+              <button onClick={()=>{ setPlatFilter("all"); setStatusFilter("all"); setLabelFilter("all"); setClearAsk(false); }} style={{ fontSize:11, fontWeight:700, color:th.danger, background:"none", border:"none", cursor:"pointer" }}>{L("Yes","نعم")}</button>
               <button onClick={()=>setClearAsk(false)} style={{ fontSize:11, color:th.text3, background:"none", border:"none", cursor:"pointer" }}>{L("No","لا")}</button>
             </span>
           ) : (
@@ -4277,6 +4289,7 @@ function CalendarPage() {
                     <div style={{ fontSize:13.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(untitled)","(بدون عنوان)")}</div>
                     <div style={{ fontSize:11, color:th.text2, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Clock size={12}/><span className="tw-num">{fmtTime(p.scheduled_at)}</span>{p.account_id && <span style={{ color:th.text3 }}>&middot; {(accounts.find(a=>a.account_id===p.account_id)||{}).account_name || info.name}</span>}</div>
                   </div>
+                  {p.label && <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:600, borderRadius:999, padding:"3px 9px", background:labelColor(p.label)+"22", color:th.text, flexShrink:0 }}><span style={{ width:6, height:6, borderRadius:"50%", background:labelColor(p.label) }}/>{p.label}</span>}
                   <span style={{ fontSize:10, fontWeight:700, borderRadius:999, padding:"3px 10px", background:p.status==="scheduled"?th.successSoft:th.warningSoft, color:p.status==="scheduled"?th.success:th.warning, flexShrink:0 }}>{p.status==="scheduled"?L("scheduled","مجدول"):L("draft","مسودة")}</span>
                   <button title={L("Preview","معاينة")} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Eye size={16}/></button>
                   <button title={L("Edit","تعديل")} onClick={(e)=>{e.stopPropagation();setPage("publisher");}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Edit3 size={15}/></button>
@@ -4403,6 +4416,17 @@ function EmptyState({ Icon, title, body, cta, onCta, compact }) {
   );
 }
 
+// Campaign labels / categories — a fixed, sensible palette used in the composer and Planner.
+const POST_LABELS = [
+  { name:"Promotion",  color:"#E0B973" },
+  { name:"Awareness",  color:"#7C83FF" },
+  { name:"Engagement", color:"#5FBF92" },
+  { name:"Launch",     color:"#E2574B" },
+  { name:"Seasonal",   color:"#C77BBA" },
+  { name:"Evergreen",  color:"#5AA9C9" },
+];
+const labelColor = (name) => (POST_LABELS.find(l => l.name === name) || {}).color || "#8a93a5";
+
 function PublisherPage() {
   const { selClient, dark, setPage, userEmail, lang, selPlatform } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -4447,6 +4471,9 @@ function PublisherPage() {
   const [drafts, setDrafts] = useState([]);
   const [repostNote, setRepostNote] = useState(false); // arrived here via Repost → Story
   const [hashGroups, setHashGroups] = useState([]); // saved reusable hashtag sets (per client, localStorage)
+  const [utmCampaign, setUtmCampaign] = useState(""); // campaign name for UTM link tagging
+  const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
+  const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -4590,6 +4617,52 @@ function PublisherPage() {
   };
   const deleteHashGroup = (id) => persistGroups(hashGroups.filter(g => g.id !== id));
 
+  // ── UTM campaign link tagging — append tracking params to links in the caption ──
+  const captionHasLink = /https?:\/\//.test(caption);
+  const tagLinksWithUTM = () => {
+    const camp = (utmCampaign.trim() || "social").toLowerCase().replace(/\s+/g, "_");
+    const p = selPlats[0];
+    const src = p==='ig'?'instagram':p==='fb'?'facebook':p==='tw'?'twitter':p==='li'?'linkedin':p==='tt'?'tiktok':p==='yt'?'youtube':'social';
+    setCaption(c => c.replace(/(https?:\/\/[^\s]+)/g, (u) => {
+      const hash = u.includes('#') ? u.slice(u.indexOf('#')) : '';
+      const base = u.split('#')[0];
+      const [path, query=''] = base.split('?');
+      const params = query.split('&').filter(x => x && !x.toLowerCase().startsWith('utm_'));
+      params.push('utm_source=' + src, 'utm_medium=social', 'utm_campaign=' + camp);
+      return path + '?' + params.join('&') + hash;
+    }));
+  };
+
+  // ── Auto-watermark — overlay the client logo on an image, best-effort ──
+  // Falls back to the original URL on any failure (cross-origin, no logo, etc.)
+  // so it can never block publishing.
+  const applyWatermark = async (imageUrl) => {
+    const logo = selClient?.logo;
+    if (!logo || !imageUrl) return imageUrl;
+    try {
+      const load = (src) => new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+      const [base, mark] = await Promise.all([load(imageUrl), load(logo)]);
+      const canvas = document.createElement('canvas');
+      canvas.width = base.naturalWidth; canvas.height = base.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(base, 0, 0);
+      const mw = Math.round(canvas.width * 0.16);
+      const mh = Math.round(mw * (mark.naturalHeight / mark.naturalWidth || 1));
+      const pad = Math.round(canvas.width * 0.03);
+      ctx.globalAlpha = 0.85;
+      ctx.drawImage(mark, canvas.width - mw - pad, canvas.height - mh - pad, mw, mh);
+      ctx.globalAlpha = 1;
+      const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.92));
+      if (!blob) return imageUrl;
+      const { data: { user } } = await supabase.auth.getUser();
+      const path = `${user?.id || 'x'}/wm/${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { contentType:'image/jpeg', upsert:true });
+      if (error) return imageUrl;
+      const { data } = supabase.storage.from('media').getPublicUrl(path);
+      return (data && data.publicUrl) || imageUrl;
+    } catch (e) { return imageUrl; }
+  };
+
   // ── Best time to post — recommended upcoming slots per platform ───────
   const bestTimeSlots = () => {
     const plat = selPlats[0] || 'ig';
@@ -4661,7 +4734,8 @@ function PublisherPage() {
     }
     const apprTok = apprMode === "client" ? Math.random().toString(36).slice(2, 10) : null;
     setPosting(true); setResults([]);
-    const imgs = images.map(m => m.url);
+    let imgs = images.map(m => m.url);
+    if (watermark && selClient?.logo && imgs.length) { try { imgs = await Promise.all(imgs.map(u => applyWatermark(u))); } catch (e) { /* keep originals */ } }
     const imgAlts = images.map(m => (m.alt || "").trim());
     const out = [];
     for (const accId of selectedAccounts) {
@@ -4676,6 +4750,7 @@ function PublisherPage() {
           else if (repeatType === "weekly") d.setDate(d.getDate() + n * 7);
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
           const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
+          if (postLabel) srow.label = postLabel;
           if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }
           const { error } = await supabase.from('posts').insert([srow]);
           if (error) { ok = false; lastErr = error.message; }
@@ -4690,7 +4765,9 @@ function PublisherPage() {
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
           try {
-            const { data: ins } = await supabase.from('posts').insert([{ client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published', scheduled_at: new Date().toISOString() }]).select();
+            const prow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published', scheduled_at: new Date().toISOString() };
+            if (postLabel) prow.label = postLabel;
+            const { data: ins } = await supabase.from('posts').insert([prow]).select();
             if (ins && ins[0]) await supabase.from('posts').update({ external_id: data.postId || null, permalink: data.permalink || null, published_at: new Date().toISOString() }).eq('id', ins[0].id);
           } catch (e) { /* link columns may not exist yet — non-fatal */ }
         }
@@ -4897,6 +4974,16 @@ function PublisherPage() {
             <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginTop:7 }}>
               <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
             </div>
+            {captionHasLink && (
+              <div style={{ marginTop:10, borderTop:`1px solid ${th.border}`, paddingTop:10 }}>
+                <div style={{ fontSize:10.5, color:th.text2, marginBottom:7, display:"flex", alignItems:"center", gap:5 }}><Link size={11} color={th.accent}/>{L("Campaign link tracking (UTM)","تتبّع روابط الحملة (UTM)")}</div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <input value={utmCampaign} onChange={e=>setUtmCampaign(e.target.value)} placeholder={L("Campaign name — e.g. summer_sale","اسم الحملة — مثلاً summer_sale")} style={{ flex:1, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:11.5, outline:"none" }}/>
+                  <button onClick={tagLinksWithUTM} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:8, border:"none", background:th.accentSoft, color:th.accent, fontSize:11, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}><Link size={11}/>{L("Tag links","وسم الروابط")}</button>
+                </div>
+                <div style={{ fontSize:9.5, color:th.text3, marginTop:6, lineHeight:1.5 }}>{L("Adds UTM tags so Google Analytics shows exactly which post drove the traffic.","يضيف وسوم UTM ليُظهر تحليلك أي منشور جلب الزيارات بالضبط.")}</div>
+              </div>
+            )}
             <div style={{ marginTop:10, borderTop:`1px solid ${th.border}`, paddingTop:10 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <span style={{ fontSize:10.5, color:th.text2, display:"flex", alignItems:"center", gap:5 }}><span style={{ color:th.accent, fontWeight:700 }}>#</span>{L("Hashtag groups","مجموعات الهاشتاق")}</span>
@@ -4966,6 +5053,21 @@ function PublisherPage() {
               <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{igSelected ? L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.") : L("Describe the image for screen readers — better accessibility and reach.","صف الصورة لقارئات الشاشة — وصول وانتشار أفضل.")}</div>
             </div>
           )}
+
+          <div style={card}>
+            <div style={{ fontSize:10.5, color:th.text3, marginBottom:6 }}>{L("Campaign label","تصنيف الحملة")}</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+              {POST_LABELS.map(l => { const on = postLabel===l.name; return (
+                <button key={l.name} onClick={()=>setPostLabel(on?"":l.name)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 11px", borderRadius:999, border:`1.5px solid ${on?l.color:th.border}`, background:on?l.color+"22":"transparent", color:on?th.text:th.text2, fontSize:11, fontWeight:on?600:400, cursor:"pointer" }}><span style={{ width:8, height:8, borderRadius:"50%", background:l.color }}/>{l.name}</button>
+              ); })}
+            </div>
+            {selClient?.logo && images.length>0 && (
+              <div onClick={()=>setWatermark(v=>!v)} style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginTop:13, paddingTop:13, borderTop:`1px solid ${th.border}` }}>
+                <span style={{ width:34, height:20, borderRadius:11, background:watermark?th.accent:th.border, position:"relative", flexShrink:0 }}><span style={{ position:"absolute", top:2, left:watermark?16:2, width:16, height:16, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/></span>
+                <div><div style={{ fontSize:12, color:th.text }}>{L("Watermark images with logo","ختم الصور بالشعار")}</div><div style={{ fontSize:10, color:th.text3 }}>{L("Adds the client's logo to each photo before publishing","يضيف شعار العميل لكل صورة قبل النشر")}</div></div>
+              </div>
+            )}
+          </div>
 
           <div style={card}>
             <div style={lbl}>When to post</div>
