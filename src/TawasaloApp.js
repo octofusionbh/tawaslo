@@ -6284,6 +6284,17 @@ function AnalyticsPage() {
   const tpMetricLabel = tpHasViews ? L("Views","المشاهدات") : tpHasReach ? L("Reach","الوصول") : L("Comments","التعليقات");
   const tpFollowers = data?.summary?.followers || 0;
 
+  // ── Best-time heatmap — weekday × daypart, from real post timestamps ──
+  const HM_DAYS = isAR ? ["أحد","إثن","ثلا","أرب","خمي","جمع","سبت"] : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const HM_PARTS = isAR ? ["صباح","ظهر","عصر","مساء","ليل"] : ["Morning","Midday","Afternoon","Evening","Night"];
+  const daypartOf = (h) => (h>=6&&h<11)?0 : (h>=11&&h<14)?1 : (h>=14&&h<17)?2 : (h>=17&&h<21)?3 : 4;
+  const hmPosts = (data?.recentPosts||[]).filter(p=>p.timestamp);
+  const hmGrid = Array.from({length:7},()=>Array.from({length:5},()=>({sum:0,n:0})));
+  hmPosts.forEach(p=>{ const dt=new Date(p.timestamp); if(isNaN(dt.getTime()))return; const d=dt.getDay(); const part=daypartOf(dt.getHours()); const eng=(p.likes||0)+(p.comments||0); hmGrid[d][part].sum+=eng; hmGrid[d][part].n+=1; });
+  let hmMax=0, hmPeak=null;
+  const hmVal = hmGrid.map((row,di)=>row.map((c,pi)=>{ const v = c.n ? c.sum/c.n : 0; if(v>hmMax){ hmMax=v; hmPeak=[di,pi]; } return { v, n:c.n }; }));
+  const hmReady = hmPosts.length >= 4 && hmMax > 0;
+
   // ── Deltas & narrative ──────────────────────────────────────────────
   const isSample = !!data?._sample;
   const hasImpr = imprSeries.some(v => v > 0);
@@ -6417,6 +6428,35 @@ function AnalyticsPage() {
                 )}
               </div>
             </div>
+          </div>
+
+          <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"none",overflow:"hidden",marginBottom:18}}>
+            <div style={{padding:"14px 18px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+              <span style={{fontSize:13,fontWeight:600}}>{L("Best times to post","أفضل أوقات النشر")}</span>
+              {hmReady && hmPeak && <span style={{fontSize:11,color:th.accent,display:"inline-flex",alignItems:"center",gap:5}}><Clock size={12}/>{L("Peak","الذروة")}: {HM_DAYS[hmPeak[0]]} · {HM_PARTS[hmPeak[1]]}</span>}
+            </div>
+            {!hmReady ? (
+              <div style={{padding:"28px 20px",textAlign:"center",color:th.text2,fontSize:12.5,lineHeight:1.6}}>{L("We'll map your audience's most active times once this account has a few more published posts.","سنرسم أكثر أوقات تفاعل جمهورك بمجرد نشر هذا الحساب لعدد أكبر من المنشورات.")}</div>
+            ) : (
+              <div style={{padding:"16px 18px 18px"}}>
+                <div style={{display:"grid",gridTemplateColumns:"42px repeat(5,1fr)",gap:5,alignItems:"center"}}>
+                  <div></div>
+                  {HM_PARTS.map((p,i)=><div key={'h'+i} style={{fontSize:9.5,color:th.text3,textAlign:"center"}}>{p}</div>)}
+                  {hmVal.flatMap((row,di)=>{
+                    const cells = row.map((c,pi)=>{ const intensity = hmMax ? c.v/hmMax : 0; const isPk = hmPeak && hmPeak[0]===di && hmPeak[1]===pi; return (
+                      <div key={di+'-'+pi} title={`${HM_DAYS[di]} ${HM_PARTS[pi]} · ${c.n} ${L("posts","منشور")}`} style={{height:26,borderRadius:5,background:c.n?`rgba(124,131,255,${(0.12+intensity*0.88).toFixed(2)})`:th.card2,boxShadow:isPk?"inset 0 0 0 2px #fff":"none"}}/>
+                    ); });
+                    return [<div key={'d'+di} style={{fontSize:10.5,color:th.text2,textAlign:"right",paddingRight:4}}>{HM_DAYS[di]}</div>, ...cells];
+                  })}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12,fontSize:10,color:th.text3}}>
+                  <span>{L("Less","أقل")}</span>
+                  {[0.12,0.35,0.58,0.8,1].map((a,i)=><span key={i} style={{width:16,height:9,borderRadius:2,background:`rgba(124,131,255,${a})`}}/>)}
+                  <span>{L("More","أكثر")}</span>
+                  <span style={{marginInlineStart:"auto"}}>{L("by avg engagement","حسب متوسط التفاعل")}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:18,boxShadow:"none",overflow:"hidden"}}>
