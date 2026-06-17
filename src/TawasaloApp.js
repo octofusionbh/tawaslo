@@ -4210,6 +4210,19 @@ function CalendarPage() {
   const [strategyOpen, setStrategyOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [evergreenOpen, setEvergreenOpen] = useState(false);
+  const [portalLink, setPortalLink] = useState(null);
+  const sharePortal = async () => {
+    if (!realClientId) return;
+    let tok;
+    try {
+      const { data } = await supabase.from('clients').select('portal_token').eq('id', realClientId).limit(1);
+      tok = data && data[0] && data[0].portal_token;
+      if (!tok) { tok = 'p' + Math.random().toString(36).slice(2,12); await supabase.from('clients').update({ portal_token: tok }).eq('id', realClientId); }
+    } catch (e) { return; }
+    const url = ((typeof window!=="undefined" && window.location.origin) || 'https://tawaslo.com') + '/portal/' + tok;
+    try { await navigator.clipboard.writeText(url); } catch (e) {}
+    setPortalLink(url); setTimeout(()=>setPortalLink(null), 6000);
+  };
   const [loadingP, setLoadingP] = useState(true);
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
@@ -4418,6 +4431,7 @@ function CalendarPage() {
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
+          <button onClick={sharePortal} title={L("Copy the client's private portal link","انسخ رابط بوابة العميل الخاص")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Link size={14} color={th.accent}/>{L("Client portal","بوابة العميل")}</button>
           <button onClick={()=>setEvergreenOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><RefreshCw size={14} color={th.accent}/>{L("Evergreen","دائم الخضرة")}</button>
           <button onClick={()=>setBulkOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><FileText size={14} color={th.accent}/>{L("Bulk","رفع جماعي")}</button>
           <button onClick={()=>setStrategyOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Sparkles size={14} color={th.accent}/>{L("Strategy","الاستراتيجية")}</button>
@@ -4457,6 +4471,12 @@ function CalendarPage() {
       {strategyOpen && <StrategyModal clientId={realClientId} clientName={selClient?.name} th={th} L={L} isAR={isAR} onClose={()=>setStrategyOpen(false)} onUseInPlan={()=>{ setStrategyOpen(false); setPlanOpen(true); }}/>}
       {bulkOpen && <BulkUploadModal clientId={realClientId} accounts={accounts} th={th} L={L} isAR={isAR} onClose={()=>setBulkOpen(false)} onDone={()=>{ setBulkOpen(false); loadPosts(); }}/>}
       {evergreenOpen && <EvergreenModal clientId={realClientId} accounts={accounts} th={th} L={L} isAR={isAR} onClose={()=>setEvergreenOpen(false)} onDone={()=>{ setEvergreenOpen(false); loadPosts(); }}/>}
+      {portalLink && createPortal(
+        <div style={{ position:"fixed", left:"50%", bottom:24, transform:"translateX(-50%)", zIndex:90, display:"flex", alignItems:"center", gap:10, background:th.surface, border:`1px solid ${th.accent}`, borderRadius:12, padding:"11px 16px", boxShadow:"0 20px 60px rgba(0,0,0,0.5)", maxWidth:"92vw" }}>
+          <Check size={16} color={th.success}/>
+          <span style={{ fontSize:12.5, color:th.text, fontWeight:600 }}>{L("Portal link copied","تم نسخ رابط البوابة")}</span>
+          <a href={portalLink} target="_blank" rel="noreferrer" style={{ fontSize:11.5, color:th.accent, textDecoration:"none", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:240 }}>{portalLink.replace(/^https?:\/\//,'')}</a>
+        </div>, document.body)}
 
       {/* Filter bar — platform + status, with a persistent Today */}
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 13px", background:th.card, border:`1px solid ${th.border}`, borderRadius:12, marginBottom:14 }}>
@@ -10422,6 +10442,82 @@ function LinkInBioPage({ slug }) {
   );
 }
 
+// ── Public branded client portal (tawaslo.com/portal/<token>) ────────
+// One private link a client opens to see their upcoming calendar and anything
+// waiting on their approval — in the agency's branding, no login.
+function ClientPortalPage({ token }) {
+  const [client, setClient] = useState(undefined); // undefined=loading, null=not found
+  const [posts, setPosts] = useState([]);
+  useEffect(() => {
+    supabase.from('clients').select('id,name,logo').eq('portal_token', token).limit(1).then(({ data }) => {
+      const c = data && data[0]; setClient(c || null);
+      if (c) {
+        supabase.from('posts').select('id,caption,image_url,scheduled_at,status,appr_status,appr_token,label').eq('client_id', c.id).order('scheduled_at', { ascending: true })
+          .then(({ data: ps }) => { if (ps) setPosts(ps); });
+      }
+    });
+  }, [token]);
+
+  const wrap = { minHeight:"100vh", background:"radial-gradient(1100px 560px at 50% -8%, #141B27 0%, #080B11 62%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding:"34px 18px 60px", boxSizing:"border-box" };
+  if (client === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (client === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This portal isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+
+  const startToday = new Date(); startToday.setHours(0,0,0,0);
+  const upcoming = posts.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= startToday && p.status !== 'published').sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,10);
+  const pending = posts.filter(p => p.appr_status === 'pending' || p.status === 'pending' || p.status === 'revised');
+  const fmt = (d) => new Date(d).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" });
+  const fmtT = (d) => new Date(d).toLocaleTimeString([], { hour:"numeric", minute:"2-digit" });
+
+  return (
+    <div style={wrap}>
+      <div style={{ maxWidth:560, margin:"0 auto" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18 }}>
+          {client.logo ? <img src={client.logo} alt="" style={{ width:54, height:54, borderRadius:13, objectFit:"cover", background:"#fff" }}/> : <div style={{ width:54, height:54, borderRadius:13, background:"#6F5BD6", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, fontWeight:700 }}>{(client.name||"C")[0]}</div>}
+          <div><div style={{ fontSize:18, fontWeight:700 }}>{client.name}</div><div style={{ fontSize:12.5, color:"#9AA3AD" }}>Content portal</div></div>
+          <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:"#8FB0C9", background:"rgba(79,107,140,0.16)", padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Private link</span>
+        </div>
+
+        {pending.length > 0 && (
+          <div style={{ background:"rgba(124,131,255,0.1)", border:"1px solid rgba(124,131,255,0.32)", borderRadius:14, padding:"14px 16px", marginBottom:20 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: pending.some(p=>p.appr_token)?11:0 }}>
+              <Clock size={17} color="#8B93FF"/>
+              <div style={{ fontSize:13.5, fontWeight:600 }}>{pending.length} {pending.length===1?"post":"posts"} waiting for your approval</div>
+            </div>
+            {pending.filter(p=>p.appr_token).slice(0,6).map(p => (
+              <a key={p.id} href={`/a/${p.appr_token}`} style={{ display:"flex", alignItems:"center", gap:11, textDecoration:"none", color:"#E8EFF8", padding:"8px 0", borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+                <span style={{ width:36, height:36, borderRadius:8, flexShrink:0, background: p.image_url?`center/cover url(${p.image_url})`:"#2A3340" }}/>
+                <span style={{ flex:1, minWidth:0, fontSize:12.5, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || "Untitled post"}</span>
+                <span style={{ fontSize:11, fontWeight:600, color:"#fff", background:"#6F76E8", padding:"6px 12px", borderRadius:8, flexShrink:0 }}>Review</span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize:11, color:"#7E8794", letterSpacing:0.5, textTransform:"uppercase", marginBottom:11 }}>Coming up</div>
+        {upcoming.length === 0 ? (
+          <div style={{ fontSize:12.5, color:"#7E8794", padding:"18px 0" }}>Nothing scheduled yet — your agency is on it.</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+            {upcoming.map(p => (
+              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:12, background:"rgba(255,255,255,0.04)", borderRadius:12, padding:"10px 12px" }}>
+                <span style={{ width:44, height:44, borderRadius:9, flexShrink:0, background: p.image_url?`center/cover url(${p.image_url})`:"#2A3340" }}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || "Untitled post"}</div>
+                  <div style={{ fontSize:11, color:"#9AA3AD", marginTop:2 }}>{fmt(p.scheduled_at)} · {fmtT(p.scheduled_at)}</div>
+                </div>
+                {p.label && <span style={{ fontSize:9.5, fontWeight:600, color:"#E8EFF8", background:labelColor(p.label)+"22", borderRadius:20, padding:"3px 9px", flexShrink:0, display:"inline-flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:labelColor(p.label) }}/>{p.label}</span>}
+                {p.status==='approved'||p.appr_status==='approved' ? <span style={{ fontSize:9.5, fontWeight:600, color:"#5FBF92", background:"rgba(95,191,146,0.14)", borderRadius:20, padding:"3px 9px", flexShrink:0 }}>Approved</span> : null}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:30 }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
+      </div>
+    </div>
+  );
+}
+
 function ClientApprovalPage({ token }) {
   const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => { const f = () => setVw(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -10802,6 +10898,10 @@ export default function TawasloApp() {
   // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
   const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
   if (bioMatch) return <LinkInBioPage slug={bioMatch[1]}/>;
+
+  // Public branded client portal (tawaslo.com/portal/<token>) — no login.
+  const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
+  if (portalMatch) return <ClientPortalPage token={portalMatch[1]}/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
