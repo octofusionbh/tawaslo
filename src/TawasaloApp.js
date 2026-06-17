@@ -4012,6 +4012,7 @@ function CalendarPage() {
   const [clearAsk, setClearAsk] = useState(false);
   const [products, setProducts] = useState("");
   const [prodEdit, setProdEdit] = useState(false);
+  const [aiDays, setAiDays] = useState([]); // AI-found observance days for this client's products
   const prodKey = `tw_client_products_${realClientId || selClient?.name || 'x'}`;
   useEffect(() => { try { setProducts(localStorage.getItem(prodKey) || ""); } catch (e) { setProducts(""); } }, [prodKey]);
   // Prefer the value stored on the client record (syncs across the team); fall back to localStorage.
@@ -4025,7 +4026,24 @@ function CalendarPage() {
     try { localStorage.setItem(prodKey, v); } catch (e) {}
     if (realClientId) { try { supabase.from('clients').update({ products: v }).eq('id', realClientId).then(() => {}, () => {}); } catch (e) {} }
   };
-  const occList = [ ...upcomingOccasions(6), ...matchedNicheDays(products) ].sort((a,b)=>a.dObj-b.dObj).slice(0,6);
+  // Beyond the curated list, ask the AI for any observance days that fit this client's
+  // products. Cached per product-string in localStorage, debounced so typing doesn't spam.
+  useEffect(() => {
+    const p = (products || "").trim().toLowerCase();
+    if (!p) { setAiDays([]); return; }
+    try { const c = localStorage.getItem('tw_aidays_' + p); if (c) { setAiDays(JSON.parse(c)); return; } } catch (e) {}
+    let cancelled = false;
+    const t = setTimeout(() => {
+      fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'occasions', products:p, lang: isAR?'ar':'both' }) })
+        .then(r => r.json()).then(d => { if (cancelled) return; const days = (d && Array.isArray(d.days)) ? d.days : []; setAiDays(days); try { localStorage.setItem('tw_aidays_' + p, JSON.stringify(days)); } catch (e) {} }).catch(() => {});
+    }, 900);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [products, isAR]);
+  const aiOcc = (aiDays || []).filter(o => o && /^\d{1,2}-\d{1,2}$/.test(o.md || "")).map(o => { const dt = nextOccurrence(o.md); const now = new Date(); now.setHours(0,0,0,0); return { ...o, dObj:dt, days:Math.round((dt-now)/86400000), niche:true }; });
+  const allNiche = [ ...matchedNicheDays(products), ...aiOcc ];
+  const seenOcc = new Set();
+  const dedupNiche = allNiche.filter(o => { const k = (o.en || "").toLowerCase().replace(/[^a-z]/g,""); if (!k || seenOcc.has(k)) return false; seenOcc.add(k); return true; });
+  const occList = [ ...upcomingOccasions(6), ...dedupNiche ].sort((a,b) => a.dObj - b.dObj).slice(0, 6);
   const stOf = (id) => apprOf[id] || (posts.find(pp => pp.id === id) || {}).appr_status || apprStatusOf(id);
   const setSt = (id, st) => { setApprStatus(id, st); setApprOf(mm => ({ ...mm, [id]: st })); };
   // Filters narrow the calendar/list live, without touching the header totals.

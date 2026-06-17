@@ -108,6 +108,8 @@ export default async function handler(req, res) {
     if (!req.body.message) return res.status(400).json({ error: 'A message is required.' });
   } else if (theMode === 'analyze') {
     if (!Array.isArray(req.body.messages) || !req.body.messages.length) return res.status(200).json({ sentiment: null, topics: [] });
+  } else if (theMode === 'occasions') {
+    if (!req.body.products) return res.status(200).json({ days: [] });
   } else if (!topic) {
     return res.status(400).json({ error: 'Topic is required' });
   }
@@ -194,6 +196,15 @@ ${msgs}
 Return ONLY a JSON object (no markdown):
 { "sentiment": { "positive": <int>, "neutral": <int>, "negative": <int> }, "topics": [["short topic or question label", <int count>]], "loved": "<one short phrase: what people praised most>", "watch": "<one short phrase: an issue or request worth watching>" }
 The three sentiment percentages must be integers that sum to 100. Give up to 4 topics, most common first. Keep "loved" and "watch" under 8 words each.`;
+  } else if (theMode === 'occasions') {
+    // Match a client's products to real observance / national "days" they can market around.
+    maxTokens = 700;
+    messageContent = `You are a social media planning assistant. A business sells: ${req.body.products}.
+List up to 8 real, widely-recognized recurring observance / awareness / national "days" this business could create marketing content around (for example, International Coffee Day for a cafe, World Tourism Day for a hotel). Only include real, well-known days that genuinely relate to what they sell. Give each day's approximate annual date.
+
+Return ONLY a JSON object (no markdown, no extra text):
+{ "days": [ { "en": "English name", "ar": "الاسم بالعربية", "md": "MM-DD" } ] }
+Use zero-padded MM-DD (month-day). Order by calendar date. If nothing clearly fits, return an empty array.`;
   } else if (theMode === 'strategy') {
     // Content strategy generator — a brief becomes pillars, cadence and themes.
     maxTokens = 1100;
@@ -288,6 +299,7 @@ ${shape}`;
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       if (theMode === 'ideas') return res.status(200).json({ ideas: [text] });
+      if (theMode === 'occasions') return res.status(200).json({ days: [] });
       if (theMode === 'hashtags') return res.status(200).json({ hashtags: [] });
       if (theMode === 'reply') return res.status(200).json({ replies: [text] });
       if (theMode === 'analyze') return res.status(200).json({ sentiment: null, topics: [] });
