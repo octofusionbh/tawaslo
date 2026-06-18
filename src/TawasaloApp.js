@@ -9295,6 +9295,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       ai: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig4" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><circle cx="16" cy="16" r="13" fill="url(#ig4)" opacity="0.15" stroke="url(#ig4)" strokeWidth="1.5"/><path d="M10 13h12M10 16h8M10 19h10" stroke="url(#ig4)" strokeWidth="1.5" strokeLinecap="round"/><circle cx="24" cy="10" r="4" fill="url(#ig4)"/><text x="24" y="13" textAnchor="middle" fill="#fff" fontSize="6" fontWeight="bold">AI</text></svg>,
       multiclient: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig5" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><circle cx="12" cy="11" r="4" fill="url(#ig5)" opacity="0.8"/><circle cx="22" cy="11" r="4" fill="url(#ig5)" opacity="0.5"/><path d="M4 26c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="url(#ig5)" strokeWidth="1.5" strokeLinecap="round"/><path d="M22 18c2.2 1.5 3.7 3.8 4 6.5" stroke="url(#ig5)" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/></svg>,
       reports: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><linearGradient id="ig6" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#4F6EF7"/><stop offset="1" stopColor="#7C3AED"/></linearGradient></defs><rect x="4" y="2" width="24" height="28" rx="4" fill="url(#ig6)" opacity="0.15" stroke="url(#ig6)" strokeWidth="1.5"/><rect x="8" y="8" width="16" height="2" rx="1" fill="url(#ig6)"/><rect x="8" y="13" width="12" height="2" rx="1" fill="url(#ig6)" opacity="0.7"/><rect x="8" y="18" width="10" height="2" rx="1" fill="url(#ig6)" opacity="0.5"/><path d="M8 24l4-3 3 2 4-4" stroke="url(#ig6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+      whatsapp: <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 3C9.4 3 4 8.4 4 15c0 2.2.6 4.3 1.7 6.1L4 29l8.1-1.6c1.7.9 3.6 1.4 5.9 1.4 6.6 0 12-5.4 12-12S22.6 3 16 3z" fill="#25D366" opacity="0.15" stroke="#25D366" strokeWidth="1.5"/><path d="M12.4 11c.3-.1.6 0 .8.4l.7 1.4c.1.2.1.4 0 .6l-.5.7c-.1.2-.1.3 0 .5.6 1 1.4 1.8 2.4 2.4.2.1.3.1.5 0l.7-.5c.2-.1.4-.1.6 0l1.4.7c.4.2.5.5.4.8-.4 1-1.5 1.6-2.6 1.3-2.5-.6-4.4-2.5-5-5-.3-1.1.3-2.2 1.2-2.7z" fill="#25D366"/></svg>,
     };
     return <div style={{marginBottom:14}}>{icons[type]}</div>;
   };
@@ -9303,6 +9304,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     { icon:"publisher", title:"Smart Publisher", desc:"Schedule and publish posts to Instagram, Facebook, TikTok and LinkedIn. AI writes captions in English and Arabic." },
     { icon:"analytics", title:"Analytics Dashboard", desc:"Track followers, engagement, and growth across all your connected social accounts in real time." },
     { icon:"inbox", title:"Unified Inbox", desc:"Manage all your messages and comments from Instagram and Facebook in a single inbox." },
+    { icon:"whatsapp", title:"WhatsApp Business", desc:"Click-to-chat links, a shared team inbox, broadcasts and automated flows — the channel that dominates the Gulf, built right in." },
     { icon:"ai", title:"AI Caption Generator", desc:"Generate bilingual captions (English + Arabic) instantly. Hashtags, emojis and tone — all customizable." },
     { icon:"multiclient", title:"Multi-Client Management", desc:"Manage multiple brands and clients from one agency dashboard. Each client gets their own workspace." },
     { icon:"reports", title:"Reports", desc:"Get monthly performance reports for each client with follower counts, post history, and platform breakdowns." },
@@ -9334,7 +9336,7 @@ function LandingPage({ onGetStarted, onLogin }) {
       <div style={{position:"relative",overflow:"hidden",background:"radial-gradient(circle, rgba(150,175,205,0.045) 1px, transparent 1px), radial-gradient(ellipse 60% 50% at 50% -6%, rgba(110,140,171,0.20), transparent 60%), #080B11", backgroundSize:"24px 24px, 100% 100%, 100% 100%", padding:isMobile?"56px 18px 56px":"72px 32px 80px", textAlign:"center"}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 14px",borderRadius:20,background:"rgba(157,182,214,0.08)",border:"1px solid rgba(157,182,214,0.22)",color:"#A6B8CF",fontSize:10.5,fontWeight:600,letterSpacing:0.3,marginBottom:22}}><span style={{width:5,height:5,borderRadius:"50%",background:"#7FC9A8",boxShadow:"0 0 0 3px rgba(127,201,168,0.18)"}}/>SOCIAL INTELLIGENCE, BUILT FOR EVERY BRAND</div>
         <h1 style={{fontSize:isMobile?32:48,fontWeight:900,lineHeight:1.08,marginBottom:18,letterSpacing:isMobile?-0.8:-1.6,maxWidth:760,margin:"0 auto 18px"}}>All Your Social Media<br/><span style={grad}>Managed in One Click.</span></h1>
-        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:540,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, reply and report across every network from one place — the first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
+        <p style={{fontSize:16,color:"#8A9BB8",maxWidth:540,margin:"0 auto 26px",lineHeight:1.7}}>Publish, schedule, reply and report across every network — now including WhatsApp Business — from one place. The first platform built natively for both English and Arabic. For agencies and brands, anywhere.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",marginBottom:18,flexWrap:"wrap"}}>
           <button onClick={onGetStarted} style={{padding:"13px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 30px rgba(110,140,171,0.4)",textAlign:"center"}}>Start free trial</button>
           <button onClick={()=>setLandingPage('pricing')} style={{padding:"13px 28px",borderRadius:11,background:"transparent",border:"1px solid #243752",color:"#C2D0E6",fontSize:14,fontWeight:600,cursor:"pointer"}}>View pricing</button>
@@ -9698,6 +9700,34 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
             </div>
             <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#9DB6D6",display:"inline-block",flexShrink:0}}/>Product launch post</span><span style={{color:"#9DB6D6",fontSize:10}}>Tue 9:00am</span></div>
             <div style={{background:"#0C1017",borderRadius:8,padding:"8px 10px",fontSize:11,color:"#7A8BA8",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{display:"flex",alignItems:"center",gap:7}}><span style={{width:6,height:6,borderRadius:"50%",background:"#E1306C",display:"inline-block",flexShrink:0}}/>Weekly highlights</span><span style={{color:"#E1306C",fontSize:10}}>Thu 6:00pm</span></div>
+          </div>
+        </div>
+        </Reveal>
+
+        {/* WhatsApp Business — text, visual */}
+        <Reveal disabled={isMobile}>
+        <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,padding:28,display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:24,alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:700,color:"#25D366",marginBottom:10,letterSpacing:1}}>WHATSAPP BUSINESS</div>
+            <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>The channel that runs the Gulf — built in</h3>
+            <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Free click-to-chat links for every client, a shared team inbox, template broadcasts with a credit meter, and automated flows with in-chat forms — all in English and Arabic.</p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {["Click-to-chat","Team inbox","Broadcasts","Flows"].map(t=>(
+                <span key={t} style={{fontSize:11,color:"#C2D0E6",background:"rgba(37,211,102,0.10)",border:"1px solid rgba(37,211,102,0.35)",borderRadius:999,padding:"5px 12px"}}>{t}</span>
+              ))}
+            </div>
+          </div>
+          <div style={{background:"#0B141A",borderRadius:12,padding:16,border:"1px solid #232B38"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{width:26,height:26,borderRadius:7,background:"#25D366",display:"flex",alignItems:"center",justifyContent:"center"}}><FaWhatsapp style={{fontSize:15,color:"#04342C"}}/></div>
+              <span style={{fontSize:12,color:"#E8EFF8",fontWeight:600}}>bloom.bh</span>
+              <span style={{marginLeft:"auto",fontSize:9.5,color:"#25D366",background:"rgba(37,211,102,0.14)",padding:"2px 8px",borderRadius:20}}>1,240 reached</span>
+            </div>
+            <div style={{background:"#1F2C33",borderRadius:"10px 10px 10px 3px",padding:"8px 11px",fontSize:11.5,color:"#E9EFF2",lineHeight:1.5,marginBottom:7,maxWidth:"85%"}}>Hi! Want to book a table? 🌿</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:9}}>
+              {["Book a table","Menu"].map(b=><span key={b} style={{fontSize:10.5,color:"#25D366",border:"1px solid rgba(37,211,102,0.4)",borderRadius:7,padding:"4px 11px"}}>{b}</span>)}
+            </div>
+            <div style={{background:"#075E54",borderRadius:"10px 10px 3px 10px",padding:"8px 11px",fontSize:11.5,color:"#E9FFEF",lineHeight:1.5,marginLeft:"auto",maxWidth:"85%"}}>Perfect — what day works? 📅</div>
           </div>
         </div>
         </Reveal>
