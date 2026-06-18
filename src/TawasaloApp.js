@@ -3688,7 +3688,7 @@ function CalendarRoomPage() {
         <div onClick={()=>setShareOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:420, maxWidth:"94vw", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-              <h3 style={{ margin:0, fontSize:16, fontWeight:700 }}>{L("Share to client","مشاركة مع العميل")}</h3>
+              <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:th.text }}>{L("Share to client","مشاركة مع العميل")}</h3>
               <button onClick={()=>setShareOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
             <p style={{ margin:"0 0 16px", fontSize:12.5, color:th.text2, lineHeight:1.55 }}>{monthLabel} &middot; <span className="tw-num">{publishedN}</span> {L("published","منشور")}, <span className="tw-num">{approvedN}</span> {L("approved","موافق عليه")}.</p>
