@@ -5487,16 +5487,16 @@ function CalendarPage() {
           <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Planner","المخطط")}</h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; <span className="tw-num">{posts.length}</span> {L("scheduled","مجدول")}{nextPost ? <> &middot; {L("next up","التالي")} <span style={{ color:th.text }}>{new Date(nextPost.scheduled_at).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" })}</span> {L("at","في")} <span className="tw-num" style={{ color:th.text }}>{fmtTime(nextPost.scheduled_at)}</span></> : <> &middot; <span style={{ color:th.text3 }}>{L("drag a post to reschedule","اسحب منشوراً لإعادة جدولته")}</span></>}</p>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
             {[["list",L("List","قائمة")],["grid",L("Grid","شبكة")],["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
               <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
-          <button onClick={sharePortal} title={L("Copy the client's private portal link","انسخ رابط بوابة العميل الخاص")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Link size={14} color={th.accent}/>{L("Client portal","بوابة العميل")}</button>
-          <button onClick={()=>setEvergreenOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><RefreshCw size={14} color={th.accent}/>{L("Evergreen","دائم الخضرة")}</button>
-          <button onClick={()=>setBulkOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><FileText size={14} color={th.accent}/>{L("Bulk","رفع جماعي")}</button>
-          <button onClick={()=>setStrategyOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Sparkles size={14} color={th.accent}/>{L("Strategy","الاستراتيجية")}</button>
+          <button onClick={sharePortal} title={L("Copy the client's private portal link","انسخ رابط بوابة العميل الخاص")} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 15px", height:38, boxSizing:"border-box", whiteSpace:"nowrap", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Link size={14} color={th.accent}/>{L("Client portal","بوابة العميل")}</button>
+          <button onClick={()=>setEvergreenOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 15px", height:38, boxSizing:"border-box", whiteSpace:"nowrap", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><RefreshCw size={14} color={th.accent}/>{L("Evergreen","دائم الخضرة")}</button>
+          <button onClick={()=>setBulkOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 15px", height:38, boxSizing:"border-box", whiteSpace:"nowrap", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><FileText size={14} color={th.accent}/>{L("Bulk","رفع جماعي")}</button>
+          <button onClick={()=>setStrategyOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 15px", height:38, boxSizing:"border-box", whiteSpace:"nowrap", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Sparkles size={14} color={th.accent}/>{L("Strategy","الاستراتيجية")}</button>
           <button onClick={()=>setPlanOpen(true)} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:11, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Wand2 size={14}/>{L("Plan month","خطّط الشهر")}</button>
           <button onClick={()=>setPage("publisher")} style={{ display:"flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Plus size={14}/>{L("New post","منشور جديد")}</button>
         </div>
@@ -6420,7 +6420,7 @@ function PublisherPage() {
             <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder={L("Write your caption…","اكتب التعليق…")} rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7 }}>
               <button onClick={()=>caption.trim()&&setScoreOpen(true)} disabled={!caption.trim()} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:9, border:`1px solid ${caption.trim()?th.accent+"55":th.border}`, background:caption.trim()?th.accentSoft:th.card2, color:caption.trim()?th.accent:th.text3, fontSize:11.5, fontWeight:600, cursor:caption.trim()?"pointer":"default" }}><Target size={12}/>{L("Score & optimize","قيّم وحسّن")}</button>
-              <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
+              {(() => { const lim={ig:2200,fb:63206,li:3000,tt:2200,tw:280,yt:5000}; const ps=[...new Set((selectedAccounts||[]).map(a=>a.platform))]; const cap=ps.length?Math.min(...ps.map(p=>lim[p]||2200)):2200; const over=caption.length>cap; const tight=ps.find(p=>(lim[p]||2200)===cap); return <span title={over?L("Over the limit for the strictest selected network","تجاوزت الحد للشبكة الأكثر صرامة"):""} style={{ fontSize:11, color:over?th.danger:th.text3, fontWeight:over?700:400 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">{cap}</span>{ps.length>1&&tight?<span style={{opacity:0.7}}> · {({ig:"IG",fb:"FB",li:"LI",tt:"TT",tw:"X",yt:"YT"})[tight]}</span>:null}</span>; })()}
             </div>
             {scoreOpen && <ScoreModal caption={caption} platform={(selectedAccounts[0] && selectedAccounts[0].platform) || 'instagram'} hasMedia={(images&&images.length>0)||!!video} onApply={(t)=>{ setCaption(t); setScoreOpen(false); }} onClose={()=>setScoreOpen(false)}/>}
             {captionHasLink && (
@@ -6723,6 +6723,8 @@ function SocialAccountsPage() {
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
   const LINKEDIN_CLIENT_ID = process.env.REACT_APP_LINKEDIN_CLIENT_ID || "";
+  const TIKTOK_CLIENT_KEY = process.env.REACT_APP_TIKTOK_CLIENT_KEY || "";
+  const X_CLIENT_ID = process.env.REACT_APP_X_CLIENT_ID || "";
   const [upgrade, setUpgrade] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -6779,6 +6781,24 @@ function SocialAccountsPage() {
     const liError = params.get('li_error');
     if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/social'); }
     else if (liCode && realClientId) { handleLinkedinCallback(liCode); }
+  }, [realClientId]);
+
+  // Handle TikTok OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ttCode = params.get('tt_code');
+    const ttError = params.get('tt_error');
+    if (ttError) { setError(friendlyConnectError(ttError)); window.history.replaceState({}, '', '/social'); }
+    else if (ttCode && realClientId) { handleTiktokCallback(ttCode); }
+  }, [realClientId]);
+
+  // Handle X (Twitter) OAuth callback redirect — held until go-live
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const twCode = params.get('tw_code');
+    const twError = params.get('tw_error');
+    if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/social'); }
+    else if (twCode && realClientId) { handleXCallback(twCode); }
   }, [realClientId]);
 
   const loadAccounts = async (clientId) => {
@@ -7006,18 +7026,105 @@ function SocialAccountsPage() {
     window.location.href = authUrl;
   };
 
+  const connectTtAccount = async (acc) => {
+    const storedId = sessionStorage.getItem('tt_redirect_client');
+    sessionStorage.removeItem('tt_redirect_client');
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
+    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      client_id: clientId, platform: 'tt', account_id: acc.account_id, account_name: acc.account_name,
+      username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
+      followers_count: acc.followers_count || 0, is_active: true,
+    }, { onConflict: 'client_id,account_id' });
+    if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
+    setSuccess(L(`TikTok "${acc.account_name}" connected!`, `تم ربط تيك توك "${acc.account_name}"!`));
+    loadAccounts(clientId);
+  };
+
+  const handleTiktokCallback = async (code) => {
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'tiktok', code, redirectUri }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.account) await connectTtAccount(data.account);
+      else setError(L('No TikTok account found to connect.','لم يتم العثور على حساب تيك توك للربط.'));
+    } catch (err) { setError(friendlyConnectError(err.message)); }
+    setConnecting(false);
+    window.history.replaceState({}, '', '/social');
+  };
+
+  const connectTiktok = () => {
+    if (!guardConnect()) return;
+    if (!TIKTOK_CLIENT_KEY) { setError(L("TikTok isn't available yet. We're finishing its setup and it will be ready soon.","تيك توك غير متاح بعد. نُكمل إعداده وسيكون جاهزاً قريباً.")); return; }
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    const scope = 'user.info.basic,video.upload,video.publish';
+    if (realClientId) sessionStorage.setItem('tt_redirect_client', realClientId);
+    const authUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scope)}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=tt`;
+    window.location.href = authUrl;
+  };
+
+  // ── X (Twitter) — built but HELD. The Connections card stays "Coming soon" (live:false);
+  //    flip that one flag to live:true once you've enabled the paid X API and set the keys. ──
+  const connectXAccount = async (acc) => {
+    const storedId = sessionStorage.getItem('tw_redirect_client');
+    sessionStorage.removeItem('tw_redirect_client');
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
+    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      client_id: clientId, platform: 'tw', account_id: acc.account_id, account_name: acc.account_name,
+      username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
+      followers_count: acc.followers_count || 0, is_active: true,
+    }, { onConflict: 'client_id,account_id' });
+    if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
+    setSuccess(L(`X @${acc.username} connected!`, `تم ربط X @${acc.username}!`));
+    loadAccounts(clientId);
+  };
+
+  const handleXCallback = async (code) => {
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    const codeVerifier = sessionStorage.getItem('x_verifier'); sessionStorage.removeItem('x_verifier');
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'x', code, redirectUri, codeVerifier }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.account) await connectXAccount(data.account);
+      else setError(L('No X account found to connect.','لم يتم العثور على حساب X للربط.'));
+    } catch (err) { setError(friendlyConnectError(err.message)); }
+    setConnecting(false);
+    window.history.replaceState({}, '', '/social');
+  };
+
+  const connectX = async () => {
+    if (!guardConnect()) return;
+    if (!X_CLIENT_ID) { setError(L("X isn't available yet. It's a paid network — we'll switch it on once it's enabled for your account.","X غير متاح بعد. إنها شبكة مدفوعة — سنفعّلها فور تجهيزها لحسابك.")); return; }
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    const b64url = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const challenge = b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)));
+    sessionStorage.setItem('x_verifier', verifier);
+    if (realClientId) sessionStorage.setItem('tw_redirect_client', realClientId);
+    const scope = 'tweet.read tweet.write users.read offline.access';
+    const authUrl = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${X_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=tw&code_challenge=${challenge}&code_challenge_method=S256`;
+    window.location.href = authUrl;
+  };
+
   const platformInfo = {
     ig: { name: "Instagram", color: "#E1306C", bg: "rgba(225,48,108,0.1)", Icon: FaInstagram },
     fb: { name: "Facebook",  color: "#1877F2", bg: "rgba(24,119,242,0.1)", Icon: FaFacebook  },
     li: { name: "LinkedIn",  color: "#0A66C2", bg: "rgba(10,102,194,0.1)", Icon: FaLinkedin  },
+    tt: { name: "TikTok",    color: "#111111", bg: "rgba(0,0,0,0.10)",     Icon: FaTiktok   },
+    tw: { name: "X",         color: "#111111", bg: "rgba(0,0,0,0.10)",     Icon: FaTwitter  },
   };
 
   const NETWORKS = [
     { key:'ig', name:'Instagram', desc:L('Business or creator','حساب أعمال أو منشئ'), color:'#E1306C', Icon:FaInstagram, onConnect:connectInstagram, live:true },
     { key:'fb', name:'Facebook', desc:L('Pages','الصفحات'), color:'#1877F2', Icon:FaFacebook, onConnect:connectMeta, live:true },
     { key:'li', name:'LinkedIn', desc:L('Profile & company Pages','الملف وصفحات الشركة'), color:'#0A66C2', Icon:FaLinkedin, onConnect:connectLinkedin, live:true },
-    { key:'tw', name:'X', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTwitter, live:false },
-    { key:'tt', name:'TikTok', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTiktok, live:false },
+    { key:'tw', name:'X', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTwitter, onConnect:connectX, live:false },
+    { key:'tt', name:'TikTok', desc:L('Business or creator','حساب أعمال أو منشئ'), color:'#FF0050', Icon:FaTiktok, onConnect:connectTiktok, live:true },
     { key:'yt', name:'YouTube', desc:L('Coming soon','قريباً'), color:'#FF0000', Icon:FaYoutube, live:false },
   ];
   const countOf = (k) => accounts.filter(a => a.platform === k).length;

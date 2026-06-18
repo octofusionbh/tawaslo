@@ -1,5 +1,5 @@
-// api/meta-publish.js — Publish posts to Instagram, Facebook & LinkedIn
-// Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image.
+// api/meta-publish.js — Publish posts to Instagram, Facebook, LinkedIn & TikTok
+// Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image, TikTok video.
 export default async function handler(req, res) {
   // === WhatsApp Cloud API (folded in here to stay under Vercel's 12-function limit) ===
   // Webhook verification — Meta calls this once (GET) when you set the callback URL.
@@ -180,6 +180,44 @@ export default async function handler(req, res) {
       const postUrn = liRes.headers.get('x-restli-id') || liRes.headers.get('x-linkedin-id');
       const liLink = postUrn ? `https://www.linkedin.com/feed/update/${postUrn}` : null;
       return res.status(200).json({ success: true, postId: postUrn, permalink: liLink, platform: 'li' });
+
+    } else if (platform === 'tt') {
+      // TikTok — Content Posting API (video only). Requires a connected token + an approved app.
+      // Until TikTok audits the app, posts MUST be SELF_ONLY (private). Flip to PUBLIC_TO_EVERYONE
+      // via the TIKTOK_PRIVACY env var once the app passes audit.
+      const ttVideo = videoUrl || null;
+      if (!ttVideo) return res.status(400).json({ error: 'TikTok needs a video to post.' });
+      const privacy = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
+      const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+        body: JSON.stringify({
+          post_info: { title: (caption || '').slice(0, 2200), privacy_level: privacy, disable_comment: false, disable_duet: false, disable_stitch: false },
+          source_info: { source: 'PULL_FROM_URL', video_url: ttVideo },
+        }),
+      });
+      const initData = await initRes.json().catch(() => ({}));
+      const ttErr = initData && initData.error;
+      if (!initRes.ok || (ttErr && ttErr.code && ttErr.code !== 'ok')) {
+        return res.status(400).json({ error: (ttErr && ttErr.message) || 'TikTok publish failed', details: initData });
+      }
+      const publishId = initData.data && initData.data.publish_id;
+      return res.status(200).json({ success: true, postId: publishId, permalink: null, platform: 'tt' });
+
+    } else if (platform === 'tw') {
+      // X (Twitter) — text post via API v2. PAID: ~$0.015/post ($0.20 if it contains a link).
+      // Held until go-live; media upload is a follow-up (needs the v1.1 media endpoint).
+      const xText = (caption || '').slice(0, 280);
+      const xRes = await fetch('https://api.twitter.com/2/tweets', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: xText }),
+      });
+      const xData = await xRes.json().catch(() => ({}));
+      if (!xRes.ok) return res.status(400).json({ error: xData.title || xData.detail || 'X publish failed', details: xData });
+      const tweetId = xData.data && xData.data.id;
+      const xLink = tweetId ? `https://twitter.com/i/web/status/${tweetId}` : null;
+      return res.status(200).json({ success: true, postId: tweetId, permalink: xLink, platform: 'tw' });
     }
 
     return res.status(400).json({ error: 'Unsupported platform' });
