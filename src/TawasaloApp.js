@@ -4205,6 +4205,90 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   ), document.body);
 }
 
+// Live upload indicator — spinner + elapsed seconds, so the user sees it's working.
+function UploadingBadge() {
+  const [s, setS] = useState(0);
+  useEffect(() => { const t = setInterval(() => setS(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  return (
+    <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.62)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:5 }}>
+      <style>{`@keyframes twspin{to{transform:rotate(360deg)}}`}</style>
+      <div style={{ width:20, height:20, border:"2.5px solid rgba(255,255,255,0.3)", borderTopColor:"#fff", borderRadius:"50%", animation:"twspin .8s linear infinite" }}/>
+      <span className="tw-num" style={{ fontSize:9.5, color:"#fff" }}>{s}s</span>
+    </div>
+  );
+}
+
+// Video cover picker — pick a frame from the video, or upload your own cover image.
+function VideoCoverModal({ videoUrl, onPick, onClose }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [frames, setFrames] = useState([]);
+  const [busy, setBusy] = useState(true);
+  const [picking, setPicking] = useState(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const v = document.createElement('video');
+    v.crossOrigin = 'anonymous'; v.muted = true; v.preload = 'metadata'; v.src = videoUrl;
+    const capture = (t) => new Promise((resolve, reject) => {
+      const onSeeked = () => { v.removeEventListener('seeked', onSeeked); try { const c = document.createElement('canvas'); c.width = v.videoWidth || 720; c.height = v.videoHeight || 1280; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.82)); } catch (e) { reject(e); } };
+      v.addEventListener('seeked', onSeeked); v.currentTime = t;
+    });
+    v.onloadeddata = async () => {
+      const dur = v.duration || 0; const out = [];
+      for (const p of [0.05, 0.3, 0.55, 0.8]) {
+        if (cancelled) return;
+        try { out.push(await capture(Math.max(0.05, dur * p))); } catch (e) { setFailed(true); break; }
+      }
+      if (!cancelled) { setFrames(out); setBusy(false); }
+    };
+    v.onerror = () => { if (!cancelled) { setFailed(true); setBusy(false); } };
+    return () => { cancelled = true; };
+  }, [videoUrl]);
+  const uploadCover = async (dataUrl) => {
+    setPicking(true);
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const { data: { user } } = await supabase.auth.getUser();
+      const path = `${user?.id || 'x'}/covers/${Date.now()}-${Math.random().toString(36).slice(2,6)}.jpg`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (!error) { const { data } = supabase.storage.from('media').getPublicUrl(path); onPick(data.publicUrl); return; }
+    } catch (e) {}
+    onPick(dataUrl);
+  };
+  const onFile = (e) => { const f = e.target.files && e.target.files[0]; if (!f) return; const r = new FileReader(); r.onload = () => uploadCover(r.result); r.readAsDataURL(f); };
+  return createPortal(
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,20,0.6)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:16 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, width:"100%", maxWidth:420, padding:20 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}><Image size={16} color={th.accent}/><span style={{ fontSize:15, fontWeight:600, color:th.text }}>{L("Choose a cover","اختر غلافاً")}</span></div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><XCircle size={18}/></button>
+        </div>
+        {picking ? (
+          <div style={{ padding:"30px 0", textAlign:"center", color:th.text2, fontSize:13 }}>{L("Setting your cover…","نضبط الغلاف…")}</div>
+        ) : (
+          <>
+            {!failed && !busy && <div style={{ fontSize:11.5, color:th.text2, marginBottom:8 }}>{L("Pick a frame from your video","اختر لقطة من الفيديو")}</div>}
+            {busy && <div style={{ padding:"24px 0", textAlign:"center", color:th.text3, fontSize:12.5 }}>{L("Reading frames…","نقرأ اللقطات…")}</div>}
+            {!busy && frames.length>0 && (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+                {frames.map((f,i)=>(
+                  <div key={i} onClick={()=>uploadCover(f)} title={L("Use this frame","استخدم هذه اللقطة")} style={{ aspectRatio:"9/16", borderRadius:9, overflow:"hidden", cursor:"pointer", border:`1px solid ${th.border}` }}><img src={f} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+                ))}
+              </div>
+            )}
+            {!busy && failed && <div style={{ fontSize:11.5, color:th.text3, marginBottom:12, lineHeight:1.5 }}>{L("Couldn't read frames from this video — upload your own cover instead.","تعذّرت قراءة اللقطات — ارفع غلافاً خاصاً بدلاً من ذلك.")}</div>}
+            <label style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"11px", borderRadius:11, border:`1.5px dashed ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>
+              <Image size={14}/>{L("Upload your own cover","ارفع غلافك الخاص")}
+              <input type="file" accept="image/*" onChange={onFile} style={{ display:"none" }}/>
+            </label>
+          </>
+        )}
+      </div>
+    </div>, document.body);
+}
+
 // Post Score & Optimizer — rate the current caption and offer a stronger rewrite.
 function ScoreModal({ caption, platform, hasMedia, onApply, onClose }) {
   const { dark, lang } = useApp();
@@ -5785,6 +5869,7 @@ function PublisherPage() {
   const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
   const [firstComment, setFirstComment] = useState(""); // auto-posted as the first comment
   const [scoreOpen, setScoreOpen] = useState(false);  // Post Score & Optimizer modal
+  const [coverModal, setCoverModal] = useState(false); // video cover picker
   const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
 
   useEffect(() => {
@@ -6120,7 +6205,7 @@ function PublisherPage() {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat, firstComment: firstComment || null }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
         const data = await res.json();
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -6387,8 +6472,9 @@ function PublisherPage() {
                   return (
                   <div key={m.id} onClick={()=>{ if(showAlt && isImg) setSelectedSlide(m.id); }} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}`, cursor:(showAlt&&isImg)?"pointer":"default", boxShadow:isSel?`0 0 0 2px ${th.accent}`:"none" }}>
                     {m.url && isImg && <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>}
-                    {m.type==="video" && <div style={{ width:"100%", height:"100%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff" }}><Send size={18}/></div>}
-                    {m.uploading && <div style={{ position:"absolute", inset:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }}>…</div>}
+                    {m.type==="video" && (m.cover ? <img src={m.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : (m.url ? <video src={m.url} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ width:"100%", height:"100%", background:th.gradient }}/>))}
+                    {m.type==="video" && !m.uploading && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}><Play size={16} color="#fff" style={{ filter:"drop-shadow(0 1px 3px rgba(0,0,0,.65))" }}/></span>}
+                    {m.uploading && <UploadingBadge/>}
                     {isImg && images.length>1 && <span style={{ position:"absolute", bottom:4, left:4, background:"rgba(0,0,0,0.6)", borderRadius:6, width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#fff" }} className="tw-num">{i+1}</span>}
                     {showAlt && isImg && <span title={hasAlt?"Alt text added":"Needs alt text"} style={{ position:"absolute", top:4, left:4, width:16, height:16, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", background:hasAlt?"#2E8B6B":"rgba(0,0,0,0.55)", color:"#fff", border:`1.5px solid ${th.card}` }}>{hasAlt?<Check size={9}/>:<span style={{fontSize:9,fontWeight:700}}>!</span>}</span>}
                     <span onClick={(e)=>{e.stopPropagation();removeMedia(m.id);}} style={{ position:"absolute", top:4, right:4, cursor:"pointer", color:"#fff", display:"flex" }}><XCircle size={15}/></span>
@@ -6396,6 +6482,10 @@ function PublisherPage() {
                 ); })}
               </div>
             )}
+            {video && !video.uploading && (
+              <button onClick={()=>setCoverModal(true)} style={{ marginTop:11, display:"inline-flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:9, border:`1px solid ${th.border}`, background:th.card2, color:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer" }}><Image size={12}/>{video.cover ? L("Change cover","غيّر الغلاف") : L("Choose a cover","اختر غلافاً")}</button>
+            )}
+            {coverModal && video && <VideoCoverModal videoUrl={video.url} onPick={(u)=>{ setMedia(prev=>prev.map(m=>m.id===video.id?{...m,cover:u}:m)); setCoverModal(false); }} onClose={()=>setCoverModal(false)}/>}
             {mediaWarning && <div style={{ fontSize:11, color:th.danger, marginTop:8 }}>{mediaWarning}</div>}
           </div>
 

@@ -23,6 +23,7 @@ export default async function handler(req, res) {
   const altText = req.body.altText || null;
   const altTexts = Array.isArray(req.body.altTexts) ? req.body.altTexts : null; // per-slide alt text for carousels
   const firstComment = req.body.firstComment || null;
+  const coverUrl = req.body.coverUrl || null; // optional custom cover for Reels
   const igFormat = (req.body.igFormat || 'feed').toLowerCase(); // feed | reel | story
 
   if (!platform || !accountId || !accessToken || !caption) {
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
         const single = imageUrl || (imageUrls && imageUrls[0]) || null;
         if (!single && !videoUrl) return res.status(400).json({ error: 'Instagram requires an image or video.' });
         const body = { caption, access_token: accessToken };
-        if (videoUrl) { body.video_url = videoUrl; body.media_type = 'REELS'; }
+        if (videoUrl) { body.video_url = videoUrl; body.media_type = 'REELS'; if (coverUrl) body.cover_url = coverUrl; }
         else { body.image_url = single; if (altText) body.alt_text = altText; }
         const c = await post(`${igBase}/${accountId}/media`, body);
         if (c.error) return res.status(400).json({ error: c.error.message });
