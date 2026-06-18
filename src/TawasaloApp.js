@@ -692,6 +692,7 @@ function Sidebar() {
     {section:"Create", items:[
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
+      {key:"reelstudio",Icon:Play,            label:"Reel Studio", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
@@ -4201,6 +4202,245 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
       </div>
     </div>
   ), document.body);
+}
+
+// Reel / Video Studio — a topic becomes a full short-video script: hook, scene-by-scene
+// shot list, on-screen text, voiceover, caption, hashtags, CTA and an audio suggestion.
+function ReelStudioPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [topic, setTopic] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [duration, setDuration] = useState("30s");
+  const [tone, setTone] = useState("Energetic");
+  const [scriptLang, setScriptLang] = useState(isAR ? "ar" : "en");
+  const [dialect, setDialect] = useState("gulf");
+  const [loading, setLoading] = useState(false);
+  const [script, setScript] = useState(null);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState("");
+
+  const PLATS = [["instagram", L("Reels","ريلز")], ["tiktok", "TikTok"], ["youtube", L("Shorts","شورتس")]];
+  const DURS = ["15s", "30s", "60s"];
+  const TONES = [["Energetic", L("Energetic","حماسي")], ["Friendly", L("Friendly","ودّي")], ["Professional", L("Professional","احترافي")], ["Playful", L("Playful","مرِح")], ["Luxury", L("Luxury","فاخر")]];
+  const DIALECTS = [["gulf", L("Gulf","خليجي")], ["saudi", L("Saudi","سعودي")], ["egyptian", L("Egyptian","مصري")], ["levantine", L("Levantine","شامي")], ["msa", L("Standard","فصحى")]];
+
+  const copy = (t, k) => { try { navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(""), 1500); } catch (e) {} };
+  const toComposer = (t) => { try { sessionStorage.setItem('tw_studio_caption', t); } catch (e) {} setPage('publisher'); };
+
+  const run = async () => {
+    if (!topic.trim() || loading) return;
+    setLoading(true); setError(""); setScript(null);
+    try {
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ topic, platform, tone, mode:'reel', lang: scriptLang, dialect, duration, brand: selClient?.name, voice: loadVoice(selClient?.id) }) }).then(r => r.json());
+      if (r && (r.scenes || r.hook)) setScript(r); else setError(r.error || L("Could not generate. Please try again.", "تعذّر التوليد. حاول مرة أخرى."));
+    } catch (e) { setError(L("Something went wrong.", "حدث خطأ ما.")); }
+    setLoading(false);
+  };
+
+  const exportScript = () => {
+    if (!script) return;
+    const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+    const scenes = (script.scenes||[]).map((s,i) => `<tr><td style="padding:8px 10px;border:1px solid #ddd;font-weight:600;white-space:nowrap;vertical-align:top">${esc(s.time||('Scene '+(i+1)))}</td><td style="padding:8px 10px;border:1px solid #ddd;vertical-align:top">🎬 ${esc(s.shot)}<br><b>On-screen:</b> ${esc(s.onscreen)}<br><b>VO:</b> ${esc(s.voiceover)}</td></tr>`).join('');
+    const html = `<html><head><meta charset="utf-8"><title>${esc(script.title||'Reel script')}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a"><h1 style="font-size:21px;margin:0 0 2px">${esc(script.title||'Reel script')}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(selClient?.name||'')} · ${duration} · ${esc(platform)} · Tawaslo</div><div style="background:#f3f4f6;border-radius:8px;padding:12px 14px;font-size:15px;font-weight:600;margin-bottom:14px">🎯 ${esc(script.hook)}</div><table style="width:100%;border-collapse:collapse;font-size:13px">${scenes}</table><p style="font-size:13px;margin-top:16px"><b>Caption:</b> ${esc(script.caption)}</p><p style="font-size:12px;color:#444">${esc((script.hashtags||[]).join(' '))}</p><p style="font-size:13px"><b>CTA:</b> ${esc(script.cta)}<br><b>Audio:</b> ${esc(script.audio)}</p></body></html>`;
+    try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
+  };
+
+  const chip = (on) => ({ padding:"7px 13px", borderRadius:999, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2, fontSize:12, fontWeight:on?600:400, cursor:"pointer" });
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:16 }}>
+        <div style={{ width:38, height:38, borderRadius:11, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Play size={18} color="#fff"/></div>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Reel & Video Studio","استوديو الريلز والفيديو")}</h1>
+          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("A topic becomes a full shoot-ready script — hook, shots, on-screen text & voiceover","فكرة تتحوّل إلى سيناريو جاهز للتصوير — خطّاف ولقطات ونصوص وتعليق صوتي")}</p>
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"320px minmax(0,1fr)", gap:16, alignItems:"start" }}>
+        <div style={{ ...card, padding:18 }}>
+          <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{L("What's the video about?","عمّ يدور الفيديو؟")}</div>
+          <textarea value={topic} onChange={e=>setTopic(e.target.value)} rows={3} placeholder={L("e.g. unboxing our new oud perfume","مثلاً: فتح صندوق عطر العود الجديد")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 13px", color:th.text, fontSize:13.5, outline:"none", resize:"vertical", fontFamily:"inherit", lineHeight:1.5, marginBottom:14 }}/>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Format","الصيغة")}</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:13 }}>{PLATS.map(([k,t]) => <button key={k} onClick={()=>setPlatform(k)} style={chip(platform===k)}>{t}</button>)}</div>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Length","المدة")}</div>
+          <div style={{ display:"flex", gap:6, marginBottom:13 }}>{DURS.map(d => <button key={d} onClick={()=>setDuration(d)} style={chip(duration===d)}>{d}</button>)}</div>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Tone","النبرة")}</div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:13 }}>{TONES.map(([k,t]) => <button key={k} onClick={()=>setTone(k)} style={chip(tone===k)}>{t}</button>)}</div>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Language","اللغة")}</div>
+          <div style={{ display:"flex", gap:6, marginBottom: scriptLang==="ar"?10:16 }}>{[["en","English"],["ar","العربية"]].map(([k,t]) => <button key={k} onClick={()=>setScriptLang(k)} style={chip(scriptLang===k)}>{t}</button>)}</div>
+          {scriptLang==="ar" && <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>{DIALECTS.map(([k,t]) => <button key={k} onClick={()=>setDialect(k)} style={{ ...chip(dialect===k), fontSize:11, padding:"5px 11px" }}>{t}</button>)}</div>}
+          <button onClick={run} disabled={!topic.trim()||loading} style={{ width:"100%", padding:"12px", borderRadius:12, background:(!topic.trim())?th.card2:th.gradient, border:"none", color:(!topic.trim())?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(!topic.trim()||loading)?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>{loading?<><RefreshCw size={15}/>{L("Writing the script…","جارٍ كتابة السيناريو…")}</>:<><Sparkles size={15}/>{L("Write my script","اكتب السيناريو")}</>}</button>
+          {error && <div style={{ fontSize:12.5, color:th.danger, marginTop:12, textAlign:"center" }}>{error}</div>}
+        </div>
+
+        <div>
+          {!script && !loading && (
+            <div style={{ ...card, padding:"50px 26px", textAlign:"center" }}>
+              <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><Play size={24} color={th.accent}/></div>
+              <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Your script appears here","سيظهر سيناريوك هنا")}</div>
+              <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:380, margin:"0 auto" }}>{L("Describe the video, pick a format and length, and the AI writes a scene-by-scene shoot plan you can hand to anyone.","صف الفيديو واختر الصيغة والمدة، وسيكتب الذكاء خطة تصوير مشهداً بمشهد جاهزة للتسليم.")}</div>
+            </div>
+          )}
+          {loading && <div style={{ ...card, padding:24, fontSize:13, color:th.text2 }}>{L("Directing your short… hook, scenes, voiceover and caption.","نُخرج فيديوك القصير… الخطّاف والمشاهد والتعليق الصوتي والنص.")}</div>}
+          {script && (
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div style={{ ...card, padding:18 }}>
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
+                  <div><div style={{ fontSize:10.5, color:th.text3, fontWeight:700, letterSpacing:0.5, marginBottom:3 }}>{duration} · {platform.toUpperCase()}</div><div style={{ fontSize:17, fontWeight:700, color:th.text }}>{script.title}</div></div>
+                  <button onClick={exportScript} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer", flexShrink:0 }}><Download size={13}/>{L("Export","تصدير")}</button>
+                </div>
+                <div style={{ background:th.gradient, borderRadius:12, padding:"13px 15px" }}>
+                  <div style={{ fontSize:10, color:"rgba(255,255,255,0.8)", fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>🎯 {L("HOOK · FIRST 2 SECONDS","الخطّاف · أول ثانيتين")}</div>
+                  <div style={{ fontSize:15, fontWeight:600, color:"#fff", lineHeight:1.4 }}>{script.hook}</div>
+                </div>
+              </div>
+
+              {(script.scenes||[]).map((s,i) => (
+                <div key={i} style={{ ...card, padding:0, overflow:"hidden", display:"flex" }}>
+                  <div style={{ width:64, flexShrink:0, background:th.card2, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"12px 6px", borderInlineEnd:`1px solid ${th.border}` }}>
+                    <div style={{ fontSize:10, color:th.text3 }}>{L("Scene","مشهد")}</div>
+                    <div className="tw-num" style={{ fontSize:20, fontWeight:800, color:th.accent }}>{i+1}</div>
+                    <div className="tw-num" style={{ fontSize:9.5, color:th.text3, marginTop:2 }}>{s.time}</div>
+                  </div>
+                  <div style={{ flex:1, padding:"12px 14px" }}>
+                    <div style={{ display:"flex", gap:7, marginBottom:7 }}><span style={{ fontSize:14, flexShrink:0 }}>🎬</span><span style={{ fontSize:12.5, color:th.text, lineHeight:1.5 }}>{s.shot}</span></div>
+                    {s.onscreen && <div style={{ display:"flex", gap:7, marginBottom:7 }}><span style={{ fontSize:9.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:6, padding:"2px 7px", flexShrink:0, alignSelf:"flex-start", marginTop:1 }}>{L("TEXT","نص")}</span><span style={{ fontSize:12.5, color:th.text2, lineHeight:1.5, fontWeight:500 }}>{s.onscreen}</span></div>}
+                    {s.voiceover && <div style={{ display:"flex", gap:7 }}><span style={{ fontSize:9.5, fontWeight:700, color:th.success, background:th.success+"22", borderRadius:6, padding:"2px 7px", flexShrink:0, alignSelf:"flex-start", marginTop:1 }}>{L("VO","صوت")}</span><span style={{ fontSize:12.5, color:th.text2, lineHeight:1.5 }}>{s.voiceover}</span></div>}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ ...card, padding:16 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5 }}>{L("CAPTION","النص")}</span>
+                  <div style={{ display:"flex", gap:6 }}>
+                    <button onClick={()=>copy((script.caption||"")+"\n\n"+(script.hashtags||[]).join(" "),"cap")} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Copy size={11}/>{copied==="cap"?L("Copied","تم"):L("Copy","نسخ")}</button>
+                    <button onClick={()=>toComposer((script.caption||"")+"\n\n"+(script.hashtags||[]).join(" "))} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:8, padding:"4px 11px", cursor:"pointer" }}><ArrowUpRight size={12}/>{L("To composer","للمحرّر")}</button>
+                  </div>
+                </div>
+                <div style={{ fontSize:13, color:th.text, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:10 }}>{script.caption}</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:12 }}>{(script.hashtags||[]).map((h,i)=><span key={i} style={{ fontSize:11.5, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"4px 10px" }}>{h}</span>)}</div>
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap", borderTop:`1px solid ${th.border}`, paddingTop:12 }}>
+                  <div style={{ flex:1, minWidth:140 }}><div style={{ fontSize:10, fontWeight:700, color:th.text3, marginBottom:3 }}>{L("CALL TO ACTION","دعوة لإجراء")}</div><div style={{ fontSize:12.5, color:th.text }}>{script.cta}</div></div>
+                  <div style={{ flex:1, minWidth:140 }}><div style={{ fontSize:10, fontWeight:700, color:th.text3, marginBottom:3 }}>🎵 {L("AUDIO","الصوت")}</div><div style={{ fontSize:12.5, color:th.text }}>{script.audio}</div></div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Free public AI caption generator (tawaslo.com/free-caption-generator) — no login.
+// SEO lead magnet: ranks for "AI caption generator", funnels into the free trial.
+function FreeCaptionTool() {
+  const C = { bg:"#080B11", card:"#0C1017", card2:"#141923", border:"#232B38", text:"#E8EFF8", text2:"#8A9BB8", text3:"#5A6B86", accent:"#9DB6D6", grad:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", wa:"#25D366" };
+  const [langMode, setLangMode] = useState("both"); // en | ar | both
+  const isAR = langMode === "ar";
+  const L = (en, ar) => isAR ? ar : en;
+  const [topic, setTopic] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [tone, setTone] = useState("Friendly");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState([]);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState("");
+  const [used, setUsed] = useState(() => { try { return parseInt(localStorage.getItem("tw_freecap") || "0", 10) || 0; } catch (e) { return 0; } });
+  const LIMIT = 3;
+  const gated = used >= LIMIT;
+
+  const PLATFORMS = [["instagram","Instagram"],["tiktok","TikTok"],["x","X"],["linkedin","LinkedIn"],["facebook","Facebook"]];
+  const TONES = isAR ? ["ودّي","احترافي","مرِح","فاخر"] : ["Friendly","Professional","Playful","Luxury"];
+
+  const copy = (t, k) => { try { navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(""), 1500); } catch (e) {} };
+
+  const run = async () => {
+    if (!topic.trim() || loading || gated) return;
+    setLoading(true); setError(""); setResults([]);
+    try {
+      const reqs = [0,1,2].map(() => fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ topic, platform, tone, lang: langMode }) }).then(r => r.json()).catch(() => ({ error:true })));
+      const all = await Promise.all(reqs);
+      const ok = all.filter(r => r && !r.error && (r.english || r.arabic));
+      if (ok.length) { setResults(ok); const n = used + 1; setUsed(n); try { localStorage.setItem("tw_freecap", String(n)); } catch (e) {} }
+      else setError(L("Could not generate. Please try again.", "تعذّر التوليد. حاول مرة أخرى."));
+    } catch (e) { setError(L("Something went wrong.", "حدث خطأ ما.")); }
+    setLoading(false);
+  };
+
+  const goSignup = () => { try { window.location.href = "/"; } catch (e) {} };
+  const chip = (on) => ({ padding:"7px 14px", borderRadius:999, border:`1.5px solid ${on?C.accent:C.border}`, background:on?"rgba(157,182,214,0.12)":"transparent", color:on?C.text:C.text2, fontSize:12.5, fontWeight:on?600:400, cursor:"pointer" });
+
+  return (
+    <div dir={isAR?"rtl":"ltr"} style={{ minHeight:"100vh", background:`radial-gradient(ellipse 70% 50% at 50% -6%, rgba(110,140,171,0.18), transparent 60%), ${C.bg}`, color:C.text, fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 24px", maxWidth:760, margin:"0 auto" }}>
+        <a href="/" style={{ fontSize:19, fontWeight:900, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", textDecoration:"none" }}>Tawaslo</a>
+        <div style={{ display:"flex", gap:6 }}>
+          {[["both","EN+AR"],["en","English"],["ar","العربية"]].map(([k,t]) => (
+            <button key={k} onClick={()=>setLangMode(k)} style={{ ...chip(langMode===k), padding:"5px 11px", fontSize:11.5 }}>{t}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ maxWidth:680, margin:"0 auto", padding:"24px 24px 60px", textAlign:"center" }}>
+        <div style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"5px 13px", borderRadius:20, background:"rgba(157,182,214,0.08)", border:"1px solid rgba(157,182,214,0.22)", color:C.accent, fontSize:11, fontWeight:600, marginBottom:18 }}><Sparkles size={12}/>{L("100% free · no sign-up","مجاني تماماً · بدون تسجيل")}</div>
+        <h1 style={{ fontSize:34, fontWeight:900, lineHeight:1.12, letterSpacing:-1, margin:"0 0 12px" }}>{L("Free AI Caption Generator","مولّد التعليقات بالذكاء الاصطناعي")}<br/><span style={{ background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>{L("for Instagram, TikTok & more","لإنستغرام وتيك توك والمزيد")}</span></h1>
+        <p style={{ fontSize:14.5, color:C.text2, lineHeight:1.7, maxWidth:520, margin:"0 auto 28px" }}>{L("Write scroll-stopping captions in English and Arabic in seconds. Pick a platform and tone, describe your post, and let the AI do the rest.","اكتب تعليقات جذّابة بالعربية والإنجليزية في ثوانٍ. اختر المنصة والنبرة، صف منشورك، ودع الذكاء يتولّى الباقي.")}</p>
+
+        <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:18, padding:20, textAlign:isAR?"right":"left" }}>
+          <div style={{ fontSize:12, color:C.text2, marginBottom:7 }}>{L("What's your post about?","عمّ يدور منشورك؟")}</div>
+          <textarea value={topic} onChange={e=>setTopic(e.target.value)} rows={2} placeholder={L("e.g. a summer sale on handmade candles","مثلاً: تخفيضات صيفية على شموع يدوية")} style={{ width:"100%", boxSizing:"border-box", background:C.card2, border:`1px solid ${C.border}`, borderRadius:11, padding:"12px 14px", color:C.text, fontSize:14, outline:"none", resize:"vertical", fontFamily:"inherit", lineHeight:1.5, marginBottom:14 }}/>
+          <div style={{ fontSize:12, color:C.text2, marginBottom:7 }}>{L("Platform","المنصة")}</div>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:14 }}>{PLATFORMS.map(([k,t]) => <button key={k} onClick={()=>setPlatform(k)} style={chip(platform===k)}>{t}</button>)}</div>
+          <div style={{ fontSize:12, color:C.text2, marginBottom:7 }}>{L("Tone","النبرة")}</div>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:18 }}>{TONES.map((t,i) => { const onTones = isAR ? ["ودّي","احترافي","مرِح","فاخر"] : ["Friendly","Professional","Playful","Luxury"]; const val = ["Friendly","Professional","Playful","Luxury"][i]; return <button key={t} onClick={()=>setTone(val)} style={chip(tone===val)}>{t}</button>; })}</div>
+          <button onClick={run} disabled={!topic.trim()||loading||gated} style={{ width:"100%", padding:"13px", borderRadius:12, background:(!topic.trim()||gated)?C.card2:C.grad, border:"none", color:(!topic.trim()||gated)?C.text3:"#fff", fontSize:14, fontWeight:700, cursor:(!topic.trim()||loading||gated)?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>{loading?<><RefreshCw size={15} className="tw-spin"/>{L("Generating…","جارٍ التوليد…")}</>:<><Sparkles size={15}/>{L("Generate captions","ولّد التعليقات")}</>}</button>
+          {error && <div style={{ fontSize:12.5, color:"#E2574B", marginTop:12, textAlign:"center" }}>{error}</div>}
+        </div>
+
+        {gated && (
+          <div style={{ background:C.grad, borderRadius:18, padding:"26px 22px", marginTop:18, textAlign:"center" }}>
+            <div style={{ fontSize:17, fontWeight:800, color:"#fff", marginBottom:7 }}>{L("You've used your 3 free captions 🎉","استخدمت تعليقاتك الثلاثة المجانية 🎉")}</div>
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.9)", lineHeight:1.6, marginBottom:16, maxWidth:420, marginInline:"auto" }}>{L("Start a free trial of Tawaslo for unlimited bilingual captions, scheduling, analytics and a WhatsApp inbox — for every brand you manage.","ابدأ تجربة مجانية من تواصلو لتعليقات بلا حدود وجدولة وتحليلات ووارد واتساب — لكل علامة تديرها.")}</div>
+            <button onClick={goSignup} style={{ background:"#fff", color:"#1B2B40", border:"none", borderRadius:11, padding:"12px 26px", fontSize:14, fontWeight:700, cursor:"pointer" }}>{L("Start free trial →","ابدأ التجربة المجانية ←")}</button>
+          </div>
+        )}
+
+        {!gated && results.length > 0 && (
+          <div style={{ marginTop:18, display:"flex", flexDirection:"column", gap:12 }}>
+            {results.map((r, i) => (
+              <div key={i} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:16, textAlign:isAR?"right":"left" }}>
+                {(langMode!=="ar") && r.english && (
+                  <div style={{ marginBottom: r.arabic && langMode==="both" ? 12 : 0 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}><span style={{ fontSize:10, fontWeight:700, color:C.text3, letterSpacing:0.5 }}>ENGLISH</span><button onClick={()=>copy(r.english,"e"+i)} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:C.accent, background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Copy size={11}/>{copied==="e"+i?L("Copied","تم"):L("Copy","نسخ")}</button></div>
+                    <div dir="ltr" style={{ fontSize:13.5, color:C.text, lineHeight:1.65, textAlign:"left", whiteSpace:"pre-wrap" }}>{r.english}</div>
+                  </div>
+                )}
+                {(langMode!=="en") && r.arabic && (
+                  <div style={{ paddingTop: r.english && langMode==="both" ? 12 : 0, borderTop: r.english && langMode==="both" ? `1px solid ${C.border}` : "none" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}><span style={{ fontSize:10, fontWeight:700, color:C.text3, letterSpacing:0.5 }}>العربية</span><button onClick={()=>copy(r.arabic,"a"+i)} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:C.accent, background:"transparent", border:`1px solid ${C.border}`, borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Copy size={11}/>{copied==="a"+i?L("Copied","تم"):L("Copy","نسخ")}</button></div>
+                    <div dir="rtl" style={{ fontSize:14, color:C.text, lineHeight:1.7, textAlign:"right", whiteSpace:"pre-wrap" }}>{r.arabic}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+            <div style={{ fontSize:12, color:C.text3, marginTop:2 }}>{L(`${LIMIT - used} free generations left`, `${LIMIT - used} توليدات مجانية متبقية`)}</div>
+            <div style={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:14, padding:"16px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+              <div style={{ textAlign:isAR?"right":"left" }}><div style={{ fontSize:13.5, fontWeight:700, color:C.text }}>{L("Want unlimited captions + scheduling?","تريد تعليقات بلا حدود مع الجدولة؟")}</div><div style={{ fontSize:12, color:C.text2 }}>{L("Manage every brand from one place. Free 30-day trial.","أدر كل علاماتك من مكان واحد. تجربة ٣٠ يوماً مجاناً.")}</div></div>
+              <button onClick={goSignup} style={{ background:C.grad, color:"#fff", border:"none", borderRadius:10, padding:"11px 20px", fontSize:13, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}>{L("Try Tawaslo free","جرّب تواصلو مجاناً")}</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ marginTop:40, fontSize:11.5, color:C.text3, lineHeight:1.7 }}>{L("Tawaslo is the bilingual social media platform built for English and Arabic — publishing, analytics, approvals, a WhatsApp inbox and AI captions, for agencies and brands across the Gulf and beyond.","تواصلو منصة إدارة وسائل التواصل ثنائية اللغة للعربية والإنجليزية — نشر وتحليلات وموافقات ووارد واتساب وتعليقات ذكية، للوكالات والعلامات في الخليج وخارجه.")}</div>
+      </div>
+    </div>
+  );
 }
 
 // WhatsApp Business module — click-to-chat link builder (free, all plans), plus the
@@ -11871,6 +12111,7 @@ export default function TawasloApp() {
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
+    if (page==="reelstudio") return <ReelStudioPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;
@@ -11920,6 +12161,10 @@ export default function TawasloApp() {
   // Branded short link (tawaslo.com/s/<code>) — count the click and forward.
   const shortMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/);
   if (shortMatch) return <ShortLinkRedirect code={shortMatch[1]}/>;
+
+  // Free public AI caption generator (tawaslo.com/free-caption-generator) — no login, SEO lead magnet.
+  const capToolMatch = typeof window !== "undefined" && /^\/free-caption-generator\/?$/.test(window.location.pathname);
+  if (capToolMatch) return <FreeCaptionTool/>;
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;

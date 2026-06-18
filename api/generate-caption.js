@@ -260,6 +260,37 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "cadence": { "postsPerWeek": 5, "byPlatform": [["Instagram", 3], ["Facebook", 2]], "note": "short cadence note" },
   "themes": ["theme 1", "theme 2", "theme 3", "theme 4", "theme 5"]
 }`;
+  } else if (theMode === 'reel') {
+    // Short-video studio — a topic becomes a full Reel/TikTok/Shorts script.
+    maxTokens = 1400;
+    const dur = req.body.duration || '30s';
+    const langRule = (language === 'ar'
+      ? 'Write ALL text fields (title, hook, onscreen, voiceover, caption, cta, audio) in Arabic. Keep "shot" visual directions in English so a videographer anywhere can follow them.'
+      : language === 'en'
+      ? 'Write all text fields in English.'
+      : 'Write the title, hook, onscreen text, voiceover, caption, cta and audio in Arabic; keep "shot" visual directions in English.') + (language !== 'en' ? dialectInstruction : '');
+    messageContent = `You are a viral short-video director and scriptwriter for Instagram Reels, TikTok and YouTube Shorts. ${langRule}
+
+Topic/Product: ${topic}
+Brand: ${brand || 'the brand'}
+Platform: ${platformName}
+Target length: ${dur}
+Tone: ${toneText}
+${audience ? `Audience: ${audience}` : ''}
+${details ? `Extra context: ${details}` : ''}
+
+Write a complete, production-ready short-video script. Open with a scroll-stopping hook in the first 2 seconds. Break the video into ${dur === '15s' ? '3-4' : dur === '60s' ? '6-8' : '4-6'} scenes; for each scene give the timecode, the shot/visual direction, the on-screen text, and the voiceover/spoken line. Keep it punchy and native to the platform. Then give a caption with emojis, 8-12 relevant hashtags, a clear CTA, and a trending-style audio/music suggestion.
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "title": "short punchy title",
+  "hook": "the opening hook line (first 2 seconds)",
+  "scenes": [ { "time": "0-3s", "shot": "visual / what to film", "onscreen": "on-screen text", "voiceover": "spoken line" } ],
+  "caption": "the post caption with emojis",
+  "hashtags": ["#tag1", "#tag2"],
+  "cta": "call to action",
+  "audio": "trending audio or music suggestion"
+}`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
