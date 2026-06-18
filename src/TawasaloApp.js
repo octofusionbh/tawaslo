@@ -8790,6 +8790,9 @@ function InboxPage() {
   const [replyError, setReplyError] = useState('');
   const [replySuccess, setReplySuccess] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [triage, setTriage] = useState({});       // Smart triage: msgId -> {category, priority}
+  const [triBusy, setTriBusy] = useState(false);
+  const [triFilter, setTriFilter] = useState('all');
   const [realClientId, setRealClientId] = useState(null);
   const [apiError, setApiError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
@@ -8804,11 +8807,11 @@ function InboxPage() {
 
   const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
   const SAMPLE = [
-    { id:'s1', platform:'ig', from:'sara.alkhalifa', text:'This looks amazing 😍 where can I order from?', time:ago(8), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:14, replies:[], sample:true },
+    { id:'s1', platform:'ig', from:'sara.eats', text:'This looks amazing 😍 where can I order from?', time:ago(8), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:14, replies:[], sample:true },
     { id:'s2', platform:'fb', from:'foodie.bahrain', text:'Came by yesterday — best service in Adliya 🙌', time:ago(42), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:31, replies:[{ id:'r1', username:'marinacafe', text:'Thank you so much! See you again soon 🤍' }], sample:true },
     { id:'s3', platform:'ig', from:'mohammed_q8', text:'هل يوجد توصيل للمنطقة؟ وكم سعر البرانش؟', time:ago(95), type:'comment', mediaCaption:'New weekend brunch menu', likeCount:5, replies:[], sample:true },
     { id:'s4', platform:'ig', from:'lulwa.events', text:'Hi! Can you send me your catering & private events pricing?', time:ago(180), type:'dm', likeCount:0, replies:[], sample:true },
-    { id:'s5', platform:'fb', from:'ahmed.alsayed', text:'Do you open early on Fridays? 🕌', time:ago(300), type:'comment', mediaCaption:'Ramadan timings', likeCount:2, replies:[], sample:true },
+    { id:'s5', platform:'fb', from:'ahmed.bh', text:'Do you open early on Fridays? 🕌', time:ago(300), type:'comment', mediaCaption:'Ramadan timings', likeCount:2, replies:[], sample:true },
     { id:'s6', platform:'ig', from:'noor.designs', text:'Featured you in my story! Tag me back please 💛', time:ago(540), type:'dm', likeCount:0, replies:[], sample:true },
   ];
   const loadSample = () => { setSampleMode(true); setApiError(''); setMessages(SAMPLE); setSelected(SAMPLE[0]); };
@@ -8936,7 +8939,29 @@ function InboxPage() {
     return `${Math.floor(diff/86400)}d ago`;
   };
 
-  const filtered = filter === 'all' ? messages : messages.filter(m => m.type === filter);
+  const filtered = (filter === 'all' ? messages : messages.filter(m => m.type === filter))
+    .filter(m => triFilter === 'all' || (triage[String(m.id)] && triage[String(m.id)].category === triFilter));
+  const TRIAGE_CATS = {
+    lead:      { en:"Lead",      ar:"عميل محتمل", color:"#2E8B6B" },
+    question:  { en:"Question",  ar:"سؤال",        color: th.accent },
+    complaint: { en:"Complaint", ar:"شكوى",        color:"#E2574B" },
+    praise:    { en:"Praise",    ar:"إشادة",       color:"#7C3AED" },
+    spam:      { en:"Spam",      ar:"مزعج",        color:"#8A93A0" },
+    other:     { en:"Other",     ar:"أخرى",        color:"#8A93A0" },
+  };
+  const runTriage = async () => {
+    if (triBusy || !messages.length) return;
+    setTriBusy(true);
+    try {
+      const items = messages.slice(0, 40).map(m => ({ id: String(m.id), text: (m.text || '').slice(0, 300) }));
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'triage', items }) }).then(r => r.json());
+      const map = {};
+      (r.results || []).forEach(x => { if (x && x.id != null && TRIAGE_CATS[x.category]) map[String(x.id)] = { category: x.category, priority: x.priority || 'low' }; });
+      setTriage(map);
+    } catch (e) {}
+    setTriBusy(false);
+  };
+  const triCount = (cat) => messages.filter(m => triage[String(m.id)] && triage[String(m.id)].category === cat).length;
   const commentCount = messages.filter(m => m.type === 'comment').length;
   const dmCount = messages.filter(m => m.type === 'dm').length;
   const needReply = messages.filter(m => m.type === 'comment' && (!m.replies || m.replies.length === 0)).length;
@@ -8961,6 +8986,9 @@ function InboxPage() {
           <button onClick={sampleMode?exitSample:loadSample} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${sampleMode?th.accent:th.border}`, background:sampleMode?th.accentSoft:"transparent", color:sampleMode?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:5}}>
             <Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview","معاينة")}
           </button>
+          {messages.length>0 && <button onClick={runTriage} disabled={triBusy} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${Object.keys(triage).length?th.accent:th.border}`, background:Object.keys(triage).length?th.accentSoft:"transparent", color:Object.keys(triage).length?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
+            <Activity size={12}/>{triBusy?L("Sorting…","يصنّف…"):L("Smart triage","فرز ذكي")}
+          </button>}
           <button onClick={()=>setVoiceOpen(true)} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${th.border}`, background:th.gradient, color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
             <Sparkles size={12}/>{L("Brand voice","نبرة العلامة")}
           </button>
@@ -8971,6 +8999,17 @@ function InboxPage() {
       </div>
       {voiceOpen && <BrandVoiceDrawer clientId={realClientId} clientName={selClient?.name} th={th} L={L} onClose={()=>setVoiceOpen(false)}/>}
       {reportOpen && <EngagementReport clientId={realClientId} clientName={selClient?.name} messages={messages} th={th} L={L} onClose={()=>setReportOpen(false)}/>}
+
+      {Object.keys(triage).length>0 && (
+        <div style={{display:"flex", gap:7, flexWrap:"wrap", marginBottom:14}}>
+          <button onClick={()=>setTriFilter('all')} style={{display:"inline-flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:999, border:`1.5px solid ${triFilter==='all'?th.accent:th.border}`, background:triFilter==='all'?th.accentSoft:"transparent", color:triFilter==='all'?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer"}}>{L("All","الكل")}</button>
+          {Object.keys(TRIAGE_CATS).map(cat => { const n = triCount(cat); if (!n) return null; const c = TRIAGE_CATS[cat]; const on = triFilter===cat; return (
+            <button key={cat} onClick={()=>setTriFilter(on?'all':cat)} style={{display:"inline-flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:999, border:`1.5px solid ${on?c.color:th.border}`, background:on?c.color+"22":"transparent", color:on?th.text:th.text2, fontSize:11.5, fontWeight:on?600:500, cursor:"pointer"}}>
+              <span style={{width:8, height:8, borderRadius:"50%", background:c.color}}/>{isAR?c.ar:c.en} <span className="tw-num" style={{opacity:0.75}}>{n}</span>
+            </button>
+          ); })}
+        </div>
+      )}
 
       {!loading && messages.length>0 && (
         <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:14, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
@@ -9029,6 +9068,7 @@ function InboxPage() {
                   <div style={{fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5}}>{msg.text}</div>
                   <div style={{display:"flex", gap:6, alignItems:"center"}}>
                     <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":th.text2, background:msg.type==='dm'?"#7C3AED1a":th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):L("Comment","تعليق")}</span>
+                    {triage[String(msg.id)] && (()=>{ const t=triage[String(msg.id)]; const c=TRIAGE_CATS[t.category]; return <span style={{display:"inline-flex", alignItems:"center", gap:4, fontSize:9, fontWeight:700, color:c.color, background:c.color+"1f", padding:"2px 7px", borderRadius:5}}>{t.priority==='high' && <span style={{width:5, height:5, borderRadius:"50%", background:c.color}}/>}{isAR?c.ar:c.en}</span>; })()}
                     {msg.likeCount > 0 && <span style={{fontSize:9.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9}/> <span className="tw-num">{msg.likeCount}</span></span>}
                     {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:5}}>{L("Sample","عينة")}</span>}
                     {unreplied && <span title={L("Needs a reply","بحاجة لرد")} style={{marginLeft:"auto", width:7, height:7, borderRadius:"50%", background:th.accent}}/>}

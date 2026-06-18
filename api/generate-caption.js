@@ -340,6 +340,22 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "improved": "the stronger rewritten caption, same language as the original",
   "tips": ["tip 1", "tip 2"]
 }`;
+  } else if (theMode === 'triage') {
+    // Smart inbox triage — classify each incoming comment/DM by intent + urgency in one call.
+    maxTokens = 1600;
+    const items = Array.isArray(req.body.items) ? req.body.items.slice(0, 40) : [];
+    if (!items.length) return res.status(200).json({ results: [] });
+    const list = items.map(it => `[${it.id}] ${String(it.text || '').replace(/\s+/g, ' ').slice(0, 280)}`).join('\n');
+    messageContent = `You are a social media support triage assistant. Classify each incoming message/comment below by intent and urgency. Messages may be in English or Arabic.
+
+Categories: "lead" (buying/booking intent), "question" (asking for info), "complaint" (unhappy / has a problem), "praise" (positive feedback / thanks), "spam" (spam, bot, or irrelevant), "other".
+Priority: "high" (needs a fast response — hot leads and complaints), "medium", "low".
+
+Messages (format is [id] text):
+${list}
+
+Return ONLY a JSON object (no markdown), echoing each id exactly:
+{ "results": [ { "id": "the id", "category": "lead|question|complaint|praise|spam|other", "priority": "high|medium|low" } ] }`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
