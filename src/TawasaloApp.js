@@ -7959,6 +7959,104 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
   ), document.body);
 }
 
+// Saved replies (canned responses) — agency-wide snippet library in localStorage.
+function loadSavedReplies(isAR) {
+  try { const r = localStorage.getItem('tw_savedreplies'); if (r) return JSON.parse(r); } catch (e) {}
+  return isAR ? [
+    { id:'g', title:'ترحيب', text:'أهلاً وسهلاً 🌿 كيف نقدر نساعدك اليوم؟' },
+    { id:'t', title:'شكر', text:'شكراً جزيلاً لك! نقدّر تواصلك معنا 🙏' },
+    { id:'p', title:'الأسعار', text:'تفضل قائمة الأسعار — وأي استفسار أنا حاضر!' },
+    { id:'h', title:'أوقات العمل', text:'دوامنا من السبت إلى الخميس، ٩ صباحاً – ٩ مساءً. نسعد بخدمتك!' },
+    { id:'d', title:'التوصيل', text:'نعم التوصيل متوفر! أرسل لنا منطقتك ونأكد لك الوقت.' },
+    { id:'f', title:'متابعة', text:'نتابع معك 🌿 لا زلت مهتماً؟ نسعد بمساعدتك.' },
+  ] : [
+    { id:'g', title:'Greeting', text:'Hi! Thanks for reaching out 🌿 How can we help you today?' },
+    { id:'t', title:'Thanks', text:'Thank you so much — we really appreciate it 🙏' },
+    { id:'p', title:'Pricing', text:'Here are our prices — let me know if you have any questions!' },
+    { id:'h', title:'Hours', text:'We’re open Saturday–Thursday, 9am–9pm. Happy to help anytime!' },
+    { id:'d', title:'Delivery', text:'Yes, delivery is available! Share your area and we’ll confirm the time.' },
+    { id:'f', title:'Follow-up', text:'Just following up 🌿 are you still interested? Happy to help!' },
+  ];
+}
+function saveSavedReplies(list) { try { localStorage.setItem('tw_savedreplies', JSON.stringify(list)); } catch (e) {} }
+
+function SavedRepliesModal({ onClose, onPick, voice, brand }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === 'ar'; const L = (en, ar) => isAR ? ar : en;
+  const [list, setList] = useState(() => loadSavedReplies(isAR));
+  const [editId, setEditId] = useState(null);
+  const [form, setForm] = useState({ title:'', text:'' });
+  const [aiBusy, setAiBusy] = useState(null);
+  useEffect(() => { saveSavedReplies(list); }, [list]);
+  const startAdd = () => { setForm({ title:'', text:'' }); setEditId('new'); };
+  const startEdit = (s) => { setForm({ title:s.title, text:s.text }); setEditId(s.id); };
+  const save = () => {
+    if (!form.text.trim()) return;
+    if (editId === 'new') setList(l => [...l, { id: Math.random().toString(36).slice(2,8), title: form.title || L('Snippet','مقطع'), text: form.text }]);
+    else setList(l => l.map(s => s.id === editId ? { ...s, title: form.title, text: form.text } : s));
+    setEditId(null);
+  };
+  const del = (id) => setList(l => l.filter(s => s.id !== id));
+  const adapt = async (s) => {
+    setAiBusy(s.id);
+    try {
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'reply', message: s.text, voice: voice || {}, brand, lang: isAR ? 'ar' : 'en' }) });
+      const d = await r.json();
+      const out = (Array.isArray(d.replies) && d.replies[0]) || s.text;
+      onPick(out); onClose();
+    } catch (e) { onPick(s.text); onClose(); }
+    setAiBusy(null);
+  };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" };
+  return createPortal(
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,20,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:16 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, width:"100%", maxWidth:480, maxHeight:"82vh", overflow:"auto", padding:20 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}><MessageCircle size={17} color={th.accent}/><span style={{ fontSize:15, fontWeight:600, color:th.text }}>{L("Saved replies","الردود المحفوظة")}</span></div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><XCircle size={18}/></button>
+        </div>
+
+        {list.map(s => (
+          <div key={s.id} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"11px 13px", marginBottom:9 }}>
+            {editId === s.id ? (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder={L("Title","العنوان")} style={inp}/>
+                <textarea value={form.text} onChange={e=>setForm(f=>({...f,text:e.target.value}))} rows={3} placeholder={L("Reply text…","نص الرد…")} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/>
+                <div style={{ display:"flex", gap:8 }}><button onClick={save} style={{ flex:1, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, padding:"8px", borderRadius:9, cursor:"pointer" }}>{L("Save","حفظ")}</button><button onClick={()=>setEditId(null)} style={{ background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, padding:"8px 14px", borderRadius:9, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button></div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:4 }}>
+                  <span style={{ fontSize:12, fontWeight:600, color:th.accent }}>{s.title}</span>
+                  <div style={{ display:"flex", gap:4 }}>
+                    <button onClick={()=>startEdit(s)} title={L("Edit","تعديل")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex", padding:3 }}><Edit3 size={13}/></button>
+                    <button onClick={()=>del(s.id)} title={L("Delete","حذف")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex", padding:3 }}><Trash2 size={13}/></button>
+                  </div>
+                </div>
+                <div style={{ fontSize:12.5, color:th.text, lineHeight:1.5, marginBottom:9 }}>{s.text}</div>
+                <div style={{ display:"flex", gap:7 }}>
+                  <button onClick={()=>{ onPick(s.text); onClose(); }} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.accent, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, padding:"6px 13px", borderRadius:8, cursor:"pointer" }}><Check size={12}/>{L("Insert","إدراج")}</button>
+                  <button onClick={()=>adapt(s)} disabled={aiBusy===s.id} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:11.5, padding:"6px 13px", borderRadius:8, cursor:"pointer" }}><Sparkles size={12}/>{aiBusy===s.id?L("…","…"):L("Brand voice","بنبرة العلامة")}</button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+
+        {editId === 'new' ? (
+          <div style={{ background:th.card2, border:`1px dashed ${th.border}`, borderRadius:11, padding:"11px 13px", display:"flex", flexDirection:"column", gap:8 }}>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder={L("Title","العنوان")} style={inp}/>
+            <textarea value={form.text} onChange={e=>setForm(f=>({...f,text:e.target.value}))} rows={3} placeholder={L("Reply text…","نص الرد…")} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/>
+            <div style={{ display:"flex", gap:8 }}><button onClick={save} style={{ flex:1, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, padding:"8px", borderRadius:9, cursor:"pointer" }}>{L("Add","إضافة")}</button><button onClick={()=>setEditId(null)} style={{ background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, padding:"8px 14px", borderRadius:9, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button></div>
+          </div>
+        ) : (
+          <button onClick={startAdd} style={{ width:"100%", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, background:"none", border:`1px dashed ${th.border}`, color:th.text2, fontSize:12.5, padding:"10px", borderRadius:11, cursor:"pointer" }}><Plus size={14}/>{L("New saved reply","رد محفوظ جديد")}</button>
+        )}
+      </div>
+    </div>, document.body);
+}
+
 function InboxPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -7976,6 +8074,7 @@ function InboxPage() {
   const [replying, setReplying] = useState(false);
   const [replyError, setReplyError] = useState('');
   const [replySuccess, setReplySuccess] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
   const [realClientId, setRealClientId] = useState(null);
   const [apiError, setApiError] = useState('');
   const [sampleMode, setSampleMode] = useState(false);
@@ -8292,6 +8391,8 @@ function InboxPage() {
                 ); })()}
                 {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600, display:"flex", alignItems:"center", gap:6}}><CheckCircle size={13}/>{L("Reply posted","تم نشر الرد")}</div>}
                 {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
+                {selected.type!=='dm' && <button onClick={()=>setShowSaved(true)} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, padding:"5px 11px", borderRadius:8, cursor:"pointer", marginBottom:8 }}><MessageCircle size={12}/>{L("Saved replies","الردود المحفوظة")}</button>}
+                {showSaved && <SavedRepliesModal voice={loadVoice(realClientId)||{}} brand={selClient?.name} onPick={(t)=>setReply(r=>r&&r.trim()?(r.replace(/\s+$/,'')+' '+t):t)} onClose={()=>setShowSaved(false)}/>}
                 <div style={{display:"flex", gap:8}}>
                   <input
                     value={reply}
