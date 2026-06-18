@@ -4251,10 +4251,43 @@ function WhatsAppPage() {
     try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
   };
 
+  // ---- Contacts (opt-in list) + Templates — prep now, stored locally, sync on connect. ----
+  const ckey = `tw_wacontacts_${selClient?.id || 'x'}`;
+  const tkey = `tw_watemplates_${selClient?.id || 'x'}`;
+  const [contacts, setContacts] = useState([]);
+  const [templates, setTemplates] = useState([]);
+  const [cForm, setCForm] = useState({ name: '', number: '' });
+  const [csv, setCsv] = useState('');
+  const [tForm, setTForm] = useState({ name: '', category: 'Marketing', body: '' });
+  useEffect(() => {
+    try { setContacts(JSON.parse(localStorage.getItem(ckey) || '[]')); } catch (e) { setContacts([]); }
+    try { setTemplates(JSON.parse(localStorage.getItem(tkey) || '[]')); } catch (e) { setTemplates([]); }
+  }, [ckey, tkey]);
+  const saveContacts = (l) => { setContacts(l); try { localStorage.setItem(ckey, JSON.stringify(l)); } catch (e) {} };
+  const saveTemplates = (l) => { setTemplates(l); try { localStorage.setItem(tkey, JSON.stringify(l)); } catch (e) {} };
+  const addContact = () => { const n = String(cForm.number).replace(/[^0-9]/g, ''); if (!n) return; if (contacts.some(c => c.number === n)) { setCForm({ name: '', number: '' }); return; } saveContacts([...contacts, { id: Math.random().toString(36).slice(2, 8), name: cForm.name || n, number: n, consent: true }]); setCForm({ name: '', number: '' }); };
+  const removeContact = (id) => saveContacts(contacts.filter(c => c.id !== id));
+  const toggleConsent = (id) => saveContacts(contacts.map(c => c.id === id ? { ...c, consent: !c.consent } : c));
+  const importCsv = () => {
+    const lines = csv.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const add = [];
+    for (const ln of lines) {
+      const parts = ln.split(/[,\t;]/).map(s => s.trim());
+      let name = '', num = '';
+      for (const p of parts) { const d = p.replace(/[^0-9]/g, ''); if (d.length >= 7 && !num) num = d; else if (p && !/^[0-9+\-\s()]+$/.test(p) && !name) name = p; }
+      if (num && !contacts.some(c => c.number === num) && !add.some(c => c.number === num)) add.push({ id: Math.random().toString(36).slice(2, 8), name: name || num, number: num, consent: true });
+    }
+    if (add.length) saveContacts([...contacts, ...add]); setCsv('');
+  };
+  const addTemplate = () => { if (!tForm.body.trim() || !tForm.name.trim()) return; const name = tForm.name.toLowerCase().replace(/[^a-z0-9_]/g, '_'); saveTemplates([...templates, { id: Math.random().toString(36).slice(2, 8), name, category: tForm.category, body: tForm.body, status: 'draft' }]); setTForm({ name: '', category: 'Marketing', body: '' }); };
+  const removeTemplate = (id) => saveTemplates(templates.filter(t => t.id !== id));
+
   const TABS = [
     ["link", L("Click-to-chat link", "رابط محادثة"), MessageCircle, true],
     ["inbox", L("Shared inbox", "الوارد"), Inbox, waFull],
     ["broadcast", L("Broadcasts", "حملات"), Megaphone, waFull],
+    ["contacts", L("Contacts", "جهات الاتصال"), Users, waFull],
+    ["templates", L("Templates", "القوالب"), FileText, waFull],
     ["flows", L("Flows & auto-reply", "تدفقات ورد آلي"), Zap, waFull],
     ["report", L("Report", "تقرير"), PieChart, waFull],
   ];
@@ -4416,6 +4449,94 @@ function WhatsAppPage() {
                 {i < arr.length-1 && <div style={{ width:0, height:14, borderInlineStart:`2px ${i>=arr.length-2?"dashed":"solid"} ${th.border}`, marginInlineStart:28 }}/>}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "contacts" && waFull && (
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) 290px", gap:16, alignItems:"start" }}>
+          <div style={{ ...card, padding:18 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+              <span style={{ fontSize:14, fontWeight:600, color:th.text }}>{L("Opt-in contacts","جهات الاتصال الموافقة")}</span>
+              <span style={{ fontSize:11.5, color:th.text3 }}><b style={{ color:WA }}>{contacts.filter(c=>c.consent).length}</b> {L("opted-in","موافقون")} · {contacts.length} {L("total","الإجمالي")}</span>
+            </div>
+            {contacts.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"34px 14px", color:th.text2 }}>
+                <Users size={26} color={th.text3} style={{ opacity:0.5, marginBottom:10 }}/>
+                <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:5 }}>{L("No contacts yet","لا جهات اتصال بعد")}</div>
+                <div style={{ fontSize:12, color:th.text2, lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>{L("Add numbers you have permission to message. Only opted-in contacts receive broadcasts.","أضف أرقاماً لديك إذن لمراسلتها. الحملات تصل للموافقين فقط.")}</div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {contacts.map(c => (
+                  <div key={c.id} style={{ display:"flex", alignItems:"center", gap:11, background:th.card2, borderRadius:11, padding:"9px 12px" }}>
+                    <div style={{ width:32, height:32, borderRadius:"50%", background:th.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:th.text2, flexShrink:0 }}>{(c.name||"#").slice(0,1).toUpperCase()}</div>
+                    <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, color:th.text, fontWeight:500, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</div><div className="tw-num" style={{ fontSize:11, color:th.text3 }}>+{c.number}</div></div>
+                    <button onClick={()=>toggleConsent(c.id)} title={L("Toggle consent","تبديل الموافقة")} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, padding:"4px 10px", borderRadius:20, border:"none", cursor:"pointer", background:c.consent?WA+"22":th.card, color:c.consent?WA:th.text3 }}>{c.consent?<><Check size={11}/>{L("Opted in","موافق")}</>:L("No consent","بدون")}</button>
+                    <button onClick={()=>removeContact(c.id)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex", padding:3 }}><Trash2 size={13}/></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ ...card, padding:16 }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:th.text, marginBottom:10 }}>{L("Add a contact","إضافة جهة")}</div>
+              <input value={cForm.name} onChange={e=>setCForm(f=>({...f,name:e.target.value}))} placeholder={L("Name","الاسم")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", marginBottom:8 }}/>
+              <input value={cForm.number} onChange={e=>setCForm(f=>({...f,number:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&addContact()} placeholder="973 3300 0000" inputMode="tel" style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", marginBottom:10 }}/>
+              <button onClick={addContact} style={{ width:"100%", background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, padding:"9px", borderRadius:9, cursor:"pointer" }}>{L("Add","إضافة")}</button>
+            </div>
+            <div style={{ ...card, padding:16 }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:th.text, marginBottom:5 }}>{L("Import from CSV","استيراد CSV")}</div>
+              <div style={{ fontSize:10.5, color:th.text3, marginBottom:8, lineHeight:1.5 }}>{L("Paste rows like: Name, 97333000000","الصق صفوفاً مثل: الاسم، ٩٧٣٣٣٠٠٠٠٠٠")}</div>
+              <textarea value={csv} onChange={e=>setCsv(e.target.value)} rows={4} placeholder={"Sara, 97333112233\nAhmed, 97339887766"} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12, outline:"none", resize:"vertical", fontFamily:"inherit", lineHeight:1.5, marginBottom:9 }}/>
+              <button onClick={importCsv} disabled={!csv.trim()} style={{ width:"100%", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6, background:th.card2, border:`1px solid ${th.border}`, color:csv.trim()?th.text:th.text3, fontSize:12, fontWeight:600, padding:"9px", borderRadius:9, cursor:csv.trim()?"pointer":"default" }}><Plus size={13}/>{L("Import contacts","استيراد")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "templates" && waFull && (
+        <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) 290px", gap:16, alignItems:"start" }}>
+          <div style={{ ...card, padding:18 }}>
+            <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:4 }}>{L("Message templates","قوالب الرسائل")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.5, marginBottom:14 }}>{L("Draft them now. Meta must approve each template before it can be broadcast.","صِغها الآن. يجب أن تعتمد ميتا كل قالب قبل بثّه.")}</div>
+            {templates.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"30px 14px", color:th.text2 }}>
+                <FileText size={26} color={th.text3} style={{ opacity:0.5, marginBottom:10 }}/>
+                <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:5 }}>{L("No templates yet","لا قوالب بعد")}</div>
+                <div style={{ fontSize:12, color:th.text2 }}>{L("Draft your first on the right.","صِغ أول قالب على اليمين.")}</div>
+              </div>
+            ) : (
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {templates.map(t => (
+                  <div key={t.id} style={{ background:th.card2, borderRadius:11, padding:"11px 13px" }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:5 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                        <span className="tw-num" style={{ fontSize:12, fontWeight:600, color:th.text }}>{t.name}</span>
+                        <span style={{ fontSize:9.5, fontWeight:600, color:t.category==='Marketing'?"#E0832B":th.accent, background:(t.category==='Marketing'?"#E0832B":th.accent)+"22", padding:"1px 7px", borderRadius:20 }}>{t.category}</span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:9.5, color:"#E0B973", background:"#E0B97322", padding:"1px 7px", borderRadius:20 }}>{L("draft","مسودة")}</span>
+                        <button onClick={()=>removeTemplate(t.id)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={13}/></button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize:12.5, color:th.text, lineHeight:1.5 }}>{t.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div style={{ ...card, padding:16 }}>
+            <div style={{ fontSize:12.5, fontWeight:600, color:th.text, marginBottom:10 }}>{L("New template","قالب جديد")}</div>
+            <input value={tForm.name} onChange={e=>setTForm(f=>({...f,name:e.target.value}))} placeholder={L("Template name","اسم القالب")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", marginBottom:8 }}/>
+            <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+              {["Marketing","Utility"].map(cat => (
+                <button key={cat} onClick={()=>setTForm(f=>({...f,category:cat}))} style={{ flex:1, padding:"7px", borderRadius:9, border:`1.5px solid ${tForm.category===cat?WA:th.border}`, background:tForm.category===cat?"rgba(37,211,102,0.10)":"transparent", color:tForm.category===cat?th.text:th.text2, fontSize:11.5, fontWeight:tForm.category===cat?600:400, cursor:"pointer" }}>{cat}</button>
+              ))}
+            </div>
+            <textarea value={tForm.body} onChange={e=>setTForm(f=>({...f,body:e.target.value}))} rows={4} placeholder={L("Message body…","نص الرسالة…")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", resize:"vertical", fontFamily:"inherit", lineHeight:1.5, marginBottom:10 }}/>
+            <button onClick={addTemplate} style={{ width:"100%", background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, padding:"9px", borderRadius:9, cursor:"pointer" }}>{L("Save draft","حفظ المسودة")}</button>
           </div>
         </div>
       )}
