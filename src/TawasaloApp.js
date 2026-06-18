@@ -4236,12 +4236,13 @@ function VideoCoverModal({ videoUrl, onPick, onClose }) {
       v.addEventListener('seeked', onSeeked); v.currentTime = t;
     });
     v.onloadeddata = async () => {
-      const dur = v.duration || 0; const out = [];
-      for (const p of [0.05, 0.3, 0.55, 0.8]) {
+      const dur = v.duration || 0; const out = []; const N = 12;
+      for (let i = 0; i < N; i++) {
         if (cancelled) return;
-        try { out.push(await capture(Math.max(0.05, dur * p))); } catch (e) { setFailed(true); break; }
+        const t = Math.max(0.05, dur * (0.02 + i * (0.96 / (N - 1))));
+        try { out.push(await capture(t)); if (!cancelled) setFrames([...out]); } catch (e) { setFailed(true); break; }
       }
-      if (!cancelled) { setFrames(out); setBusy(false); }
+      if (!cancelled) setBusy(false);
     };
     v.onerror = () => { if (!cancelled) { setFailed(true); setBusy(false); } };
     return () => { cancelled = true; };
@@ -4269,13 +4270,14 @@ function VideoCoverModal({ videoUrl, onPick, onClose }) {
           <div style={{ padding:"30px 0", textAlign:"center", color:th.text2, fontSize:13 }}>{L("Setting your cover…","نضبط الغلاف…")}</div>
         ) : (
           <>
-            {!failed && !busy && <div style={{ fontSize:11.5, color:th.text2, marginBottom:8 }}>{L("Pick a frame from your video","اختر لقطة من الفيديو")}</div>}
-            {busy && <div style={{ padding:"24px 0", textAlign:"center", color:th.text3, fontSize:12.5 }}>{L("Reading frames…","نقرأ اللقطات…")}</div>}
-            {!busy && frames.length>0 && (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:14 }}>
+            {!failed && <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}><span style={{ fontSize:11.5, color:th.text2 }}>{L("Pick a frame from your video","اختر لقطة من الفيديو")}</span>{busy && frames.length>0 && <span style={{ fontSize:10.5, color:th.text3 }}>{L("loading more…","يحمّل المزيد…")}</span>}</div>}
+            {busy && frames.length===0 && <div style={{ padding:"24px 0", textAlign:"center", color:th.text3, fontSize:12.5 }}>{L("Reading frames…","نقرأ اللقطات…")}</div>}
+            {frames.length>0 && (
+              <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:8, marginBottom:14 }}>
                 {frames.map((f,i)=>(
-                  <div key={i} onClick={()=>uploadCover(f)} title={L("Use this frame","استخدم هذه اللقطة")} style={{ aspectRatio:"9/16", borderRadius:9, overflow:"hidden", cursor:"pointer", border:`1px solid ${th.border}` }}><img src={f} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+                  <div key={i} onClick={()=>uploadCover(f)} title={L("Use this frame","استخدم هذه اللقطة")} style={{ flex:"0 0 auto", width:62, aspectRatio:"9/16", borderRadius:8, overflow:"hidden", cursor:"pointer", border:`1px solid ${th.border}` }}><img src={f} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 ))}
+                {busy && <div style={{ flex:"0 0 auto", width:62, aspectRatio:"9/16", borderRadius:8, border:`1px dashed ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:th.text3, fontSize:14 }}>…</div>}
               </div>
             )}
             {!busy && failed && <div style={{ fontSize:11.5, color:th.text3, marginBottom:12, lineHeight:1.5 }}>{L("Couldn't read frames from this video — upload your own cover instead.","تعذّرت قراءة اللقطات — ارفع غلافاً خاصاً بدلاً من ذلك.")}</div>}
@@ -6629,8 +6631,11 @@ function PublisherPage() {
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
               : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
-              <div style={{ position:"relative", width:"100%", aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?340:420, background:firstImg?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
-                {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ textAlign:"center" }}>{video ? <Send size={24}/> : <Image size={24}/>}<div style={{ fontSize:10, marginTop:6 }}>{video ? "Video" : "Add media →"}</div></div>}
+              <div style={{ position:"relative", width:"100%", aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?340:420, background:(firstImg||video)?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+                {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                  : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
+                  : <div style={{ textAlign:"center" }}><Image size={24}/><div style={{ fontSize:10, marginTop:6 }}>Add media →</div></div>}
+                {video && !firstImg && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}><span style={{ width:46, height:46, borderRadius:"50%", background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center" }}><Play size={20} color="#fff"/></span></span>}
                 {images.length>1 && <><span style={{ position:"absolute", top:10, right:10, background:"rgba(0,0,0,0.55)", borderRadius:8, padding:"2px 8px", fontSize:10, color:"#fff" }}>1/{images.length}</span><div style={{ position:"absolute", bottom:10, left:"50%", transform:"translateX(-50%)", display:"flex", gap:5 }}>{images.map((m,i)=><span key={m.id} style={{ width:6, height:6, borderRadius:"50%", background:i===0?"#fff":"rgba(255,255,255,0.45)" }}/>)}</div></>}
               </div>
             );
