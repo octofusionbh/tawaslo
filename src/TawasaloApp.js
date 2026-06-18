@@ -4476,7 +4476,7 @@ function CompetitorSpyPage() {
               <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:11 }}>{L("CONTENT MIX (estimated)","مزيج المحتوى (تقديري)")}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {data.contentMix.map(([label,pct],i)=>(
-                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}><span style={{ fontSize:11.5, color:th.text2, width:80 }}>{label}</span><div style={{ flex:1, height:8, background:th.card2, borderRadius:20, overflow:"hidden" }}><div style={{ width:Math.max(0,Math.min(100,pct))+"%", height:"100%", background:th.accent }}/></div><span className="tw-num" style={{ fontSize:11, color:th.text3, width:34, textAlign:"end" }}>{pct}%</span></div>
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}><span style={{ fontSize:11.5, color:th.text2, width:80 }}>{label}</span><div style={{ flex:1, height:8, background:th.card2, borderRadius:20, overflow:"hidden" }}><div className="tw-bar-grow" style={{ width:Math.max(0,Math.min(100,pct))+"%", height:"100%", background:th.accent, borderRadius:20, animationDelay:(0.05+i*0.07)+"s" }}/></div><span className="tw-num" style={{ fontSize:11, color:th.text3, width:34, textAlign:"end" }}>{pct}%</span></div>
                 ))}
               </div>
               {mixHashtags.length>0 && <div style={{ marginTop:13, display:"flex", gap:6, flexWrap:"wrap" }}>{mixHashtags.map((h,i)=><span key={i} style={{ fontSize:11, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"3px 9px" }}>{h}</span>)}</div>}
@@ -4495,7 +4495,7 @@ function CompetitorSpyPage() {
               <div style={{ fontSize:13.5, fontWeight:700, color:"#fff", marginBottom:13, display:"flex", alignItems:"center", gap:7 }}><Target size={16}/>{L("How to beat them","كيف تتفوّق عليهم")}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
                 {data.playbook.map((p,i)=>(
-                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}><span style={{ width:21, height:21, borderRadius:"50%", background:"rgba(255,255,255,0.9)", color:"#1B2B40", fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+1}</span><span style={{ fontSize:12.5, color:"#EAF0F7", lineHeight:1.5 }}>{p}</span></div>
+                  <div key={i} className="tw-row-in" style={{ display:"flex", gap:10, alignItems:"flex-start", animationDelay:(0.1+i*0.08)+"s" }}><span style={{ width:21, height:21, borderRadius:"50%", background:"rgba(255,255,255,0.9)", color:"#1B2B40", fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+1}</span><span style={{ fontSize:12.5, color:"#EAF0F7", lineHeight:1.5 }}>{p}</span></div>
                 ))}
               </div>
             </div>
@@ -4602,7 +4602,7 @@ function ReelStudioPage() {
               </div>
 
               {(script.scenes||[]).map((s,i) => (
-                <div key={i} style={{ ...card, padding:0, overflow:"hidden", display:"flex" }}>
+                <div key={i} className="tw-row-in" style={{ ...card, padding:0, overflow:"hidden", display:"flex", animationDelay:(i*0.07)+"s" }}>
                   <div style={{ width:64, flexShrink:0, background:th.card2, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"12px 6px", borderInlineEnd:`1px solid ${th.border}` }}>
                     <div style={{ fontSize:10, color:th.text3 }}>{L("Scene","مشهد")}</div>
                     <div className="tw-num" style={{ fontSize:20, fontWeight:800, color:th.accent }}>{i+1}</div>
@@ -4951,7 +4951,7 @@ function WhatsAppPage() {
               ) : (
                 <>
                   <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span className="tw-num" style={{ fontSize:20, fontWeight:700, color:th.text }}>{(waIncluded-1240).toLocaleString()}</span><span style={{ fontSize:11.5, color:th.text3 }}>/ {waIncluded.toLocaleString()} {L("left", "متبقّي")}</span></div>
-                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div style={{ width:`${(1240/waIncluded)*100}%`, height:"100%", background:WA }}/></div>
+                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div className="tw-bar-grow" style={{ width:`${(1240/waIncluded)*100}%`, height:"100%", background:WA }}/></div>
                 </>
               )}
             </div>
