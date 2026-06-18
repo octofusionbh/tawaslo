@@ -55,6 +55,15 @@ body {
 .tw-bar-grow { animation: twBarGrow 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .tw-row-in { animation: twRowIn 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
 
+/* Success check — springs in when a post publishes or a client approves. */
+@keyframes twCheckPop { 0% { transform: scale(0); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+.tw-check-pop { display: inline-flex; animation: twCheckPop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+/* Hero entrance — badge, headline, sub, buttons rise in one after another.
+   Apply tw-rise and set an inline animation-delay per element. */
+@keyframes twRise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.tw-rise { animation: twRise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
 /* Micro-interactions — tactile feedback app-wide. Buttons give a subtle press,
    form fields get a soft steel focus ring. Inline transitions still win where
    a component sets its own. */
