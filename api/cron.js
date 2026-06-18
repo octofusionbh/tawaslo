@@ -142,6 +142,7 @@ export default async function handler(req, res) {
             caption: post.caption || '',
             imageUrl: media && !isVideo ? media : null,
             videoUrl: isVideo ? media : null,
+            firstComment: post.first_comment || null,
           }),
         });
         const pub = await pubRes.json();

@@ -5206,6 +5206,7 @@ function PublisherPage() {
   const [utmCampaign, setUtmCampaign] = useState(""); // campaign name for UTM link tagging
   const [shortening, setShortening] = useState(false);
   const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
+  const [firstComment, setFirstComment] = useState(""); // auto-posted as the first comment
   const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
 
   useEffect(() => {
@@ -5332,7 +5333,7 @@ function PublisherPage() {
     setAiLoading(false);
   };
 
-  const resetComposer = () => { setCaption(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); };
+  const resetComposer = () => { setCaption(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); setFirstComment(""); setPostLabel(""); };
 
   // ── Saved hashtag groups (per client, localStorage) ──────────────────
   const hgKey = `tw_hashgroups_${selClient?.id || realClientId || 'default'}`;
@@ -5504,6 +5505,7 @@ function PublisherPage() {
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
           const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
           if (postLabel) srow.label = postLabel;
+          if (firstComment) srow.first_comment = firstComment;
           if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }
           const { error } = await supabase.from('posts').insert([srow]);
           if (error) { ok = false; lastErr = error.message; }
@@ -5513,7 +5515,7 @@ function PublisherPage() {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat, firstComment: firstComment || null }) });
         const data = await res.json();
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -5821,6 +5823,17 @@ function PublisherPage() {
                 <div><div style={{ fontSize:12, color:th.text }}>{L("Watermark images with logo","ختم الصور بالشعار")}</div><div style={{ fontSize:10, color:th.text3 }}>{L("Adds the client's logo to each photo before publishing","يضيف شعار العميل لكل صورة قبل النشر")}</div></div>
               </div>
             )}
+          </div>
+
+          <div style={card}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:6 }}>
+              <div style={{ fontSize:10.5, color:th.text3 }}>{L("First comment","أول تعليق")}{igSelected ? "" : L(" (Instagram & Facebook)", " (إنستغرام وفيسبوك)")}</div>
+              {(caption.match(/#[\p{L}0-9_]+/gu) || []).length > 0 && (
+                <button onClick={()=>{ const tags=(caption.match(/#[\p{L}0-9_]+/gu)||[]).join(" "); setCaption(c=>c.replace(/#[\p{L}0-9_]+/gu,"").replace(/\s{2,}/g," ").trim()); setFirstComment(fc=> fc ? (fc.trim()+" "+tags) : tags); }} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.accent, background:"transparent", border:`1px solid ${th.border}`, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><TrendingUp size={11}/>{L("Move # here","انقل الوسوم هنا")}</button>
+              )}
+            </div>
+            <textarea value={firstComment} onChange={e=>setFirstComment(e.target.value)} rows={2} placeholder={L("Post a comment automatically the moment this goes live — great for hashtags or a link.","انشر تعليقاً تلقائياً لحظة النشر — مثالي للوسوم أو رابط.")} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/>
+            <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Keeps your caption clean — hashtags land in the first comment instead.","يبقي النص نظيفاً — الوسوم تذهب لأول تعليق بدلاً من ذلك.")}</div>
           </div>
 
           <div style={card}>
