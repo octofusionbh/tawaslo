@@ -693,6 +693,7 @@ function Sidebar() {
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
       {key:"reelstudio",Icon:Play,            label:"Reel Studio", badge:null},
+      {key:"competitor",Icon:Search,          label:"Competitor Spy", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
@@ -4204,6 +4205,150 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   ), document.body);
 }
 
+// Competitor Spy — a competitor handle + our niche becomes a beat-them playbook.
+// AI-driven (always works); enriched with best-effort live stats from EnsembleData.
+function CompetitorSpyPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [handle, setHandle] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [niche, setNiche] = useState(selClient?.name || "");
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [error, setError] = useState("");
+
+  const fmt = (n) => n == null ? "—" : (n >= 1000 ? (Math.round(n/100)/10) + "k" : String(n));
+
+  const run = async () => {
+    const h = handle.replace(/^@/, "").trim();
+    if (!h || busy) return;
+    setBusy(true); setError(""); setData(null); setStats(null);
+    let liveStats = null;
+    try {
+      const s = await fetch(`/api/trends?mode=competitor&handle=${encodeURIComponent(h)}&platform=${platform}`).then(r => r.json()).catch(() => null);
+      if (s && s.ok) { liveStats = s; setStats(s); }
+    } catch (e) {}
+    try {
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'compete', competitor:h, niche, platform, lang: isAR ? 'ar' : 'en', stats: liveStats || undefined }) }).then(r => r.json());
+      if (r && (r.playbook || r.summary)) setData(r);
+      else setError(r.error || L("Could not analyze. Please try again.", "تعذّر التحليل. حاول مرة أخرى."));
+    } catch (e) { setError(L("Something went wrong.", "حدث خطأ ما.")); }
+    setBusy(false);
+  };
+
+  const exportSpy = () => {
+    if (!data) return;
+    const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+    const li = (arr) => (arr||[]).map(x => `<li style="margin:3px 0">${esc(x)}</li>`).join('');
+    const mix = (data.contentMix||[]).map(([l,p]) => `<tr><td style="padding:3px 10px 3px 0">${esc(l)}</td><td style="padding:3px 0;font-weight:600">${p}%</td></tr>`).join('');
+    const statsH = (stats && stats.ok) ? `<p style="font-size:12px;color:#555;margin:0 0 14px">Followers: ${fmt(stats.followers)} · Avg engagement: ${fmt(stats.avgEngagement)} · Posts: ${fmt(stats.postCount)}</p>` : '';
+    const cleanHandle = handle.replace(/^@/, '');
+    const html = `<html><head><meta charset="utf-8"><title>Competitor analysis — @${esc(cleanHandle)}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:1.5"><h1 style="font-size:21px;margin:0 0 2px">Competitor analysis — @${esc(cleanHandle)}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(niche||'')} · ${esc(platform)} · ${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${statsH}<p style="font-size:14px"><b>Read:</b> ${esc(data.summary||'')}</p><h3 style="font-size:14px">Strengths</h3><ul>${li(data.strengths)}</ul><h3 style="font-size:14px">Gaps to exploit</h3><ul>${li(data.gaps)}</ul><h3 style="font-size:14px">Content mix (estimated)</h3><table style="font-size:13px">${mix}</table><p style="font-size:12px;color:#3a5">${esc((mixHashtags||[]).join(' '))}</p><h3 style="font-size:14px">How to beat them</h3><ol>${li(data.playbook)}</ol></body></html>`;
+    try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
+  };
+
+  const chip = (on) => ({ padding:"7px 13px", borderRadius:9, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2, fontSize:12, fontWeight:on?600:400, cursor:"pointer", whiteSpace:"nowrap" });
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
+  const mixHashtags = (data && data.hashtags && data.hashtags.length) ? data.hashtags : (stats && stats.topHashtags) || [];
+
+  return (
+    <div style={{ maxWidth:880, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:16 }}>
+        <div style={{ width:38, height:38, borderRadius:11, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Eye size={18} color="#fff"/></div>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Competitor Spy","تجسّس المنافسين")}</h1>
+          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("Size up any rival and get a plan to beat them","حلّل أي منافس واحصل على خطة للتفوّق عليه")}</p>
+        </div>
+      </div>
+
+      <div style={{ ...card, padding:14, marginBottom:14, display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", alignItems:"center", flex:1, minWidth:180, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"0 12px" }}>
+          <span style={{ color:th.text3, fontSize:13 }}>@</span>
+          <input value={handle} onChange={e=>setHandle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&run()} placeholder={L("competitor handle","حساب المنافس")} style={{ flex:1, background:"transparent", border:"none", padding:"10px 6px", color:th.text, fontSize:13.5, outline:"none" }}/>
+        </div>
+        <button onClick={()=>setPlatform("instagram")} style={chip(platform==="instagram")}>Instagram</button>
+        <button onClick={()=>setPlatform("tiktok")} style={chip(platform==="tiktok")}>TikTok</button>
+        <button onClick={run} disabled={!handle.trim()||busy} style={{ display:"inline-flex", alignItems:"center", gap:6, background:(!handle.trim())?th.card2:th.gradient, border:"none", color:(!handle.trim())?th.text3:"#fff", fontSize:13, fontWeight:700, borderRadius:9, padding:"10px 16px", cursor:(!handle.trim()||busy)?"default":"pointer" }}>{busy?<RefreshCw size={14}/>:<Eye size={14}/>}{busy?L("Analyzing…","جارٍ التحليل…"):L("Analyze","حلّل")}</button>
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <input value={niche} onChange={e=>setNiche(e.target.value)} placeholder={L("Your brand / niche (so the plan fits you)","علامتك / مجالك (لتناسبك الخطة)")} style={{ width:"100%", boxSizing:"border-box", background:th.card, border:`1px solid ${th.border}`, borderRadius:11, padding:"10px 13px", color:th.text, fontSize:13, outline:"none" }}/>
+      </div>
+
+      {error && <div style={{ ...card, padding:16, fontSize:12.5, color:th.danger }}>{error}</div>}
+      {!data && !busy && !error && (
+        <div style={{ ...card, padding:"48px 26px", textAlign:"center" }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><Eye size={24} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Spy on a competitor","تجسّس على منافس")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:400, margin:"0 auto" }}>{L("Enter a rival's handle and the AI breaks down their strengths, the gaps you can exploit, and a step-by-step plan to win.","أدخل حساب منافس وسيحلّل الذكاء نقاط قوته والثغرات التي تستغلها وخطة خطوة بخطوة للفوز.")}</div>
+        </div>
+      )}
+      {busy && <div style={{ ...card, padding:24, fontSize:13, color:th.text2 }}>{L("Studying their feed, cadence and hashtags…","ندرس محتواهم وإيقاعهم ووسومهم…")}</div>}
+
+      {data && (
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ display:"flex", justifyContent:"flex-end" }}>
+            <button onClick={exportSpy} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}><Download size={13}/>{L("Download report","تنزيل التقرير")}</button>
+          </div>
+          {stats && stats.ok ? (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))", gap:10 }}>
+              {[[L("Followers","المتابعون"), fmt(stats.followers)], [L("Avg. engagement","متوسط التفاعل"), fmt(stats.avgEngagement)], [L("Posts","المنشورات"), fmt(stats.postCount)]].map(([k,v],i)=>(
+                <div key={i} style={{ background:th.card2, borderRadius:12, padding:"12px 14px" }}><div style={{ fontSize:11, color:th.text2 }}>{k}</div><div className="tw-num" style={{ fontSize:19, fontWeight:700, color:th.text }}>{v}</div></div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize:11.5, color:th.text3, display:"flex", alignItems:"center", gap:6 }}><Info size={12}/>{L("Live metrics unavailable right now — the analysis below is AI-estimated.","المقاييس الحيّة غير متاحة الآن — التحليل أدناه تقديري بالذكاء.")}</div>
+          )}
+
+          {data.summary && <div style={{ ...card, padding:16, fontSize:13, color:th.text, lineHeight:1.6 }}><b style={{ color:th.accent }}>{L("Read: ","الخلاصة: ")}</b>{data.summary}</div>}
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            <div style={{ ...card, padding:15 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:th.success, letterSpacing:0.5, marginBottom:9 }}>{L("STRENGTHS","نقاط القوة")}</div>
+              {(data.strengths||[]).map((s,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.8 }}>{s}</div>)}
+            </div>
+            <div style={{ ...card, padding:15 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#D85A30", letterSpacing:0.5, marginBottom:9 }}>{L("GAPS TO EXPLOIT","ثغرات للاستغلال")}</div>
+              {(data.gaps||[]).map((s,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.8 }}>{s}</div>)}
+            </div>
+          </div>
+
+          {(data.contentMix && data.contentMix.length) ? (
+            <div style={{ ...card, padding:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:11 }}>{L("CONTENT MIX (estimated)","مزيج المحتوى (تقديري)")}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {data.contentMix.map(([label,pct],i)=>(
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}><span style={{ fontSize:11.5, color:th.text2, width:80 }}>{label}</span><div style={{ flex:1, height:8, background:th.card2, borderRadius:20, overflow:"hidden" }}><div style={{ width:Math.max(0,Math.min(100,pct))+"%", height:"100%", background:th.accent }}/></div><span className="tw-num" style={{ fontSize:11, color:th.text3, width:34, textAlign:"end" }}>{pct}%</span></div>
+                ))}
+              </div>
+              {mixHashtags.length>0 && <div style={{ marginTop:13, display:"flex", gap:6, flexWrap:"wrap" }}>{mixHashtags.map((h,i)=><span key={i} style={{ fontSize:11, color:th.accent, background:th.accentSoft, borderRadius:999, padding:"3px 9px" }}>{h}</span>)}</div>}
+            </div>
+          ) : null}
+
+          {(data.postingTips && data.postingTips.length) ? (
+            <div style={{ ...card, padding:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:8 }}>{L("CADENCE & TIMING","الإيقاع والتوقيت")}</div>
+              {data.postingTips.map((t,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.7 }}>• {t}</div>)}
+            </div>
+          ) : null}
+
+          {(data.playbook && data.playbook.length) ? (
+            <div style={{ background:th.gradient, borderRadius:16, padding:18 }}>
+              <div style={{ fontSize:13.5, fontWeight:700, color:"#fff", marginBottom:13, display:"flex", alignItems:"center", gap:7 }}><Target size={16}/>{L("How to beat them","كيف تتفوّق عليهم")}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {data.playbook.map((p,i)=>(
+                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start" }}><span style={{ width:21, height:21, borderRadius:"50%", background:"rgba(255,255,255,0.9)", color:"#1B2B40", fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+1}</span><span style={{ fontSize:12.5, color:"#EAF0F7", lineHeight:1.5 }}>{p}</span></div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Reel / Video Studio — a topic becomes a full short-video script: hook, scene-by-scene
 // shot list, on-screen text, voiceover, caption, hashtags, CTA and an audio suggestion.
 function ReelStudioPage() {
@@ -4224,7 +4369,7 @@ function ReelStudioPage() {
   const PLATS = [["instagram", L("Reels","ريلز")], ["tiktok", "TikTok"], ["youtube", L("Shorts","شورتس")]];
   const DURS = ["15s", "30s", "60s"];
   const TONES = [["Energetic", L("Energetic","حماسي")], ["Friendly", L("Friendly","ودّي")], ["Professional", L("Professional","احترافي")], ["Playful", L("Playful","مرِح")], ["Luxury", L("Luxury","فاخر")]];
-  const DIALECTS = [["gulf", L("Gulf","خليجي")], ["saudi", L("Saudi","سعودي")], ["egyptian", L("Egyptian","مصري")], ["levantine", L("Levantine","شامي")], ["msa", L("Standard","فصحى")]];
+  const DIALECTS = [["gulf", L("Khaliji","خليجي")], ["saudi", L("Saudi","سعودي")], ["egyptian", L("Egyptian","مصري")], ["levantine", L("Levantine","شامي")], ["msa", L("Fus-ha (MSA)","فصحى")]];
 
   const copy = (t, k) => { try { navigator.clipboard.writeText(t); setCopied(k); setTimeout(() => setCopied(""), 1500); } catch (e) {} };
   const toComposer = (t) => { try { sessionStorage.setItem('tw_studio_caption', t); } catch (e) {} setPage('publisher'); };
@@ -4272,7 +4417,7 @@ function ReelStudioPage() {
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:13 }}>{TONES.map(([k,t]) => <button key={k} onClick={()=>setTone(k)} style={chip(tone===k)}>{t}</button>)}</div>
           <div style={{ fontSize:11.5, color:th.text2, marginBottom:6 }}>{L("Language","اللغة")}</div>
           <div style={{ display:"flex", gap:6, marginBottom: scriptLang==="ar"?10:16 }}>{[["en","English"],["ar","العربية"]].map(([k,t]) => <button key={k} onClick={()=>setScriptLang(k)} style={chip(scriptLang===k)}>{t}</button>)}</div>
-          {scriptLang==="ar" && <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>{DIALECTS.map(([k,t]) => <button key={k} onClick={()=>setDialect(k)} style={{ ...chip(dialect===k), fontSize:11, padding:"5px 11px" }}>{t}</button>)}</div>}
+          {scriptLang==="ar" && <><div style={{ fontSize:11.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:6 }}><Languages size={12}/>{L("Dialect","اللهجة")}</div><div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:16 }}>{DIALECTS.map(([k,t]) => <button key={k} onClick={()=>setDialect(k)} style={{ ...chip(dialect===k), fontSize:11, padding:"5px 11px" }}>{t}</button>)}</div></>}
           <button onClick={run} disabled={!topic.trim()||loading} style={{ width:"100%", padding:"12px", borderRadius:12, background:(!topic.trim())?th.card2:th.gradient, border:"none", color:(!topic.trim())?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(!topic.trim()||loading)?"default":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>{loading?<><RefreshCw size={15}/>{L("Writing the script…","جارٍ كتابة السيناريو…")}</>:<><Sparkles size={15}/>{L("Write my script","اكتب السيناريو")}</>}</button>
           {error && <div style={{ fontSize:12.5, color:th.danger, marginTop:12, textAlign:"center" }}>{error}</div>}
         </div>
@@ -12112,6 +12257,7 @@ export default function TawasloApp() {
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
     if (page==="reelstudio") return <ReelStudioPage/>;
+    if (page==="competitor") return <CompetitorSpyPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;

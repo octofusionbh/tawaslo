@@ -291,6 +291,30 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "cta": "call to action",
   "audio": "trending audio or music suggestion"
 }`;
+  } else if (theMode === 'compete') {
+    // Competitor analysis — turn a competitor handle + our niche into a beat-them playbook.
+    maxTokens = 1300;
+    const comp = req.body.competitor || topic;
+    const niche = req.body.niche || brand || '';
+    const stats = req.body.stats ? `\nKnown public stats (use these as ground truth): ${JSON.stringify(req.body.stats)}` : '';
+    const langRule = (language === 'ar' ? 'Write ALL text fields in Arabic.' : 'Write all text fields in English.') + (language !== 'en' ? dialectInstruction : '');
+    messageContent = `You are a competitive social media strategist. A brand wants to outperform a competitor on ${platformName || 'Instagram'}. ${langRule}
+
+Competitor: ${comp}
+Our brand / niche: ${niche || 'a brand in the same space'}${stats}
+
+Analyze the competitor's likely social strategy and give a sharp, realistic, actionable plan to beat them. If you are unsure of exact figures, give informed estimates and keep them plausible.
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "summary": "one-line read on the competitor's positioning",
+  "strengths": ["what they do well (3 items)"],
+  "gaps": ["weaknesses / gaps we can exploit (3-4 items)"],
+  "contentMix": [["Reels", 45], ["Carousels", 30], ["Stories", 25]],
+  "hashtags": ["#relevant", "#hashtags", "to target (8-10 items)"],
+  "postingTips": ["cadence / timing tips (2-3 items)"],
+  "playbook": ["concrete move to win (5-6 specific actions)"]
+}`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'

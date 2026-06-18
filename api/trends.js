@@ -86,6 +86,43 @@ export default async function handler(req, res) {
     return res.status(200).json({ connected: false, items: [], message: "ENSEMBLE_TOKEN not set in Vercel env vars." });
   }
 
+  // Competitor profile lookup (best-effort) — powers the Competitor Spy feature.
+  // Returns whatever public stats EnsembleData can give; empty if the handle/quota fails.
+  if (req.query && req.query.mode === "competitor") {
+    const handle = String(req.query.handle || "").replace(/^@/, "").trim();
+    const plat = String(req.query.platform || "instagram").toLowerCase();
+    if (!handle) return res.status(200).json({ ok: false });
+    try {
+      const isTT = plat === "tiktok" || plat === "tt";
+      const infoUrl = isTT
+        ? `${ROOT}/tt/user/info?username=${encodeURIComponent(handle)}&token=${token}`
+        : `${ROOT}/instagram/user/info?username=${encodeURIComponent(handle)}&token=${token}`;
+      const postsUrl = isTT
+        ? `${ROOT}/tt/user/posts?username=${encodeURIComponent(handle)}&depth=1&token=${token}`
+        : `${ROOT}/instagram/user/posts?username=${encodeURIComponent(handle)}&depth=1&chunk_size=10&token=${token}`;
+      const [info, postsD] = await Promise.all([getJson(infoUrl).catch(() => null), getJson(postsUrl).catch(() => null)]);
+      const u = (info && (info.data || info)) || {};
+      const followers = u.follower_count || u.followers || (u.edge_followed_by && u.edge_followed_by.count) || (u.stats && u.stats.followerCount) || null;
+      const postCount = u.media_count || u.aweme_count || (u.stats && u.stats.videoCount) || null;
+      const raw = (postsD && (postsD.data?.posts || postsD.data?.items || postsD.data || postsD.posts)) || [];
+      const arr = Array.isArray(raw) ? raw : [];
+      let likes = 0, comments = 0, n = 0; const tagCount = {};
+      for (const p of arr.slice(0, 12)) {
+        const a = p.node || p.aweme_info || p;
+        likes += a.like_count || (a.statistics && a.statistics.digg_count) || (a.edge_liked_by && a.edge_liked_by.count) || 0;
+        comments += a.comment_count || (a.statistics && a.statistics.comment_count) || 0; n++;
+        const cap = (a.caption && a.caption.text) || a.desc || (a.edge_media_to_caption && a.edge_media_to_caption.edges?.[0]?.node?.text) || "";
+        (String(cap).match(/#[\p{L}0-9_]+/gu) || []).forEach(t => { tagCount[t] = (tagCount[t] || 0) + 1; });
+      }
+      const topHashtags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
+      const avgEngagement = n ? Math.round((likes + comments) / n) : null;
+      res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
+      return res.status(200).json({ ok: !!(followers || postCount || n), handle, platform: plat, followers, postCount, avgEngagement, sampleSize: n, topHashtags });
+    } catch (e) {
+      return res.status(200).json({ ok: false, error: e.message });
+    }
+  }
+
   const region = String((req.query && req.query.region) || "worldwide").toLowerCase();
   const platform = String((req.query && req.query.platform) || "all").toLowerCase();
   const tags = REGION_TAGS[region] || REGION_TAGS.worldwide;
