@@ -3780,14 +3780,14 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
     <div onClick={()=>{ if(!busy && !scheduling) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
       <div onClick={e=>e.stopPropagation()} style={{ width:560, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Wand2 size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Plan my month","خطّط شهري")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Wand2 size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Plan my month","خطّط شهري")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
           <button onClick={onClose} disabled={!!busy||scheduling} style={{ background:"none", border:"none", cursor:(busy||scheduling)?"default":"pointer", color:th.text2, display:"flex", opacity:(busy||scheduling)?0.4:1 }}><XCircle size={20}/></button>
         </div>
 
         {busy ? (
           <div style={{ padding:"40px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 16px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={22} color={th.accent}/></div>
-            <div style={{ fontSize:14, fontWeight:600, marginBottom:8 }}>{busy.label}</div>
+            <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:8 }}>{busy.label}</div>
             <div style={{ width:260, maxWidth:"80%", height:7, borderRadius:5, background:th.card2, margin:"0 auto 8px", overflow:"hidden" }}><div style={{ width:Math.round(busy.done/Math.max(1,busy.total)*100)+"%", height:"100%", background:th.gradient, transition:"width .3s" }}/></div>
             <div style={{ fontSize:11.5, color:th.text3 }}><span className="tw-num">{busy.done}</span> / <span className="tw-num">{busy.total}</span></div>
           </div>
@@ -3818,7 +3818,7 @@ function PlanMonthModal({ clientId, clientName, th, L, onClose, onDone }) {
         ) : (
           <>
             <div style={{ padding:"14px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ fontSize:13, fontWeight:600 }}><span className="tw-num">{posts.length}</span> {L("posts ready","منشور جاهز")}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}><span className="tw-num">{posts.length}</span> {L("posts ready","منشور جاهز")}</div>
               <button onClick={()=>setStep("brief")} style={{ fontSize:11.5, color:th.accent, background:"none", border:"none", cursor:"pointer" }}>{L("← Edit brief","← تعديل")}</button>
             </div>
             <div style={{ flex:1, overflowY:"auto", padding:"12px 20px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:11 }}>
@@ -3889,14 +3889,14 @@ function StrategyModal({ clientId, clientName, th, L, isAR, onClose, onUseInPlan
     <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
       <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Sparkles size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Content strategy","استراتيجية المحتوى")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><Sparkles size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Content strategy","استراتيجية المحتوى")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
           <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
         </div>
 
         {busy ? (
           <div style={{ padding:"46px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 16px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={22} color={th.accent}/></div>
-            <div style={{ fontSize:14, fontWeight:600 }}>{L("Building your strategy…","نبني استراتيجيتك…")}</div>
+            <div style={{ fontSize:14, fontWeight:600, color:th.text }}>{L("Building your strategy…","نبني استراتيجيتك…")}</div>
             <div style={{ fontSize:11.5, color:th.text3, marginTop:6 }}>{L("Pillars, cadence and themes","الركائز والإيقاع والمحاور")}</div>
           </div>
         ) : !strat ? (
@@ -4051,7 +4051,7 @@ function EvergreenModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   const stepper = (val, set, min, max) => (
     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
       <button onClick={()=>set(n=>Math.max(min,n-1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>−</button>
-      <span className="tw-num" style={{ fontSize:14, fontWeight:600, minWidth:18, textAlign:"center" }}>{val}</span>
+      <span className="tw-num" style={{ fontSize:14, fontWeight:600, color:th.text, minWidth:18, textAlign:"center" }}>{val}</span>
       <button onClick={()=>set(n=>Math.min(max,n+1))} style={{ width:26, height:26, borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, cursor:"pointer", fontSize:14, lineHeight:1 }}>+</button>
     </div>
   );
@@ -4060,19 +4060,19 @@ function EvergreenModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
     <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
       <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}><RefreshCw size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Evergreen recycling","إعادة تدوير دائم")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Keep the calendar full with your best posts","حافظ على امتلاء التقويم بأفضل منشوراتك")}</div></div></div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><RefreshCw size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Evergreen recycling","إعادة تدوير دائم")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Keep the calendar full with your best posts","حافظ على امتلاء التقويم بأفضل منشوراتك")}</div></div></div>
           <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
         </div>
 
         {filled != null ? (
           <div style={{ padding:"44px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.successSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={22} color={th.success}/></div>
-            <div style={{ fontSize:14.5, fontWeight:600 }}>{L("Refilled","تمت التعبئة")} <span className="tw-num">{filled}</span> {L("slots","فترة")}</div>
+            <div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Refilled","تمت التعبئة")} <span className="tw-num">{filled}</span> {L("slots","فترة")}</div>
           </div>
         ) : busy ? (
           <div style={{ padding:"44px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><RefreshCw size={22} color={th.accent}/></div>
-            <div style={{ fontSize:14, fontWeight:600 }}>{L("Refilling the calendar…","جارٍ تعبئة التقويم…")}</div>
+            <div style={{ fontSize:14, fontWeight:600, color:th.text }}>{L("Refilling the calendar…","جارٍ تعبئة التقويم…")}</div>
           </div>
         ) : (
           <>
@@ -4151,19 +4151,19 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
     <div onClick={()=>{ if(!busy) onClose(); }} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.62)", zIndex:80, display:"flex", alignItems:"center", justifyContent:"center", padding:18 }}>
       <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ width:600, maxWidth:"95vw", maxHeight:"90vh", display:"flex", flexDirection:"column", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 30px 80px rgba(0,0,0,0.55)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${th.border}` }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}><FileText size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600 }}>{L("Bulk schedule from CSV","جدولة جماعية من ملف CSV")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Upload a spreadsheet of posts","ارفع جدولاً بالمنشورات")}</div></div></div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><FileText size={17} color={th.accent}/><div><div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{L("Bulk schedule from CSV","جدولة جماعية من ملف CSV")}</div><div style={{ fontSize:11, color:th.text3 }}>{L("Upload a spreadsheet of posts","ارفع جدولاً بالمنشورات")}</div></div></div>
           <button onClick={onClose} disabled={busy} style={{ background:"none", border:"none", cursor:busy?"default":"pointer", color:th.text2, display:"flex", opacity:busy?0.4:1 }}><XCircle size={20}/></button>
         </div>
 
         {doneCount != null ? (
           <div style={{ padding:"44px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.successSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={22} color={th.success}/></div>
-            <div style={{ fontSize:14.5, fontWeight:600 }}><span className="tw-num">{doneCount}</span> {L("posts scheduled","منشور مجدول")}</div>
+            <div style={{ fontSize:14.5, fontWeight:600, color:th.text }}><span className="tw-num">{doneCount}</span> {L("posts scheduled","منشور مجدول")}</div>
           </div>
         ) : busy ? (
           <div style={{ padding:"44px 24px", textAlign:"center" }}>
             <div style={{ width:46, height:46, margin:"0 auto 14px", borderRadius:14, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center" }}><Calendar size={22} color={th.accent}/></div>
-            <div style={{ fontSize:14, fontWeight:600 }}>{L("Scheduling your posts…","جارٍ جدولة منشوراتك…")}</div>
+            <div style={{ fontSize:14, fontWeight:600, color:th.text }}>{L("Scheduling your posts…","جارٍ جدولة منشوراتك…")}</div>
           </div>
         ) : rows.length === 0 ? (
           <div style={{ padding:"18px 20px", overflowY:"auto" }}>
@@ -4173,7 +4173,7 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
             </div>
             <label style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, padding:"24px", border:`1.5px dashed ${th.border}`, borderRadius:12, cursor:"pointer", marginBottom:14 }}>
               <FileText size={22} color={th.accent}/>
-              <div style={{ fontSize:13, fontWeight:600 }}>{L("Choose a .csv file","اختر ملف .csv")}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Choose a .csv file","اختر ملف .csv")}</div>
               <div style={{ fontSize:11, color:th.text3 }}>{L("or paste rows below","أو الصق الصفوف بالأسفل")}</div>
               <input type="file" accept=".csv,text/csv" style={{ display:"none" }} onChange={e=>onFile(e.target.files && e.target.files[0])}/>
             </label>
@@ -4183,7 +4183,7 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
         ) : (
           <>
             <div style={{ padding:"12px 20px 0", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-              <div style={{ fontSize:13, fontWeight:600 }}><span className="tw-num">{validRows.length}</span> {L("ready","جاهز")}{rows.length>validRows.length && <span style={{ color:th.danger, fontWeight:400 }}> · <span className="tw-num">{rows.length-validRows.length}</span> {L("skipped (bad date)","مُتجاهَل (تاريخ خاطئ)")}</span>}</div>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}><span className="tw-num">{validRows.length}</span> {L("ready","جاهز")}{rows.length>validRows.length && <span style={{ color:th.danger, fontWeight:400 }}> · <span className="tw-num">{rows.length-validRows.length}</span> {L("skipped (bad date)","مُتجاهَل (تاريخ خاطئ)")}</span>}</div>
               <button onClick={()=>{ setRows([]); }} style={{ fontSize:11.5, color:th.accent, background:"none", border:"none", cursor:"pointer" }}>{L("← Back","← رجوع")}</button>
             </div>
             <div style={{ flex:1, overflowY:"auto", padding:"10px 20px" }}>
@@ -8424,7 +8424,7 @@ function BrandVoiceDrawer({ clientId, clientName, th, L, onClose }) {
     <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:70, display:"flex", justifyContent:"flex-end" }}>
       <div onClick={e=>e.stopPropagation()} style={{ width:460, maxWidth:"94vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, overflowY:"auto" }}>
         <div style={{ position:"sticky", top:0, background:th.surface, borderBottom:`1px solid ${th.border}`, padding:"16px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", zIndex:2 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9 }}><MessageCircle size={17} color={th.accent}/><div><div style={{ fontSize:14, fontWeight:600 }}>{L("Brand voice","نبرة العلامة")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
+          <div style={{ display:"flex", alignItems:"center", gap:9 }}><MessageCircle size={17} color={th.accent}/><div><div style={{ fontSize:14, fontWeight:600, color:th.text }}>{L("Brand voice","نبرة العلامة")}</div><div style={{ fontSize:11, color:th.text3 }}>{clientName || L("this client","هذا العميل")}</div></div></div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
         </div>
 
@@ -9501,7 +9501,7 @@ function BillingPage() {
           <div onClick={e=>e.stopPropagation()} style={{width:430, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)"}}>
             <div style={{display:"flex", alignItems:"center", gap:11, marginBottom:14}}>
               <div style={{width:40, height:40, borderRadius:11, background:th.dangerSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><XCircle size={20} color={th.danger}/></div>
-              <span style={{fontSize:16, fontWeight:700}}>{L("Cancel subscription?","إلغاء الاشتراك؟")}</span>
+              <span style={{fontSize:16, fontWeight:700, color:th.text}}>{L("Cancel subscription?","إلغاء الاشتراك؟")}</span>
             </div>
             <div style={{fontSize:13, color:th.text2, lineHeight:1.65, marginBottom:20}}>{isAR ? <>تبقى خطتك فعّالة حتى <strong style={{color:th.text}}>1 يوليو 2026</strong>. بعدها تنتقل إلى الباقة المجانية وتفقد المزايا المدفوعة. يمكنك إعادة التفعيل في أي وقت قبل ذلك.</> : <>Your plan stays active until <strong style={{color:th.text}}>July 1, 2026</strong>. After that you'll move to the free tier and lose paid features. You can reactivate anytime before then.</>}</div>
             <div style={{display:"flex", gap:10}}>
