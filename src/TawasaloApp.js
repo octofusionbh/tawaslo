@@ -4205,6 +4205,77 @@ function BulkUploadModal({ clientId, accounts, th, L, isAR, onClose, onDone }) {
   ), document.body);
 }
 
+// Post Score & Optimizer — rate the current caption and offer a stronger rewrite.
+function ScoreModal({ caption, platform, hasMedia, onApply, onClose }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [busy, setBusy] = useState(true);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [grow, setGrow] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'score', caption, platform, hasMedia, lang: isAR ? 'ar' : 'en' }) })
+      .then(r => r.json()).then(d => { if (!alive) return; if (d && (d.score != null || d.improved)) setData(d); else setError(d.error || L("Could not score this post.", "تعذّر تقييم المنشور.")); setBusy(false); })
+      .catch(() => { if (alive) { setError(L("Something went wrong.", "حدث خطأ ما.")); setBusy(false); } });
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => { if (data) { const t = setTimeout(() => setGrow(true), 90); return () => clearTimeout(t); } }, [data]);
+  const sc = data ? Math.max(0, Math.min(100, Math.round(data.score))) : 0;
+  const scColor = sc >= 80 ? th.success : sc >= 60 ? "#E0B973" : "#E2574B";
+  const scLight = sc >= 80 ? "#7FD9A8" : sc >= 60 ? "#F0CE5E" : "#F08576";
+  const RC = 2 * Math.PI * 34;
+  return createPortal(
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(8,12,20,0.55)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:16 }}>
+      <div onClick={e=>e.stopPropagation()} dir={isAR?"rtl":"ltr"} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, width:"100%", maxWidth:460, maxHeight:"86vh", overflow:"auto", padding:20, animation:"scoreIn .24s cubic-bezier(.2,.8,.2,1) both" }}>
+        <style>{`@keyframes scoreIn{from{opacity:0;transform:scale(.95) translateY(8px)}to{opacity:1;transform:none}}@keyframes scoreSpin{to{transform:rotate(360deg)}}@keyframes barGrow{from{width:0}}`}</style>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}><Target size={17} color={th.accent}/><span style={{ fontSize:15, fontWeight:600, color:th.text }}>{L("Post score & optimizer","تقييم وتحسين المنشور")}</span></div>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><XCircle size={18}/></button>
+        </div>
+        {busy && <div style={{ padding:"34px 10px", textAlign:"center" }}><div style={{ width:34, height:34, margin:"0 auto 12px", border:`3px solid ${th.card2}`, borderTopColor:th.accent, borderRadius:"50%", animation:"scoreSpin .8s linear infinite" }}/><div style={{ color:th.text2, fontSize:13 }}>{L("Scoring your post…","نقيّم منشورك…")}</div></div>}
+        {error && <div style={{ padding:"20px 10px", color:th.danger, fontSize:12.5 }}>{error}</div>}
+        {data && (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:18 }}>
+              <div style={{ position:"relative", width:84, height:84, flexShrink:0 }}>
+                <svg width="84" height="84" viewBox="0 0 84 84">
+                  <defs><linearGradient id="scGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor={scLight}/><stop offset="100%" stopColor={scColor}/></linearGradient></defs>
+                  <circle cx="42" cy="42" r="34" fill="none" stroke={th.card2} strokeWidth="7"/>
+                  <circle cx="42" cy="42" r="34" fill="none" stroke="url(#scGrad)" strokeWidth="7" strokeLinecap="round" strokeDasharray={RC} strokeDashoffset={grow ? RC * (1 - sc/100) : RC} transform="rotate(-90 42 42)" style={{ transition:"stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1)" }}/>
+                </svg>
+                <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}><span className="tw-num" style={{ fontSize:25, fontWeight:800, color:th.text, lineHeight:1 }}>{sc}</span><span style={{ fontSize:8.5, color:th.text3, fontWeight:600, letterSpacing:0.5 }}>/100</span></div>
+              </div>
+              <div><div style={{ display:"inline-block", fontSize:10.5, fontWeight:700, color:scColor, letterSpacing:0.5, background:scColor+"1f", padding:"3px 9px", borderRadius:20, marginBottom:6 }}>{sc>=80?L("STRONG","قوي"):sc>=60?L("DECENT","جيد"):L("NEEDS WORK","يحتاج تحسين")}</div><div style={{ fontSize:12.5, color:th.text2, lineHeight:1.5 }}>{data.verdict}</div></div>
+            </div>
+            {(data.breakdown||[]).length>0 && (
+              <div style={{ display:"flex", flexDirection:"column", gap:7, marginBottom:16 }}>
+                {data.breakdown.map(([label,v],i)=>(
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:10 }}><span style={{ fontSize:11.5, color:th.text2, width:74 }}>{label}</span><div style={{ flex:1, height:7, background:th.card2, borderRadius:20, overflow:"hidden" }}><div style={{ width: grow ? (Math.max(0,Math.min(10,v))*10)+"%" : "0%", height:"100%", borderRadius:20, background: v>=8?th.success:v>=5?th.accent:"#E2574B", transition:`width .9s cubic-bezier(.2,.8,.2,1) ${0.15+i*0.08}s` }}/></div><span className="tw-num" style={{ fontSize:11, color:th.text3, width:30, textAlign:"end" }}>{v}/10</span></div>
+                ))}
+              </div>
+            )}
+            {(data.issues||[]).length>0 && (
+              <div style={{ background:th.card2, borderRadius:11, padding:"11px 13px", marginBottom:14 }}>
+                <div style={{ fontSize:10.5, fontWeight:700, color:"#D85A30", letterSpacing:0.5, marginBottom:6 }}>{L("WEAK SPOTS","نقاط الضعف")}</div>
+                {data.issues.map((s,i)=><div key={i} style={{ fontSize:12, color:th.text2, lineHeight:1.7 }}>• {s}</div>)}
+              </div>
+            )}
+            {data.improved && (
+              <div style={{ border:`1px solid ${th.accent}55`, background:th.accentSoft, borderRadius:12, padding:"12px 14px", marginBottom:12 }}>
+                <div style={{ fontSize:10.5, fontWeight:700, color:th.accent, letterSpacing:0.5, marginBottom:7, display:"flex", alignItems:"center", gap:5 }}><Sparkles size={12}/>{L("STRONGER VERSION","نسخة أقوى")}</div>
+                <div style={{ fontSize:12.5, color:th.text, lineHeight:1.6, whiteSpace:"pre-wrap", marginBottom:11 }}>{data.improved}</div>
+                <button onClick={()=>onApply(data.improved)} style={{ width:"100%", padding:"9px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Check size={13}/>{L("Use this rewrite","استخدم هذه النسخة")}</button>
+              </div>
+            )}
+            {(data.tips||[]).length>0 && <div style={{ fontSize:11.5, color:th.text3, lineHeight:1.7 }}>{data.tips.map((t,i)=><div key={i}>💡 {t}</div>)}</div>}
+          </div>
+        )}
+      </div>
+    </div>, document.body);
+}
+
 // Competitor Spy — a competitor handle + our niche becomes a beat-them playbook.
 // AI-driven (always works); enriched with best-effort live stats from EnsembleData.
 function CompetitorSpyPage() {
@@ -5713,6 +5784,7 @@ function PublisherPage() {
   const [shortening, setShortening] = useState(false);
   const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
   const [firstComment, setFirstComment] = useState(""); // auto-posted as the first comment
+  const [scoreOpen, setScoreOpen] = useState(false);  // Post Score & Optimizer modal
   const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
 
   useEffect(() => {
@@ -5786,6 +5858,30 @@ function PublisherPage() {
   const video = media.find(m => m.type === 'video' && m.url);
   const detected = video ? (igFormat === 'story' ? 'Story' : 'Reel / Video') : images.length > 1 ? ('Carousel · ' + images.length + ' images') : images.length === 1 ? 'Single photo' : null;
 
+  // Downscale + compress big images in the browser before upload, so a large phone
+  // photo never trips Supabase's per-file storage limit. Returns a Blob (or the original).
+  const compressImage = (file) => new Promise((resolve) => {
+    try {
+      if (!file.type.startsWith('image/') || file.type === 'image/gif') return resolve(file);
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const MAX = 1920;
+        const big = Math.max(img.width, img.height) || 1;
+        if (big <= MAX && file.size <= 1.2 * 1024 * 1024) return resolve(file);
+        const scale = Math.min(1, MAX / big);
+        const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => resolve(blob && blob.size < file.size ? blob : file), 'image/jpeg', 0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    } catch (e) { resolve(file); }
+  });
+
   const handleUpload = async (fileList) => {
     const files = Array.from(fileList || []);
     if (!files.length) return;
@@ -5794,7 +5890,7 @@ function PublisherPage() {
       const isVideo = file.type.startsWith('video/');
       const isImage = file.type.startsWith('image/');
       if (!isVideo && !isImage) { setMediaWarning('Only images or videos are supported.'); continue; }
-      if (file.size / 1024 / 1024 > 100) { setMediaWarning('File exceeds the 100MB limit.'); continue; }
+      if (isVideo && file.size / 1024 / 1024 > 100) { setMediaWarning('Video exceeds the 100MB limit — try a shorter or more compressed clip.'); continue; }
       if (isVideo) setMedia([]);
       if (isImage && video) { setMediaWarning('Remove the video first to add images.'); continue; }
       if (isImage && images.length >= 10) { setMediaWarning('Up to 10 images in a carousel.'); break; }
@@ -5802,16 +5898,19 @@ function PublisherPage() {
       const item = { id, name: file.name, type: isVideo ? 'video' : 'image', url: null, uploading: true };
       setMedia(prev => isVideo ? [item] : [...prev, item]);
       try {
+        const blob = isImage ? await compressImage(file) : file;
         const { data: { user } } = await supabase.auth.getUser();
         const uid = user?.id || 'anonymous';
-        const ext = file.name.split('.').pop();
+        const madeJpeg = isImage && blob !== file && blob.type === 'image/jpeg';
+        const ext = isVideo ? (file.name.split('.').pop() || 'mp4') : (madeJpeg ? 'jpg' : (file.name.split('.').pop() || 'jpg'));
         const path = `${uid}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
-        const { error } = await supabase.storage.from('media').upload(path, file, { upsert: true });
+        const { error } = await supabase.storage.from('media').upload(path, blob, { upsert: true, contentType: blob.type || (isVideo ? file.type : 'image/jpeg') });
         if (error) throw error;
         const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
         setMedia(prev => prev.map(m => m.id === id ? { ...m, url: urlData.publicUrl, uploading: false } : m));
       } catch (err) {
-        setMediaWarning('Upload failed: ' + err.message);
+        const big = /exceeded|maximum allowed size|too large|413/i.test(err.message || '');
+        setMediaWarning(big ? (isVideo ? 'This video is too large for storage — try a shorter or compressed clip, or raise the bucket limit in Supabase.' : 'This image is still too large — try a smaller file.') : ('Upload failed: ' + err.message));
         setMedia(prev => prev.filter(m => m.id !== id));
       }
     }
@@ -6232,9 +6331,11 @@ function PublisherPage() {
               </div>
             )}
             <textarea value={caption} onChange={e=>setCaption(e.target.value)} placeholder={L("Write your caption…","اكتب التعليق…")} rows={4} style={{ ...inp, resize:"vertical", lineHeight:1.6, fontSize:13 }}/>
-            <div style={{ display:"flex", justifyContent:"flex-end", alignItems:"center", marginTop:7 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:7 }}>
+              <button onClick={()=>caption.trim()&&setScoreOpen(true)} disabled={!caption.trim()} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 12px", borderRadius:9, border:`1px solid ${caption.trim()?th.accent+"55":th.border}`, background:caption.trim()?th.accentSoft:th.card2, color:caption.trim()?th.accent:th.text3, fontSize:11.5, fontWeight:600, cursor:caption.trim()?"pointer":"default" }}><Target size={12}/>{L("Score & optimize","قيّم وحسّن")}</button>
               <span style={{ fontSize:11, color:th.text3 }}><span className="tw-num">{caption.length}</span> / <span className="tw-num">2200</span></span>
             </div>
+            {scoreOpen && <ScoreModal caption={caption} platform={(selectedAccounts[0] && selectedAccounts[0].platform) || 'instagram'} hasMedia={(images&&images.length>0)||!!video} onApply={(t)=>{ setCaption(t); setScoreOpen(false); }} onClose={()=>setScoreOpen(false)}/>}
             {captionHasLink && (
               <div style={{ marginTop:10, borderTop:`1px solid ${th.border}`, paddingTop:10 }}>
                 <div style={{ fontSize:10.5, color:th.text2, marginBottom:7, display:"flex", alignItems:"center", gap:5 }}><Link size={11} color={th.accent}/>{L("Campaign link tracking (UTM)","تتبّع روابط الحملة (UTM)")}</div>

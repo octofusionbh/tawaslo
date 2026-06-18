@@ -315,6 +315,31 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "postingTips": ["cadence / timing tips (2-3 items)"],
   "playbook": ["concrete move to win (5-6 specific actions)"]
 }`;
+  } else if (theMode === 'score') {
+    // Post Score & Optimizer — rate a caption's engagement potential and rewrite it stronger.
+    maxTokens = 1100;
+    const cap = req.body.caption || topic || '';
+    const hasMedia = req.body.hasMedia ? 'The post includes an image or video.' : 'The post has no media attached yet.';
+    const langRule = language === 'ar'
+      ? 'Write the verdict, issues and tips in Arabic.'
+      : 'Write the verdict, issues and tips in English.';
+    messageContent = `You are a social media performance analyst. Score the following ${platformName || 'social'} post for engagement potential, then rewrite the caption stronger. ${langRule} Keep the "improved" caption in the SAME language(s) as the original.
+
+Caption:
+"""${cap}"""
+${hasMedia}
+
+Give an overall score 0-100, and rate Hook, Clarity, Emotion, CTA and Hashtags each out of 10. Name the 2-3 biggest issues. Rewrite the caption to be stronger while keeping its meaning and a brand-appropriate tone. Add 2-3 quick tips.
+
+Return ONLY a JSON object in this exact format (no markdown, no extra text):
+{
+  "score": 78,
+  "verdict": "one-line overall verdict",
+  "breakdown": [["Hook", 8], ["Clarity", 7], ["Emotion", 6], ["CTA", 5], ["Hashtags", 9]],
+  "issues": ["issue 1", "issue 2"],
+  "improved": "the stronger rewritten caption, same language as the original",
+  "tips": ["tip 1", "tip 2"]
+}`;
   } else {
     const shape = language === 'en'
       ? '{\n  "english": "the English caption with relevant emojis and hashtags",\n  "arabic": ""\n}'
