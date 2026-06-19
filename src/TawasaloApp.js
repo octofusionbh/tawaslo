@@ -12484,13 +12484,26 @@ export default function TawasloApp() {
     // only fall back to the first brand on the very first load (no real selection yet).
     if (norm.length) setSelClient(prev => {
       const keep = prev && prev.id && norm.find(c => c.id === prev.id);
-      return keep || norm[0];
+      if (keep) return keep;
+      // On a fresh reload prev has no real id — restore the last-selected brand from storage.
+      let storedId = null; try { storedId = localStorage.getItem('tw_selclient'); } catch (e) {}
+      const stored = storedId && norm.find(c => String(c.id) === String(storedId));
+      return stored || norm[0];
     });
     const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
     const owner = onAdminHost && user.email === ADMIN_EMAIL;
     setMode(owner ? "owner" : "agency");
     // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
-    if (fresh) { const home = owner ? "overview" : "dashboard"; try { sessionStorage.setItem('tw_page', home); } catch (e) {} setPage(home); }
+    // A page reload also fires a SIGNED_IN event, which would otherwise yank the user to the
+    // home page. Keep their last page when one is saved (reload); only land on home for a
+    // genuine fresh login — logout clears tw_page, so `saved` is null in that case.
+    if (fresh) {
+      const home = owner ? "overview" : "dashboard";
+      let saved = null; try { saved = sessionStorage.getItem('tw_page'); } catch (e) {}
+      const target = saved || home;
+      try { sessionStorage.setItem('tw_page', target); } catch (e) {}
+      setPage(target);
+    }
   };
 
   // Restore session on load
@@ -12510,6 +12523,9 @@ export default function TawasloApp() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Remember the selected brand across reloads so a refresh keeps you on the same client.
+  useEffect(() => { try { if (selClient && selClient.id) localStorage.setItem('tw_selclient', String(selClient.id)); } catch (e) {} }, [selClient]);
 
   // Auto sign-out after inactivity — keeps the workspace secure if the laptop is
   // left open, closed, or goes to sleep. Resets on any activity; also checks on
