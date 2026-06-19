@@ -6677,7 +6677,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:312, margin:"0 auto", maxHeight:"calc(100vh - 32px)", overflowY:"auto" }} className="tw-noscroll">
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:320, margin:"0 auto" }}>
           <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>{L("Live preview","معاينة مباشرة")}</div>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
             {previewTabs.map(([k,lab,Ic])=>(
@@ -6699,7 +6699,7 @@ function PublisherPage() {
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
               : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
-              <div style={{ position:"relative", width:"100%", aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?340:420, background:(firstImg||video)?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+              <div style={{ position:"relative", width:"100%", aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:330, background:(firstImg||video)?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
                   : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
                   : <div style={{ textAlign:"center" }}><Image size={24}/><div style={{ fontSize:10, marginTop:6 }}>Add media →</div></div>}
@@ -6712,7 +6712,7 @@ function PublisherPage() {
             if (effPreviewPlat === "ig" && igFormat === "story") {
               // Story preview — full-bleed media, progress bar, avatar overlay, no caption/likes.
               return (
-                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:360 }}>
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", width:264, maxWidth:"100%", margin:"0 auto" }}>
                   <div style={{ position:"absolute", inset:0 }}>
                     {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#2a2f3a,#11141b)", display:"flex", alignItems:"center", justifyContent:"center", color:"#7a8494", flexDirection:"column", gap:8 }}>{video?<Send size={26}/>:<Image size={26}/>}<div style={{ fontSize:11 }}>{video?"Video story":"Add a photo or video"}</div></div>}
                   </div>
@@ -6767,7 +6767,7 @@ function PublisherPage() {
               // TikTok — vertical full-bleed video, right-side action rail, caption overlaid at the bottom.
               const ttMedia = firstImg ? firstImg.url : null;
               return (
-                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:380 }}>
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", width:264, maxWidth:"100%", margin:"0 auto" }}>
                   <div style={{ position:"absolute", inset:0 }}>
                     {ttMedia ? <img src={ttMedia} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
                       : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
