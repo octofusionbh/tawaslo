@@ -1050,6 +1050,11 @@ function ContextBar() {
   const PLAT_META = { ig:{label:"Instagram",Icon:FaInstagram,color:"#E1306C"}, fb:{label:"Facebook",Icon:FaFacebook,color:"#1877F2"}, li:{label:"LinkedIn",Icon:FaLinkedin,color:"#0A66C2"}, tt:{label:"TikTok",Icon:FaTiktok,color:th.text}, tw:{label:"X",Icon:FaTwitter,color:th.text}, yt:{label:"YouTube",Icon:FaYoutube,color:"#FF0000"} };
   const present = Array.from(new Set((accounts||[]).map(a=>a.platform).filter(Boolean)));
 
+  // When you switch to a client that doesn't have the currently-filtered platform, reset to "All".
+  useEffect(() => {
+    if (selPlatform !== "all" && present.length > 0 && !present.includes(selPlatform)) setSelPlatform("all");
+  }, [accounts, selPlatform]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const createClient = async () => {
     const name = newName.trim();
     if (!name || creating) return;
@@ -5965,7 +5970,8 @@ function PublisherPage() {
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
   const PREVIEW_TABS = [["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["tt","TikTok",FaTiktok],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]];
-  const previewTabs = selPlats.length ? PREVIEW_TABS.filter(([k]) => selPlats.includes(k)) : PREVIEW_TABS;
+  const acctPlats = [...new Set(accounts.map(a => a.platform))];
+  const previewTabs = PREVIEW_TABS.filter(([k]) => (selPlats.length ? selPlats : acctPlats).includes(k));
   const effPreviewPlat = previewTabs.some(([k]) => k === previewPlatform) ? previewPlatform : (previewTabs[0] ? previewTabs[0][0] : "ig");
   const previewAccount = accounts.find(a => selectedAccounts.includes(a.id) && a.platform === effPreviewPlat) || null;
   const images = media.filter(m => m.type === 'image' && m.url);
@@ -6792,7 +6798,7 @@ function PublisherPage() {
                   <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(38)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div><MoreHorizontal size={16} style={{ marginLeft:"auto", color:grey }}/></div>
                   <div style={{ padding:"0 12px 10px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}>{cap}</div>
                   {media()}
-                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Share",Send]].map(([l,Ic])=>(<div key={l} style={{ flex:1, padding:"9px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:6, color:grey, fontSize:12, fontWeight:600 }}><Ic size={16}/>{l}</div>))}</div>
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Share",Send]].map(([l,Ic])=>(<div key={l} style={{ flex:1, minWidth:0, padding:"7px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:3, color:grey, fontSize:10, fontWeight:600 }}><Ic size={16}/>{l}</div>))}</div>
                 </div>
               );
             }
@@ -6802,7 +6808,7 @@ function PublisherPage() {
                   <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 12px" }}>{avatar(40)}<div><div style={{ fontSize:13, fontWeight:700 }}>{brand}</div><div style={{ fontSize:10.5, color:grey }}>Social media management</div><div style={{ fontSize:10, color:grey, display:"flex", alignItems:"center", gap:4 }}>Just now <Globe size={9}/></div></div></div>
                   <div style={{ padding:"2px 12px 10px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}>{cap}</div>
                   {media()}
-                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Repost",Send],["Send",Bookmark]].map(([l,Ic],i)=>(<div key={i} style={{ flex:1, padding:"9px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:5, color:grey, fontSize:11.5, fontWeight:600 }}><Ic size={15}/>{l}</div>))}</div>
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Repost",Send],["Send",Bookmark]].map(([l,Ic],i)=>(<div key={i} style={{ flex:1, minWidth:0, padding:"7px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:3, color:grey, fontSize:10, fontWeight:600 }}><Ic size={15}/>{l}</div>))}</div>
                 </div>
               );
             }
