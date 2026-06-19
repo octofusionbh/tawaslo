@@ -6680,7 +6680,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:320, margin:"0 auto", maxHeight:"calc(100vh - 28px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:320, margin:"0 auto", maxHeight:"calc(100vh - 200px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
@@ -6691,6 +6691,7 @@ function PublisherPage() {
             ))}
           </div>
 
+          <div style={{ flex:1, minHeight:0, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", paddingRight:2 }}>
           {(() => {
             const brand = previewAccount?.account_name || selClient?.name || "Your brand";
             const handle = (previewAccount?.username || previewAccount?.account_name || selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
@@ -6737,6 +6738,36 @@ function PublisherPage() {
                   <div style={{ position:"absolute", bottom:12, left:12, right:12, display:"flex", alignItems:"center", gap:10 }}>
                     <div style={{ flex:1, border:"1px solid rgba(255,255,255,0.6)", borderRadius:999, padding:"8px 14px", color:"rgba(255,255,255,0.85)", fontSize:11.5 }}>Send message</div>
                     <Heart size={20} color="#fff"/><Send size={20} color="#fff"/>
+                  </div>
+                </div>
+              );
+            }
+            if (effPreviewPlat === "ig" && igFormat === "reel") {
+              // Reel preview — vertical 9:16 full-bleed, right action rail, audio + caption at the bottom.
+              return (
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", height:fitH, width:fitW, maxWidth:"100%", margin:"0 auto" }}>
+                  <div style={{ position:"absolute", inset:0 }}>
+                    {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
+                      : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#26262b,#000)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"#7a8494", gap:8 }}><Play size={26}/><div style={{ fontSize:11 }}>Add a video →</div></div>}
+                  </div>
+                  <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 34%)", pointerEvents:"none" }}/>
+                  <div style={{ position:"absolute", top:14, left:14, right:14, display:"flex", alignItems:"center", color:"#fff" }}>
+                    <div style={{ fontSize:15, fontWeight:700, textShadow:"0 1px 3px rgba(0,0,0,0.5)" }}>Reels</div>
+                    <Image size={18} color="#fff" style={{ marginLeft:"auto" }}/>
+                  </div>
+                  <div style={{ position:"absolute", right:8, bottom:22, display:"flex", flexDirection:"column", alignItems:"center", gap:15, color:"#fff" }}>
+                    {[[Heart,"1,248"],[MessageCircle,"86"],[Send,"24"]].map(([Ic,n],i)=>(
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}><Ic size={24} color="#fff"/><span style={{ fontSize:10.5, fontWeight:600 }}>{n}</span></div>
+                    ))}
+                    <Bookmark size={24} color="#fff"/>
+                    <MoreHorizontal size={22} color="#fff"/>
+                    <div style={{ width:26, height:26, borderRadius:7, overflow:"hidden", border:"2px solid #fff" }}>{avatar(22)}</div>
+                  </div>
+                  <div style={{ position:"absolute", left:12, right:58, bottom:14, color:"#fff" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>{avatar(28)}<span style={{ fontSize:13, fontWeight:700 }}>{handle}</span><span style={{ fontSize:11, border:"1px solid rgba(255,255,255,0.85)", borderRadius:6, padding:"2px 8px" }}>Follow</span></div>
+                    <div style={{ fontSize:12, lineHeight:1.45, whiteSpace:"pre-wrap", wordBreak:"break-word", color:hasCap?"#fff":"rgba(255,255,255,0.6)", textShadow:"0 1px 3px rgba(0,0,0,0.5)" }}>{cap}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:7, fontSize:11, opacity:0.92 }}><Play size={12}/>Original audio — {brand}</div>
                   </div>
                 </div>
               );
@@ -6814,6 +6845,7 @@ function PublisherPage() {
               </div>
             );
           })()}
+          </div>
         </div>
       </div>
       )}
