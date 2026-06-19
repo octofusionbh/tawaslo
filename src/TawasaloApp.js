@@ -16,7 +16,7 @@ import {
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
-  Monitor, Info, ScanLine, Check, CalendarCheck, Zap,
+  Monitor, Info, ScanLine, Check, CalendarCheck, Zap, Maximize2, X,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -5874,6 +5874,7 @@ function PublisherPage() {
   const [repeatType, setRepeatType] = useState("once");
   const [repeatCount, setRepeatCount] = useState(4);
   const [previewPlatform, setPreviewPlatform] = useState("ig");
+  const [previewExpanded, setPreviewExpanded] = useState(false);
   const [posting, setPosting] = useState(false);
   const [results, setResults] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
@@ -6268,6 +6269,8 @@ function PublisherPage() {
   const lbl = { fontSize:12, color:th.text2, marginBottom:10 };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const firstImg = images[0];
+  const previewIsLandscape = !!(firstImg && pvAR > 1.05);
+  const canExpandPreview = previewIsLandscape && (effPreviewPlat === "fb" || effPreviewPlat === "li");
   const primaryPlat = selPlats[0] || "ig";
   const BEST = { ig:[["13:00","Lunch scroll"],["20:00","Evening peak"],["21:00","Prime time"]], fb:[["12:00","Midday"],["19:00","Evening"],["21:00","Late evening"]], tw:[["09:00","Morning"],["12:00","Midday"],["18:00","Commute"]], li:[["08:00","Pre-work"],["09:00","Morning"],["12:00","Lunch"]], tt:[["18:00","After work"],["20:00","Evening"],["21:00","Prime time"]], yt:[["17:00","Evening"],["20:00","Prime time"]] };
   const bestSlots = (BEST[primaryPlat] || BEST.ig).map(([t, blab]) => {
@@ -6678,7 +6681,10 @@ function PublisherPage() {
         </div>
 
         <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:320, margin:"0 auto", maxHeight:"calc(100vh - 28px)", display:"flex", flexDirection:"column" }}>
-          <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>{L("Live preview","معاينة مباشرة")}</div>
+          <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
+            <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
+            {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
+          </div>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
             {previewTabs.map(([k,lab,Ic])=>(
               <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:effPreviewPlat===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:effPreviewPlat===k?th.gradient:"transparent", color:effPreviewPlat===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{effPreviewPlat===k && <span>{lab}</span>}</button>
@@ -6699,7 +6705,7 @@ function PublisherPage() {
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
               : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
-              <div style={{ position:"relative", width:"100%", aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:feedMediaMax, background:(firstImg||video)?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+              <div style={{ position:"relative", width:"100%", ...(hasMedia ? { aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:feedMediaMax } : { height:168 }), background:hasMedia?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
                   : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
                   : <div style={{ textAlign:"center" }}><Image size={24}/><div style={{ fontSize:10, marginTop:6 }}>Add media →</div></div>}
@@ -6709,9 +6715,10 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(520px, calc(100vh - 150px))";          // vertical (Story / TikTok) card height
-            const fitW = "calc(min(520px, calc(100vh - 150px)) * 0.5625)"; // 9:16 width derived from fitH
-            const feedMediaMax = "min(340px, calc(100vh - 340px))";  // feed media cap (IG / FB / LI / X)
+            const fitH = "min(430px, calc(100vh - 330px))";          // vertical (Story / TikTok) card height
+            const fitW = "calc(min(430px, calc(100vh - 330px)) * 0.5625)"; // 9:16 width derived from fitH
+            const feedMediaMax = "min(270px, calc(100vh - 470px))";  // feed media cap (IG / FB / LI / X)
+            const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
               // Story preview — full-bleed media, progress bar, avatar overlay, no caption/likes.
@@ -6809,6 +6816,38 @@ function PublisherPage() {
           })()}
         </div>
       </div>
+      )}
+      {previewExpanded && canExpandPreview && createPortal(
+        (() => {
+          const eb = previewAccount?.account_name || selClient?.name || "Your brand";
+          const epic = previewAccount?.picture || null;
+          const ecap = caption || L("Your caption will appear here as you type…","سيظهر التعليق هنا أثناء الكتابة…");
+          const eav = (s) => epic
+            ? <img src={epic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
+            : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.4, fontWeight:700, flexShrink:0 }}>{(eb[0]||"T").toUpperCase()}</div>;
+          const grey = "#65676b";
+          const isLi = effPreviewPlat === "li";
+          return (
+            <div onClick={()=>setPreviewExpanded(false)} style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(8,10,14,0.78)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+              <div onClick={e=>e.stopPropagation()} style={{ width:560, maxWidth:"94vw", maxHeight:"92vh", overflowY:"auto", background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:16 }}>
+                <div style={{ display:"flex", alignItems:"center", marginBottom:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:th.text }}>{isLi?"LinkedIn":"Facebook"} · {L("expanded preview","معاينة مكبرة")}</div>
+                  <button onClick={()=>setPreviewExpanded(false)} title={L("Close","إغلاق")} style={{ marginLeft:"auto", background:"transparent", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><X size={20}/></button>
+                </div>
+                <div style={{ background:"#fff", color:"#1a1a1a", borderRadius:14, overflow:"hidden", boxShadow:"0 20px 50px rgba(0,0,0,0.45)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 14px" }}>{eav(isLi?44:42)}<div><div style={{ fontSize:14, fontWeight:700 }}>{eb}</div><div style={{ fontSize:11, color:grey }}>{isLi?L("Social media management · Just now","إدارة وسائل التواصل · الآن"):L("Just now","الآن")}</div></div></div>
+                  <div style={{ padding:"0 14px 12px", fontSize:13.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:caption?"#1a1a1a":"#aab2bd" }}>{ecap}</div>
+                  <div style={{ position:"relative", width:"100%", aspectRatio:String(pvAR), background:"#000", overflow:"hidden" }}>
+                    {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : null}
+                  </div>
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{(isLi?[["Like",Heart],["Comment",MessageCircle],["Repost",Send],["Send",Bookmark]]:[["Like",Heart],["Comment",MessageCircle],["Share",Send]]).map(([l,Ic],i)=>(<div key={i} style={{ flex:1, padding:"11px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:6, color:grey, fontSize:12.5, fontWeight:600 }}><Ic size={16}/>{l}</div>))}</div>
+                </div>
+                <div style={{ fontSize:11, color:th.text3, textAlign:"center", marginTop:10 }}>{L("Landscape image shown at full size · click outside to close","تظهر الصورة الأفقية بالحجم الكامل · انقر خارجها للإغلاق")}</div>
+              </div>
+            </div>
+          );
+        })(),
+        document.body
       )}
     </div>
   );
