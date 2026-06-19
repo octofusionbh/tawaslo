@@ -6686,16 +6686,16 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:225, margin:"-56px auto 0", maxHeight:"calc(100vh - 150px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:285, margin:"-56px auto 0", maxHeight:"calc(100vh - 130px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
           </div>
-          <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
+          {previewTabs.length > 1 && <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
             {previewTabs.map(([k,lab,Ic])=>(
               <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:effPreviewPlat===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:effPreviewPlat===k?th.gradient:"transparent", color:effPreviewPlat===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{effPreviewPlat===k && <span>{lab}</span>}</button>
             ))}
-          </div>
+          </div>}
 
           <div style={{ flex:1, minHeight:0, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", paddingRight:2 }}>
           {(() => {
@@ -6724,8 +6724,8 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(400px, calc(100vh - 300px))";          // vertical (Story / TikTok / Reel) card height
-            const fitW = "calc(min(400px, calc(100vh - 300px)) * 0.5625)"; // 9:16 width (~225) derived from fitH
+            const fitH = "min(500px, calc(100vh - 240px))";          // vertical (Story / TikTok / Reel) card height
+            const fitW = "calc(min(500px, calc(100vh - 240px)) * 0.5625)"; // 9:16 width (~281) derived from fitH
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
@@ -6763,13 +6763,13 @@ function PublisherPage() {
                     <div style={{ fontSize:15, fontWeight:700, textShadow:"0 1px 3px rgba(0,0,0,0.5)" }}>Reels</div>
                     <Image size={18} color="#fff" style={{ marginLeft:"auto" }}/>
                   </div>
-                  <div style={{ position:"absolute", right:8, bottom:22, display:"flex", flexDirection:"column", alignItems:"center", gap:15, color:"#fff" }}>
+                  <div style={{ position:"absolute", right:9, bottom:20, display:"flex", flexDirection:"column", alignItems:"center", gap:13, color:"#fff" }}>
                     {[[Heart,"1,248"],[MessageCircle,"86"],[Send,"24"]].map(([Ic,n],i)=>(
-                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}><Ic size={24} color="#fff"/><span style={{ fontSize:10.5, fontWeight:600 }}>{n}</span></div>
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><Ic size={19} color="#fff"/><span style={{ fontSize:9, fontWeight:600 }}>{n}</span></div>
                     ))}
-                    <Bookmark size={24} color="#fff"/>
-                    <MoreHorizontal size={22} color="#fff"/>
-                    <div style={{ width:26, height:26, borderRadius:7, overflow:"hidden", border:"2px solid #fff" }}>{avatar(22)}</div>
+                    <Bookmark size={19} color="#fff"/>
+                    <MoreHorizontal size={18} color="#fff"/>
+                    <div style={{ width:22, height:22, borderRadius:6, overflow:"hidden", border:"2px solid #fff" }}>{avatar(18)}</div>
                   </div>
                   <div style={{ position:"absolute", left:12, right:58, bottom:14, color:"#fff" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>{avatar(28)}<span style={{ fontSize:13, fontWeight:700 }}>{handle}</span><span style={{ fontSize:11, border:"1px solid rgba(255,255,255,0.85)", borderRadius:6, padding:"2px 8px" }}>Follow</span></div>
@@ -6823,10 +6823,10 @@ function PublisherPage() {
                       : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#26262b,#000)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"#7a8494", gap:8 }}><Play size={26}/><div style={{ fontSize:11 }}>Add a video →</div></div>}
                   </div>
                   <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 36%)", pointerEvents:"none" }}/>
-                  <div style={{ position:"absolute", right:8, bottom:58, display:"flex", flexDirection:"column", alignItems:"center", gap:15, color:"#fff" }}>
-                    <div style={{ position:"relative", marginBottom:4 }}>{avatar(38)}<span style={{ position:"absolute", bottom:-7, left:"50%", transform:"translateX(-50%)", width:17, height:17, borderRadius:"50%", background:"#FE2C55", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:700, lineHeight:1 }}>+</span></div>
+                  <div style={{ position:"absolute", right:9, bottom:56, display:"flex", flexDirection:"column", alignItems:"center", gap:14, color:"#fff" }}>
+                    <div style={{ position:"relative", marginBottom:3 }}>{avatar(32)}<span style={{ position:"absolute", bottom:-6, left:"50%", transform:"translateX(-50%)", width:14, height:14, borderRadius:"50%", background:"#FE2C55", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:10, fontWeight:700, lineHeight:1 }}>+</span></div>
                     {[[Heart,"154K"],[MessageCircle,"1,240"],[Bookmark,"8,902"],[Send,"Share"]].map(([Ic,n],i)=>(
-                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}><Ic size={25} fill="#fff" color="#fff"/><span style={{ fontSize:10.5, fontWeight:600 }}>{n}</span></div>
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2 }}><Ic size={19} fill="#fff" color="#fff"/><span style={{ fontSize:9, fontWeight:600 }}>{n}</span></div>
                     ))}
                   </div>
                   <div style={{ position:"absolute", left:12, right:62, bottom:14, color:"#fff" }}>
