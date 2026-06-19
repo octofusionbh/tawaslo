@@ -182,18 +182,23 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, postId: postUrn, permalink: liLink, platform: 'li' });
 
     } else if (platform === 'tt') {
-      // TikTok — Content Posting API (video only). Requires a connected token + an approved app.
-      // Until TikTok audits the app, posts MUST be SELF_ONLY (private). Flip to PUBLIC_TO_EVERYONE
-      // via the TIKTOK_PRIVACY env var once the app passes audit.
+      // TikTok — Content Posting API (video). Uploads the file bytes directly (FILE_UPLOAD) so it
+      // works no matter where the video is hosted (no domain verification needed). Posts are
+      // SELF_ONLY until the app passes TikTok's audit (flip via the TIKTOK_PRIVACY env var).
       const ttVideo = videoUrl || null;
       if (!ttVideo) return res.status(400).json({ error: 'TikTok needs a video to post.' });
       const privacy = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
+      // Pull the video bytes server-side (keep demo clips short — Vercel functions cap at ~10s).
+      const vidResp = await fetch(ttVideo);
+      if (!vidResp.ok) return res.status(400).json({ error: 'Could not fetch the video file to upload.' });
+      const vidBuf = Buffer.from(await vidResp.arrayBuffer());
+      const videoSize = vidBuf.length;
       const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
         body: JSON.stringify({
           post_info: { title: (caption || '').slice(0, 2200), privacy_level: privacy, disable_comment: false, disable_duet: false, disable_stitch: false },
-          source_info: { source: 'PULL_FROM_URL', video_url: ttVideo },
+          source_info: { source: 'FILE_UPLOAD', video_size: videoSize, chunk_size: videoSize, total_chunk_count: 1 },
         }),
       });
       const initData = await initRes.json().catch(() => ({}));
@@ -202,6 +207,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: (ttErr && ttErr.message) || 'TikTok publish failed', details: initData });
       }
       const publishId = initData.data && initData.data.publish_id;
+      const uploadUrl = initData.data && initData.data.upload_url;
+      if (uploadUrl) {
+        const put = await fetch(uploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'video/mp4', 'Content-Range': `bytes 0-${videoSize - 1}/${videoSize}` },
+          body: vidBuf,
+        });
+        if (!put.ok && put.status !== 201) return res.status(400).json({ error: 'TikTok video upload failed', status: put.status });
+      }
       return res.status(200).json({ success: true, postId: publishId, permalink: null, platform: 'tt' });
 
     } else if (platform === 'tw') {
