@@ -6718,7 +6718,6 @@ function PublisherPage() {
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
             const fitH = "min(430px, calc(100vh - 330px))";          // vertical (Story / TikTok) card height
             const fitW = "calc(min(430px, calc(100vh - 330px)) * 0.5625)"; // 9:16 width derived from fitH
-            const feedMediaMax = "min(270px, calc(100vh - 470px))";  // feed media cap (IG / FB / LI / X)
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
