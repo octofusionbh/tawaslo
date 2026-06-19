@@ -6901,17 +6901,14 @@ function SocialAccountsPage() {
 
   const connectMeta = () => {
     if (!guardConnect()) return;
+    setError(""); setSuccess("");
     const redirectUri = `https://tawaslo.com/api/meta-oauth`;
-    const scope = [
-      "pages_show_list",
-      "pages_read_engagement",
-      "pages_manage_posts",
-      "business_management",
-      "public_profile",
-      "instagram_basic",
-      "instagram_content_publish",
-      "instagram_manage_insights",
-    ].join(",");
+    // Facebook Page permissions only. The Instagram-via-Facebook permissions need Meta App
+    // Review — until then Meta rejects the whole popup as "Invalid Scopes". Instagram connects
+    // via its own button. Set REACT_APP_META_IG=1 to re-add the IG scopes once approved.
+    const baseScope = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "business_management", "public_profile"];
+    const igScope = ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"];
+    const scope = (process.env.REACT_APP_META_IG === '1' ? [...baseScope, ...igScope] : baseScope).join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
     setConnecting(true);
@@ -7020,7 +7017,12 @@ function SocialAccountsPage() {
     if (!guardConnect()) return;
     if (!LINKEDIN_CLIENT_ID) { setError(L("LinkedIn isn't available yet. We're finishing its setup and it will be ready soon.","لينكدإن غير متاح بعد. نُكمل إعداده وسيكون جاهزاً قريباً.")); return; }
     const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
-    const scope = 'openid profile email w_member_social r_organization_admin w_organization_social';
+    // Personal-profile posting works on a fresh app. The company-Page scopes need LinkedIn's
+    // Community Management API approval — set REACT_APP_LINKEDIN_ORG=1 to request them once
+    // granted, otherwise asking for them makes LinkedIn reject the request ("Bummer…").
+    const scope = process.env.REACT_APP_LINKEDIN_ORG === '1'
+      ? 'openid profile email w_member_social r_organization_admin w_organization_social'
+      : 'openid profile email w_member_social';
     if (realClientId) sessionStorage.setItem('li_redirect_client', realClientId);
     const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=tawaslo`;
     window.location.href = authUrl;
