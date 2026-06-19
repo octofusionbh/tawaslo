@@ -5878,7 +5878,6 @@ function PublisherPage() {
   const [apprCount2, setApprCount2] = useState(0);
   const [repeatType, setRepeatType] = useState("once");
   const [repeatCount, setRepeatCount] = useState(4);
-  const [previewPlatform, setPreviewPlatform] = useState("ig");
   const [previewExpanded, setPreviewExpanded] = useState(false);
   const [posting, setPosting] = useState(false);
   const [results, setResults] = useState([]);
@@ -5969,10 +5968,10 @@ function PublisherPage() {
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
-  const PREVIEW_TABS = [["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["tt","TikTok",FaTiktok],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]];
   const acctPlats = [...new Set(accounts.map(a => a.platform))];
-  const previewTabs = PREVIEW_TABS.filter(([k]) => (selPlats.length ? selPlats : acctPlats).includes(k));
-  const effPreviewPlat = previewTabs.some(([k]) => k === previewPlatform) ? previewPlatform : (previewTabs[0] ? previewTabs[0][0] : "ig");
+  const availPlats = selPlats.length ? selPlats : acctPlats;
+  // Live preview follows the top "Viewing" platform filter; on "All" it shows the first connected platform.
+  const effPreviewPlat = (selPlatform && selPlatform !== "all" && availPlats.includes(selPlatform)) ? selPlatform : (availPlats[0] || "ig");
   const previewAccount = accounts.find(a => selectedAccounts.includes(a.id) && a.platform === effPreviewPlat) || null;
   const images = media.filter(m => m.type === 'image' && m.url);
   const video = media.find(m => m.type === 'video' && m.url);
@@ -6686,17 +6685,11 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:285, margin:"-56px auto 0", maxHeight:"calc(100vh - 130px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:340, margin:"-56px auto 0", maxHeight:"calc(100vh - 120px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
           </div>
-          {previewTabs.length > 1 && <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
-            {previewTabs.map(([k,lab,Ic])=>(
-              <button key={k} onClick={()=>setPreviewPlatform(k)} style={{ flex:effPreviewPlat===k?2:1, padding:"7px 4px", borderRadius:999, border:"none", background:effPreviewPlat===k?th.gradient:"transparent", color:effPreviewPlat===k?"#fff":th.text2, fontSize:10.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:5, transition:"flex 0.2s" }}><Ic style={{ fontSize:13 }}/>{effPreviewPlat===k && <span>{lab}</span>}</button>
-            ))}
-          </div>}
-
           <div style={{ flex:1, minHeight:0, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", paddingRight:2 }}>
           {(() => {
             const PLAT_WORDS = ["tiktok","facebook","instagram","youtube","twitter","x","linkedin"];
@@ -6724,8 +6717,8 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(500px, calc(100vh - 240px))";          // vertical (Story / TikTok / Reel) card height
-            const fitW = "calc(min(500px, calc(100vh - 240px)) * 0.5625)"; // 9:16 width (~281) derived from fitH
+            const fitH = "min(560px, calc(100vh - 200px))";          // vertical (Story / TikTok / Reel) card height
+            const fitW = "calc(min(560px, calc(100vh - 200px)) * 0.5625)"; // 9:16 width (~315) derived from fitH
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
