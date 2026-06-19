@@ -6680,7 +6680,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:300, margin:"-56px auto 0", maxHeight:"calc(100vh - 150px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:225, margin:"-56px auto 0", maxHeight:"calc(100vh - 150px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
@@ -6693,8 +6693,10 @@ function PublisherPage() {
 
           <div style={{ flex:1, minHeight:0, overflowY:"auto", overflowX:"hidden", display:"flex", flexDirection:"column", paddingRight:2 }}>
           {(() => {
-            const brand = previewAccount?.account_name || selClient?.name || "Your brand";
-            const handle = (previewAccount?.username || previewAccount?.account_name || selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
+            const PLAT_WORDS = ["tiktok","facebook","instagram","youtube","twitter","x","linkedin"];
+            const realName = (s) => (s && !PLAT_WORDS.includes(String(s).toLowerCase().trim())) ? s : null;
+            const brand = realName(previewAccount?.account_name) || selClient?.name || "Your brand";
+            const handle = (realName(previewAccount?.username) || realName(previewAccount?.account_name) || selClient?.name || "yourbrand").toLowerCase().replace(/\s+/g,"");
             const av = (brand[0] || "T").toUpperCase();
             const pic = previewAccount?.picture || null;
             const hasCap = !!caption;
@@ -6716,8 +6718,8 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(430px, calc(100vh - 330px))";          // vertical (Story / TikTok) card height
-            const fitW = "calc(min(430px, calc(100vh - 330px)) * 0.5625)"; // 9:16 width derived from fitH
+            const fitH = "min(400px, calc(100vh - 300px))";          // vertical (Story / TikTok / Reel) card height
+            const fitW = "calc(min(400px, calc(100vh - 300px)) * 0.5625)"; // 9:16 width (~225) derived from fitH
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
