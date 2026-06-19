@@ -1,6 +1,9 @@
 @echo off
 cd /d "C:\dev\tawaslo"
 
+echo Clearing any stale git lock...
+if exist ".git\index.lock" del /f /q ".git\index.lock"
+
 echo Disabling git auto-maintenance (stops the "Deletion of directory" prompts)...
 git config gc.auto 0
 git config gc.autoDetach false
