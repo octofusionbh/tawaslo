@@ -187,7 +187,16 @@ export default async function handler(req, res) {
       // SELF_ONLY until the app passes TikTok's audit (flip via the TIKTOK_PRIVACY env var).
       const ttVideo = videoUrl || null;
       if (!ttVideo) return res.status(400).json({ error: 'TikTok needs a video to post.' });
-      const privacy = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
+      // TikTok requires querying the creator's allowed settings before a direct post; posting with a
+      // privacy level the creator doesn't allow triggers the "review our integration guidelines" error.
+      const ciRes = await fetch('https://open.tiktokapis.com/v2/post/publish/creator_info/query/', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+      });
+      const ciData = await ciRes.json().catch(() => ({}));
+      const ci = (ciData && ciData.data) || {};
+      const privOpts = ci.privacy_level_options || [];
+      const wantPriv = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
+      const privacy = privOpts.includes(wantPriv) ? wantPriv : (privOpts[0] || 'SELF_ONLY');
       // Pull the video bytes server-side (keep demo clips short — Vercel functions cap at ~10s).
       const vidResp = await fetch(ttVideo);
       if (!vidResp.ok) return res.status(400).json({ error: 'Could not fetch the video file to upload.' });
