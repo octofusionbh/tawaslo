@@ -158,6 +158,26 @@ function applyPendingTopup() {
   } catch (e) { /* ignore */ }
 }
 
+// ── X (Twitter) post credits ────────────────────────────────────────
+// X's API is pay-per-use (~$0.015–$0.20 per post), so X publishing is an
+// Enterprise-only feature with a monthly cap, plus one-time top-up packs —
+// mirroring the image-credit model above. Scoped to the agency account (the
+// subscription), the monthly allowance resets each month; top-ups carry over.
+// The founder/demo account is never capped.
+const X_INCLUDED_ENTERPRISE = 150; // X posts included per month on Enterprise
+const X_TOPUPS = [
+  { id:"x100",  posts:100,  price:19 },
+  { id:"x300",  posts:300,  price:49, popular:true },
+  { id:"x1000", posts:1000, price:149 },
+];
+function xIncludedOf(plan) { return /enter|agency/i.test(String(plan || "")) ? X_INCLUDED_ENTERPRISE : 0; }
+function xUsedOf(acct) { try { return acct ? parseInt(localStorage.getItem("tw_x_" + acct + "_" + imgMonthKey()) || "0", 10) : 0; } catch (e) { return 0; } }
+function bumpXUsed(acct, by = 1) { try { if (!acct) return 0; const n = xUsedOf(acct) + by; localStorage.setItem("tw_x_" + acct + "_" + imgMonthKey(), String(n)); return n; } catch (e) { return 0; } }
+function xExtraOf(acct) { try { return acct ? parseInt(localStorage.getItem("tw_xextra_" + acct) || "0", 10) : 0; } catch (e) { return 0; } }
+function addXExtra(acct, n) { try { if (!acct) return 0; const v = Math.max(0, xExtraOf(acct) + n); localStorage.setItem("tw_xextra_" + acct, String(v)); return v; } catch (e) { return 0; } }
+function xRemainingOf(acct, plan) { return Math.max(0, xIncludedOf(plan) - xUsedOf(acct)) + xExtraOf(acct); }
+function consumeXCredit(acct, plan) { if (!acct) return; if (xUsedOf(acct) < xIncludedOf(plan)) bumpXUsed(acct, 1); else addXExtra(acct, -1); }
+
 // ── Approval workflow ───────────────────────────────────────────────
 // Per-post sign-off. A post moves draft -> pending -> approved, or lands on
 // "changes" when the client asks for edits. State is stored locally for now;
@@ -5823,11 +5843,17 @@ const POST_LABELS = [
 const labelColor = (name) => (POST_LABELS.find(l => l.name === name) || {}).color || "#8a93a5";
 
 function PublisherPage() {
-  const { selClient, dark, setPage, userEmail, lang, selPlatform } = useApp();
+  const { selClient, dark, setPage, userEmail, userPlan, lang, selPlatform } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
+  // X (Twitter) is metered: Enterprise-only with a monthly cap + top-ups. Founder account is unlimited.
+  const xAcct = (userEmail || "").toLowerCase();
+  const xUnlimited = /theoctopus\.bh@gmail\.com|octofusionbh@gmail\.com/i.test(xAcct);
+  const xLeft = xUnlimited ? Infinity : xRemainingOf(xAcct, userPlan);
+  const [xTopupOpen, setXTopupOpen] = useState(false);
+  const [xBought, setXBought] = useState("");
   const [upgrade, setUpgrade] = useState(null);
   const [tab, setTab] = useState("compose");
   const [accounts, setAccounts] = useState([]);
@@ -5937,7 +5963,7 @@ function PublisherPage() {
   const selPlats = [...new Set(accounts.filter(a => selectedAccounts.includes(a.id)).map(a => a.platform))];
   const igSelected = selPlats.includes("ig");
   // Live preview follows the accounts you've selected: only their platforms, and it shows the real account.
-  const PREVIEW_TABS = [["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]];
+  const PREVIEW_TABS = [["ig","Instagram",FaInstagram],["fb","Facebook",FaFacebook],["tt","TikTok",FaTiktok],["li","LinkedIn",FaLinkedin],["tw","X",FaTwitter]];
   const previewTabs = selPlats.length ? PREVIEW_TABS.filter(([k]) => selPlats.includes(k)) : PREVIEW_TABS;
   const effPreviewPlat = previewTabs.some(([k]) => k === previewPlatform) ? previewPlatform : (previewTabs[0] ? previewTabs[0][0] : "ig");
   const previewAccount = accounts.find(a => selectedAccounts.includes(a.id) && a.platform === effPreviewPlat) || null;
@@ -6186,6 +6212,13 @@ function PublisherPage() {
     const out = [];
     for (const accId of selectedAccounts) {
       const acc = accounts.find(a => a.id === accId); if (!acc) continue;
+      // Gate X (Twitter) — Enterprise-only & metered. Block if the workspace is out of X credits.
+      if (acc.platform === 'tw' && !xUnlimited && xRemainingOf(xAcct, userPlan) <= 0) {
+        out.push({ account: acc.account_name, success: false, error: xIncludedOf(userPlan) > 0
+          ? L("Out of X posts this month — buy a top-up to keep posting to X.","نفد رصيد منشورات X لهذا الشهر — اشترِ رصيداً إضافياً للمتابعة.")
+          : L("X posting is an Enterprise feature. Upgrade to publish to X.","النشر على X ميزة للباقة المتقدمة. رقِّ باقتك للنشر على X.") });
+        continue;
+      }
       if ((scheduleType === "schedule" || scheduleType === "approval") && scheduleDate && scheduleTime) {
         const baseDate = new Date(`${scheduleDate}T${scheduleTime}`);
         const reps = repeatType === "once" ? 1 : repeatCount;
@@ -6218,6 +6251,7 @@ function PublisherPage() {
             if (ins && ins[0]) await supabase.from('posts').update({ external_id: data.postId || null, permalink: data.permalink || null, published_at: new Date().toISOString() }).eq('id', ins[0].id);
           } catch (e) { /* link columns may not exist yet — non-fatal */ }
         }
+        if (data.success && acc.platform === 'tw' && !xUnlimited) consumeXCredit(xAcct, userPlan);
         out.push({ account: acc.account_name, success: data.success, error: data.error, permalink: data.permalink });
       }
     }
@@ -6602,6 +6636,40 @@ function PublisherPage() {
 
           {results.length>0 && <div>{results.map((r,i)=><div key={i} className="tw-row-in" style={{ padding:"10px 13px", borderRadius:10, background:r.success?th.successSoft:th.dangerSoft, color:r.success?th.success:th.danger, fontSize:12.5, marginBottom:8, display:"flex", alignItems:"center", gap:8, animationDelay:(i*0.09)+"s" }}>{r.success?<span className="tw-check-pop" style={{ animationDelay:(0.12+i*0.09)+"s" }}><CheckCircle size={14}/></span>:<XCircle size={14}/>}<span><b>{r.account}</b>: {r.success?(scheduleType==="schedule"?"Scheduled":"Posted"):r.error}</span>{r.success&&r.permalink&&<a href={r.permalink} target="_blank" rel="noreferrer" style={{ marginLeft:"auto", color:th.success, fontWeight:600, textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>View post <ArrowUpRight size={13}/></a>}</div>)}</div>}
 
+          {selPlats.includes('tw') && !xUnlimited && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"10px 13px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, marginBottom:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <FaTwitter style={{ color:th.text2, fontSize:14 }}/>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:600, color:th.text }}>{xIncludedOf(userPlan) > 0
+                    ? <>{L("X posts left this month","منشورات X المتبقية هذا الشهر")}: <span className="tw-num">{xLeft}</span></>
+                    : L("X posting is an Enterprise feature","النشر على X ميزة للباقة المتقدمة")}</div>
+                  <div style={{ fontSize:10.5, color:th.text3 }}>{xIncludedOf(userPlan) > 0 ? L("Pay-per-use — allowance refreshes monthly, top-ups carry over","مدفوعة بالاستخدام — يتجدد الرصيد شهرياً والإضافات تبقى") : L("Upgrade to Enterprise to publish to X","رقِّ للباقة المتقدمة للنشر على X")}</div>
+                </div>
+              </div>
+              {xIncludedOf(userPlan) > 0
+                ? <button onClick={()=>setXTopupOpen(true)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:9, background:th.accentSoft, border:`1px solid ${th.accent}55`, color:th.accent, fontSize:11.5, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}><Plus size={12}/>{L("Buy X posts","شراء منشورات")}</button>
+                : <button onClick={()=>setPage('billing')} style={{ padding:"7px 13px", borderRadius:9, background:th.accentSoft, border:`1px solid ${th.accent}55`, color:th.accent, fontSize:11.5, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>{L("Upgrade","ترقية")}</button>}
+            </div>
+          )}
+          {xBought && <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 13px", borderRadius:10, background:th.successSoft, border:`1px solid ${th.success}40`, color:th.text, fontSize:12, marginBottom:10 }}><CheckCircle size={14} color={th.success}/>{xBought} {L("added to your account.","أُضيفت إلى حسابك.")}</div>}
+          {xTopupOpen && (
+            <div onClick={()=>setXTopupOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(5,8,14,0.66)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999, padding:20 }}>
+              <div onClick={e=>e.stopPropagation()} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, width:"100%", maxWidth:420, boxShadow:"0 24px 60px rgba(0,0,0,0.5)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:6 }}><FaTwitter style={{ color:th.text, fontSize:18 }}/><h2 style={{ margin:0, fontSize:17, fontWeight:800, color:th.text }}>{L("Buy X posts","شراء منشورات X")}</h2></div>
+                <p style={{ margin:"0 0 16px", fontSize:12.5, color:th.text2, lineHeight:1.6 }}>{L("One-time top-ups that don't expire monthly — used after your plan's X allowance runs out.","رصيد لمرة واحدة لا ينتهي شهرياً — يُستخدم بعد نفاد رصيد X في خطتك.")}</p>
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {X_TOPUPS.map(pk => (
+                    <button key={pk.id} onClick={()=>{ addXExtra(xAcct, pk.posts); setXBought(pk.posts+" "+L("X posts","منشور X")); setXTopupOpen(false); }} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 16px", borderRadius:12, background:pk.popular?th.accentSoft:th.card2, border:`1px solid ${pk.popular?th.accent:th.border}`, cursor:"pointer" }}>
+                      <div style={{ textAlign:"left" }}><div style={{ fontSize:14, fontWeight:700, color:th.text }}><span className="tw-num">{pk.posts}</span> {L("X posts","منشور X")}</div>{pk.popular&&<div style={{ fontSize:10, color:th.accent, fontWeight:600 }}>{L("Most popular","الأكثر شيوعاً")}</div>}</div>
+                      <div style={{ fontSize:15, fontWeight:800, color:th.text }}>${pk.price}</div>
+                    </button>
+                  ))}
+                </div>
+                <button onClick={()=>setXTopupOpen(false)} style={{ width:"100%", marginTop:14, padding:"10px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+              </div>
+            </div>
+          )}
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?L("Update draft","تحديث المسودة"):L("Save draft","حفظ كمسودة")}</button>
             <button onClick={()=>handlePost(scheduleType==="approval"?"client":scheduleType==="schedule"?"me":undefined)} disabled={posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="approval"?<><Shield size={15}/>{L("Send for approval","إرسال للموافقة")}</>:scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
@@ -6609,7 +6677,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:312, margin:"0 auto", maxHeight:"calc(100vh - 32px)", overflowY:"auto" }} className="tw-noscroll">
           <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6, marginBottom:8 }}>{L("Live preview","معاينة مباشرة")}</div>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3, marginBottom:12 }}>
             {previewTabs.map(([k,lab,Ic])=>(
@@ -6692,6 +6760,31 @@ function PublisherPage() {
                   <div style={{ padding:"2px 12px 10px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap", wordBreak:"break-word", color:capCol }}>{cap}</div>
                   {media()}
                   <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Repost",Send],["Send",Bookmark]].map(([l,Ic],i)=>(<div key={i} style={{ flex:1, padding:"9px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:5, color:grey, fontSize:11.5, fontWeight:600 }}><Ic size={15}/>{l}</div>))}</div>
+                </div>
+              );
+            }
+            if (effPreviewPlat === "tt") {
+              // TikTok — vertical full-bleed video, right-side action rail, caption overlaid at the bottom.
+              const ttMedia = firstImg ? firstImg.url : null;
+              return (
+                <div style={{ ...shell, background:"#000", position:"relative", aspectRatio:"9/16", maxHeight:380 }}>
+                  <div style={{ position:"absolute", inset:0 }}>
+                    {ttMedia ? <img src={ttMedia} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
+                      : <div style={{ width:"100%", height:"100%", background:"linear-gradient(160deg,#26262b,#000)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"#7a8494", gap:8 }}><Play size={26}/><div style={{ fontSize:11 }}>Add a video →</div></div>}
+                  </div>
+                  <div style={{ position:"absolute", inset:0, background:"linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 36%)", pointerEvents:"none" }}/>
+                  <div style={{ position:"absolute", right:8, bottom:58, display:"flex", flexDirection:"column", alignItems:"center", gap:15, color:"#fff" }}>
+                    <div style={{ position:"relative", marginBottom:4 }}>{avatar(38)}<span style={{ position:"absolute", bottom:-7, left:"50%", transform:"translateX(-50%)", width:17, height:17, borderRadius:"50%", background:"#FE2C55", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:12, fontWeight:700, lineHeight:1 }}>+</span></div>
+                    {[[Heart,"154K"],[MessageCircle,"1,240"],[Bookmark,"8,902"],[Send,"Share"]].map(([Ic,n],i)=>(
+                      <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}><Ic size={25} fill="#fff" color="#fff"/><span style={{ fontSize:10.5, fontWeight:600 }}>{n}</span></div>
+                    ))}
+                  </div>
+                  <div style={{ position:"absolute", left:12, right:62, bottom:14, color:"#fff" }}>
+                    <div style={{ fontSize:13, fontWeight:700, marginBottom:4 }}>@{handle}</div>
+                    <div style={{ fontSize:12, lineHeight:1.45, whiteSpace:"pre-wrap", wordBreak:"break-word", color:hasCap?"#fff":"rgba(255,255,255,0.6)", textShadow:"0 1px 3px rgba(0,0,0,0.5)" }}>{cap}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:7, fontSize:11, opacity:0.92 }}><Play size={12}/>original sound — {brand}</div>
+                  </div>
                 </div>
               );
             }
@@ -11051,6 +11144,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
   const [success, setSuccess] = useState("");
+  const [remember, setRemember] = useState(true);
   const th = DARK;
 
   const handleSignIn = async () => {
@@ -11058,6 +11152,7 @@ function AuthPage() {
     const { data, error: err } = await signIn(email.trim().toLowerCase(), pw);
     setLoading(false);
     if (err) { setError(err.message); return; }
+    try { localStorage.setItem('tw_remember', remember ? '1' : '0'); } catch (e) {}
     if (data?.user) setIsAuthed(true);
   };
 
@@ -11213,7 +11308,7 @@ function AuthPage() {
               {inp(L("Password","كلمة المرور"),pw,e=>{setPw(e.target.value);setError("");},"password")}
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:20}}>
                 <label style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:th.text2,cursor:"pointer"}}>
-                  <input type="checkbox" style={{accentColor:th.accent}}/>{L("Remember me","تذكّرني")}
+                  <input type="checkbox" checked={remember} onChange={e=>setRemember(e.target.checked)} style={{accentColor:th.accent}}/>{L("Remember me","تذكّرني")}
                 </label>
                 <button onClick={()=>{setAuthPage("forgot");setError("");setSuccess("");}} style={{background:"none",border:"none",color:th.accent,fontSize:12,fontWeight:600,cursor:"pointer"}}>{L("Forgot password?","نسيت كلمة المرور؟")}</button>
               </div>
@@ -12532,6 +12627,10 @@ export default function TawasloApp() {
   // wake (visibility change) in case timers were paused while asleep.
   useEffect(() => {
     if (!isAuthed) return;
+    // "Remember me" keeps the user signed in — skip the idle auto sign-out. When it's off, the
+    // workspace still locks after 30 minutes of inactivity for security.
+    let remembered = true; try { remembered = localStorage.getItem('tw_remember') !== '0'; } catch (e) {}
+    if (remembered) return;
     const IDLE_MS = 30 * 60 * 1000;
     let timer, last = Date.now();
     const doLogout = async () => { try { sessionStorage.removeItem('tw_page'); } catch (e) {} try { await signOut(); } catch (e) {} setIsAuthed(false); };
