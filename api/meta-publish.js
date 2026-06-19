@@ -193,6 +193,9 @@ export default async function handler(req, res) {
         method: 'POST', headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
       });
       const ciData = await ciRes.json().catch(() => ({}));
+      if (ciData && ciData.error && ciData.error.code && ciData.error.code !== 'ok') {
+        return res.status(400).json({ error: 'TikTok creator-check [' + ciData.error.code + ']: ' + (ciData.error.message || ''), details: ciData });
+      }
       const ci = (ciData && ciData.data) || {};
       const privOpts = ci.privacy_level_options || [];
       const wantPriv = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
@@ -213,7 +216,7 @@ export default async function handler(req, res) {
       const initData = await initRes.json().catch(() => ({}));
       const ttErr = initData && initData.error;
       if (!initRes.ok || (ttErr && ttErr.code && ttErr.code !== 'ok')) {
-        return res.status(400).json({ error: (ttErr && ttErr.message) || 'TikTok publish failed', details: initData });
+        return res.status(400).json({ error: 'TikTok publish [' + ((ttErr && ttErr.code) || '?') + ']: ' + ((ttErr && ttErr.message) || 'failed'), details: initData });
       }
       const publishId = initData.data && initData.data.publish_id;
       const uploadUrl = initData.data && initData.data.upload_url;
