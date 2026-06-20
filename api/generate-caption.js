@@ -307,14 +307,19 @@ Analyze the competitor's likely social strategy and give a sharp, realistic, act
 
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 {
+  "opportunity": "High | Medium | Low — how big the opening is for us to beat them",
+  "opportunityWhy": "one short clause explaining the opportunity rating",
+  "sentiment": 72,
   "summary": "one-line read on the competitor's positioning",
   "strengths": ["what they do well (3 items)"],
   "gaps": ["weaknesses / gaps we can exploit (3-4 items)"],
   "contentMix": [["Reels", 45], ["Carousels", 30], ["Stories", 25]],
   "hashtags": ["#relevant", "#hashtags", "to target (8-10 items)"],
   "postingTips": ["cadence / timing tips (2-3 items)"],
-  "playbook": ["concrete move to win (5-6 specific actions)"]
-}`;
+  "quietWindow": "one specific weak time-slot in their posting we can own",
+  "playbook": ["concrete move to win (5-6 specific actions, most impactful first)"]
+}
+Notes: "sentiment" is the estimated % of their audience reactions/comments that are positive (0-100 integer). Order "playbook" from highest impact to lowest.`;
   } else if (theMode === 'score') {
     // Post Score & Optimizer — rate a caption's engagement potential and rewrite it stronger.
     maxTokens = 1100;

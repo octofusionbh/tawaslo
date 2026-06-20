@@ -165,6 +165,45 @@ export default async function handler(req, res) {
     const handle = String(req.query.handle || "").replace(/^@/, "").trim();
     const plat = String(req.query.platform || "instagram").toLowerCase();
     if (!handle) return res.status(200).json({ ok: false });
+
+    // Live profile stats via Apify profile scrapers (run-sync, one handle). Falls back to EnsembleData below.
+    if (APIFY_TOKEN) {
+      try {
+        const isTTa = plat === "tiktok" || plat === "tt";
+        const actor = isTTa ? (process.env.APIFY_TT_PROFILE_ACTOR || "clockworks~tiktok-profile-scraper")
+                            : (process.env.APIFY_IG_PROFILE_ACTOR || "apify~instagram-profile-scraper");
+        const input = isTTa
+          ? { profiles: [handle], resultsPerPage: 12, shouldDownloadVideos: false, shouldDownloadCovers: false }
+          : { usernames: [handle], resultsLimit: 12 };
+        const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 9000);
+        const r = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal: ctrl.signal,
+        }).finally(() => clearTimeout(t));
+        const items = await r.json();
+        const arr = Array.isArray(items) ? items : (items && items.items) || [];
+        const prof = arr.find(x => x && (x.followersCount != null || x.followers != null || x.fans != null)) || arr[0] || {};
+        const followers = prof.followersCount || prof.followers || prof.fans || (prof.stats && prof.stats.followerCount) || null;
+        const postCount = prof.postsCount || prof.mediaCount || (prof.stats && prof.stats.videoCount) || null;
+        const posts = (Array.isArray(prof.latestPosts) && prof.latestPosts.length) ? prof.latestPosts
+          : arr.filter(x => x && (x.likesCount != null || x.diggCount != null || x.statistics));
+        let likes = 0, comments = 0, n = 0; const tagCount = {};
+        for (const p of posts.slice(0, 12)) {
+          likes += p.likesCount || p.diggCount || (p.statistics && (p.statistics.diggCount || p.statistics.digg_count)) || 0;
+          comments += p.commentsCount || p.commentCount || (p.statistics && p.statistics.comment_count) || 0; n++;
+          const cap = p.caption || p.text || "";
+          (String(cap).match(/#[\p{L}0-9_]+/gu) || []).forEach(tag => { tagCount[tag] = (tagCount[tag] || 0) + 1; });
+          (Array.isArray(p.hashtags) ? p.hashtags : []).forEach(h => { const raw = (typeof h === "string" ? h : (h && h.name) || ""); if (raw) { const k = raw[0] === "#" ? raw : "#" + raw; tagCount[k] = (tagCount[k] || 0) + 1; } });
+        }
+        const topHashtags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
+        const avgEngagement = n ? Math.round((likes + comments) / n) : null;
+        if (followers || postCount || n) {
+          res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
+          return res.status(200).json({ ok: true, handle, platform: plat, followers, postCount, avgEngagement, sampleSize: n, topHashtags });
+        }
+      } catch (e) { /* fall through to EnsembleData / not-found */ }
+    }
+
+    if (!token) return res.status(200).json({ ok: false });
     try {
       const isTT = plat === "tiktok" || plat === "tt";
       const infoUrl = isTT

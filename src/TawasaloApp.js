@@ -4391,7 +4391,7 @@ function ScoreModal({ caption, platform, hasMedia, onApply, onClose }) {
 // Competitor Spy — a competitor handle + our niche becomes a beat-them playbook.
 // AI-driven (always works); enriched with best-effort live stats from EnsembleData.
 function CompetitorSpyPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [handle, setHandle] = useState("");
@@ -4436,6 +4436,26 @@ function CompetitorSpyPage() {
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16 };
   const mixHashtags = (data && data.hashtags && data.hashtags.length) ? data.hashtags : (stats && stats.topHashtags) || [];
 
+  // Opportunity badge colour
+  const oppColor = (o) => { const x = String(o||"").toLowerCase(); return x.startsWith("high") ? th.success : x.startsWith("med") ? "#E0B15A" : x.startsWith("low") ? th.text2 : th.accent; };
+  const oppLabel = (o) => { const x = String(o||"").toLowerCase(); if (x.startsWith("high")) return L("High","عالية"); if (x.startsWith("med")) return L("Medium","متوسطة"); if (x.startsWith("low")) return L("Low","منخفضة"); return o; };
+  // Engagement rate from live stats (avg engagement / followers)
+  const engRate = (stats && stats.ok && stats.followers && stats.avgEngagement) ? ((stats.avgEngagement / stats.followers) * 100) : null;
+  const topPosts = (stats && Array.isArray(stats.topPosts)) ? stats.topPosts.filter(Boolean).slice(0,3) : [];
+
+  // Hand the whole analysis to the composer as a ready-to-edit content brief
+  const toContentPlan = () => {
+    if (!data) return;
+    const h = handle.replace(/^@/, "");
+    const lines = [];
+    lines.push(L(`Content plan to beat @${h}`, `خطة محتوى للتفوّق على @${h}`));
+    if (data.summary) lines.push("", data.summary);
+    if (data.playbook && data.playbook.length) { lines.push("", L("Moves:","الخطوات:")); data.playbook.forEach((p,i)=>lines.push(`${i+1}. ${p}`)); }
+    if (mixHashtags.length) lines.push("", mixHashtags.join(" "));
+    try { sessionStorage.setItem("tw_studio_caption", lines.join("\n")); } catch (e) {}
+    setPage("publisher");
+  };
+
   return (
     <div style={{ maxWidth:880, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:16 }}>
@@ -4471,13 +4491,34 @@ function CompetitorSpyPage() {
 
       {data && (
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          <div style={{ display:"flex", justifyContent:"flex-end" }}>
-            <button onClick={exportSpy} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}><Download size={13}/>{L("Download report","تنزيل التقرير")}</button>
+
+          {/* results header: handle · Live · Opportunity */}
+          <div style={{ ...card, padding:16, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ width:44, height:44, borderRadius:12, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Eye size={21} color="#fff"/></div>
+            <div style={{ flex:1, minWidth:150 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>@{handle.replace(/^@/,"")}{stats && stats.ok && <span style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, borderRadius:999, padding:"2px 8px", display:"inline-flex", alignItems:"center", gap:4 }}><Circle size={7} fill={th.success} color={th.success}/>{L("Live","مباشر")}</span>}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{platform==="tiktok"?"TikTok":"Instagram"} · {L("scanned just now","تم الفحص الآن")}</div>
+            </div>
+            {data.opportunity && (
+              <div style={{ textAlign:"center", background:th.card2, borderRadius:12, padding:"8px 16px" }}>
+                <div style={{ fontSize:9.5, color:th.text3, letterSpacing:0.6 }}>{L("OPPORTUNITY","الفرصة")}</div>
+                <div style={{ fontSize:20, fontWeight:800, color:oppColor(data.opportunity), lineHeight:1.15 }}>{oppLabel(data.opportunity)}</div>
+              </div>
+            )}
           </div>
+          {data.opportunityWhy && <div style={{ fontSize:11.5, color:th.text3, marginTop:-6, paddingInline:4 }}>{data.opportunityWhy}</div>}
+
+          {/* live stats */}
           {stats && stats.ok ? (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(110px,1fr))", gap:10 }}>
-              {[[L("Followers","المتابعون"), fmt(stats.followers)], [L("Avg. engagement","متوسط التفاعل"), fmt(stats.avgEngagement)], [L("Posts","المنشورات"), fmt(stats.postCount)]].map(([k,v],i)=>(
-                <div key={i} style={{ background:th.card2, borderRadius:12, padding:"12px 14px" }}><div style={{ fontSize:11, color:th.text2 }}>{k}</div><div className="tw-num" style={{ fontSize:19, fontWeight:700, color:th.text }}>{v}</div></div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(104px,1fr))", gap:10 }}>
+              {[
+                [L("Followers","المتابعون"), fmt(stats.followers), false],
+                [L("Avg. engagement","متوسط التفاعل"), fmt(stats.avgEngagement), false],
+                [L("Posts","المنشورات"), fmt(stats.postCount), false],
+                ...(engRate!=null ? [[L("Eng. rate","معدل التفاعل"), engRate.toFixed(1)+"%", false]] : []),
+                ...(typeof data.sentiment==="number" ? [[L("Audience mood","مزاج الجمهور"), data.sentiment+"%", true]] : []),
+              ].map(([k,v,good],i)=>(
+                <div key={i} style={{ background:th.card2, borderRadius:12, padding:"12px 14px" }}><div style={{ fontSize:10.5, color:th.text2 }}>{k}</div><div className="tw-num" style={{ fontSize:18, fontWeight:700, color: good?th.success:th.text }}>{v}{good?<span style={{ fontSize:10, fontWeight:400, color:th.text2 }}> {L("positive","إيجابي")}</span>:null}</div></div>
               ))}
             </div>
           ) : (
@@ -4497,6 +4538,24 @@ function CompetitorSpyPage() {
             </div>
           </div>
 
+          {/* their top posts — only when live data provides them */}
+          {topPosts.length>0 && (
+            <div style={{ ...card, padding:16 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:11 }}>{L("THEIR TOP POSTS","أفضل منشوراتهم")}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                {topPosts.map((p,i)=>{ const thumb=p.thumbnail||p.image||p.cover||p.displayUrl||p.thumbnailUrl; const cap=p.caption||p.title||p.text||L("Post","منشور"); const likes=(p.likes!=null?p.likes:(p.likeCount!=null?p.likeCount:p.diggCount)); const cmts=(p.comments!=null?p.comments:p.commentCount); return (
+                  <div key={i} style={{ display:"flex", gap:10, alignItems:"center" }}>
+                    {thumb ? <img src={thumb} alt="" style={{ width:40, height:40, borderRadius:9, objectFit:"cover", flexShrink:0 }}/> : <div style={{ width:40, height:40, borderRadius:9, background:th.gradient, flexShrink:0 }}/>}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{cap}</div>
+                      <div style={{ fontSize:10.5, color:th.text2, display:"flex", gap:12, marginTop:3 }}>{likes!=null && <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={10}/> {fmt(likes)}</span>}{cmts!=null && <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={10}/> {fmt(cmts)}</span>}</div>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            </div>
+          )}
+
           {(data.contentMix && data.contentMix.length) ? (
             <div style={{ ...card, padding:16 }}>
               <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:11 }}>{L("CONTENT MIX (estimated)","مزيج المحتوى (تقديري)")}</div>
@@ -4509,23 +4568,31 @@ function CompetitorSpyPage() {
             </div>
           ) : null}
 
-          {(data.postingTips && data.postingTips.length) ? (
+          {(data.quietWindow || (data.postingTips && data.postingTips.length)) ? (
             <div style={{ ...card, padding:16 }}>
-              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:8 }}>{L("CADENCE & TIMING","الإيقاع والتوقيت")}</div>
-              {data.postingTips.map((t,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.7 }}>• {t}</div>)}
+              <div style={{ fontSize:11, fontWeight:700, color:th.text3, letterSpacing:0.5, marginBottom:9 }}>{L("CADENCE & TIMING","الإيقاع والتوقيت")}</div>
+              {(data.postingTips||[]).map((t,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.7 }}>• {t}</div>)}
+              {data.quietWindow && <div style={{ marginTop:10, fontSize:12, color:th.text, background:th.accentSoft, borderRadius:9, padding:"9px 11px", display:"flex", gap:8, alignItems:"flex-start" }}><Clock size={14} color={th.accent} style={{ flexShrink:0, marginTop:1 }}/><span><b>{L("Their weak slot:","نافذتهم الضعيفة:")}</b> {data.quietWindow}</span></div>}
             </div>
           ) : null}
 
           {(data.playbook && data.playbook.length) ? (
             <div style={{ background:th.gradient, borderRadius:16, padding:18 }}>
-              <div style={{ fontSize:13.5, fontWeight:700, color:"#fff", marginBottom:13, display:"flex", alignItems:"center", gap:7 }}><Target size={16}/>{L("How to beat them","كيف تتفوّق عليهم")}</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              <div style={{ fontSize:13.5, fontWeight:700, color:"#fff", marginBottom:13, display:"flex", alignItems:"center", gap:7 }}><Target size={16}/>{L("AI beat-them playbook","خطة التفوّق بالذكاء")}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 {data.playbook.map((p,i)=>(
-                  <div key={i} className="tw-row-in" style={{ display:"flex", gap:10, alignItems:"flex-start", animationDelay:(0.1+i*0.08)+"s" }}><span style={{ width:21, height:21, borderRadius:"50%", background:"rgba(255,255,255,0.9)", color:"#1B2B40", fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+1}</span><span style={{ fontSize:12.5, color:"#EAF0F7", lineHeight:1.5 }}>{p}</span></div>
+                  <div key={i} className="tw-row-in" style={{ display:"flex", gap:10, alignItems:"flex-start", animationDelay:(0.1+i*0.08)+"s" }}><span style={{ fontSize:9, fontWeight:800, letterSpacing:0.4, color:"#1B2B40", background: i<2?"#fff":"rgba(255,255,255,0.65)", borderRadius:6, padding:"3px 7px", flexShrink:0, marginTop:1 }}>{i<2?L("HIGH","عالٍ"):L("MED","متوسط")}</span><span style={{ fontSize:12.5, color:"#EAF0F7", lineHeight:1.5 }}>{p}</span></div>
                 ))}
               </div>
             </div>
           ) : null}
+
+          {/* actions */}
+          <div style={{ display:"flex", gap:9, flexWrap:"wrap" }}>
+            <button onClick={toContentPlan} style={{ flex:1, minWidth:170, display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, background:th.success, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Wand2 size={15}/>{L("Turn into a content plan","حوّلها إلى خطة محتوى")}</button>
+            <button onClick={exportSpy} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"12px 16px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer" }}><Download size={14}/>{L("PDF","PDF")}</button>
+            <button onClick={run} disabled={busy} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"12px 16px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:busy?"default":"pointer" }}><RefreshCw size={14}/>{L("Re-scan","إعادة الفحص")}</button>
+          </div>
         </div>
       )}
     </div>
