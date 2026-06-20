@@ -8554,9 +8554,20 @@ function StreamsPage() {
     columns.forEach(col => fetchCol(col, boardPlat));
   }, [columns, boardPlat]);
 
-  const toggleSave = (url) => {
-    if (!url) return;
-    setSaved(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); try { localStorage.setItem('tw_streams_saved', JSON.stringify([...n])); } catch (e) {} return n; });
+  const toggleSave = (item) => {
+    const url = item && item.url; if (!url) return;
+    setSaved(prev => {
+      const n = new Set(prev); const removing = n.has(url); removing ? n.delete(url) : n.add(url);
+      try { localStorage.setItem('tw_streams_saved', JSON.stringify([...n])); } catch (e) {}
+      // Mirror into the Inbox "Saved" tab so saved mentions live alongside comments & DMs.
+      try {
+        let list = JSON.parse(localStorage.getItem('tw_inbox_saved') || '[]'); if (!Array.isArray(list)) list = [];
+        if (removing) list = list.filter(x => x.url !== url);
+        else if (!list.some(x => x.url === url)) list.unshift({ id: url, from: item.author || 'user', text: item.text || '', platform: item.platform || 'ig', type: 'saved', url, likeCount: item.likes || 0, time: new Date().toISOString() });
+        localStorage.setItem('tw_inbox_saved', JSON.stringify(list.slice(0, 200)));
+      } catch (e) {}
+      return n;
+    });
   };
 
   const addColumn = () => {
@@ -8660,7 +8671,7 @@ function StreamsPage() {
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={11}/><span className="tw-num">{item.likes}</span></span>
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={11}/><span className="tw-num">{item.comments}</span></span>
                     <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
-                      <button onClick={()=>toggleSave(item.url)} disabled={!item.url} title={L("Save","حفظ")} style={{ background:"none", border:"none", cursor:item.url?"pointer":"default", color: saved.has(item.url)?th.accent:th.text3, display:"flex" }}><Bookmark size={13} fill={saved.has(item.url)?th.accent:"none"}/></button>
+                      <button onClick={()=>toggleSave(item)} disabled={!item.url} title={saved.has(item.url)?L("Saved to Inbox","محفوظ في الوارد"):L("Save to Inbox","حفظ في الوارد")} style={{ background:"none", border:"none", cursor:item.url?"pointer":"default", color: saved.has(item.url)?th.accent:th.text3, display:"flex" }}><Bookmark size={13} fill={saved.has(item.url)?th.accent:"none"}/></button>
                       {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" title={L("Open","فتح")} style={{ color:th.text3, display:"flex" }}><ArrowUpRight size={13}/></a>}
                     </div>
                   </div>
@@ -9553,6 +9564,7 @@ function InboxPage() {
   const [replyError, setReplyError] = useState('');
   const [replySuccess, setReplySuccess] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
+  const [savedStream, setSavedStream] = useState(() => { try { const a = JSON.parse(localStorage.getItem('tw_inbox_saved') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } });
   const [triage, setTriage] = useState({});       // Smart triage: msgId -> {category, priority}
   const [triBusy, setTriBusy] = useState(false);
   const [triFilter, setTriFilter] = useState('all');
@@ -9704,6 +9716,8 @@ function InboxPage() {
 
   const filtered = (filter === 'all' ? messages : messages.filter(m => m.type === filter))
     .filter(m => triFilter === 'all' || (triage[String(m.id)] && triage[String(m.id)].category === triFilter));
+  const unsave = (url) => { setSavedStream(list => { const n = list.filter(x => x.url !== url); try { localStorage.setItem('tw_inbox_saved', JSON.stringify(n)); const st = new Set(JSON.parse(localStorage.getItem('tw_streams_saved') || '[]')); st.delete(url); localStorage.setItem('tw_streams_saved', JSON.stringify([...st])); } catch (e) {} if (selected && selected.url === url) setSelected(null); return n; }); };
+  const listItems = filter === 'saved' ? savedStream : filtered;
   const TRIAGE_CATS = {
     lead:      { en:"Lead",      ar:"عميل محتمل", color:"#2E8B6B" },
     question:  { en:"Question",  ar:"سؤال",        color: th.accent },
@@ -9738,7 +9752,7 @@ function InboxPage() {
           <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("comments & messages","التعليقات والرسائل")}</p>
         </div>
         <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-          {[['all',L("All","الكل"),messages.length],['comment',L("Comments","التعليقات"),commentCount],['dm',L("DMs","الرسائل"),dmCount]].map(([f,lab,n]) => (
+          {[['all',L("All","الكل"),messages.length],['comment',L("Comments","التعليقات"),commentCount],['dm',L("DMs","الرسائل"),dmCount],...(savedStream.length?[['saved',L("Saved","المحفوظة"),savedStream.length]]:[])].map(([f,lab,n]) => (
             <button key={f} onClick={()=>setFilter(f)} style={{padding:"7px 14px", borderRadius:999, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
               {lab}{n>0 && <span className="tw-num" style={{opacity:0.85}}>{n}</span>}
             </button>
@@ -9787,7 +9801,7 @@ function InboxPage() {
       )}
       {loading ? (
         <SkList th={th} rows={6}/>
-      ) : messages.length === 0 ? (
+      ) : (filter !== 'saved' && messages.length === 0) ? (
         <div style={{textAlign:"center", padding:"54px 24px", color:th.text2, fontSize:13, maxWidth:460, margin:"0 auto"}}>
           <MessageCircle size={34} style={{marginBottom:14, opacity:0.3}}/>
           {accounts.filter(a=>a.platform==='ig').length === 0 ? (
@@ -9816,9 +9830,10 @@ function InboxPage() {
       ) : (
         <div style={{display:"grid", gridTemplateColumns:"360px 1fr", gap:16, height:580}}>
           <div style={{background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflowY:"auto"}}>
-            {filtered.map((msg,idx) => { const P=platOf(msg); const sel=selected?.id===msg.id; const unreplied = msg.type==='comment' && (!msg.replies || msg.replies.length===0);
+            {listItems.length===0 && <div style={{padding:"44px 18px", textAlign:"center", fontSize:12, color:th.text3, lineHeight:1.6}}>{L("No saved items yet. Tap the bookmark on a Streams post to save it here.","لا عناصر محفوظة بعد. احفظ منشوراً من التدفقات ليظهر هنا.")}</div>}
+            {listItems.map((msg,idx) => { const P=platOf(msg); const sel=selected?.id===msg.id; const unreplied = msg.type==='comment' && (!msg.replies || msg.replies.length===0);
               return (
-              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"13px 15px", borderBottom:idx<filtered.length-1?`1px solid ${th.border}`:"none", cursor:"pointer", background:sel?th.accentSoft:"transparent", borderLeft:`2px solid ${sel?th.accent:"transparent"}`, display:"flex", gap:11}}>
+              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"13px 15px", borderBottom:idx<listItems.length-1?`1px solid ${th.border}`:"none", cursor:"pointer", background:sel?th.accentSoft:"transparent", borderLeft:`2px solid ${sel?th.accent:"transparent"}`, display:"flex", gap:11}}>
                 <div style={{position:"relative"}}>
                   {mono(msg.from, 38)}
                   <span style={{position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><P.Icon style={{color:P.color, fontSize:9}}/></span>
@@ -9830,7 +9845,7 @@ function InboxPage() {
                   </div>
                   <div style={{fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5}}>{msg.text}</div>
                   <div style={{display:"flex", gap:6, alignItems:"center"}}>
-                    <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":th.text2, background:msg.type==='dm'?"#7C3AED1a":th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):L("Comment","تعليق")}</span>
+                    <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":msg.type==='saved'?th.accent:th.text2, background:msg.type==='dm'?"#7C3AED1a":msg.type==='saved'?th.accentSoft:th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):msg.type==='saved'?L("Mention","إشارة"):L("Comment","تعليق")}</span>
                     {triage[String(msg.id)] && (()=>{ const t=triage[String(msg.id)]; const c=TRIAGE_CATS[t.category]; return <span style={{display:"inline-flex", alignItems:"center", gap:4, fontSize:9, fontWeight:700, color:c.color, background:c.color+"1f", padding:"2px 7px", borderRadius:5}}>{t.priority==='high' && <span style={{width:5, height:5, borderRadius:"50%", background:c.color}}/>}{isAR?c.ar:c.en}</span>; })()}
                     {msg.likeCount > 0 && <span style={{fontSize:9.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9}/> <span className="tw-num">{msg.likeCount}</span></span>}
                     {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:5}}>{L("Sample","عينة")}</span>}
@@ -9851,7 +9866,7 @@ function InboxPage() {
                   </div>
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{fontSize:14, fontWeight:600, color:th.text}}>@{selected.from}</div>
-                    <div style={{fontSize:11.5, color:th.text2}}><span style={{fontWeight:600, color:P.color}}>{P.name}</span> &middot; {selected.type === 'dm' ? L("Direct message","رسالة مباشرة") : L("Comment","تعليق")} &middot; <span className="tw-num">{formatTime(selected.time)}</span></div>
+                    <div style={{fontSize:11.5, color:th.text2}}><span style={{fontWeight:600, color:P.color}}>{P.name}</span> &middot; {selected.type === 'dm' ? L("Direct message","رسالة مباشرة") : selected.type === 'saved' ? L("Saved mention","إشارة محفوظة") : L("Comment","تعليق")} &middot; <span className="tw-num">{formatTime(selected.time)}</span></div>
                   </div>
                   {selected.accountName && <span style={{fontSize:10.5, color:th.text3, flexShrink:0}}>&rarr; {selected.accountName}</span>}
                 </div>
@@ -9859,6 +9874,13 @@ function InboxPage() {
                   {selected.mediaCaption && <div style={{fontSize:10.5, color:th.text3, marginBottom:9, display:"flex", alignItems:"center", gap:6}}><MessageCircle size={11}/>{L("On post","على منشور")}: &ldquo;{selected.mediaCaption}&hellip;&rdquo;</div>}
                   <div style={{background:th.card2, borderRadius:12, padding:"14px 16px", fontSize:13.5, color:th.text, lineHeight:1.65, marginBottom:10}}>{selected.text}</div>
                   {selected.likeCount > 0 && <div style={{fontSize:11, color:th.text3, marginBottom:14, display:"flex", alignItems:"center", gap:5}}><Heart size={12}/> <span className="tw-num">{selected.likeCount}</span> {L("likes","إعجاب")}</div>}
+                  {selected.type === 'saved' && (
+                    <div style={{display:"flex", gap:8, marginBottom:14, flexWrap:"wrap"}}>
+                      {selected.url && <a href={selected.url} target="_blank" rel="noopener noreferrer" style={{display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none"}}><ArrowUpRight size={14}/>{L("Open original post","فتح المنشور الأصلي")}</a>}
+                      <button onClick={()=>unsave(selected.url)} style={{display:"inline-flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer"}}><XCircle size={14}/>{L("Remove from saved","إزالة من المحفوظة")}</button>
+                    </div>
+                  )}
+                  {selected.type === 'saved' && <div style={{fontSize:11, color:th.text3, lineHeight:1.6, background:th.card2, borderRadius:9, padding:"9px 12px"}}>{L("This is a public mention from Streams. Reply to it directly on the original platform.","هذه إشارة عامة من التدفقات. ردّ عليها مباشرةً على المنصة الأصلية.")}</div>}
                   {selected.replies?.length > 0 && (
                     <div style={{marginLeft:18, borderLeft:`2px solid ${th.border}`, paddingLeft:14}}>
                       <div style={{fontSize:10, color:th.text3, marginBottom:8, fontWeight:700, letterSpacing:0.5}}>{L("YOUR REPLIES","ردودك")}</div>
@@ -9870,7 +9892,7 @@ function InboxPage() {
                     </div>
                   )}
                 </div>
-                {selected.type !== 'dm' && (() => { const hasVoice = !!loadVoice(realClientId); return (
+                {selected.type !== 'dm' && selected.type !== 'saved' && (() => { const hasVoice = !!loadVoice(realClientId); return (
                   <div style={{ marginBottom:12, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 13px", background:th.card }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                       <Sparkles size={14} color={th.accent}/>
@@ -9909,9 +9931,9 @@ function InboxPage() {
                 ); })()}
                 {replySuccess && <div style={{fontSize:12, color:th.success, marginBottom:8, fontWeight:600, display:"flex", alignItems:"center", gap:6}}><CheckCircle size={13}/>{L("Reply posted","تم نشر الرد")}</div>}
                 {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
-                {selected.type!=='dm' && <button onClick={()=>setShowSaved(true)} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, padding:"5px 11px", borderRadius:8, cursor:"pointer", marginBottom:8 }}><MessageCircle size={12}/>{L("Saved replies","الردود المحفوظة")}</button>}
+                {selected.type!=='dm' && selected.type!=='saved' && <button onClick={()=>setShowSaved(true)} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, padding:"5px 11px", borderRadius:8, cursor:"pointer", marginBottom:8 }}><MessageCircle size={12}/>{L("Saved replies","الردود المحفوظة")}</button>}
                 {showSaved && <SavedRepliesModal voice={loadVoice(realClientId)||{}} brand={selClient?.name} onPick={(t)=>setReply(r=>r&&r.trim()?(r.replace(/\s+$/,'')+' '+t):t)} onClose={()=>setShowSaved(false)}/>}
-                <div style={{display:"flex", gap:8}}>
+                {selected.type !== 'saved' && <div style={{display:"flex", gap:8}}>
                   <input
                     value={reply}
                     onChange={e=>{setReply(e.target.value); setReplyError('');}}
@@ -9925,7 +9947,7 @@ function InboxPage() {
                     disabled={!reply.trim()||replying||selected.type==='dm'}
                     style={{padding:"11px 22px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", opacity:(!reply.trim()||replying||selected.type==='dm')?0.5:1}}
                   >{replying?L("Sending…","جارٍ…"):L("Reply","رد")}</button>
-                </div>
+                </div>}
               </>
             ); })() : (
               <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", color:th.text3, fontSize:13, gap:10}}><MessageCircle size={30} style={{opacity:0.3}}/>{L("Select a conversation","اختر محادثة")}</div>
