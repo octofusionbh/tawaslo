@@ -7823,7 +7823,6 @@ function TrendingPage() {
   ];
   const sampleShown = SAMPLE_TRENDS.filter(it => platform==="all" || it.platform===platform);
   const loadSample = () => setSampleMode(true);
-  const exitSample = () => setSampleMode(false);
 
   const REGIONS = [
     { id:"worldwide", label:L("Worldwide","\u062D\u0648\u0644 \u0627\u0644\u0639\u0627\u0644\u0645"), flag:"\uD83C\uDF0D" },
@@ -7878,7 +7877,6 @@ function TrendingPage() {
         {[["all",L("All","الكل")],["youtube","YouTube"],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
         ))}
-        <button onClick={sampleMode?exitSample:loadSample} style={{marginLeft:"auto",fontSize:11.5,borderRadius:999,border:`1px solid ${sampleMode?th.accent:th.border}`,background:sampleMode?th.accentSoft:th.card,color:sampleMode?th.accent:th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview sample","معاينة عينة")}</button>
       </div>
       {sampleMode && (
         <div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:th.accentSoft,border:`1px solid ${th.accent}55`,fontSize:12,color:th.accent,display:"flex",alignItems:"center",gap:8}}>
