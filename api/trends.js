@@ -16,6 +16,37 @@ const REGION_TAGS = {
   usa:       ["trending", "usa"],
 };
 
+// Region -> YouTube regionCode (ISO 3166-1 alpha-2) for the free, always-on trending feed.
+const REGION_YT = {
+  worldwide: "US",
+  gcc:       "AE",
+  bahrain:   "BH",
+  saudi:     "SA",
+  uae:       "AE",
+  usa:       "US",
+};
+
+function mapYoutube(data, region) {
+  const out = [];
+  for (const v of (data?.items || [])) {
+    const sn = v.snippet || {}; const st = v.statistics || {};
+    const thumb = (sn.thumbnails && (sn.thumbnails.high || sn.thumbnails.medium || sn.thumbnails.default) || {}).url || null;
+    if (!v.id) continue;
+    out.push({
+      platform: "youtube",
+      id: String(v.id),
+      caption: sn.title || "",
+      author: sn.channelTitle || "",
+      thumbnail: thumb,
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      views: parseInt(st.viewCount || "0", 10) || 0,
+      likes: parseInt(st.likeCount || "0", 10) || 0,
+      hashtag: region,
+    });
+  }
+  return out;
+}
+
 async function getJson(url, ms = 7000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -82,8 +113,9 @@ function mapInstagram(data, tag) {
 
 export default async function handler(req, res) {
   const token = process.env.ENSEMBLE_TOKEN;
-  if (!token) {
-    return res.status(200).json({ connected: false, items: [], message: "ENSEMBLE_TOKEN not set in Vercel env vars." });
+  const YT_KEY = process.env.YOUTUBE_API_KEY;
+  if (!token && !YT_KEY) {
+    return res.status(200).json({ connected: false, items: [], message: "No trends source configured. Add YOUTUBE_API_KEY (free) and/or ENSEMBLE_TOKEN in Vercel env vars." });
   }
 
   // Competitor profile lookup (best-effort) — powers the Competitor Spy feature.
@@ -129,14 +161,23 @@ export default async function handler(req, res) {
 
   // Build all upstream calls up front, then run them in parallel.
   const jobs = [];
-  for (const tag of tags) {
-    if (platform === "all" || platform === "tiktok") {
-      jobs.push(getJson(`${ROOT}/tt/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=0&token=${token}`)
-        .then(d => mapTiktok(d, tag)).catch(() => []));
-    }
-    if (platform === "all" || platform === "instagram") {
-      jobs.push(getJson(`${ROOT}/instagram/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=&get_author_info=false&token=${token}`)
-        .then(d => mapInstagram(d, tag)).catch(() => []));
+  // Free, always-on: YouTube trending (mostPopular) via the YouTube Data API key (10k/day quota).
+  if (YT_KEY && (platform === "all" || platform === "youtube")) {
+    const rc = REGION_YT[region] || "US";
+    jobs.push(getJson(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${rc}&maxResults=24&key=${YT_KEY}`)
+      .then(d => mapYoutube(d, region)).catch(() => []));
+  }
+  // Paid layer: TikTok + Instagram trending via EnsembleData — only runs when a token (with quota) exists.
+  if (token) {
+    for (const tag of tags) {
+      if (platform === "all" || platform === "tiktok") {
+        jobs.push(getJson(`${ROOT}/tt/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=0&token=${token}`)
+          .then(d => mapTiktok(d, tag)).catch(() => []));
+      }
+      if (platform === "all" || platform === "instagram") {
+        jobs.push(getJson(`${ROOT}/instagram/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=&get_author_info=false&token=${token}`)
+          .then(d => mapInstagram(d, tag)).catch(() => []));
+      }
     }
   }
 

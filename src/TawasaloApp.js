@@ -7875,7 +7875,7 @@ function TrendingPage() {
       </div>
 
       <div style={{display:"flex",gap:7,marginBottom:16,alignItems:"center"}}>
-        {[["all",L("All","الكل")],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
+        {[["all",L("All","الكل")],["youtube","YouTube"],["tiktok","TikTok"],["instagram","Instagram"]].map(([id,lbl])=>(
           <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
         ))}
         <button onClick={sampleMode?exitSample:loadSample} style={{marginLeft:"auto",fontSize:11.5,borderRadius:999,border:`1px solid ${sampleMode?th.accent:th.border}`,background:sampleMode?th.accentSoft:th.card,color:sampleMode?th.accent:th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:5}}><Eye size={12}/>{sampleMode?L("Exit preview","إنهاء المعاينة"):L("Preview sample","معاينة عينة")}</button>
@@ -7907,9 +7907,9 @@ function TrendingPage() {
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
                 {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
-                <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":"Instagram"}</span>
+                <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":it.platform==="youtube"?"YouTube":"Instagram"}</span>
                 {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>{L("Sample","عينة")}</span>}
-                <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?fmt(it.views)+" "+L("views","مشاهدة"):fmt(it.likes)+" "+L("likes","إعجاب")}</span>
+                <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{(it.platform==="tiktok"||it.platform==="youtube")?fmt(it.views)+" "+L("views","مشاهدة"):fmt(it.likes)+" "+L("likes","إعجاب")}</span>
               </div>
               <div style={{padding:"11px 13px"}}>
                 <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||L("(no caption)","(بدون نص)")}</div>
