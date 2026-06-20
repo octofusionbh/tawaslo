@@ -6926,8 +6926,8 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(500px, calc(100vh - 220px))";          // vertical (Story / TikTok / Reel) card height
-            const fitW = "calc(min(500px, calc(100vh - 220px)) * 0.5625)"; // 9:16 width (~281) derived from fitH
+            const fitH = "min(440px, calc(100vh - 290px))";          // vertical (Story / TikTok / Reel) card height
+            const fitW = "calc(min(440px, calc(100vh - 290px)) * 0.5625)"; // 9:16 width derived from fitH
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
@@ -7616,8 +7616,10 @@ function SocialAccountsPage() {
     ig: { name: "Instagram", color: "#E1306C", bg: "rgba(225,48,108,0.1)", Icon: FaInstagram },
     fb: { name: "Facebook",  color: "#1877F2", bg: "rgba(24,119,242,0.1)", Icon: FaFacebook  },
     li: { name: "LinkedIn",  color: "#0A66C2", bg: "rgba(10,102,194,0.1)", Icon: FaLinkedin  },
-    tt: { name: "TikTok",    color: "#111111", bg: "rgba(0,0,0,0.10)",     Icon: FaTiktok   },
-    tw: { name: "X",         color: "#111111", bg: "rgba(0,0,0,0.10)",     Icon: FaTwitter  },
+    tt: { name: "TikTok",    color: th.text,   bg: "rgba(0,0,0,0.10)",     Icon: FaTiktok   },
+    tw: { name: "X",         color: th.text,   bg: "rgba(0,0,0,0.10)",     Icon: FaTwitter  },
+    yt: { name: "YouTube",   color: "#FF0000", bg: "rgba(255,0,0,0.1)",    Icon: FaYoutube  },
+    gb: { name: "Google Business", color: "#4285F4", bg: "rgba(66,133,244,0.1)", Icon: FaGoogle },
   };
 
   const NETWORKS = [
@@ -10623,7 +10625,7 @@ function LandingPage({ onGetStarted, onLogin }) {
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:8}}>
                   <div style={{fontSize:13,fontWeight:700}}>Marina Café &amp; Bistro</div>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"]].map(([Ic,c],i)=>(
+                    {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"],[FaGoogle,"#4285F4"],[FaWhatsapp,"#25D366"]].map(([Ic,c],i)=>(
                       <div key={i} style={{width:21,height:21,borderRadius:6,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic style={{fontSize:11,color:c}}/></div>
                     ))}
                   </div>
@@ -10723,7 +10725,7 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
       <div style={{padding:"30px 32px",borderTop:"1px solid #232B38",borderBottom:"1px solid #232B38",background:"#080B11"}}>
         <div style={{textAlign:"center",fontSize:11,color:"#3D5068",fontWeight:700,letterSpacing:1.5,textTransform:"uppercase",marginBottom:18}}>Publish &amp; manage across every network</div>
         <div style={{display:"flex",gap:isMobile?20:40,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
-          {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["TikTok","#E8EFF8",FaTiktok],["LinkedIn","#0A66C2",FaLinkedin],["X","#E8EFF8",FaTwitter],["YouTube","#FF0000",FaYoutube]].map(([n,c,Ic])=>(
+          {[["Instagram","#E1306C",FaInstagram],["Facebook","#1877F2",FaFacebook],["TikTok","#E8EFF8",FaTiktok],["LinkedIn","#0A66C2",FaLinkedin],["X","#E8EFF8",FaTwitter],["YouTube","#FF0000",FaYoutube],["Google Business","#4285F4",FaGoogle],["WhatsApp","#25D366",FaWhatsapp]].map(([n,c,Ic])=>(
             <div key={n} style={{display:"flex",alignItems:"center",gap:8,color:"#7A8BA8",fontSize:14,fontWeight:600}}><Ic style={{color:c,fontSize:20}}/>{n}</div>
           ))}
         </div>
@@ -10916,7 +10918,7 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
             <h3 style={{fontSize:20,fontWeight:800,marginBottom:10}}>Publish and schedule to every network</h3>
             <p style={{fontSize:13,color:"#7A8BA8",lineHeight:1.7,marginBottom:16}}>Write once, tailor it per platform, then publish now, schedule, or send for approval. Preview exactly how it looks before it goes live.</p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-              {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"]].map(([Ic,c],i)=>(
+              {[[FaInstagram,"#E1306C"],[FaFacebook,"#1877F2"],[FaTiktok,"#E8EFF8"],[FaTwitter,"#1DA1F2"],[FaLinkedin,"#0A66C2"],[FaYoutube,"#FF0000"],[FaGoogle,"#4285F4"],[FaWhatsapp,"#25D366"]].map(([Ic,c],i)=>(
                 <div key={i} style={{width:38,height:38,borderRadius:11,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center"}}><Ic style={{fontSize:18,color:c}}/></div>
               ))}
             </div>
