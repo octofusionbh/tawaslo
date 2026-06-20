@@ -5955,7 +5955,9 @@ function PublisherPage() {
       const match = accounts.filter(a => a.platform === selPlatform);
       setSelectedAccounts(match.map(a => a.id));
     } else {
-      setSelectedAccounts(accounts.map(a => a.id));
+      // "All": default to a single channel (the first one) so you publish to one platform, not all three at once.
+      // You can still add the others with a tap ("tap any to include or exclude").
+      setSelectedAccounts(accounts.length ? [accounts[0].id] : []);
     }
   }, [accounts, selPlatform]);
 
@@ -6685,7 +6687,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:460, margin:"-96px auto 0", maxHeight:"calc(100vh - 80px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:370, margin:"-60px auto 0", maxHeight:"calc(100vh - 100px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
@@ -6707,7 +6709,7 @@ function PublisherPage() {
               ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
               : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
             const media = (radius) => (
-              <div style={{ position:"relative", width:"100%", ...(hasMedia ? { aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:"none" } : { height:420 }), background:hasMedia?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
+              <div style={{ position:"relative", width:"100%", ...(hasMedia ? { aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:"none" } : { height:290 }), background:hasMedia?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
                   : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
                   : <div style={{ textAlign:"center" }}><Image size={24}/><div style={{ fontSize:10, marginTop:6 }}>Add media →</div></div>}
@@ -6717,8 +6719,8 @@ function PublisherPage() {
             );
             const shell = { background:"#fff", color:"#1a1a1a", borderRadius:16, overflow:"hidden", boxShadow:"0 18px 44px rgba(0,0,0,0.5)", fontFamily:"'Plus Jakarta Sans',system-ui,sans-serif" };
             // Viewport-aware sizing so the whole card always fits in the sticky panel (no cropping at the bottom).
-            const fitH = "min(560px, calc(100vh - 200px))";          // vertical (Story / TikTok / Reel) card height
-            const fitW = "calc(min(560px, calc(100vh - 200px)) * 0.5625)"; // 9:16 width (~315) derived from fitH
+            const fitH = "min(500px, calc(100vh - 220px))";          // vertical (Story / TikTok / Reel) card height
+            const fitW = "calc(min(500px, calc(100vh - 220px)) * 0.5625)"; // 9:16 width (~281) derived from fitH
             const hasMedia = !!(firstImg || video);
 
             if (effPreviewPlat === "ig" && igFormat === "story") {
