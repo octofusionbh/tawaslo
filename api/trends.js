@@ -149,6 +149,54 @@ function mapApifyInstagram(items) {
   })).filter(i => i.thumbnail);
 }
 
+// ── Streams (live social listening) helpers ──────────────────────────────
+function streamTimeAgo(ts) {
+  if (!ts) return "";
+  let d;
+  if (typeof ts === "number") d = new Date(ts < 1e12 ? ts * 1000 : ts);
+  else d = new Date(ts);
+  if (isNaN(d.getTime())) return "";
+  const mins = Math.max(1, Math.round((Date.now() - d.getTime()) / 60000));
+  if (mins < 60) return mins + "m";
+  const h = Math.round(mins / 60);
+  if (h < 24) return h + "h";
+  return Math.round(h / 24) + "d";
+}
+const STREAM_POS = ["love","loved","great","amazing","best","awesome","excellent","perfect","good","nice","impressed","favorite","favourite","recommend","clean","solid","beautiful","wonderful","happy","fantastic","brilliant","quality","worth","stunning","gem","obsessed","incredible","smooth","helpful","fast","friendly","delicious","wow"];
+const STREAM_NEG = ["bad","worst","terrible","awful","poor","slow","disappointed","disappointing","hate","ugly","scam","rude","broken","late","problem","issue","avoid","waste","overpriced","horrible","cancel","refund","wrong","never again","ripoff","disgusting","fail","worse"];
+function streamSentiment(text) {
+  const t = " " + String(text || "").toLowerCase().replace(/[^\p{L}\s#@]/gu, " ") + " ";
+  let s = 0;
+  for (const w of STREAM_POS) if (t.includes(" " + w + " ")) s++;
+  for (const w of STREAM_NEG) if (t.includes(" " + w + " ")) s--;
+  const ar = String(text || "");
+  if (/(رائع|ممتاز|أفضل|جميل|أحب|تحفة|نظيف|راقي|روعة|حلو|مذهل)/.test(ar)) s++;
+  if (/(سيء|سيئ|أسوأ|بطيء|مشكلة|خداع|وقح|مخيب|فاشل|زفت)/.test(ar)) s--;
+  return s > 0 ? "pos" : s < 0 ? "neg" : "neu";
+}
+function mapStreamPost(p, plat) {
+  if (!p) return null;
+  if (plat === "tt") {
+    const author = (p.authorMeta && (p.authorMeta.name || p.authorMeta.nickName || p.authorMeta.uniqueId)) || p.authorName || p.author || p.uniqueId || "";
+    const text = p.text || p.desc || p.caption || "";
+    if (!author && !text) return null;
+    return { author: String(author).replace(/^@/, ""), platform: "tt", text,
+      time: streamTimeAgo(p.createTimeISO || p.createTime || p.createTimeISO),
+      likes: p.diggCount || p.likesCount || (p.stats && p.stats.diggCount) || 0,
+      comments: p.commentCount || p.comments || (p.stats && p.stats.commentCount) || 0,
+      url: p.webVideoUrl || p.url || "", sentiment: streamSentiment(text) };
+  }
+  const author = p.ownerUsername || p.username || (p.owner && p.owner.username) || p.ownerFullName || "";
+  const text = (typeof p.caption === "string" ? p.caption : (p.caption && p.caption.text)) || p.text || "";
+  if (!author && !text) return null;
+  return { author: String(author).replace(/^@/, ""), platform: "ig", text,
+    time: streamTimeAgo(p.timestamp || p.takenAtTimestamp),
+    likes: p.likesCount || p.likeCount || 0,
+    comments: p.commentsCount || p.commentCount || 0,
+    url: p.url || (p.shortCode ? `https://www.instagram.com/p/${p.shortCode}/` : ""),
+    sentiment: streamSentiment(text) };
+}
+
 export default async function handler(req, res) {
   const token = process.env.ENSEMBLE_TOKEN;
   const YT_KEY = process.env.YOUTUBE_API_KEY;
@@ -232,6 +280,39 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: !!(followers || postCount || n), handle, platform: plat, followers, postCount, avgEngagement, sampleSize: n, topHashtags });
     } catch (e) {
       return res.status(200).json({ ok: false, error: e.message });
+    }
+  }
+
+  // ── Streams: live social listening for one keyword / #hashtag / @mention ──
+  // One column = one request = one Apify run-sync (≤9s, stays under the 10s cap).
+  if (req.query && req.query.mode === "streams") {
+    const q = String(req.query.q || "").trim();
+    const kind = String(req.query.kind || "").toLowerCase();
+    const plat = String(req.query.platform || "ig").toLowerCase();
+    const isTT = plat === "tiktok" || plat === "tt";
+    if (!q) return res.status(200).json({ ok: false, items: [] });
+    if (!APIFY_TOKEN) return res.status(200).json({ ok: false, items: [], message: "Streams need APIFY_TOKEN set in Vercel." });
+    const term = q.replace(/^[#@]/, "").trim();
+    try {
+      const actor = isTT
+        ? (process.env.APIFY_TT_SEARCH_ACTOR || process.env.APIFY_TT_ACTOR || "clockworks~tiktok-scraper")
+        : (process.env.APIFY_IG_SEARCH_ACTOR || process.env.APIFY_IG_ACTOR || "apify~instagram-hashtag-scraper");
+      const input = isTT
+        ? { searchQueries: [term], resultsPerPage: 14, shouldDownloadVideos: false, shouldDownloadCovers: false, proxyConfiguration: { useApifyProxy: true } }
+        : { hashtags: [term], resultsLimit: 16, resultsType: "posts" };
+      const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 9000);
+      const r = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal: ctrl.signal,
+      }).finally(() => clearTimeout(t));
+      const rawData = await r.json();
+      const arr = Array.isArray(rawData) ? rawData : (rawData && rawData.items) || [];
+      const items = arr.map(p => mapStreamPost(p, isTT ? "tt" : "ig")).filter(Boolean).slice(0, 14);
+      let pos = 0, neu = 0, neg = 0;
+      for (const it of items) { if (it.sentiment === "pos") pos++; else if (it.sentiment === "neg") neg++; else neu++; }
+      res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
+      return res.status(200).json({ ok: items.length > 0, q, kind, platform: isTT ? "tt" : "ig", count: items.length, sentiment: { pos, neu, neg }, items });
+    } catch (e) {
+      return res.status(200).json({ ok: false, items: [], error: e.name === "AbortError" ? "timeout" : e.message });
     }
   }
 

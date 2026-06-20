@@ -8477,6 +8477,9 @@ function StreamsPage() {
   const brand = selClient?.name || (isAR ? 'علامتك' : 'Your brand');
   const [columns, setColumns] = useState([]);
   const [newCol, setNewCol] = useState("");
+  const [boardPlat, setBoardPlat] = useState("ig");      // ig | tt
+  const [feeds, setFeeds] = useState({});                 // { colId: { loading, live, items, count, sentiment, error } }
+  const [saved, setSaved] = useState(() => { try { return new Set(JSON.parse(localStorage.getItem('tw_streams_saved') || '[]')); } catch (e) { return new Set(); } });
 
   useEffect(() => {
     const slug = brand.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -8521,29 +8524,88 @@ function StreamsPage() {
     }));
   };
 
+  // Lightweight sentiment for the sample-fallback cards (live cards come scored from the API).
+  const POS_W = ['love','great','amazing','best','awesome','excellent','perfect','good','nice','impressed','favorite','recommend','clean','solid','beautiful','happy','fantastic','quality','worth','obsessed','surprise'];
+  const NEG_W = ['bad','worst','terrible','awful','poor','slow','disappointed','hate','ugly','scam','rude','broken','late','problem','issue','avoid','waste','overpriced','horrible','refund','wrong'];
+  const localSentiment = (text) => { const t = ' ' + String(text||'').toLowerCase() + ' '; let s = 0; POS_W.forEach(w=>{ if (t.includes(' '+w)) s++; }); NEG_W.forEach(w=>{ if (t.includes(' '+w)) s--; }); return s>0?'pos':s<0?'neg':'neu'; };
+  const PLAT_COLOR = { ig:'#E1306C', tt:th.text, fb:'#1877F2', li:'#0A66C2' };
+  const sentColor = (s) => s==='pos'?th.success : s==='neg'?'#C8553D' : th.text3;
+
+  // Normalise a sample feed item into the same shape as a live one.
+  const sampleItems = (label) => feedFor(label).map(it => ({ author:it.author, platform:it.plat[0], text:it.text, time:it.time, likes:it.likes, comments:it.comments, sentiment:localSentiment(it.text), url:'' }));
+
+  const fetchCol = async (col, plat) => {
+    setFeeds(f => ({ ...f, [col.id]: { ...(f[col.id]||{}), loading:true } }));
+    try {
+      const r = await fetch(`/api/trends?mode=streams&q=${encodeURIComponent(col.label)}&kind=${encodeURIComponent(col.kind)}&platform=${plat}`).then(r=>r.json()).catch(()=>null);
+      if (r && r.ok && Array.isArray(r.items) && r.items.length) {
+        setFeeds(f => ({ ...f, [col.id]: { loading:false, live:true, items:r.items, count:r.count||r.items.length, sentiment:r.sentiment||{pos:0,neu:0,neg:0} } }));
+        return;
+      }
+    } catch (e) {}
+    // graceful fallback → labelled sample
+    const items = sampleItems(col.label);
+    let pos=0,neu=0,neg=0; items.forEach(it=>{ it.sentiment==='pos'?pos++:it.sentiment==='neg'?neg++:neu++; });
+    setFeeds(f => ({ ...f, [col.id]: { loading:false, live:false, items, count:items.length, sentiment:{pos,neu,neg} } }));
+  };
+
+  useEffect(() => {
+    if (!columns.length) return;
+    columns.forEach(col => fetchCol(col, boardPlat));
+  }, [columns, boardPlat]);
+
+  const toggleSave = (url) => {
+    if (!url) return;
+    setSaved(prev => { const n = new Set(prev); n.has(url) ? n.delete(url) : n.add(url); try { localStorage.setItem('tw_streams_saved', JSON.stringify([...n])); } catch (e) {} return n; });
+  };
+
   const addColumn = () => {
     const v = newCol.trim(); if (!v) return;
     const kind = v.startsWith('#') ? 'Hashtag' : v.startsWith('@') ? 'Mentions' : 'Keyword';
     setColumns(c => [...c, { id:'c'+Date.now(), label:v, kind }]);
     setNewCol("");
   };
-  const removeColumn = (id) => setColumns(c => c.filter(x => x.id !== id));
+  const removeColumn = (id) => { setColumns(c => c.filter(x => x.id !== id)); setFeeds(f => { const n={...f}; delete n[id]; return n; }); };
+
+  // Pulse aggregates
+  const allFeeds = columns.map(c => feeds[c.id]).filter(Boolean);
+  const totalMentions = allFeeds.reduce((a,f)=>a+(f.count||0), 0);
+  const agg = allFeeds.reduce((a,f)=>{ const s=f.sentiment||{}; return { pos:a.pos+(s.pos||0), neu:a.neu+(s.neu||0), neg:a.neg+(s.neg||0) }; }, {pos:0,neu:0,neg:0});
+  const aggTotal = agg.pos+agg.neu+agg.neg;
+  const netSent = aggTotal ? Math.round(((agg.pos-agg.neg)/aggTotal)*100) : 0;
+  const anyLive = allFeeds.some(f=>f.live);
+  const mostActive = columns.map(c=>({label:c.label, n:(feeds[c.id]&&feeds[c.id].count)||0})).sort((a,b)=>b.n-a.n)[0];
+
+  const kindLabel = (k) => isAR ? ({Mentions:"إشارات",Hashtag:"وسم",Keyword:"كلمة مفتاحية"}[k]||k) : k;
+  const platChip = (on) => ({ padding:"7px 13px", borderRadius:9, border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2, fontSize:12, fontWeight:on?700:500, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 });
 
   return (
     <div className="tw-page-in" style={{ padding:"28px 32px" }}>
-      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4, display:"flex", alignItems:"center", gap:10 }}>{L("Streams","التدفقات")}<span style={{ fontSize:10, fontWeight:700, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3 }}>{L("PREVIEW","معاينة")}</span></h2>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4, display:"flex", alignItems:"center", gap:10 }}>{L("Streams","التدفقات")}<span style={{ fontSize:10, fontWeight:700, color:anyLive?th.success:th.warning, background:anyLive?th.successSoft:th.warningSoft, border:`1px solid ${(anyLive?th.success:th.warning)}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3, display:"inline-flex", alignItems:"center", gap:5 }}>{anyLive&&<span style={{ width:6, height:6, borderRadius:"50%", background:th.success }}/>}{anyLive?L("LIVE","مباشر"):L("SAMPLE","عيّنة")}</span></h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("A live, side by side pulse of every conversation about your brand.","نبض مباشر جنباً إلى جنب لكل محادثة عن علامتك التجارية.")}</p>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+          <button onClick={()=>setBoardPlat("ig")} style={platChip(boardPlat==="ig")}><FaInstagram style={{ color:"#E1306C" }}/>Instagram</button>
+          <button onClick={()=>setBoardPlat("tt")} style={platChip(boardPlat==="tt")}><FaTiktok/>TikTok</button>
           <div style={{ position:"relative" }}>
             <Search size={14} style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", color:th.text3 }}/>
-            <input value={newCol} onChange={e=>setNewCol(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addColumn()} placeholder={L("Add a keyword, #hashtag or @mention","أضف كلمة مفتاحية أو وسماً أو إشارة")} style={{ width:280, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px 9px 32px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
+            <input value={newCol} onChange={e=>setNewCol(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addColumn()} placeholder={L("Add a keyword, #hashtag or @mention","أضف كلمة مفتاحية أو وسماً أو إشارة")} style={{ width:240, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 12px 9px 32px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
           </div>
           <button onClick={addColumn} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer" }}><Plus size={14}/>{L("Add","إضافة")}</button>
         </div>
       </div>
+
+      {/* pulse strip */}
+      {columns.length>0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:10, marginBottom:16 }}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 14px" }}><div style={{ fontSize:10.5, color:th.text2 }}>{L("Mentions tracked","الإشارات المتابَعة")}</div><div className="tw-num" style={{ fontSize:19, fontWeight:700, color:th.text }}>{totalMentions}</div></div>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 14px" }}><div style={{ fontSize:10.5, color:th.text2 }}>{L("Net sentiment","صافي المشاعر")}</div><div className="tw-num" style={{ fontSize:19, fontWeight:700, color: netSent>0?th.success:netSent<0?'#C8553D':th.text }}>{netSent>0?'+':''}{netSent}%</div></div>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 14px" }}><div style={{ fontSize:10.5, color:th.text2 }}>{L("Platform","المنصة")}</div><div style={{ fontSize:16, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:6, marginTop:2 }}>{boardPlat==="tt"?<FaTiktok/>:<FaInstagram style={{ color:"#E1306C" }}/>}{boardPlat==="tt"?"TikTok":"Instagram"}</div></div>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:"11px 14px" }}><div style={{ fontSize:10.5, color:th.text2, display:"flex", alignItems:"center", gap:5 }}><TrendingUp size={11}/>{L("Most active","الأكثر نشاطاً")}</div><div style={{ fontSize:13.5, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:3 }}>{mostActive&&mostActive.n?`${mostActive.label} · ${mostActive.n}`:'—'}</div></div>
+        </div>
+      )}
 
       <div style={{ display:"flex", gap:16, overflowX:"auto", paddingBottom:8 }}>
         {columns.length===0 && (
@@ -8553,37 +8615,61 @@ function StreamsPage() {
             <div style={{ fontSize:12.5, color:th.text2, maxWidth:360, margin:"0 auto", lineHeight:1.6 }}>{L("Add a keyword, hashtag or mention above to start watching the conversation in real time.","أضف كلمة مفتاحية أو وسماً أو إشارة أعلاه لبدء متابعة المحادثة مباشرةً.")}</div>
           </div>
         )}
-        {columns.map(col => (
-          <div key={col.id} style={{ width:300, flexShrink:0, background:th.surface, border:`1px solid ${th.border}`, borderRadius:14, display:"flex", flexDirection:"column", maxHeight:"calc(100vh - 230px)" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 14px", borderBottom:`1px solid ${th.border}` }}>
-              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:th.success }}/>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{col.label}</div>
-                  <div style={{ fontSize:10, color:th.text2 }}>{isAR ? ({Mentions:"إشارات",Hashtag:"وسم",Keyword:"كلمة مفتاحية"}[col.kind]||col.kind) : col.kind}</div>
+        {columns.map(col => {
+          const f = feeds[col.id] || { loading:true, items:[], sentiment:{pos:0,neu:0,neg:0}, count:0 };
+          const s = f.sentiment || {pos:0,neu:0,neg:0}; const st = (s.pos+s.neu+s.neg)||1;
+          const pct = (n)=>Math.round((n/st)*100);
+          return (
+          <div key={col.id} style={{ width:312, flexShrink:0, background:th.surface, border:`1px solid ${th.border}`, borderRadius:14, display:"flex", flexDirection:"column", maxHeight:"calc(100vh - 300px)" }}>
+            <div style={{ padding:"12px 14px", borderBottom:`1px solid ${th.border}` }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:9, minWidth:0 }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background: f.loading?th.warning:(f.live?th.success:th.text3), flexShrink:0 }}/>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{col.label}</div>
+                    <div style={{ fontSize:10, color:th.text2 }}>{kindLabel(col.kind)}{!f.loading && <> · {f.live?L("live","مباشر"):L("sample","عيّنة")} · {f.count}</>}</div>
+                  </div>
                 </div>
+                <button onClick={()=>removeColumn(col.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", flexShrink:0 }}><XCircle size={16}/></button>
               </div>
-              <button onClick={()=>removeColumn(col.id)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex" }}><XCircle size={16}/></button>
+              {!f.loading && (s.pos+s.neg)>0 && (
+                <>
+                  <div style={{ display:"flex", height:5, borderRadius:3, overflow:"hidden", marginTop:9 }}>
+                    <div style={{ width:pct(s.pos)+"%", background:th.success }}/>
+                    <div style={{ width:pct(s.neu)+"%", background:th.text3 }}/>
+                    <div style={{ width:pct(s.neg)+"%", background:'#C8553D' }}/>
+                  </div>
+                  <div style={{ fontSize:9, color:th.text3, marginTop:4 }}>{pct(s.pos)}% {L("positive","إيجابي")} · {pct(s.neu)}% {L("neutral","محايد")} · {pct(s.neg)}% {L("negative","سلبي")}</div>
+                </>
+              )}
             </div>
             <div style={{ padding:12, overflowY:"auto" }}>
-              {feedFor(col.label).map((item, i) => (
+              {f.loading && <div style={{ fontSize:12, color:th.text2, textAlign:"center", padding:"24px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><style>{`@keyframes twspin{to{transform:rotate(360deg)}}`}</style><RefreshCw size={13} style={{ animation:"twspin .8s linear infinite" }}/>{L("Listening…","نستمع…")}</div>}
+              {!f.loading && f.items.length===0 && <div style={{ fontSize:12, color:th.text3, textAlign:"center", padding:"24px 0" }}>{L("No posts found for this term.","لا توجد منشورات لهذا المصطلح.")}</div>}
+              {!f.loading && f.items.map((item, i) => (
                 <div key={i} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}>
-                    <div style={{ width:26, height:26, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9.5, fontWeight:700, color:th.text2, flexShrink:0 }}>{item.author.slice(0,2).toUpperCase()}</div>
-                    <div style={{ flex:1, minWidth:0, fontSize:11.5, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>@{item.author}</div>
-                    <span style={{ width:7, height:7, borderRadius:"50%", background:item.plat[1], flexShrink:0 }}/>
-                    <span className="tw-num" style={{ fontSize:10, color:th.text3, flexShrink:0 }}>{item.time}</span>
+                    <div style={{ width:26, height:26, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:9.5, fontWeight:700, color:th.text2, flexShrink:0 }}>{(item.author||'?').slice(0,2).toUpperCase()}</div>
+                    <div style={{ flex:1, minWidth:0, fontSize:11.5, fontWeight:700, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>@{item.author||'user'}</div>
+                    <span title={item.sentiment} style={{ width:8, height:8, borderRadius:"50%", background:sentColor(item.sentiment), flexShrink:0 }}/>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:PLAT_COLOR[item.platform]||th.text2, flexShrink:0 }}/>
+                    {item.time && <span className="tw-num" style={{ fontSize:10, color:th.text3, flexShrink:0 }}>{item.time}</span>}
                   </div>
-                  <div style={{ fontSize:12, color:th.text, lineHeight:1.5, marginBottom:8 }}>{item.text}</div>
-                  <div style={{ display:"flex", gap:14, fontSize:10.5, color:th.text2 }}>
+                  <div style={{ fontSize:12, color:th.text, lineHeight:1.5, marginBottom:8, display:"-webkit-box", WebkitLineClamp:4, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{item.text}</div>
+                  <div style={{ display:"flex", alignItems:"center", gap:14, fontSize:10.5, color:th.text2 }}>
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={11}/><span className="tw-num">{item.likes}</span></span>
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={11}/><span className="tw-num">{item.comments}</span></span>
+                    <div style={{ marginLeft:"auto", display:"flex", gap:10 }}>
+                      <button onClick={()=>toggleSave(item.url)} disabled={!item.url} title={L("Save","حفظ")} style={{ background:"none", border:"none", cursor:item.url?"pointer":"default", color: saved.has(item.url)?th.accent:th.text3, display:"flex" }}><Bookmark size={13} fill={saved.has(item.url)?th.accent:"none"}/></button>
+                      {item.url && <a href={item.url} target="_blank" rel="noopener noreferrer" title={L("Open","فتح")} style={{ color:th.text3, display:"flex" }}><ArrowUpRight size={13}/></a>}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
