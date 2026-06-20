@@ -18,7 +18,7 @@ import {
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
   Monitor, Info, ScanLine, Check, CalendarCheck, Zap, Maximize2, X,
 } from "lucide-react";
-import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest } from 'react-icons/fa';
+import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest, FaGoogle } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
   fb: () => <FaFacebook  style={{color:"#1877F2", fontSize:14}}/>,
   tw: () => <FaTwitter   style={{color:"#1DA1F2", fontSize:14}}/>,
@@ -708,6 +708,7 @@ function Sidebar() {
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
       {key:"inbox",     Icon:Inbox,           label:"Inbox",     badge:null},
       {key:"listening", Icon:Activity,        label:"Trending", badge:null},
+      {key:"business",  Icon:Star,            label:"Business Profile", badge:null},
     ]},
     {section:"Create", items:[
       {key:"campaigns", Icon:Megaphone,       label:"Campaigns", badge:null},
@@ -1048,7 +1049,7 @@ function ContextBar() {
   }, [selClient]);
 
   const PLAT_META = { ig:{label:"Instagram",Icon:FaInstagram,color:"#E1306C"}, fb:{label:"Facebook",Icon:FaFacebook,color:"#1877F2"}, li:{label:"LinkedIn",Icon:FaLinkedin,color:"#0A66C2"}, tt:{label:"TikTok",Icon:FaTiktok,color:th.text}, tw:{label:"X",Icon:FaTwitter,color:th.text}, yt:{label:"YouTube",Icon:FaYoutube,color:"#FF0000"} };
-  const present = Array.from(new Set((accounts||[]).map(a=>a.platform).filter(Boolean)));
+  const present = Array.from(new Set((accounts||[]).map(a=>a.platform).filter(p => p && p !== 'gb')));
 
   // When you switch to a client that doesn't have the currently-filtered platform, reset to "All".
   useEffect(() => {
@@ -5847,6 +5848,212 @@ const POST_LABELS = [
 ];
 const labelColor = (name) => (POST_LABELS.find(l => l.name === name) || {}).color || "#8a93a5";
 
+// ── Business Profile (Google Business) — reviews, hours, links, attributes, photos, posts, Q&A across locations.
+//    All Google calls go through the authenticated /api/linkedin-oauth google_proxy.
+function BusinessProfilePage() {
+  const { selClient, lang, setPage } = useApp();
+  const th = useTheme();
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [realClientId, setRealClientId] = useState(null);
+  const [acct, setAcct] = useState(undefined);   // undefined=loading, null=not connected, object=connected
+  const [locations, setLocations] = useState([]);
+  const [locIdx, setLocIdx] = useState(0);
+  const [reviews, setReviews] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [replyId, setReplyId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!selClient?.name) return;
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data[0]) setRealClientId(data[0].id); });
+  }, [selClient]);
+
+  useEffect(() => {
+    if (!realClientId) { return; }
+    supabase.from('social_accounts').select('*').eq('client_id', realClientId).eq('platform', 'gb').limit(1)
+      .then(({ data }) => setAcct((data && data[0]) || null));
+  }, [realClientId]);
+
+  const gapi = async (url, method, body) => {
+    const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'google_proxy', accessToken: acct.access_token, url, method: method || 'GET', body }) });
+    return res.json();
+  };
+
+  useEffect(() => {
+    if (!acct) return;
+    let active = true;
+    (async () => {
+      setLoading(true); setErr("");
+      try {
+        const readMask = 'name,title,storefrontAddress,phoneNumbers,websiteUri,regularHours,categories,profile';
+        const r = await gapi(`https://mybusinessbusinessinformation.googleapis.com/v1/${acct.account_id}/locations?readMask=${readMask}&pageSize=20`);
+        if (!active) return;
+        const locs = r.locations || [];
+        setLocations(locs); setLocIdx(0);
+        if (!locs.length) setErr((r.error && r.error.message) || L("No locations found on this Google Business account yet.","لا توجد مواقع على هذا الحساب بعد."));
+      } catch (e) { if (active) setErr(e.message); }
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [acct]);
+
+  const loc = locations[locIdx] || null;
+
+  useEffect(() => {
+    if (!acct || !loc) return;
+    let active = true;
+    const lp = `${acct.account_id}/${loc.name}`;
+    (async () => {
+      try { const rv = await gapi(`https://mybusiness.googleapis.com/v4/${lp}/reviews?pageSize=25`); if (active) setReviews(rv.reviews || []); } catch (e) { /* */ }
+      try { const ps = await gapi(`https://mybusiness.googleapis.com/v4/${lp}/localPosts?pageSize=10`); if (active) setPosts(ps.localPosts || []); } catch (e) { /* */ }
+      try { const qs = await gapi(`https://mybusinessqanda.googleapis.com/v1/${loc.name}/questions?pageSize=10`); if (active) setQuestions(qs.questions || []); } catch (e) { /* */ }
+    })();
+    return () => { active = false; };
+  }, [acct, locIdx, locations.length]);
+
+  const STAR = { ONE: 1, TWO: 2, THREE: 3, FOUR: 4, FIVE: 5 };
+  const starN = (s) => STAR[s] || 0;
+  const rated = reviews.filter(r => starN(r.starRating));
+  const avg = rated.length ? (rated.reduce((a, r) => a + starN(r.starRating), 0) / rated.length).toFixed(1) : "—";
+  const needsReply = reviews.filter(r => !r.reviewReply).length;
+  const addr = loc && loc.storefrontAddress ? [ ...(loc.storefrontAddress.addressLines || []), loc.storefrontAddress.locality, loc.storefrontAddress.regionCode ].filter(Boolean).join(", ") : "";
+  const phone = loc && loc.phoneNumbers && loc.phoneNumbers.primaryPhone;
+  const website = loc && loc.websiteUri;
+  const dayName = (d) => ({ MONDAY:"Mon",TUESDAY:"Tue",WEDNESDAY:"Wed",THURSDAY:"Thu",FRIDAY:"Fri",SATURDAY:"Sat",SUNDAY:"Sun" }[d] || d);
+  const fmtTime = (t) => t ? `${((t.hours||0)%12)||12}:${String(t.minutes||0).padStart(2,"0")} ${(t.hours||0)<12?"AM":"PM"}` : "";
+
+  const sendReply = async (review) => {
+    if (!replyText.trim() || busy) return;
+    setBusy(true);
+    const lp = `${acct.account_id}/${loc.name}`;
+    await gapi(`https://mybusiness.googleapis.com/v4/${lp}/reviews/${review.reviewId}/reply`, 'PUT', { comment: replyText.trim() });
+    const rv = await gapi(`https://mybusiness.googleapis.com/v4/${lp}/reviews?pageSize=25`);
+    setReviews(rv.reviews || []); setReplyId(null); setReplyText(""); setBusy(false);
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:16 };
+  const Stars = ({ n }) => <span style={{ color:"#f5b50a", fontSize:12 }}>{"★".repeat(n)}<span style={{ color:th.text3 }}>{"★".repeat(5-n)}</span></span>;
+
+  if (acct === undefined) return <div style={{ padding:40, textAlign:"center", color:th.text3 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+
+  if (acct === null) return (
+    <div style={{ padding:"28px 32px", maxWidth:760 }}>
+      <h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2>
+      <p style={{ fontSize:12.5, color:th.text2, margin:"5px 0 22px" }}>{L("Manage Google reviews, hours, photos, posts and Q&A.","إدارة مراجعات Google والأوقات والصور والمنشورات.")}</p>
+      <div style={{ ...card, textAlign:"center", padding:"40px 24px" }}>
+        <div style={{ width:54, height:54, borderRadius:14, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><FaGoogle style={{ fontSize:24, color:"#4285F4" }}/></div>
+        <div style={{ fontSize:15, fontWeight:600, color:th.text }}>{L("Connect Google Business","ربط Google Business")}</div>
+        <div style={{ fontSize:12.5, color:th.text2, margin:"7px auto 18px", maxWidth:420, lineHeight:1.5 }}>{L("Connect this client's Google Business Profile to manage reviews, hours, links and posts across all their locations — right here.","اربط ملف Google Business لهذا العميل لإدارة المراجعات والأوقات والروابط والمنشورات لكل مواقعه من هنا.")}</div>
+        <button onClick={()=>setPage("social")} style={{ background:th.gradient, border:"none", color:"#fff", borderRadius:11, padding:"11px 22px", fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Go to Connections","الذهاب للحسابات")}</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"24px 28px" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap", marginBottom:16 }}>
+        <div><h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2>
+          <p style={{ fontSize:12, color:th.text2, margin:"4px 0 0" }}>{selClient?.name} · {L("reviews, hours, links, posts & Q&A","المراجعات والأوقات والروابط والمنشورات")}</p></div>
+        {locations.length > 0 && (
+          <select value={locIdx} onChange={e=>setLocIdx(Number(e.target.value))} style={{ marginLeft:"auto", background:th.card, border:`1px solid ${th.border}`, color:th.text, borderRadius:10, padding:"8px 12px", fontSize:12.5, cursor:"pointer" }}>
+            {locations.map((l,i)=><option key={l.name||i} value={i}>{l.title || l.name}</option>)}
+          </select>
+        )}
+      </div>
+
+      {err && <div style={{ ...card, borderColor:th.danger, color:th.danger, fontSize:12.5, marginBottom:16 }}>{err}</div>}
+      {loading && <div style={{ padding:30, textAlign:"center", color:th.text3 }}>{L("Loading locations…","جارٍ تحميل المواقع…")}</div>}
+
+      {loc && (
+        <>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:16 }}>
+            <div style={{ ...card, padding:13 }}><div style={{ fontSize:11, color:th.text3 }}>{L("Rating","التقييم")}</div><div style={{ fontSize:20, fontWeight:700 }}>{avg} <span style={{ color:"#f5b50a", fontSize:13 }}>★</span></div></div>
+            <div style={{ ...card, padding:13 }}><div style={{ fontSize:11, color:th.text3 }}>{L("Reviews","المراجعات")}</div><div style={{ fontSize:20, fontWeight:700 }}><span className="tw-num">{reviews.length}</span></div></div>
+            <div style={{ ...card, padding:13 }}><div style={{ fontSize:11, color:th.text3 }}>{L("Posts","المنشورات")}</div><div style={{ fontSize:20, fontWeight:700 }}><span className="tw-num">{posts.length}</span></div></div>
+            <div style={{ ...card, padding:13 }}><div style={{ fontSize:11, color:th.text3 }}>{L("Needs reply","بانتظار رد")}</div><div style={{ fontSize:20, fontWeight:700, color:needsReply?th.warning||"#f59e0b":th.text }}><span className="tw-num">{needsReply}</span></div></div>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1.15fr", gap:16, alignItems:"start" }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              <div style={card}>
+                <div style={{ fontSize:13, fontWeight:600, marginBottom:11 }}>{L("Hours & info","الأوقات والمعلومات")}</div>
+                <div style={{ fontSize:12, color:th.text2 }}>
+                  {(loc.regularHours && loc.regularHours.periods || []).slice(0,7).map((p,i)=>(
+                    <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"3px 0" }}><span style={{ color:th.text3 }}>{dayName(p.openDay)}</span><span>{fmtTime(p.openTime)} – {fmtTime(p.closeTime)}</span></div>
+                  ))}
+                  {!(loc.regularHours && loc.regularHours.periods) && <div style={{ color:th.text3 }}>{L("No hours set","لم تُحدد الأوقات")}</div>}
+                </div>
+                <div style={{ borderTop:`1px solid ${th.border}`, marginTop:10, paddingTop:10, fontSize:12, color:th.text2, lineHeight:1.7 }}>
+                  {phone && <div style={{ display:"flex", alignItems:"center", gap:7 }}><MessageCircle size={13}/>{phone}</div>}
+                  {addr && <div style={{ display:"flex", alignItems:"center", gap:7 }}><Globe size={13}/>{addr}</div>}
+                </div>
+              </div>
+
+              <div style={card}>
+                <div style={{ fontSize:13, fontWeight:600, marginBottom:11 }}>{L("Links & details","الروابط والتفاصيل")}</div>
+                <div style={{ fontSize:12, color:th.text2, lineHeight:1.9 }}>
+                  <div style={{ display:"flex", gap:8 }}><span style={{ color:th.text3, width:72 }}>{L("Website","الموقع")}</span><span style={{ color:th.accent, wordBreak:"break-all" }}>{website || L("— add","— أضف")}</span></div>
+                  <div style={{ display:"flex", gap:8 }}><span style={{ color:th.text3, width:72 }}>{L("Category","الفئة")}</span><span>{(loc.categories && loc.categories.primaryCategory && loc.categories.primaryCategory.displayName) || "—"}</span></div>
+                  <div style={{ display:"flex", gap:8 }}><span style={{ color:th.text3, width:72 }}>{L("About","نبذة")}</span><span style={{ color:th.text3 }}>{(loc.profile && loc.profile.description) || L("— add description","— أضف وصفاً")}</span></div>
+                </div>
+              </div>
+
+              <div style={card}>
+                <div style={{ display:"flex", alignItems:"center", marginBottom:11 }}><span style={{ fontSize:13, fontWeight:600 }}>{L("Posts","المنشورات")}</span></div>
+                {posts.length ? posts.slice(0,5).map((p,i)=>(
+                  <div key={p.name||i} style={{ fontSize:12, color:th.text2, borderLeft:`2px solid ${th.accent}`, paddingLeft:9, marginBottom:9, lineHeight:1.45 }}>{(p.summary||"").slice(0,120)}<div style={{ fontSize:10, color:th.text3, marginTop:2 }}>{p.topicType || "UPDATE"}</div></div>
+                )) : <div style={{ fontSize:12, color:th.text3 }}>{L("No posts yet.","لا منشورات بعد.")}</div>}
+              </div>
+            </div>
+
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+              <div style={card}>
+                <div style={{ display:"flex", alignItems:"center", marginBottom:12 }}><span style={{ fontSize:13, fontWeight:600 }}>{L("Reviews","المراجعات")}</span>{needsReply>0 && <span style={{ marginLeft:"auto", fontSize:10.5, color:th.warning||"#f59e0b" }}>{needsReply} {L("awaiting reply","بانتظار الرد")}</span>}</div>
+                {reviews.length ? reviews.slice(0,15).map((r,i)=>(
+                  <div key={r.reviewId||i} style={{ borderBottom:i<14?`1px solid ${th.border}`:"none", padding:"10px 0" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:th.text }}>{(r.reviewer && r.reviewer.displayName) || L("Google user","مستخدم")}</span>
+                      <Stars n={starN(r.starRating)}/>
+                      <span style={{ marginLeft:"auto", fontSize:10, color:th.text3 }}>{r.createTime ? new Date(r.createTime).toLocaleDateString() : ""}</span>
+                    </div>
+                    {r.comment && <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.45 }}>{r.comment}</div>}
+                    {r.reviewReply ? (
+                      <div style={{ marginTop:7, background:th.card2, borderLeft:`2px solid ${th.success||"#5dcaa5"}`, padding:"7px 9px", fontSize:11, color:th.text2 }}><span style={{ color:th.success||"#5dcaa5", fontWeight:600 }}>{L("You replied:","ردك:")}</span> {r.reviewReply.comment}</div>
+                    ) : replyId === r.reviewId ? (
+                      <div style={{ marginTop:8 }}>
+                        <textarea value={replyText} onChange={e=>setReplyText(e.target.value)} rows={2} placeholder={L("Write a reply…","اكتب رداً…")} style={{ width:"100%", background:th.card2, border:`1px solid ${th.border}`, color:th.text, borderRadius:8, padding:8, fontSize:11.5, resize:"vertical" }}/>
+                        <div style={{ display:"flex", gap:7, marginTop:6 }}>
+                          <button disabled={busy} onClick={()=>sendReply(r)} style={{ background:th.gradient, border:"none", color:"#fff", borderRadius:7, padding:"6px 13px", fontSize:11, fontWeight:600, cursor:"pointer" }}>{busy?L("Sending…","جارٍ…"):L("Send reply","إرسال")}</button>
+                          <button onClick={()=>{setReplyId(null);setReplyText("");}} style={{ background:th.card2, border:`1px solid ${th.border}`, color:th.text2, borderRadius:7, padding:"6px 13px", fontSize:11, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={()=>{setReplyId(r.reviewId);setReplyText("");}} style={{ marginTop:7, background:th.card2, border:`1px solid ${th.border}`, color:th.text, borderRadius:7, padding:"5px 11px", fontSize:11, fontWeight:600, cursor:"pointer" }}>{L("Reply","رد")}</button>
+                    )}
+                  </div>
+                )) : <div style={{ fontSize:12, color:th.text3, padding:"10px 0" }}>{L("No reviews yet for this location.","لا مراجعات بعد لهذا الموقع.")}</div>}
+              </div>
+
+              <div style={card}>
+                <div style={{ display:"flex", alignItems:"center", marginBottom:11 }}><span style={{ fontSize:13, fontWeight:600 }}>{L("Questions & answers","الأسئلة والأجوبة")}</span></div>
+                {questions.length ? questions.slice(0,6).map((q,i)=>(
+                  <div key={q.name||i} style={{ fontSize:12, color:th.text2, padding:"6px 0", borderBottom:i<questions.length-1?`1px solid ${th.border}`:"none" }}><Info size={12} color={th.accent}/> {q.text}</div>
+                )) : <div style={{ fontSize:12, color:th.text3 }}>{L("No questions yet.","لا أسئلة بعد.")}</div>}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function PublisherPage() {
   const { selClient, dark, setPage, userEmail, userPlan, lang, selPlatform } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -5942,7 +6149,7 @@ function PublisherPage() {
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data }) => { if (data) setAccounts(data); });
+      .then(({ data }) => { if (data) setAccounts(data.filter(a => a.platform !== 'gb')); });
     loadDrafts(realClientId);
   }, [realClientId]);
 
@@ -6832,6 +7039,29 @@ function PublisherPage() {
                 </div>
               );
             }
+            if (effPreviewPlat === "yt") {
+              // YouTube — 16:9 video thumbnail with play badge, title, channel + views, action row.
+              return (
+                <div style={shell}>
+                  <div style={{ position:"relative", width:"100%", aspectRatio:"16 / 9", background:(firstImg||video)?"#000":"#0f0f0f", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {firstImg ? <img src={firstImg.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      : video ? (video.cover ? <img src={video.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <video src={video.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>)
+                      : <div style={{ color:"#7a8494", textAlign:"center" }}><Play size={26}/><div style={{ fontSize:10, marginTop:6 }}>Add a video →</div></div>}
+                    <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}><span style={{ width:46, height:32, borderRadius:8, background:"#FF0000", display:"flex", alignItems:"center", justifyContent:"center" }}><Play size={18} color="#fff" fill="#fff"/></span></span>
+                    <span style={{ position:"absolute", right:8, bottom:8, background:"rgba(0,0,0,0.8)", color:"#fff", fontSize:10, fontWeight:600, padding:"1px 5px", borderRadius:4 }}>10:24</span>
+                  </div>
+                  <div style={{ display:"flex", gap:10, padding:"11px 12px" }}>
+                    {avatar(36)}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13.5, fontWeight:600, lineHeight:1.3, color:capCol, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden" }}>{caption || "Your video title will appear here…"}</div>
+                      <div style={{ fontSize:11.5, color:grey, marginTop:4 }}>{brand} · 1.2K views · just now</div>
+                    </div>
+                    <MoreHorizontal size={16} style={{ color:grey, flexShrink:0 }}/>
+                  </div>
+                  <div style={{ display:"flex", borderTop:"1px solid #e4e6eb" }}>{[["Like",Heart],["Comment",MessageCircle],["Share",Send],["Save",Bookmark]].map(([l,Ic],i)=>(<div key={i} style={{ flex:1, minWidth:0, padding:"8px 0", display:"flex", flexDirection:"column", alignItems:"center", gap:3, color:grey, fontSize:10, fontWeight:600 }}><Ic size={16}/>{l}</div>))}</div>
+                </div>
+              );
+            }
             // X / Twitter
             return (
               <div style={shell}>
@@ -6895,6 +7125,8 @@ function SocialAccountsPage() {
   const LINKEDIN_CLIENT_ID = process.env.REACT_APP_LINKEDIN_CLIENT_ID || "";
   const TIKTOK_CLIENT_KEY = process.env.REACT_APP_TIKTOK_CLIENT_KEY || "";
   const X_CLIENT_ID = process.env.REACT_APP_X_CLIENT_ID || "";
+  const YOUTUBE_CLIENT_ID = process.env.REACT_APP_YOUTUBE_CLIENT_ID || "";
+  const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || YOUTUBE_CLIENT_ID;
   const [upgrade, setUpgrade] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -6969,6 +7201,24 @@ function SocialAccountsPage() {
     const twError = params.get('tw_error');
     if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/social'); }
     else if (twCode && realClientId) { handleXCallback(twCode); }
+  }, [realClientId]);
+
+  // Handle YouTube (Google) OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ytCode = params.get('yt_code');
+    const ytError = params.get('yt_error');
+    if (ytError) { setError(friendlyConnectError(ytError)); window.history.replaceState({}, '', '/social'); }
+    else if (ytCode && realClientId) { handleYoutubeCallback(ytCode); }
+  }, [realClientId]);
+
+  // Handle Google Business Profile OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gbCode = params.get('gb_code');
+    const gbError = params.get('gb_error');
+    if (gbError) { setError(friendlyConnectError(gbError)); window.history.replaceState({}, '', '/social'); }
+    else if (gbCode && realClientId) { handleGbpCallback(gbCode); }
   }, [realClientId]);
 
   const loadAccounts = async (clientId) => {
@@ -7283,6 +7533,85 @@ function SocialAccountsPage() {
     window.location.href = authUrl;
   };
 
+  const connectYtAccount = async (acc) => {
+    const storedId = sessionStorage.getItem('yt_redirect_client');
+    sessionStorage.removeItem('yt_redirect_client');
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
+    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      client_id: clientId, platform: 'yt', account_id: acc.account_id, account_name: acc.account_name,
+      username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
+      followers_count: acc.followers_count || 0, is_active: true,
+    }, { onConflict: 'client_id,account_id' });
+    if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
+    setSuccess(L(`YouTube "${acc.account_name}" connected!`, `تم ربط يوتيوب "${acc.account_name}"!`));
+    loadAccounts(clientId);
+  };
+
+  const handleYoutubeCallback = async (code) => {
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'youtube', code, redirectUri }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.account) await connectYtAccount(data.account);
+      else setError(L('No YouTube channel found to connect.','لم يتم العثور على قناة يوتيوب للربط.'));
+    } catch (err) { setError(friendlyConnectError(err.message)); }
+    setConnecting(false);
+    window.history.replaceState({}, '', '/social');
+  };
+
+  const connectYoutube = () => {
+    if (!guardConnect()) return;
+    if (!YOUTUBE_CLIENT_ID) { setError(L("YouTube isn't available yet. We're finishing its setup and it will be ready soon.","يوتيوب غير متاح بعد. نُكمل إعداده وسيكون جاهزاً قريباً.")); return; }
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    // upload videos + read channel + read analytics. access_type=offline + prompt=consent → refresh token.
+    const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly';
+    if (realClientId) sessionStorage.setItem('yt_redirect_client', realClientId);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${YOUTUBE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=yt`;
+    window.location.href = authUrl;
+  };
+
+  const connectGbAccount = async (acc) => {
+    const storedId = sessionStorage.getItem('gb_redirect_client');
+    sessionStorage.removeItem('gb_redirect_client');
+    const clientId = await resolveClientId(storedId);
+    if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
+    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      client_id: clientId, platform: 'gb', account_id: acc.account_id, account_name: acc.account_name,
+      username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
+      followers_count: acc.followers_count || 0, is_active: true,
+    }, { onConflict: 'client_id,account_id' });
+    if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
+    setSuccess(L(`Google Business "${acc.account_name}" connected!`, `تم ربط Google Business "${acc.account_name}"!`));
+    loadAccounts(clientId);
+  };
+
+  const handleGbpCallback = async (code) => {
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    setConnecting(true);
+    try {
+      const res = await fetch('/api/linkedin-oauth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'gbp', code, redirectUri }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.account) await connectGbAccount(data.account);
+      else setError(L('No Google Business account found to connect.','لم يتم العثور على حساب Google Business للربط.'));
+    } catch (err) { setError(friendlyConnectError(err.message)); }
+    setConnecting(false);
+    window.history.replaceState({}, '', '/social');
+  };
+
+  const connectGoogleBusiness = () => {
+    if (!guardConnect()) return;
+    if (!GOOGLE_CLIENT_ID) { setError(L("Google Business isn't available yet. We're finishing its setup and it will be ready soon.","Google Business غير متاح بعد. نُكمل إعداده وسيكون جاهزاً قريباً.")); return; }
+    const redirectUri = `https://tawaslo.com/api/linkedin-oauth`;
+    const scope = 'https://www.googleapis.com/auth/business.manage';
+    if (realClientId) sessionStorage.setItem('gb_redirect_client', realClientId);
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&client_id=${GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=gb`;
+    window.location.href = authUrl;
+  };
+
   const platformInfo = {
     ig: { name: "Instagram", color: "#E1306C", bg: "rgba(225,48,108,0.1)", Icon: FaInstagram },
     fb: { name: "Facebook",  color: "#1877F2", bg: "rgba(24,119,242,0.1)", Icon: FaFacebook  },
@@ -7297,7 +7626,8 @@ function SocialAccountsPage() {
     { key:'li', name:'LinkedIn', desc:L('Profile & company Pages','الملف وصفحات الشركة'), color:'#0A66C2', Icon:FaLinkedin, onConnect:connectLinkedin, live:true },
     { key:'tw', name:'X', desc:L('Coming soon','قريباً'), color:'#8A93A6', Icon:FaTwitter, onConnect:connectX, live:false },
     { key:'tt', name:'TikTok', desc:L('Business or creator','حساب أعمال أو منشئ'), color:'#FF0050', Icon:FaTiktok, onConnect:connectTiktok, live:true },
-    { key:'yt', name:'YouTube', desc:L('Coming soon','قريباً'), color:'#FF0000', Icon:FaYoutube, live:false },
+    { key:'yt', name:'YouTube', desc:YOUTUBE_CLIENT_ID ? L('Channel & Shorts','القناة والشورتس') : L('Coming soon','قريباً'), color:'#FF0000', Icon:FaYoutube, onConnect:connectYoutube, live:!!YOUTUBE_CLIENT_ID },
+    { key:'gb', name:'Google Business', desc:GOOGLE_CLIENT_ID ? L('Reviews, hours & posts','المراجعات والأوقات والمنشورات') : L('Coming soon','قريباً'), color:'#4285F4', Icon:FaGoogle, onConnect:connectGoogleBusiness, live:!!GOOGLE_CLIENT_ID },
   ];
   const countOf = (k) => accounts.filter(a => a.platform === k).length;
   const platformsConnected = [...new Set(accounts.map(a => a.platform))].length;
@@ -7667,7 +7997,8 @@ function AnalyticsPage() {
     setLoading(true);
     // Only Instagram has a live insights endpoint wired up. Facebook (and anything
     // else) goes straight to its own platform-flavored sample so the data differs.
-    if (acc.platform !== 'ig') {
+    // Instagram and YouTube have live insights endpoints; everything else uses a platform-flavored sample.
+    if (acc.platform !== 'ig' && acc.platform !== 'yt') {
       setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
       setLoading(false);
       return;
@@ -7676,11 +8007,11 @@ function AnalyticsPage() {
       const res = await fetch('/api/instagram-analytics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token }),
+        body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, platform: acc.platform === 'yt' ? 'youtube' : 'ig' }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'no insights');
-      setAnalyticsData(prev => ({ ...prev, [acc.id]: { ...data, platform:'ig' } }));
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: { ...data, platform: acc.platform } }));
     } catch(e) {
       setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
     }
@@ -12789,6 +13120,7 @@ export default function TawasloApp() {
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
+    if (page==="business") return <BusinessProfilePage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;

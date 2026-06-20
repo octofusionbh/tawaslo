@@ -7,6 +7,9 @@ export default async function handler(req, res) {
   const { accountId, accessToken } = req.body;
   if (!accountId || !accessToken) return res.status(400).json({ error: 'Missing required fields' });
 
+  // YouTube uses the same analytics shape so the Analytics page can render it unchanged.
+  if ((req.body.platform || '') === 'youtube') return youtubeAnalytics(accountId, accessToken, res);
+
   const base = accessToken.startsWith('IGAA') || accessToken.startsWith('IGQ')
     ? 'https://graph.instagram.com/v21.0'
     : 'https://graph.facebook.com/v19.0';
@@ -91,5 +94,83 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('Instagram analytics error:', err);
     return res.status(500).json({ error: 'Failed to fetch analytics', details: err.message });
+  }
+}
+
+// ── YouTube analytics — channel stats + recent videos (Data API) + 30-day views/watch-time (Analytics API).
+// Returns the SAME shape as Instagram so the Analytics page renders it with no changes.
+async function youtubeAnalytics(channelId, accessToken, res) {
+  try {
+    const yt = (url) => fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } }).then(r => r.json());
+
+    // 1. Channel snippet + statistics + uploads playlist
+    const ch = await yt(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,contentDetails&id=${channelId}`);
+    if (ch.error) return res.status(400).json({ error: ch.error.message });
+    const c = (ch.items && ch.items[0]) || {};
+    const sn = c.snippet || {}; const st = c.statistics || {};
+    const uploads = c.contentDetails && c.contentDetails.relatedPlaylists && c.contentDetails.relatedPlaylists.uploads;
+
+    // 2. Recent uploads → video stats (views/likes/comments)
+    let videoIds = [];
+    if (uploads) {
+      const pl = await yt(`https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=12&playlistId=${uploads}`);
+      videoIds = (pl.items || []).map(i => i.contentDetails && i.contentDetails.videoId).filter(Boolean);
+    }
+    let videos = [];
+    if (videoIds.length) {
+      const vd = await yt(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds.join(',')}`);
+      videos = vd.items || [];
+    }
+
+    const subs = parseInt(st.subscriberCount || '0', 10) || 0;
+    const totalViews = parseInt(st.viewCount || '0', 10) || 0;
+    const num = (v, k) => parseInt(((v.statistics || {})[k]) || '0', 10) || 0;
+    const recentLikes = videos.reduce((s, v) => s + num(v, 'likeCount'), 0);
+    const recentComments = videos.reduce((s, v) => s + num(v, 'commentCount'), 0);
+
+    // 3. 30-day views + estimated watch time via the YouTube Analytics API.
+    // Needs the yt-analytics.readonly scope; if not granted we fall back to channel totals only.
+    let chartData = []; let watchMinutes = 0;
+    try {
+      const end = new Date().toISOString().slice(0, 10);
+      const start = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const rep = await yt(`https://youtubeanalytics.googleapis.com/v2/reports?ids=channel%3D%3D${channelId}&startDate=${start}&endDate=${end}&metrics=views,estimatedMinutesWatched&dimensions=day&sort=day`);
+      if (rep.rows) {
+        chartData = rep.rows.slice(-30).map(row => ({
+          date: new Date(row[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          reach: row[1] || 0, impressions: 0,
+        }));
+        watchMinutes = rep.rows.reduce((s, row) => s + (row[2] || 0), 0);
+      }
+    } catch (e) { /* analytics scope not granted — channel stats still work */ }
+
+    const engagementRate = (subs > 0 && videos.length > 0)
+      ? (((recentLikes + recentComments) / videos.length) / subs * 100).toFixed(2) : 0;
+    const thumbOf = (o) => (o && o.thumbnails && (o.thumbnails.medium || o.thumbnails.default) || {}).url || null;
+
+    return res.status(200).json({
+      profile: {
+        username: sn.customUrl || sn.title, name: sn.title, followers: subs, following: 0,
+        mediaCount: parseInt(st.videoCount || '0', 10) || 0, picture: thumbOf(sn),
+        bio: sn.description || '', website: '',
+      },
+      summary: {
+        totalReach: totalViews, totalImpressions: 0, totalProfileViews: 0,
+        totalLikes: recentLikes, totalComments: recentComments,
+        engagementRate: parseFloat(engagementRate), postsAnalyzed: videos.length,
+        watchMinutes,
+      },
+      insightsError: null,
+      chartData,
+      recentPosts: videos.slice(0, 9).map(v => ({
+        id: v.id, caption: (v.snippet || {}).title || '', type: 'VIDEO',
+        timestamp: (v.snippet || {}).publishedAt,
+        likes: num(v, 'likeCount'), comments: num(v, 'commentCount'), reach: num(v, 'viewCount'),
+        impressions: 0, saved: 0, thumbnail: thumbOf(v.snippet),
+      })),
+    });
+  } catch (err) {
+    console.error('YouTube analytics error:', err);
+    return res.status(500).json({ error: 'Failed to fetch YouTube analytics', details: err.message });
   }
 }

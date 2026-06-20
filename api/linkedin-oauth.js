@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     // Callbacks are routed by the `state` prefix: tt=TikTok, tw=X, else LinkedIn.
     const { code, error, error_description, state } = req.query;
     const s = String(state || '');
-    const pre = s.startsWith('tt') ? 'tt' : s.startsWith('tw') ? 'tw' : 'li';
+    const pre = s.startsWith('tt') ? 'tt' : s.startsWith('tw') ? 'tw' : s.startsWith('gb') ? 'gb' : s.startsWith('yt') ? 'yt' : 'li';
     const codeParam = `${pre}_code`;
     const errParam = `${pre}_error`;
     if (error) return res.redirect(`https://tawaslo.com/social?${errParam}=${encodeURIComponent(error_description || error)}`);
@@ -44,6 +44,86 @@ export default async function handler(req, res) {
         followers_count: u.follower_count || 0,
       };
       return res.status(200).json({ account });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
+  // ── YouTube (Google) token exchange + channel info ──
+  if (provider === 'youtube') {
+    const YID = process.env.YOUTUBE_CLIENT_ID;
+    const YS = process.env.YOUTUBE_CLIENT_SECRET;
+    if (!YID || !YS) return res.status(400).json({ error: 'YouTube not configured. Add YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET in Vercel.' });
+    try {
+      const form = new URLSearchParams({ code, client_id: YID, client_secret: YS, redirect_uri: redirectUri, grant_type: 'authorization_code' });
+      const tk = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form,
+      }).then(r => r.json());
+      if (tk.error) return res.status(400).json({ error: tk.error_description || tk.error });
+      const token = tk.access_token;
+      const ch = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(r => r.json());
+      if (ch.error) return res.status(400).json({ error: (ch.error && ch.error.message) || 'Could not read YouTube channel.' });
+      const c = (ch.items && ch.items[0]) || {};
+      const sn = c.snippet || {}; const st = c.statistics || {};
+      const thumb = (sn.thumbnails && (sn.thumbnails.medium || sn.thumbnails.default)) || {};
+      const account = {
+        platform: 'yt', kind: 'channel',
+        account_id: c.id || 'youtube',
+        account_name: sn.title || 'YouTube',
+        username: sn.customUrl || sn.title || null,
+        access_token: token,
+        refresh_token: tk.refresh_token || null,
+        picture: thumb.url || null,
+        followers_count: parseInt(st.subscriberCount || '0', 10) || 0,
+      };
+      return res.status(200).json({ account });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
+  // ── Google Business Profile token exchange + the account that owns the locations ──
+  if (provider === 'gbp') {
+    const GID = process.env.GOOGLE_CLIENT_ID || process.env.YOUTUBE_CLIENT_ID;
+    const GS = process.env.GOOGLE_CLIENT_SECRET || process.env.YOUTUBE_CLIENT_SECRET;
+    if (!GID || !GS) return res.status(400).json({ error: 'Google Business not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Vercel.' });
+    try {
+      const form = new URLSearchParams({ code, client_id: GID, client_secret: GS, redirect_uri: redirectUri, grant_type: 'authorization_code' });
+      const tk = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form }).then(r => r.json());
+      if (tk.error) return res.status(400).json({ error: tk.error_description || tk.error });
+      const token = tk.access_token;
+      const acc = await fetch('https://mybusinessaccountmanagement.googleapis.com/v1/accounts', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
+      const a = (acc.accounts && acc.accounts[0]) || {};
+      const account = {
+        platform: 'gb', kind: 'business',
+        account_id: a.name || 'accounts/me',
+        account_name: a.accountName || 'Google Business',
+        username: a.accountName || null,
+        access_token: token,
+        refresh_token: tk.refresh_token || null,
+        picture: null,
+        followers_count: 0,
+      };
+      return res.status(200).json({ account, accounts: acc.accounts || [], errorInfo: acc.error || null });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
+  // ── Authenticated Google proxy — powers the whole Business Profile page (locations, reviews, hours, links,
+  //    attributes, posts, Q&A, insights, photos). The browser passes the stored token + the exact Google API
+  //    URL/method/body; we only forward to allowlisted Google Business hosts so the token can't be misused. ──
+  if (provider === 'google_proxy') {
+    const { accessToken, url, method, body: gbody } = req.body;
+    if (!accessToken || !url) return res.status(400).json({ error: 'accessToken and url are required' });
+    const ALLOW = ['mybusiness.googleapis.com', 'mybusinessbusinessinformation.googleapis.com', 'mybusinessaccountmanagement.googleapis.com', 'mybusinessplaceactions.googleapis.com', 'mybusinessqanda.googleapis.com', 'mybusinessverifications.googleapis.com', 'businessprofileperformance.googleapis.com'];
+    try {
+      const host = new URL(url).host;
+      if (!ALLOW.includes(host)) return res.status(400).json({ error: 'Host not allowed' });
+      const r = await fetch(url, {
+        method: method || 'GET',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: gbody ? JSON.stringify(gbody) : undefined,
+      });
+      const text = await r.text();
+      let data; try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
+      return res.status(r.ok ? 200 : (r.status || 400)).json(data);
     } catch (e) { return res.status(500).json({ error: e.message }); }
   }
 
