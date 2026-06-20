@@ -57,8 +57,11 @@ export default async function handler(req, res) {
       const meData = await meRes.json();
       console.log('Account:', JSON.stringify(meData));
 
+      // Instagram-login tokens are scoped to one account → read the token's own user ("me").
+      // Facebook-login tokens can manage multiple IG accounts → address the specific accountId.
+      const node = base.includes('graph.instagram.com') ? 'me' : accountId;
       const mediaRes = await fetch(
-        `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
+        `${base}/${node}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
       );
       const mediaData = await mediaRes.json();
       console.log('Media result:', JSON.stringify(mediaData).substring(0, 800));
@@ -97,8 +100,9 @@ export default async function handler(req, res) {
 
     } else if (type === 'messages') {
       // Fetch Instagram DMs — requires instagram_manage_messages permission
+      const dmNode = base.includes('graph.instagram.com') ? 'me' : accountId;
       const convsRes = await fetch(
-        `${base}/${accountId}/conversations?fields=id,participants,messages{id,message,from,created_time}&platform=instagram&access_token=${accessToken}`
+        `${base}/${dmNode}/conversations?fields=id,participants,messages{id,message,from,created_time}&platform=instagram&access_token=${accessToken}`
       );
       const convsData = await convsRes.json();
       if (convsData.error) return res.status(400).json({ error: convsData.error.message });
