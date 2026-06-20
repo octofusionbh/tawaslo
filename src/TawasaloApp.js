@@ -6685,7 +6685,7 @@ function PublisherPage() {
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
 
-        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:340, margin:"-56px auto 0", maxHeight:"calc(100vh - 120px)", display:"flex", flexDirection:"column" }}>
+        <div style={{ position:"sticky", top:16, alignSelf:"flex-start", width:"100%", maxWidth:460, margin:"-56px auto 0", maxHeight:"calc(100vh - 120px)", display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", alignItems:"center", marginBottom:8 }}>
             <div style={{ fontSize:10.5, color:th.text3, fontWeight:600, textTransform:"uppercase", letterSpacing:0.6 }}>{L("Live preview","معاينة مباشرة")}</div>
             {canExpandPreview && <button onClick={()=>setPreviewExpanded(true)} title={L("Expand preview","تكبير المعاينة")} style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, background:th.card, border:`1px solid ${th.border}`, color:th.text2, fontSize:10.5, fontWeight:600, borderRadius:8, padding:"4px 9px", cursor:"pointer" }}><Maximize2 size={13}/>{L("Expand","تكبير")}</button>}
