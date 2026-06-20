@@ -26,6 +26,12 @@ const REGION_YT = {
   usa:       "US",
 };
 
+// GCC + Worldwide blend several countries so the feed is genuinely distinct from any single country.
+const YT_BLEND = {
+  worldwide: ["US", "GB", "IN", "BR"],
+  gcc:       ["AE", "SA", "BH", "KW", "QA", "OM"],
+};
+
 function mapYoutube(data, region) {
   const out = [];
   for (const v of (data?.items || [])) {
@@ -111,11 +117,46 @@ function mapInstagram(data, tag) {
   return out;
 }
 
+// Apify dataset mappers — read whatever the TikTok / Instagram scraper Actors output (schemas vary by Actor,
+// so we accept several common field names defensively).
+function mapApifyTiktok(items) {
+  const arr = Array.isArray(items) ? items : (items && items.items) || [];
+  return arr.map(p => ({
+    platform: "tiktok",
+    id: String(p.id || p.webVideoUrl || Math.random()),
+    caption: p.text || p.desc || "",
+    author: (p.authorMeta && p.authorMeta.name) ? "@" + p.authorMeta.name : (p.authorName ? "@" + p.authorName : ""),
+    thumbnail: (p.videoMeta && p.videoMeta.coverUrl) || (Array.isArray(p.covers) ? p.covers[0] : null) || p.coverUrl || p.thumbnail || null,
+    url: p.webVideoUrl || p.url || "",
+    views: p.playCount || p.views || 0,
+    likes: p.diggCount || p.likes || 0,
+    hashtag: "apify",
+  })).filter(i => i.thumbnail);
+}
+
+function mapApifyInstagram(items) {
+  const arr = Array.isArray(items) ? items : (items && items.items) || [];
+  return arr.map(p => ({
+    platform: "instagram",
+    id: String(p.id || p.shortCode || p.url || Math.random()),
+    caption: typeof p.caption === "string" ? p.caption : (p.caption && p.caption.text) || "",
+    author: p.ownerUsername ? "@" + p.ownerUsername : (p.ownerFullName || ""),
+    thumbnail: p.displayUrl || p.thumbnailUrl || p.imageUrl || null,
+    url: p.url || (p.shortCode ? `https://www.instagram.com/p/${p.shortCode}/` : ""),
+    views: p.videoViewCount || p.viewsCount || 0,
+    likes: p.likesCount || p.likeCount || 0,
+    hashtag: "apify",
+  })).filter(i => i.thumbnail);
+}
+
 export default async function handler(req, res) {
   const token = process.env.ENSEMBLE_TOKEN;
   const YT_KEY = process.env.YOUTUBE_API_KEY;
-  if (!token && !YT_KEY) {
-    return res.status(200).json({ connected: false, items: [], message: "No trends source configured. Add YOUTUBE_API_KEY (free) and/or ENSEMBLE_TOKEN in Vercel env vars." });
+  const APIFY_TOKEN = process.env.APIFY_TOKEN;
+  const APIFY_TT_ACTOR = process.env.APIFY_TT_ACTOR; // e.g. clockworks~tiktok-scraper
+  const APIFY_IG_ACTOR = process.env.APIFY_IG_ACTOR; // e.g. apify~instagram-hashtag-scraper
+  if (!token && !YT_KEY && !APIFY_TOKEN) {
+    return res.status(200).json({ connected: false, items: [], message: "No trends source configured. Add YOUTUBE_API_KEY (free) and/or APIFY_TOKEN / ENSEMBLE_TOKEN in Vercel env vars." });
   }
 
   // Competitor profile lookup (best-effort) — powers the Competitor Spy feature.
@@ -162,19 +203,34 @@ export default async function handler(req, res) {
   // Build all upstream calls up front, then run them in parallel.
   const jobs = [];
   // Free, always-on: YouTube trending (mostPopular) via the YouTube Data API key (10k/day quota).
+  // GCC + Worldwide pull several countries and merge, so they're genuinely different from any single one.
   if (YT_KEY && (platform === "all" || platform === "youtube")) {
-    const rc = REGION_YT[region] || "US";
-    jobs.push(getJson(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${rc}&maxResults=24&key=${YT_KEY}`)
-      .then(d => mapYoutube(d, region)).catch(() => []));
+    const codes = YT_BLEND[region] || [REGION_YT[region] || "US"];
+    const per = codes.length > 1 ? 12 : 24;
+    for (const rc of codes) {
+      jobs.push(getJson(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=${rc}&maxResults=${per}&key=${YT_KEY}`)
+        .then(d => mapYoutube(d, region)).catch(() => []));
+    }
   }
-  // Paid layer: TikTok + Instagram trending via EnsembleData — only runs when a token (with quota) exists.
+  // TikTok + Instagram: prefer Apify (its scheduler scrapes daily; we just read the last successful run's
+  // dataset — one fast call, no timeout). Fall back to EnsembleData only for a platform Apify isn't set for.
+  const apifyTT = APIFY_TOKEN && APIFY_TT_ACTOR;
+  const apifyIG = APIFY_TOKEN && APIFY_IG_ACTOR;
+  if (apifyTT && (platform === "all" || platform === "tiktok")) {
+    jobs.push(getJson(`https://api.apify.com/v2/acts/${APIFY_TT_ACTOR}/runs/last/dataset/items?token=${APIFY_TOKEN}&status=SUCCEEDED&clean=true&limit=24`)
+      .then(d => mapApifyTiktok(d)).catch(() => []));
+  }
+  if (apifyIG && (platform === "all" || platform === "instagram")) {
+    jobs.push(getJson(`https://api.apify.com/v2/acts/${APIFY_IG_ACTOR}/runs/last/dataset/items?token=${APIFY_TOKEN}&status=SUCCEEDED&clean=true&limit=24`)
+      .then(d => mapApifyInstagram(d)).catch(() => []));
+  }
   if (token) {
     for (const tag of tags) {
-      if (platform === "all" || platform === "tiktok") {
+      if (!apifyTT && (platform === "all" || platform === "tiktok")) {
         jobs.push(getJson(`${ROOT}/tt/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=0&token=${token}`)
           .then(d => mapTiktok(d, tag)).catch(() => []));
       }
-      if (platform === "all" || platform === "instagram") {
+      if (!apifyIG && (platform === "all" || platform === "instagram")) {
         jobs.push(getJson(`${ROOT}/instagram/hashtag/posts?name=${encodeURIComponent(tag)}&cursor=&get_author_info=false&token=${token}`)
           .then(d => mapInstagram(d, tag)).catch(() => []));
       }
