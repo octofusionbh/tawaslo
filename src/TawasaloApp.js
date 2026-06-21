@@ -3559,7 +3559,7 @@ function CalendarRoomPage() {
 .row{display:flex;gap:11px;align-items:center;padding:9px 0;border-bottom:1px solid #eef0f3}.rth{width:44px;height:44px;border-radius:9px;background-size:cover;background-position:center;flex:0 0 auto}
 .rm{min-width:0}.rd{font-size:11px;color:#667085;margin-bottom:3px}.rc{font-size:12px;color:#27303c;line-height:1.4}
 .st{display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px}.st.published{background:#e6f5ee;color:#1f7a52}.st.approved{background:#fbf2dd;color:#8a6516}.st.scheduled{background:#eaf0f7;color:#3a5876}
-</style></head><body><div class="hd"><div><h1>${esc(selClient?.name||'Brand')} — Content calendar</h1><div class="sub">${monthLabel} &middot; ${monthPosts.length} posts &middot; ${publishedN} published &middot; ${scheduledN} scheduled</div></div><div class="sub">Prepared with Tawaslo</div></div><div class="dow">${DOWH.map(h=>`<div>${h}</div>`).join('')}</div><div class="cal">${cells}</div><div class="lt">ALL POSTS</div>${list}</body></html>`);
+</style></head><body><div class="hd"><div><h1>${esc(selClient?.name||'Brand')} — Content calendar</h1><div class="sub">${monthLabel} &middot; ${monthPosts.length} posts &middot; ${publishedN} published &middot; ${scheduledN} scheduled</div></div><div class="sub" style="display:flex;align-items:center;gap:7px"><img src="https://tawaslo.com/logo-transparent.png" alt="Tawaslo" style="width:22px;height:22px;object-fit:contain"/>Prepared with Tawaslo</div></div><div class="dow">${DOWH.map(h=>`<div>${h}</div>`).join('')}</div><div class="cal">${cells}</div><div class="lt">ALL POSTS</div>${list}</body></html>`);
     w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) { /* ignore */ } }, 500);
   };
 
@@ -4435,7 +4435,7 @@ function CompetitorSpyPage() {
     const mix = (data.contentMix||[]).map(([l,p]) => `<tr><td style="padding:3px 10px 3px 0">${esc(l)}</td><td style="padding:3px 0;font-weight:600">${p}%</td></tr>`).join('');
     const statsH = (stats && stats.ok) ? `<p style="font-size:12px;color:#555;margin:0 0 14px">Followers: ${fmt(stats.followers)} · Avg engagement: ${fmt(stats.avgEngagement)} · Posts: ${fmt(stats.postCount)}</p>` : '';
     const cleanHandle = handle.replace(/^@/, '');
-    const html = `<html><head><meta charset="utf-8"><title>Competitor analysis — @${esc(cleanHandle)}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:1.5"><h1 style="font-size:21px;margin:0 0 2px">Competitor analysis — @${esc(cleanHandle)}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(niche||'')} · ${esc(platform)} · ${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${statsH}<p style="font-size:14px"><b>Read:</b> ${esc(data.summary||'')}</p><h3 style="font-size:14px">Strengths</h3><ul>${li(data.strengths)}</ul><h3 style="font-size:14px">Gaps to exploit</h3><ul>${li(data.gaps)}</ul><h3 style="font-size:14px">Content mix (estimated)</h3><table style="font-size:13px">${mix}</table><p style="font-size:12px;color:#3a5">${esc((mixHashtags||[]).join(' '))}</p><h3 style="font-size:14px">How to beat them</h3><ol>${li(data.playbook)}</ol></body></html>`;
+    const html = `<html><head><meta charset="utf-8"><title>Competitor analysis — @${esc(cleanHandle)}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a;line-height:1.5"><div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><img src="https://tawaslo.com/logo-transparent.png" alt="Tawaslo" style="width:30px;height:30px;object-fit:contain"/><span style="font-size:15px;font-weight:800">Tawaslo</span></div><h1 style="font-size:21px;margin:0 0 2px">Competitor analysis — @${esc(cleanHandle)}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(niche||'')} · ${esc(platform)} · ${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${statsH}<p style="font-size:14px"><b>Read:</b> ${esc(data.summary||'')}</p><h3 style="font-size:14px">Strengths</h3><ul>${li(data.strengths)}</ul><h3 style="font-size:14px">Gaps to exploit</h3><ul>${li(data.gaps)}</ul><h3 style="font-size:14px">Content mix (estimated)</h3><table style="font-size:13px">${mix}</table><p style="font-size:12px;color:#3a5">${esc((mixHashtags||[]).join(' '))}</p><h3 style="font-size:14px">How to beat them</h3><ol>${li(data.playbook)}</ol></body></html>`;
     try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
   };
 
@@ -4645,7 +4645,7 @@ function ReelStudioPage() {
     if (!script) return;
     const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
     const scenes = (script.scenes||[]).map((s,i) => `<tr><td style="padding:8px 10px;border:1px solid #ddd;font-weight:600;white-space:nowrap;vertical-align:top">${esc(s.time||('Scene '+(i+1)))}</td><td style="padding:8px 10px;border:1px solid #ddd;vertical-align:top">🎬 ${esc(s.shot)}<br><b>On-screen:</b> ${esc(s.onscreen)}<br><b>VO:</b> ${esc(s.voiceover)}</td></tr>`).join('');
-    const html = `<html><head><meta charset="utf-8"><title>${esc(script.title||'Reel script')}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a"><h1 style="font-size:21px;margin:0 0 2px">${esc(script.title||'Reel script')}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(selClient?.name||'')} · ${duration} · ${esc(platform)} · Tawaslo</div><div style="background:#f3f4f6;border-radius:8px;padding:12px 14px;font-size:15px;font-weight:600;margin-bottom:14px">🎯 ${esc(script.hook)}</div><table style="width:100%;border-collapse:collapse;font-size:13px">${scenes}</table><p style="font-size:13px;margin-top:16px"><b>Caption:</b> ${esc(script.caption)}</p><p style="font-size:12px;color:#444">${esc((script.hashtags||[]).join(' '))}</p><p style="font-size:13px"><b>CTA:</b> ${esc(script.cta)}<br><b>Audio:</b> ${esc(script.audio)}</p></body></html>`;
+    const html = `<html><head><meta charset="utf-8"><title>${esc(script.title||'Reel script')}</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:32px auto;padding:0 22px;color:#1a1a1a"><div style="display:flex;align-items:center;gap:8px;margin-bottom:14px"><img src="https://tawaslo.com/logo-transparent.png" alt="Tawaslo" style="width:30px;height:30px;object-fit:contain"/><span style="font-size:15px;font-weight:800">Tawaslo</span></div><h1 style="font-size:21px;margin:0 0 2px">${esc(script.title||'Reel script')}</h1><div style="font-size:12px;color:#888;margin-bottom:14px">${esc(selClient?.name||'')} · ${duration} · ${esc(platform)} · Tawaslo</div><div style="background:#f3f4f6;border-radius:8px;padding:12px 14px;font-size:15px;font-weight:600;margin-bottom:14px">🎯 ${esc(script.hook)}</div><table style="width:100%;border-collapse:collapse;font-size:13px">${scenes}</table><p style="font-size:13px;margin-top:16px"><b>Caption:</b> ${esc(script.caption)}</p><p style="font-size:12px;color:#444">${esc((script.hashtags||[]).join(' '))}</p><p style="font-size:13px"><b>CTA:</b> ${esc(script.cta)}<br><b>Audio:</b> ${esc(script.audio)}</p></body></html>`;
     try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
   };
 
@@ -4781,7 +4781,7 @@ function FreeCaptionTool() {
   return (
     <div dir={isAR?"rtl":"ltr"} style={{ minHeight:"100vh", background:`radial-gradient(ellipse 70% 50% at 50% -6%, rgba(110,140,171,0.18), transparent 60%), ${C.bg}`, color:C.text, fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"18px 24px", maxWidth:760, margin:"0 auto" }}>
-        <a href="/" style={{ fontSize:19, fontWeight:900, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", textDecoration:"none" }}>Tawaslo</a>
+        <a href="/" style={{ display:"flex", alignItems:"center", gap:9, textDecoration:"none" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:32, height:32, objectFit:"contain" }}/><span style={{ fontSize:19, fontWeight:900, background:C.grad, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Tawaslo</span></a>
         <div style={{ display:"flex", gap:6 }}>
           {[["both","EN+AR"],["en","English"],["ar","العربية"]].map(([k,t]) => (
             <button key={k} onClick={()=>setLangMode(k)} style={{ ...chip(langMode===k), padding:"5px 11px", fontSize:11.5 }}>{t}</button>
@@ -4889,7 +4889,7 @@ function WhatsAppPage() {
   ];
   const exportReport = () => {
     const rows = reportStats.map(([k, v]) => `<tr><td style="padding:10px 0;color:#555;font-size:13px">${k}</td><td style="padding:10px 0;text-align:right;font-size:18px;font-weight:600">${v}</td></tr>`).join('');
-    const html = `<html><head><meta charset="utf-8"><title>WhatsApp report</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:620px;margin:34px auto;padding:0 22px;color:#1a1a1a"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><div style="width:30px;height:30px;border-radius:8px;background:#25D366;display:flex;align-items:center;justify-content:center;color:#04342C;font-weight:700">W</div><h1 style="font-size:21px;margin:0">WhatsApp report — ${selClient?.name || ''}</h1></div><div style="font-size:12px;color:#888;margin:0 0 20px 40px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div><table style="width:100%;border-collapse:collapse">${rows}</table></body></html>`;
+    const html = `<html><head><meta charset="utf-8"><title>WhatsApp report</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:620px;margin:34px auto;padding:0 22px;color:#1a1a1a"><div style="display:flex;align-items:center;gap:10px;margin-bottom:4px"><img src="https://tawaslo.com/logo-transparent.png" alt="Tawaslo" style="width:30px;height:30px;object-fit:contain"/><h1 style="font-size:21px;margin:0">WhatsApp report — ${selClient?.name || ''}</h1></div><div style="font-size:12px;color:#888;margin:0 0 20px 40px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div><table style="width:100%;border-collapse:collapse">${rows}</table></body></html>`;
     try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
   };
 
@@ -5223,7 +5223,7 @@ function SuggestedPage() {
   const exportDigest = () => {
     const esc = (s) => String(s||'').replace(/[&<>]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
     const rowsH = items.map(it => `<div style="padding:14px 0;border-bottom:1px solid #eee"><div style="font-size:11px;color:#888">${esc(it.source)} · ${esc(fmtDate(it.date))}</div><div style="font-size:15px;font-weight:600;margin:3px 0">${esc(it.title)}</div><div style="font-size:12.5px;color:#555;line-height:1.5">${esc(it.snippet)}</div><a href="${esc(it.link)}" style="font-size:11.5px;color:#4F6B8C">${esc(it.link)}</a></div>`).join('');
-    const html = `<html><head><meta charset="utf-8"><title>Content digest</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:30px auto;padding:0 20px;color:#1a1a1a"><h1 style="font-size:22px">Suggested content — ${esc(selClient?.name||'')}</h1><div style="font-size:12px;color:#888;margin-bottom:18px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${rowsH}</body></html>`;
+    const html = `<html><head><meta charset="utf-8"><title>Content digest</title></head><body style="font-family:-apple-system,Segoe UI,sans-serif;max-width:680px;margin:30px auto;padding:0 20px;color:#1a1a1a"><div style="display:flex;align-items:center;gap:8px;margin-bottom:12px"><img src="https://tawaslo.com/logo-transparent.png" alt="Tawaslo" style="width:30px;height:30px;object-fit:contain"/><span style="font-size:15px;font-weight:800">Tawaslo</span></div><h1 style="font-size:22px">Suggested content — ${esc(selClient?.name||'')}</h1><div style="font-size:12px;color:#888;margin-bottom:18px">${new Date().toLocaleDateString()} · Prepared with Tawaslo</div>${rowsH}</body></html>`;
     try { const w = window.open('', '_blank'); if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 400); } } catch (e) {}
   };
 
@@ -8946,7 +8946,7 @@ function ReportsPage() {
   body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#16181d;direction:${dir};-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cover{height:100vh;background:linear-gradient(150deg,#080B11 0%,#10141C 55%,#1A2230 100%);display:flex;flex-direction:column;justify-content:space-between;padding:64px;page-break-after:always;color:#fff}
   .clogo{display:flex;align-items:center;gap:13px}
-  .clogo .mk{width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800}
+  .clogo .mk{width:46px;height:46px;border-radius:13px;background:#fff url('https://tawaslo.com/logo-transparent.png') center/72% no-repeat}
   .clogo .nm{font-size:30px;font-weight:800;letter-spacing:-1px}
   .ctag{font-size:11px;color:rgba(255,255,255,.4);margin-top:10px;letter-spacing:3px;text-transform:uppercase}
   .clabel{font-size:12px;color:rgba(157,182,214,.85);text-transform:uppercase;letter-spacing:3px;margin-bottom:14px;font-weight:600}
@@ -8958,7 +8958,7 @@ function ReportsPage() {
   .page:last-child{page-break-after:auto}
   .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:46px}
   .ph-l{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#16181d}
-  .ph-l .mk{width:20px;height:20px;border-radius:6px;background:linear-gradient(135deg,#6E8CAB,#4F6B8C)}
+  .ph-l .mk{width:20px;height:20px;border-radius:6px;background:#fff url('https://tawaslo.com/logo-transparent.png') center/contain no-repeat}
   .ph-r{font-size:10px;color:#9aa3b2;text-align:right;line-height:1.6}
   .eyebrow{font-size:11px;font-weight:700;color:#4F6B8C;text-transform:uppercase;letter-spacing:3px;margin-bottom:20px}
   .hero{display:flex;align-items:flex-end;gap:16px}
@@ -8990,7 +8990,7 @@ function ReportsPage() {
 </style></head><body>
 
 <div class="cover">
-  <div><div class="clogo"><div class="mk">T</div><div class="nm">Tawaslo</div></div><div class="ctag">${T.platformTag}</div></div>
+  <div><div class="clogo"><div class="mk"></div><div class="nm">Tawaslo</div></div><div class="ctag">${T.platformTag}</div></div>
   <div>
     <div class="clabel">${T.monthlyReport}</div>
     <div class="cclient">${reportName}</div>
@@ -12658,7 +12658,7 @@ function LinkInBioBuilderPage() {
                 ))}
             </div>
             {row.show_posts && <div style={{ marginTop:16, display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:5 }}>{[0,1,2].map(i=><div key={i} style={{ aspectRatio:"1/1", borderRadius:7, background:PT.preset.card }}/>)}</div>}
-            <div style={{ textAlign:"center", fontSize:9.5, color:PT.preset.sub, marginTop:16 }}>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontSize:9.5, color:PT.preset.sub, marginTop:16 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:13, height:13, objectFit:"contain" }}/>{L("Powered by Tawaslo","مُشغّل بواسطة تواصلوا")}</div>
           </div>
         </div>
       </div>
@@ -12679,7 +12679,7 @@ function ShortLinkRedirect({ code }) {
     return () => { done = true; };
   }, [code]);
   const wrap = { minHeight:"100vh", background:"#080B11", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, boxSizing:"border-box", textAlign:"center" };
-  if (state === "missing") return <div style={wrap}><div><div style={{ fontSize:15, fontWeight:600 }}>This link isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+  if (state === "missing") return <div style={wrap}><div><div style={{ fontSize:15, fontWeight:600 }}>This link isn't available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
   return <div style={wrap}><div style={{ fontSize:13, color:"#9AA3AD" }}>Taking you there…</div></div>;
 }
 
@@ -12693,8 +12693,10 @@ function PublicInfoPage({ kind }) {
   const head = (
     <div style={{ borderBottom:`1px solid ${th.border}`, marginBottom:30 }}>
       <div style={{ ...inner, display:"flex", alignItems:"center", gap:10, padding:"18px 22px" }}>
-        <div style={{ width:30, height:30, borderRadius:8, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff" }}>T</div>
-        <a href="/" style={{ fontSize:16, fontWeight:700, color:th.text, textDecoration:"none" }}>Tawaslo</a>
+        <a href="/" style={{ display:"flex", alignItems:"center", gap:9, textDecoration:"none" }}>
+          <img src="/logo-transparent.png" alt="Tawaslo" style={{ width:34, height:34, objectFit:"contain" }}/>
+          <span style={{ fontSize:18, fontWeight:900, letterSpacing:"-0.6px", color:th.text }}>Tawaslo</span>
+        </a>
         <div style={{ marginLeft:"auto", display:"flex", gap:18, fontSize:12.5 }}>
           {[["Pricing","/pricing"],["Terms","/terms"],["Privacy","/privacy"],["Refunds","/refund"]].map(([l,u])=>(
             <a key={u} href={u} style={{ color:th.text2, textDecoration:"none" }}>{l}</a>
@@ -12942,7 +12944,7 @@ function CreateBioPage() {
 
         {err && <div style={{ fontSize:12, color:"#E2574B", marginBottom:12 }}>{err}</div>}
         <button onClick={save} disabled={busy} style={{ width:"100%", padding:"14px", borderRadius:12, background:"linear-gradient(120deg,#7C83FF,#5B8DEF)", border:"none", color:"#fff", fontSize:14.5, fontWeight:600, cursor:"pointer", opacity:busy?0.6:1 }}>{busy?"Saving…":editToken?"Save changes":"Create my page →"}</button>
-        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:20 }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#5C6470", marginTop:20 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:15, height:15, objectFit:"contain" }}/>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
       </div>
     </div>
   );
@@ -12966,7 +12968,7 @@ function LinkInBioPage({ slug }) {
 
   const wrap = { minHeight:"100vh", background:"radial-gradient(1200px 600px at 50% -10%, #141B27 0%, #080B11 60%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", display:"flex", justifyContent:"center", padding:"40px 18px 60px", boxSizing:"border-box" };
   if (data === undefined) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
-  if (data === null) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This page isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+  if (data === null) return <div style={{ ...wrap, alignItems:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This page isn't available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
   const TH = resolveBioTheme(data);
   const accent = TH.accent;
   const links = (data.links||[]).filter(l=>l.url || l.label);
@@ -13007,7 +13009,7 @@ function LinkInBioPage({ slug }) {
         )}
 
         <div style={{ textAlign:"center", fontSize:11, color:TH.preset.sub, marginTop:30, opacity:0.85 }}>
-          <a href="https://tawaslo.com" target="_blank" rel="noreferrer" style={{ color:TH.preset.sub, textDecoration:"none" }}>Powered by <span style={{ fontWeight:600 }}>Tawaslo</span></a>
+          <a href="https://tawaslo.com" target="_blank" rel="noreferrer" style={{ color:TH.preset.sub, textDecoration:"none", display:"inline-flex", alignItems:"center", gap:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by <span style={{ fontWeight:600 }}>Tawaslo</span></a>
         </div>
       </div>
     </div>
@@ -13032,7 +13034,7 @@ function ClientPortalPage({ token }) {
 
   const wrap = { minHeight:"100vh", background:"radial-gradient(1100px 560px at 50% -8%, #141B27 0%, #080B11 62%)", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding:"34px 18px 60px", boxSizing:"border-box" };
   if (client === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
-  if (client === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This portal isn't available</div><div style={{ fontSize:12.5, color:"#7E8794", marginTop:6 }}>Powered by Tawaslo</div></div></div>;
+  if (client === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This portal isn't available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:5, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
 
   const startToday = new Date(); startToday.setHours(0,0,0,0);
   const upcoming = posts.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= startToday && p.status !== 'published').sort((a,b)=> new Date(a.scheduled_at)-new Date(b.scheduled_at)).slice(0,10);
@@ -13084,7 +13086,7 @@ function ClientPortalPage({ token }) {
           </div>
         )}
 
-        <div style={{ textAlign:"center", fontSize:11, color:"#5C6470", marginTop:30 }}>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#5C6470", marginTop:30 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:15, height:15, objectFit:"contain" }}/>Powered by <span style={{ color:"#9AA3AD", fontWeight:600 }}>Tawaslo</span></div>
       </div>
     </div>
   );
@@ -13174,7 +13176,7 @@ function ClientApprovalPage({ token }) {
         <Clock size={26} color="#5C7082" style={{ marginBottom:12 }}/>
         <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
         <div style={{ fontSize:12.5, color:"#9CB3C9", lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
-        <div style={{ fontSize:11, color:"#7E94A8", marginTop:18 }}>No account needed · Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#7E94A8", marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
       </div>
     </div></div>
   );
@@ -13224,7 +13226,7 @@ function ClientApprovalPage({ token }) {
             </div>
           )}
         </div>
-        <div style={{ textAlign:"center", fontSize:11, color:"#7E94A8", marginTop:12 }}>No account needed. This link expires in {data.expires || 7} days. Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:"#7E94A8", marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
       </div></div>
     );
   }
@@ -13275,7 +13277,7 @@ function ClientApprovalPage({ token }) {
           </div>
         </div>
         {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
-        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", textAlign:"center" }}>No account needed. This link expires in {data.expires || 7} days. Powered by Tawaslo</div>
+        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
       </div>
     </div></div>
   );
