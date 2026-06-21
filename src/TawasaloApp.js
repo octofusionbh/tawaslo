@@ -3461,6 +3461,9 @@ function CalendarRoomPage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const isVid = (u) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u || "");
+  // Shows a real video frame for reels/clips (CSS backgrounds can't render video).
+  const VidFill = ({ url }) => isVid(url) ? <video src={url} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/> : null;
   const repostStory = (p) => {
     try { sessionStorage.setItem('tw_repost', JSON.stringify({ url: p.image_url || "", caption: p.caption || "" })); } catch (e) { /* ignore */ }
     setPage('publisher');
@@ -3637,7 +3640,8 @@ function CalendarRoomPage() {
                     <div onClick={()=>setSlide({ posts:dayPosts, i:0 })} style={{ cursor:"pointer", height:92, position:"relative" }}>
                       <div style={{ display:"flex", height:"100%" }}>
                         {dayPosts.slice(0,2).map((p,pi) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; const st = statusOf(p); return (
-                          <div key={pi} style={{ position:"relative", flex:1, minWidth:0, overflow:"hidden", background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55" }}>
+                          <div key={pi} style={{ position:"relative", flex:1, minWidth:0, overflow:"hidden", background:p.image_url&&!isVid(p.image_url)?`center/cover url(${p.image_url})`:info.color+"55" }}>
+                            <VidFill url={p.image_url}/>
                             <info.Icon style={{ position:"absolute", bottom:4, left:5, fontSize:11, color:"#fff", filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}/>
                             {st==='published'
                               ? <span style={{ position:"absolute", bottom:4, right:5, display:"inline-flex", alignItems:"center", gap:2, fontSize:7.5, color:"#fff", background:"rgba(20,40,30,0.66)", padding:"1px 5px", borderRadius:8 }}><span style={{ width:4, height:4, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
@@ -3659,8 +3663,9 @@ function CalendarRoomPage() {
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(150px, 1fr))", gap:12 }}>
           {fPosts.slice().sort((a,b)=> new Date(b.scheduled_at)-new Date(a.scheduled_at)).map((p) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe }; const st = statusOf(p); return (
             <div key={p.id} onClick={()=>setSlide({ posts:[p], i:0 })} style={{ ...card, overflow:"hidden", cursor:"pointer" }}>
-              <div style={{ position:"relative", height:150, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"44" }}>
-                <span style={{ position:"absolute", top:7, left:7, width:24, height:24, borderRadius:7, background:"rgba(0,0,0,0.42)", display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ fontSize:13, color:"#fff" }}/></span>
+              <div style={{ position:"relative", height:150, overflow:"hidden", background:p.image_url&&!isVid(p.image_url)?`center/cover url(${p.image_url})`:info.color+"44" }}>
+                <VidFill url={p.image_url}/>
+                <span style={{ position:"absolute", top:7, left:7, width:24, height:24, borderRadius:7, background:"rgba(0,0,0,0.42)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1 }}><info.Icon style={{ fontSize:13, color:"#fff" }}/></span>
                 {st==='published'
                   ? <span style={{ position:"absolute", top:7, right:7, display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, color:"#fff", background:"rgba(20,40,30,0.7)", padding:"2px 7px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#5FBF92" }}/>{L("Live","مباشر")}</span>
                   : st==='approved'
@@ -3688,8 +3693,9 @@ function CalendarRoomPage() {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}><info.Icon style={{ fontSize:15, color:info.color }}/><span style={{ fontSize:12.5, fontWeight:600 }}>{new Date(p.scheduled_at).toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"long", day:"numeric", month:"long" })}</span></div>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>{posts.length>1 && <span style={{ fontSize:10.5, color:th.text3 }}><span className="tw-num">{i+1}</span> / <span className="tw-num">{posts.length}</span></span>}<button onClick={()=>setSlide(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={18}/></button></div>
             </div>
-            <div style={{ position:"relative", aspectRatio:"1 / 1", maxHeight:"min(44vh, 300px)", flexShrink:0, background:p.image_url?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
-              <span style={{ position:"absolute", top:9, left:9, display:"inline-flex", alignItems:"center", gap:4, fontSize:9, color:"#fff", background:"rgba(15,30,22,0.72)", padding:"3px 9px", borderRadius:20 }}><span style={{ width:5, height:5, borderRadius:"50%", background:sm.c }}/>{sm.l}</span>
+            <div style={{ position:"relative", aspectRatio:"1 / 1", maxHeight:"min(44vh, 300px)", flexShrink:0, background:p.image_url&&!isVid(p.image_url)?`center/cover url(${p.image_url})`:info.color+"55", overflow:"hidden" }}>
+              {isVid(p.image_url) && <video src={p.image_url} controls playsInline style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain", background:"#000" }}/>}
+              <span style={{ position:"absolute", top:9, left:9, display:"inline-flex", alignItems:"center", gap:4, fontSize:9, color:"#fff", background:"rgba(15,30,22,0.72)", padding:"3px 9px", borderRadius:20, zIndex:2 }}><span style={{ width:5, height:5, borderRadius:"50%", background:sm.c }}/>{sm.l}</span>
               {posts.length>1 && <>
                 <span onClick={()=>go(-1)} style={{ position:"absolute", top:"50%", left:8, transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><ChevronLeft size={17} color="#fff"/></span>
                 <span onClick={()=>go(1)} style={{ position:"absolute", top:"50%", right:8, transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(0,0,0,0.55)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}><ChevronRight size={17} color="#fff"/></span>
