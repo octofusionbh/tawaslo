@@ -123,9 +123,9 @@ function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
 // works before billing is wired, mirroring the trial-limit pattern above.
 // Full-access accounts (the agency owner) are never capped.
 const IMG_PACKS = [
-  { id:"lite", name:"Lite", images:50,  price:18.9 },
-  { id:"plus", name:"Plus", images:100, price:24.9, popular:true },
-  { id:"max",  name:"Max",  images:250, price:39.9 },
+  { id:"lite", name:"Lite", images:50,  price:20.9 },
+  { id:"plus", name:"Plus", images:100, price:26.9, popular:true },
+  { id:"max",  name:"Max",  images:250, price:42.9 },
 ];
 const IMG_FREE = 5; // free images per client per month, before any pack
 function imgMonthKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
@@ -10072,13 +10072,42 @@ function BillingPage() {
     } catch (e) { /* ignore */ }
   }, []);
 
+  // ── Paddle (Merchant of Record — no CR needed) ───────────────────────
+  // Set these in Vercel → Project → Environment Variables, then redeploy:
+  //   REACT_APP_PADDLE_TOKEN   (client-side token from Paddle → Developer Tools → Authentication)
+  //   REACT_APP_PADDLE_ENV     'sandbox' while testing, 'production' when live
+  //   REACT_APP_PADDLE_ESSENTIAL_M / _Y, _PRO_M / _Y, _ENT_M / _Y  (the price IDs, pri_xxx)
+  const PADDLE_TOKEN = process.env.REACT_APP_PADDLE_TOKEN || "";
+  const PADDLE_ENV = process.env.REACT_APP_PADDLE_ENV || "production";
+  const PADDLE_PRICES = {
+    Essential:    { monthly: process.env.REACT_APP_PADDLE_ESSENTIAL_M, annual: process.env.REACT_APP_PADDLE_ESSENTIAL_Y },
+    Professional: { monthly: process.env.REACT_APP_PADDLE_PRO_M,       annual: process.env.REACT_APP_PADDLE_PRO_Y },
+    Enterprise:   { monthly: process.env.REACT_APP_PADDLE_ENT_M,       annual: process.env.REACT_APP_PADDLE_ENT_Y },
+  };
+  const paddleReady = useRef(false);
+  useEffect(() => {
+    if (!PADDLE_TOKEN || typeof window === "undefined") return;
+    const init = () => { try {
+      window.Paddle.Environment.set(PADDLE_ENV);
+      window.Paddle.Initialize({ token: PADDLE_TOKEN, eventCallback: (ev) => {
+        if (ev && ev.name === "checkout.completed") { try { sessionStorage.setItem("tw_pay", "success"); } catch (e) {} setPaid(true); setCheckoutPlan(null); }
+      } });
+      paddleReady.current = true;
+    } catch (e) {} };
+    if (window.Paddle) { init(); return; }
+    const s = document.createElement("script"); s.src = "https://cdn.paddle.com/paddle/v2/paddle.js"; s.async = true; s.onload = init;
+    document.body.appendChild(s);
+  }, []); // eslint-disable-line
+
   // The plan and billing cycle the user is actually subscribed to.
   const currentPlanName = "Essential";
   const currentPeriod = "annual";
+  // Prices are grossed up to absorb the Merchant-of-Record fee (5% + $0.50) so the
+  // net landing in the ila USD account stays at the ~$49 / $99 / $199 targets.
   const plans = [
-    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
-    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
-    { name:"Enterprise", m:199, y:159, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
+    { name:"Essential", m:54, y:43, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
+    { name:"Professional", m:109, y:87, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
+    { name:"Enterprise", m:219, y:175, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
   ];
 
   const applyPromo = async () => {
@@ -10105,6 +10134,21 @@ function BillingPage() {
 
   const startCheckout = async (planName, addonId) => {
     setBusy(planName); setNotice("");
+    // Prefer Paddle (Merchant of Record) when configured — opens a secure overlay, no redirect.
+    const pid = PADDLE_PRICES[planName] && PADDLE_PRICES[planName][period === "annual" ? "annual" : "monthly"];
+    if (PADDLE_TOKEN && paddleReady.current && pid && window.Paddle) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        try { if (addonId && addonId !== "none") sessionStorage.setItem("tw_pending_pack", addonId); else sessionStorage.removeItem("tw_pending_pack"); } catch (e) {}
+        window.Paddle.Checkout.open({
+          items: [{ priceId: pid, quantity: 1 }],
+          customer: user?.email ? { email: user.email } : undefined,
+          customData: { plan: planName, period, addon: addonId || "none" },
+        });
+        setBusy("");
+        return;
+      } catch (e) { setBusy(""); /* fall through to Tap / notice */ }
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser();
       // Remember the chosen image pack so we can activate it after the Tap redirect returns.
@@ -10115,7 +10159,7 @@ function BillingPage() {
       if (data.url) { window.location.href = data.url; return; }
       setBusy("");
       if (data.configured === false || /not connected|not configured/i.test(data.error || ''))
-        setNotice("Payments aren't connected yet — add your Tap secret key in Vercel (TAP_SECRET_KEY) to accept live cards. Everything else is wired and ready.");
+        setNotice("Payments aren't connected yet — add your Paddle keys in Vercel (REACT_APP_PADDLE_TOKEN + the price IDs) to accept live cards. No CR required. Everything else is wired and ready.");
       else setNotice(data.error || "Could not start checkout. Please try again.");
     } catch (e) { setBusy(""); setNotice("Could not start checkout. Please try again."); }
   };
@@ -12639,6 +12683,111 @@ function ShortLinkRedirect({ code }) {
   return <div style={wrap}><div style={{ fontSize:13, color:"#9AA3AD" }}>Taking you there…</div></div>;
 }
 
+// ── Public info pages (Pricing / Terms / Privacy / Refund) — no login. ──
+// Required by Paddle's website verification before live checkout, and good practice.
+function PublicInfoPage({ kind }) {
+  const th = DARK;
+  const COMPANY = "Tawaslo", OWNER = "Octo Fusion", EMAIL = "support@tawaslo.com", EFFECTIVE = "June 2026", LAW = "the Kingdom of Bahrain";
+  const wrap = { minHeight:"100vh", background:th.bg, color:th.text, fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"0 0 60px" };
+  const inner = { maxWidth:780, margin:"0 auto", padding:"0 22px" };
+  const head = (
+    <div style={{ borderBottom:`1px solid ${th.border}`, marginBottom:30 }}>
+      <div style={{ ...inner, display:"flex", alignItems:"center", gap:10, padding:"18px 22px" }}>
+        <div style={{ width:30, height:30, borderRadius:8, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"#fff" }}>T</div>
+        <a href="/" style={{ fontSize:16, fontWeight:700, color:th.text, textDecoration:"none" }}>Tawaslo</a>
+        <div style={{ marginLeft:"auto", display:"flex", gap:18, fontSize:12.5 }}>
+          {[["Pricing","/pricing"],["Terms","/terms"],["Privacy","/privacy"],["Refunds","/refund"]].map(([l,u])=>(
+            <a key={u} href={u} style={{ color:th.text2, textDecoration:"none" }}>{l}</a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+  const H = ({ children }) => <h2 style={{ fontSize:16, fontWeight:700, margin:"26px 0 8px", color:th.text }}>{children}</h2>;
+  const P = ({ children }) => <p style={{ fontSize:13.5, lineHeight:1.7, color:th.text2, margin:"0 0 10px" }}>{children}</p>;
+
+  if (kind === "pricing") {
+    const plans = [
+      { n:"Essential", m:54, y:43, tag:"For small businesses", f:["2 brands · 6 social accounts","Publisher, Planner & Calendar","Inbox, Streams & Trends","50 AI images / month"] },
+      { n:"Professional", m:109, y:87, tag:"For growing agencies", pop:true, f:["8 brands · unlimited accounts","Everything in Essential","Competitor Spy + Reports","Client approvals","100 AI images / month"] },
+      { n:"Enterprise", m:219, y:175, tag:"For large teams", f:["Unlimited brands","Everything in Professional","White-label client portal","Team roles + priority support"] },
+    ];
+    return (
+      <div style={wrap}>{head}
+        <div style={inner}>
+          <h1 style={{ fontSize:30, fontWeight:800, margin:"6px 0 6px", letterSpacing:"-0.5px" }}>Simple, transparent pricing</h1>
+          <p style={{ fontSize:14, color:th.text2, marginBottom:26 }}>Pick a plan, start with a 10-day free trial, and cancel anytime. Prices in USD. Billing and tax are handled securely by our payment partner.</p>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:14, marginBottom:30 }}>
+            {plans.map(p=>(
+              <div key={p.n} style={{ background:th.card, border:`1.5px solid ${p.pop?th.accent:th.border}`, borderRadius:16, padding:18, position:"relative" }}>
+                {p.pop && <span style={{ position:"absolute", top:-9, left:"50%", transform:"translateX(-50%)", background:th.accent, color:"#fff", fontSize:9.5, fontWeight:700, padding:"3px 11px", borderRadius:20 }}>MOST POPULAR</span>}
+                <div style={{ fontSize:14, fontWeight:700 }}>{p.n}</div>
+                <div style={{ fontSize:11.5, color:th.text2, marginBottom:10 }}>{p.tag}</div>
+                <div style={{ fontSize:30, fontWeight:800 }}>${p.m}<span style={{ fontSize:13, color:th.text2, fontWeight:400 }}>/mo</span></div>
+                <div style={{ fontSize:11, color:th.text3, marginBottom:12 }}>or ${p.y}/mo billed annually</div>
+                <div style={{ height:1, background:th.border, margin:"4px 0 12px" }}/>
+                {p.f.map((x,i)=><div key={i} style={{ fontSize:12.5, color:th.text2, lineHeight:1.9 }}><Check size={12} color={th.success} style={{ verticalAlign:-1 }}/> {x}</div>)}
+                <a href="/" style={{ display:"block", textAlign:"center", marginTop:14, padding:"10px", borderRadius:10, background:p.pop?th.gradient:th.card2, border:p.pop?"none":`1px solid ${th.border}`, color:p.pop?"#fff":th.text, fontSize:12.5, fontWeight:700, textDecoration:"none" }}>Start free trial</a>
+              </div>
+            ))}
+          </div>
+          <H>Optional AI image packs</H>
+          <P>Need more AI-generated images? Add a one-time pack anytime: Lite 50 images — $20.90 · Plus 100 images — $26.90 · Max 250 images — $42.90. Packs never expire.</P>
+          <P>All plans include a 10-day free trial. You can upgrade, downgrade, or cancel at any time from your account. For questions, contact us at {EMAIL}.</P>
+        </div>
+      </div>
+    );
+  }
+
+  const TITLES = { terms:"Terms of Service", privacy:"Privacy Policy", refund:"Refund Policy" };
+  return (
+    <div style={wrap}>{head}
+      <div style={inner}>
+        <h1 style={{ fontSize:28, fontWeight:800, margin:"6px 0 4px", letterSpacing:"-0.4px" }}>{TITLES[kind]}</h1>
+        <div style={{ fontSize:12, color:th.text3, marginBottom:8 }}>Effective {EFFECTIVE} · {COMPANY}, operated by {OWNER} ({LAW})</div>
+
+        {kind === "terms" && (<>
+          <P>Welcome to {COMPANY} (“we”, “us”, “our”), a social-media management software service operated by {OWNER}. By creating an account or using {COMPANY} at tawaslo.com (the “Service”), you agree to these Terms of Service.</P>
+          <H>1. The Service</H><P>{COMPANY} lets you schedule and publish social-media content, manage messages and comments, view analytics, and use AI-assisted content tools across connected platforms. Features may change or improve over time.</P>
+          <H>2. Accounts</H><P>You are responsible for your account, the accuracy of your information, keeping your password secure, and all activity under your account. You must be at least 18 years old to use the Service.</P>
+          <H>3. Subscriptions &amp; billing</H><P>The Service is offered on monthly or annual subscription plans. Payments are processed by our Merchant of Record, Paddle.com, who acts as the seller of record, handles billing, and issues invoices and receipts. By subscribing you authorise recurring charges until you cancel. Prices are shown in USD and may exclude or include tax depending on your location.</P>
+          <H>4. Free trial</H><P>New accounts may receive a free trial. If you do not cancel before the trial ends, your selected plan begins and the first charge applies.</P>
+          <H>5. Acceptable use</H><P>You agree not to use the Service for unlawful, abusive, infringing, or harmful activity, to violate any social platform's terms, to send spam, or to attempt to disrupt or reverse-engineer the Service.</P>
+          <H>6. Connected accounts</H><P>When you connect third-party accounts (e.g., Instagram, TikTok, YouTube, Facebook, LinkedIn, Google), you authorise {COMPANY} to act on your behalf within the permissions you grant. You can disconnect at any time.</P>
+          <H>7. Intellectual property</H><P>The Service, its software, and branding are owned by {OWNER}. Content you create or upload remains yours; you grant us a limited licence to host and process it to provide the Service.</P>
+          <H>8. Disclaimers &amp; liability</H><P>The Service is provided “as is” without warranties. To the maximum extent permitted by law, we are not liable for indirect or consequential damages, and our total liability is limited to the amount you paid in the prior 12 months.</P>
+          <H>9. Termination</H><P>You may cancel anytime. We may suspend or terminate accounts that breach these Terms.</P>
+          <H>10. Governing law</H><P>These Terms are governed by the laws of {LAW}. Questions: {EMAIL}.</P>
+        </>)}
+
+        {kind === "privacy" && (<>
+          <P>This Privacy Policy explains how {COMPANY}, operated by {OWNER}, collects and uses your information when you use tawaslo.com (the “Service”).</P>
+          <H>1. Information we collect</H><P>Account details (name, email, company), content you create, data from social accounts you connect (within the permissions you grant), payment information processed by our payment partner, and usage/technical data such as log and device information.</P>
+          <H>2. How we use it</H><P>To provide and improve the Service, publish and analyse your content, process payments, communicate with you, provide support, and keep the Service secure and compliant.</P>
+          <H>3. Service providers</H><P>We share data only as needed with trusted providers, including: Paddle (payments &amp; tax, as Merchant of Record), Supabase (database &amp; authentication), Vercel (hosting), and the social platforms you connect (Meta, TikTok, Google/YouTube, LinkedIn). Each processes data under its own terms.</P>
+          <H>4. Cookies</H><P>We use essential cookies for sign-in and session management, and limited analytics to understand usage.</P>
+          <H>5. Data retention &amp; security</H><P>We keep your data while your account is active and as required by law, and we apply reasonable safeguards to protect it.</P>
+          <H>6. Your rights</H><P>You may access, correct, export, or delete your personal data by contacting {EMAIL}. You can disconnect social accounts at any time from your settings.</P>
+          <H>7. Children</H><P>The Service is not intended for anyone under 18.</P>
+          <H>8. Contact</H><P>Questions about privacy: {EMAIL}.</P>
+        </>)}
+
+        {kind === "refund" && (<>
+          <P>This Refund Policy applies to subscriptions and add-ons purchased on {COMPANY} (tawaslo.com). Payments and refunds are processed by our Merchant of Record, Paddle.com.</P>
+          <H>1. Free trial</H><P>Every plan includes a 10-day free trial so you can evaluate the Service before paying. You will not be charged if you cancel before the trial ends.</P>
+          <H>2. 14-day money-back guarantee</H><P>If you are not satisfied, you may request a full refund of your <strong>first</strong> subscription payment within <strong>14 days</strong> of that charge. Contact {EMAIL} with your account email and we'll process it through Paddle.</P>
+          <H>3. Renewals</H><P>Recurring renewal charges (after the first payment) are generally non-refundable. To avoid a renewal, cancel before your next billing date — you'll keep access until the end of the paid period.</P>
+          <H>4. Add-on packs</H><P>One-time AI image packs are non-refundable once any image from the pack has been used.</P>
+          <H>5. How to cancel</H><P>Cancel anytime from your account's Billing page, or email {EMAIL}. Cancellation stops future charges; it does not retroactively refund past periods except as stated above.</P>
+          <H>6. Exceptions</H><P>Refunds may also be issued where required by law or for duplicate/erroneous charges. Contact {EMAIL} and we'll make it right.</P>
+        </>)}
+
+        <P style={{ marginTop:24, fontSize:11.5, color:th.text3 }}>This document is provided for general information and should be reviewed by a qualified legal professional for your jurisdiction.</P>
+      </div>
+    </div>
+  );
+}
+
 // ── Public self-serve bio creator (tawaslo.com/create) — no login, token-based edit. ──
 function CreateBioPage() {
   const editToken = (typeof window !== "undefined") ? new URLSearchParams(window.location.search).get('edit') : null;
@@ -13382,6 +13531,15 @@ export default function TawasloApp() {
   // Free public AI caption generator (tawaslo.com/free-caption-generator) — no login, SEO lead magnet.
   const capToolMatch = typeof window !== "undefined" && /^\/free-caption-generator\/?$/.test(window.location.pathname);
   if (capToolMatch) return <FreeCaptionTool/>;
+
+  // Public info pages (no login) — pricing + legal pages required for Paddle verification.
+  if (typeof window !== "undefined") {
+    const pth = window.location.pathname;
+    if (/^\/pricing\/?$/.test(pth)) return <PublicInfoPage kind="pricing"/>;
+    if (/^\/terms\/?$/.test(pth)) return <PublicInfoPage kind="terms"/>;
+    if (/^\/privacy\/?$/.test(pth)) return <PublicInfoPage kind="privacy"/>;
+    if (/^\/refund\/?$/.test(pth)) return <PublicInfoPage kind="refund"/>;
+  }
 
   // Don't render anything until we've checked the session
   if (!authReady) return null;
