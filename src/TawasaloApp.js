@@ -5360,6 +5360,13 @@ function CalendarPage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
+  const isVid = (u) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u || "");
+  // Small cover that shows a real video frame for clips, or an image for photos.
+  const Cover = ({ url, style, radius = 0 }) => url
+    ? (isVid(url)
+        ? <video src={url} muted playsInline preload="metadata" style={{ ...style, objectFit:"cover", background:"#0C1420", borderRadius:radius }}/>
+        : <img src={url} alt="" style={{ ...style, objectFit:"cover", borderRadius:radius }}/>)
+    : null;
   const [view, setView] = useState("list");
   const [planOpen, setPlanOpen] = useState(false);
   const [strategyOpen, setStrategyOpen] = useState(false);
@@ -5559,7 +5566,7 @@ function CalendarPage() {
   const chip = (p) => { const info = PLAT[p.platform] || { color:th.accent, Icon:Globe }; return (
     <div key={p.id} draggable onDragStart={(e)=>{ e.stopPropagation(); setDragId(p.id); }} onDragEnd={()=>{ setDragId(null); setDragOver(null); }} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 7px", borderRadius:8, background:info.color+"1e", borderLeft:`2.5px solid ${info.color}`, cursor:"grab", marginBottom:3, overflow:"hidden", opacity:dragId===p.id?0.4:1 }}>
       <span title={L(APPR_STATUS[stOf(p.id)].label,APPR_STATUS[stOf(p.id)].ar)} style={{ width:6, height:6, borderRadius:"50%", background:APPR_STATUS[stOf(p.id)].color, flexShrink:0 }}/>
-      {p.image_url ? <img src={p.image_url} alt="" style={{ width:16, height:16, borderRadius:4, objectFit:"cover", flexShrink:0 }}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
+      {p.image_url ? <Cover url={p.image_url} style={{ width:16, height:16, flexShrink:0 }} radius={4}/> : <info.Icon style={{ fontSize:11, color:info.color, flexShrink:0 }}/>}
       <span style={{ fontSize:9.5, color:info.color, fontWeight:600, flexShrink:0 }}>{fmtTime(p.scheduled_at)}</span>
       <span style={{ fontSize:10, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(no caption)","(بدون نص)")}</span>
     </div>
@@ -5772,7 +5779,7 @@ function CalendarPage() {
                 return (
                 <div key={p.id} onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer" }}>
                   <div style={{ width:40, height:40, borderRadius:11, background:info.color+"1e", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><info.Icon style={{ color:info.color, fontSize:18 }}/></div>
-                  <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, overflow:"hidden", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{p.image_url ? <img src={p.image_url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <Image size={15} color={th.text3}/>}</div>
+                  <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, overflow:"hidden", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{p.image_url ? <Cover url={p.image_url} style={{ width:"100%", height:"100%" }}/> : <Image size={15} color={th.text3}/>}</div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(untitled)","(بدون عنوان)")}</div>
                     <div style={{ fontSize:11, color:th.text2, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Clock size={12}/><span className="tw-num">{fmtTime(p.scheduled_at)}</span>{p.account_id && <span style={{ color:th.text3 }}>&middot; {(accounts.find(a=>a.account_id===p.account_id)||{}).account_name || info.name}</span>}</div>
@@ -5834,7 +5841,9 @@ function CalendarPage() {
               <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:16 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString([], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
-            {selected.image_url && <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>}
+            {selected.image_url && (isVid(selected.image_url)
+              ? <video src={selected.image_url} controls muted playsInline style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}`, background:"#000" }}/>
+              : <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>)}
             <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
             {busy.startsWith("err") && <div style={{ fontSize:11.5, color:th.danger, marginBottom:10 }}>{busy.slice(4)}</div>}
             {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>{L("Connected account not found for this post.","لم يتم العثور على الحساب المرتبط لهذا المنشور.")}</div>}
@@ -12961,15 +12970,22 @@ function ClientApprovalPage({ token }) {
       try {
         const r = await fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"load", token }) });
         const d = await r.json();
-        if (live) setData(d && d.posts && d.posts.length ? d : DEMO);
-      } catch (e) { if (live) setData(DEMO); }
+        if (live) {
+          if (d && Array.isArray(d.posts) && d.posts.length) setData(d);
+          else if (token === "preview" || token === "demo") setData(DEMO);   // explicit demo link only
+          else setData({ ...(d || {}), posts: [], empty: true });            // real link, nothing queued yet
+        }
+      } catch (e) { if (live) setData(token === "preview" || token === "demo" ? DEMO : { posts: [], empty: true, error: true }); }
     })();
     return () => { live = false; };
   }, [token]); // eslint-disable-line
 
   const PC = { ig:"#C13584", fb:"#1877F2" }, PN = { ig:"Instagram", fb:"Facebook" };
   const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E" };
-  const mediaBg = (m) => (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A"));
+  const isVid = (m) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(m || "");
+  const mediaBg = (m) => (isVid(m) ? "#0C1420" : (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A")));
+  // Renders a video frame (so reels/clips show a real cover) or an image background.
+  const VidCover = ({ m }) => isVid(m) ? <video src={m} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/> : null;
 
   if (!data) return <div style={{ minHeight:"100vh", background:"#0A0F18", display:"flex", alignItems:"center", justifyContent:"center", color:"#9CB3C9", fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
 
@@ -13004,6 +13020,17 @@ function ClientApprovalPage({ token }) {
 
   const statDot = (st) => <span style={{ width:7, height:7, borderRadius:"50%", background:SC[st]||"#E0B973", flexShrink:0 }}/>;
 
+  if (data.empty) return (
+    <div style={wrap}><div style={inner}>{header}
+      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, padding:"46px 24px", textAlign:"center" }}>
+        <Clock size={26} color="#5C7082" style={{ marginBottom:12 }}/>
+        <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
+        <div style={{ fontSize:12.5, color:"#9CB3C9", lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
+        <div style={{ fontSize:11, color:"#7E94A8", marginTop:18 }}>No account needed · Powered by Tawaslo</div>
+      </div>
+    </div></div>
+  );
+
   if (view === "post" && P) {
     const multi = (P.media || []).length > 1;
     const story = P.type === "Story";
@@ -13022,6 +13049,7 @@ function ClientApprovalPage({ token }) {
             onTouchStart={(e)=>{ touch.current = e.touches[0].clientX; }}
             onTouchEnd={(e)=>{ if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (dx < -40 && slide < P.media.length-1) setSlide(slide+1); else if (dx > 40 && slide > 0) setSlide(slide-1); touch.current = null; }}
             style={{ aspectRatio: story ? "9 / 16" : "1 / 1", maxHeight: phone ? "66vh" : 430, background: mediaBg(P.media[slide]), position:"relative", display:"flex", alignItems:"flex-end", justifyContent:"center", overflow:"hidden", touchAction:"pan-y" }}>
+            <VidCover m={P.media[slide]}/>
             <span style={{ position:"absolute", top:12, right:12, background:"rgba(0,0,0,0.4)", color:"#fff", fontSize:10.5, padding:"3px 10px", borderRadius:20 }}>{multi ? (slide+1)+"/"+P.media.length : P.type}</span>
             {multi && slide>0 && <span onClick={()=>setSlide(slide-1)} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronLeft size={18}/></span>}
             {multi && slide<P.media.length-1 && <span onClick={()=>setSlide(slide+1)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronRight size={18}/></span>}
@@ -13055,7 +13083,7 @@ function ClientApprovalPage({ token }) {
 
   const agendaRow = (p) => (
     <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:"0.5px solid rgba(150,175,205,0.1)", cursor:"pointer" }}>
-      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}><span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
+      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}>{isVid(p.media[0]) && <span style={{ position:"absolute", inset:0, borderRadius:11, overflow:"hidden" }}><VidCover m={p.media[0]}/></span>}<span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
       <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:"#7E94A8", marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
       {p.status==="approved" ? <CheckCircle size={17} color="#5FBF92"/> : p.status==="revised" ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#C9A24E", background:"rgba(201,162,78,0.16)", padding:"3px 8px", borderRadius:20 }}><Sparkles size={11}/>New</span> : statDot(p.status)}
       <ChevronRight size={16} color="#5C7082"/>
@@ -13072,7 +13100,7 @@ function ClientApprovalPage({ token }) {
         const c = SC[p.status]||"#E0B973", rev = p.status==="revised";
         cells.push(<div key={d} onClick={()=>openPost(p.id)} style={{ minHeight:62, border: rev?"1px solid #C9A24E":`0.5px solid ${c}55`, borderRadius:9, padding:"5px 6px", background:c+(rev?"14":"10"), cursor:"pointer", position:"relative" }}>
           <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#CFE0F0", marginBottom:3 }}>{d}</div>
-          <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]) }}/>
+          <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]), position:"relative", overflow:"hidden" }}><VidCover m={p.media[0]}/></div>
           {rev ? <span style={{ position:"absolute", top:4, right:4, display:"inline-flex", alignItems:"center", gap:2, fontSize:8, color:"#C9A24E", background:"rgba(201,162,78,0.22)", padding:"2px 5px", borderRadius:9 }}><Sparkles size={9}/>New</span>
             : p.status==="approved" ? <span style={{ position:"absolute", top:5, right:5 }}><CheckCircle size={13} color="#5FBF92"/></span>
             : <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:c }}/>}
