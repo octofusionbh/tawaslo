@@ -2764,23 +2764,18 @@ function AgencyDashboard() {
   const fmtN = (n) => n>=1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,"")+"M" : n>=1000 ? (n/1000).toFixed(1).replace(/\.0$/,"")+"K" : String(n);
   const shownAccounts = (selPlatform && selPlatform!=="all") ? accounts.filter(a=>a.platform===selPlatform) : accounts;
   const dashFollowers = shownAccounts.reduce((s,a)=>s+(a.followers_count||0),0);
-  const dashReach = Math.round(dashFollowers * 8.4);
-  const dashEng = dashFollowers > 0 ? (3.8 + (dashFollowers % 30) / 10).toFixed(1) + "%" : "0%";
-  // Believable daily series so the charts have real points to hover over.
+  // Real reach & engagement need Meta/insights data we don't have on the dashboard yet,
+  // so show genuine zeros instead of fabricating numbers from the follower count.
+  const dashReach = 0;
+  const dashEng = "0%";
   const CHART_DAYS = 14;
-  const reachSeries = Array.from({length:CHART_DAYS},(_,i)=>Math.round((dashReach/CHART_DAYS)*(1.35+0.5*Math.sin(i/2.1)+(i/CHART_DAYS)*0.55)));
-  const engBase = dashFollowers*0.052;
-  const engSeries = Array.from({length:CHART_DAYS},(_,i)=>Math.round(engBase*(1+0.4*Math.cos(i/1.8)+(i/CHART_DAYS)*0.2)));
+  const reachSeries = Array.from({length:CHART_DAYS},()=>0);
+  const engBase = 0;
+  const engSeries = Array.from({length:CHART_DAYS},()=>0);
   const chartLabels = Array.from({length:CHART_DAYS},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(CHART_DAYS-1-i)); return d.toLocaleDateString([], {month:'short', day:'numeric'}); });
-  const UPCOMING_FALLBACK = [
-    {platform:"ig",time:"Today · 3:00 PM",  caption:"New collection drop",         status:"scheduled"},
-    {platform:"fb",time:"Today · 5:30 PM",  caption:"Behind the scenes",           status:"scheduled"},
-    {platform:"tw",time:"Today · 7:00 PM",  caption:"Exciting news dropping soon", status:"draft"    },
-    {platform:"li",time:"Tomorrow · 9 AM",  caption:"We are hiring! Apply now",    status:"scheduled"},
-    {platform:"tt",time:"Tomorrow · 6 PM",  caption:"Day in the life",             status:"draft"    },
-  ];
   const fmtWhen = (iso) => { const d=new Date(iso); const now=new Date(); const sameDay=d.toDateString()===now.toDateString(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (sameDay?"Today":d.toLocaleDateString([], {weekday:'short'}))+" · "+tm; };
-  const upcomingShown = upcoming.length ? upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status})) : UPCOMING_FALLBACK;
+  // Real upcoming posts only — no demo fallback. Empty list shows an empty state below.
+  const upcomingShown = upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status}));
   const kpiStats = [
     { label:L("Total Posts","إجمالي المنشورات"), value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
     { label:L("Total Reach","إجمالي الوصول"), value: dashFollowers > 0 ? fmtN(dashReach) : "0", change:"+28%", up:true, Icon:Eye, color:"info" },
@@ -2847,10 +2842,9 @@ function AgencyDashboard() {
               <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6 L200,38 L0,38 Z" fill={th.accent+"22"}/>
               <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6" fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
             </svg>
-            <span style={{fontSize:11.5,fontWeight:700,color:th.success,flexShrink:0}}>+28%</span>
           </div>
           <div style={{display:"flex",gap:22,flexShrink:0}}>
-            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{fmtN(dashReach)}</div><div style={{fontSize:10,color:th.text2}}>{L("Reach 30d","الوصول 30 يوم")}</div></div>
+            <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{dashReach>0?fmtN(dashReach):"—"}</div><div style={{fontSize:10,color:th.text2}}>{L("Reach 30d","الوصول 30 يوم")}</div></div>
             <div style={{textAlign:"right"}}><div className="tw-num" style={{fontSize:18,fontWeight:600,color:th.text}}>{dashEng}</div><div style={{fontSize:10,color:th.text2}}>{L("Eng. rate","معدل التفاعل")}</div></div>
           </div>
         </div>
@@ -2877,7 +2871,7 @@ function AgencyDashboard() {
                   <path d={sArea} fill={th.accent+"24"}/>
                   <path d={sLine} fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
                 </svg>
-                <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول 30 يوم")} <span className="tw-num" style={{color:th.text}}>{up?fmtN(Math.round(f*8.4)):"—"}</span></div>
+                <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول 30 يوم")} <span className="tw-num" style={{color:th.text}}>{"—"}</span></div>
               </div>
             );
           })}
@@ -2887,7 +2881,7 @@ function AgencyDashboard() {
       <div style={{marginBottom:22,paddingTop:4}}>
         <div style={{fontSize:10.5,fontWeight:700,letterSpacing:"1.5px",color:th.text3,marginBottom:11}}>{L("THIS MONTH","هذا الشهر")}</div>
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
-          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashFollowers>0?fmtN(dashReach):"0"}</span> {L("people, up","شخصًا، بارتفاع")} <span style={{color:th.success}}>28%</span>{L(", with a","، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}
+          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{fmtN(dashReach)}</span> {L("people, with a","شخصًا، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}
         </div>
         <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر 30 يومًا")}</div>
       </div>
@@ -2931,6 +2925,13 @@ function AgencyDashboard() {
             <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:7}}><Calendar size={14} color={th.accent}/>{L("Upcoming posts","المنشورات القادمة")}</div>
             <button onClick={()=>setPage("planner")} style={{fontSize:11,color:th.accent,background:"transparent",border:"none",cursor:"pointer",fontWeight:600,display:"flex",alignItems:"center",gap:3}}>{L("View all","عرض الكل")}<ChevronRight size={12}/></button>
           </div>
+          {upcomingShown.length===0 && (
+            <div style={{padding:"34px 18px",textAlign:"center",color:th.text2}}>
+              <Calendar size={26} style={{opacity:0.3,marginBottom:10}}/>
+              <div style={{fontSize:12.5,marginBottom:12}}>{L("No upcoming posts scheduled.","لا توجد منشورات مجدولة قادمة.")}</div>
+              <button onClick={()=>setPage("publisher")} style={{padding:"8px 15px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={13}/>{L("Schedule a post","جدول منشوراً")}</button>
+            </div>
+          )}
           {upcomingShown.map((p,i)=>{
             const PI = PlatformIcons[p.platform] || PlatformIcons.ig;
             return (
@@ -5311,7 +5312,7 @@ function ShortLinksPage() {
   const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
 
   useEffect(() => { if (!selClient?.name) { setLoading(false); return; } setLoading(true); supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setCid(data[0].id); else { setRows([]); setLoading(false); } }); }, [selClient]);
-  const load = (id) => { const c = id || cid; if (!c) return; setLoading(true); supabase.from('short_links').select('*').eq('client_id', c).order('created_at', { ascending: false }).then(({ data }) => { setRows(data || []); setLoading(false); }); };
+  const load = (id) => { const c = id || cid; if (!c) return; setLoading(true); supabase.from('short_links').select('*').eq('client_id', c).order('created_at', { ascending: false }).then(({ data }) => { setRows(data || []); setLoading(false); }, () => { setRows([]); setLoading(false); }); };
   useEffect(() => { if (cid) load(cid); }, [cid]);
 
   const copy = (txt, id) => { try { navigator.clipboard.writeText(txt); setCopied(id); setTimeout(()=>setCopied(null), 1500); } catch (e) {} };
@@ -8025,55 +8026,34 @@ function AnalyticsPage() {
   useEffect(() => {
     if (!selClient?.name) { setLoading(false); return; }
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); else setLoading(false); });
+      .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); else setLoading(false); }, () => setLoading(false));
   }, [selClient]);
 
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
       .then(({ data }) => {
-        if (data) {
+        if (data && data.length) {
           setAccounts(data);
           const first = data.find(a => a.platform === 'ig') || data[0];
-          if (first) {
-            setSelectedAcc(first);
-            fetchAnalytics(first);
-          } else {
-            setLoading(false);
-          }
+          setSelectedAcc(first);
+          fetchAnalytics(first);
+        } else {
+          setAccounts([]);
+          setLoading(false);
         }
-      });
+      }, () => setLoading(false));
   }, [realClientId]);
 
-  // Believable sample insights, used until real Meta insights are approved/available
-  // (so the analytics view is always complete instead of showing an error).
-  // Seeded per-account AND per-platform so every connected account shows its own
-  // distinct, plausible numbers — Instagram and Facebook never look identical.
-  const makeSampleAnalytics = (acc) => {
-    const platform = acc.platform || 'ig';
-    const key = String(acc.account_id || acc.id || acc.account_name || 'x') + ':' + platform;
-    let h = 2166136261; for (let i=0;i<key.length;i++){ h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
-    h = h >>> 0;
-    const r = (n) => { let x = (h ^ Math.imul(n+1, 2654435761)) >>> 0; x ^= x >>> 15; return (x % 100000) / 100000; };
-    const f = acc.followers_count || Math.round(3500 + r(0)*42000);
-    // Instagram reaches a higher multiple of its follower base than a Facebook Page does.
-    const reachMul = platform === 'fb' ? (2.8 + r(1)*2.4) : (6.5 + r(1)*4.5);
-    const imprMul  = reachMul * (1.2 + r(2)*0.5);
-    const reach = Math.round(f*reachMul), impr = Math.round(f*imprMul);
-    const phase = r(3)*6;
-    const chartData = Array.from({length:30},(_,i)=>{ const base=reach/30; const wave=1+0.42*Math.sin(i/3+phase)+(i/30)*(0.35+r(4)*0.4); return { date:"", reach:Math.round(base*wave*0.9), impressions:Math.round(base*wave*1.35) }; });
-    const types = platform === 'fb'
-      ? ["VIDEO","IMAGE","LINK","CAROUSEL_ALBUM"]
-      : ["REELS","CAROUSEL_ALBUM","IMAGE","VIDEO"];
-    const capsIG=["Behind the scenes ✨","New drop is live 🔥","Weekend mood ☀️","Customer love ❤️","Quick tips for you","Meet the team","Limited-time offer","Throwback Thursday","Big announcement soon"];
-    const capsFB=["Now open this weekend","Read our latest update","A look inside our kitchen","Thank you for 10k followers","This week's special","Community spotlight","We're hiring — join us","Customer story of the month","Tap to learn more →"];
-    const caps = platform === 'fb' ? capsFB : capsIG;
-    const recentPosts = Array.from({length:9},(_,i)=>({ type:types[(i+Math.floor(r(i)*4))%types.length], likes:Math.round(f*(0.018+r(i+10)*0.05)), comments:Math.round(f*(0.0015+r(i+20)*0.004)), caption:caps[i], thumbnail:null }));
-    const totalLikes=recentPosts.reduce((s,p)=>s+p.likes,0), totalComments=recentPosts.reduce((s,p)=>s+p.comments,0);
-    // Facebook engagement rates run lower than Instagram's.
-    const engBase = platform === 'fb' ? (1.4 + r(7)*1.8) : (3.4 + r(7)*3.1);
-    return { _sample:true, platform, summary:{ followers:f, totalReach:reach, totalImpressions:impr, engagementRate:Number(engBase.toFixed(1)), totalLikes, totalComments }, chartData, recentPosts };
-  };
+  // Real-or-nothing: when a platform has no live insights endpoint (or the call
+  // fails), show genuine zeros instead of fabricated numbers. Followers comes from
+  // the stored account record if we have it.
+  const emptyAnalytics = (acc) => ({
+    platform: acc.platform || 'ig',
+    summary: { followers: acc.followers_count || 0, totalReach: 0, totalImpressions: 0, engagementRate: 0, totalLikes: 0, totalComments: 0 },
+    chartData: Array.from({ length: 30 }, () => ({ date: "", reach: 0, impressions: 0 })),
+    recentPosts: [],
+  });
 
   const fetchAnalytics = async (acc) => {
     setLoading(true);
@@ -8081,7 +8061,7 @@ function AnalyticsPage() {
     // else) goes straight to its own platform-flavored sample so the data differs.
     // Instagram and YouTube have live insights endpoints; everything else uses a platform-flavored sample.
     if (acc.platform !== 'ig' && acc.platform !== 'yt') {
-      setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: emptyAnalytics(acc) }));
       setLoading(false);
       return;
     }
@@ -8095,7 +8075,7 @@ function AnalyticsPage() {
       if (!res.ok || data.error) throw new Error(data.error || 'no insights');
       setAnalyticsData(prev => ({ ...prev, [acc.id]: { ...data, platform: acc.platform } }));
     } catch(e) {
-      setAnalyticsData(prev => ({ ...prev, [acc.id]: makeSampleAnalytics(acc) }));
+      setAnalyticsData(prev => ({ ...prev, [acc.id]: emptyAnalytics(acc) }));
     }
     setLoading(false);
   };
@@ -8371,25 +8351,19 @@ function CampaignsPage() {
   const [form, setForm] = useState({ name:"", goal:"", start:"", end:"", platform:"all", accts:[] });
   const [accounts, setAccounts] = useState([]);
 
-  const sampleCampaigns = () => ([
-    { id:'s1', name:'Summer Collection Launch', goal:'Reach 100K accounts', status:'active',    start_date:'2026-06-01', end_date:'2026-06-30', posts:12, reach:84200,  engagement:6.4 },
-    { id:'s2', name:'Ramadan Greetings',        goal:'Brand awareness',     status:'completed', start_date:'2026-03-01', end_date:'2026-03-30', posts:18, reach:142000, engagement:7.8 },
-    { id:'s3', name:'Weekend Brunch Push',      goal:'Drive bookings',      status:'scheduled', start_date:'2026-06-15', end_date:'2026-06-22', posts:6,  reach:0,      engagement:0   },
-  ]);
-
   useEffect(() => {
     let active = true; setLoading(true);
-    if (!selClient?.name) { setCampaigns(sampleCampaigns()); setUsingSample(true); setLoading(false); return; }
+    if (!selClient?.name) { setCampaigns([]); setLoading(false); return; }
+    const done = (rows) => { if (active) { setCampaigns(rows); setLoading(false); } };
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => {
       const cid = data && data[0] && data[0].id;
       if (active) setRealClientId(cid || null);
+      if (!cid) { done([]); return; }
       supabase.from('campaigns').select('*').eq('client_id', cid).order('created_at', { ascending:false }).then(({ data, error }) => {
-        if (!active) return;
-        if (error || !data || data.length === 0) { setCampaigns(sampleCampaigns()); setUsingSample(true); }
-        else { setCampaigns(data.map(c => ({ ...c, posts:c.post_count||0, reach:c.reach||0, engagement:c.engagement||0 }))); setUsingSample(false); }
-        setLoading(false);
-      });
-    });
+        if (error || !data) { done([]); return; }
+        done(data.map(c => ({ ...c, posts:c.post_count||0, reach:c.reach||0, engagement:c.engagement||0 })));
+      }, () => done([]));
+    }, () => done([]));
     return () => { active = false; };
   }, [selClient]);
 
@@ -8428,7 +8402,14 @@ function CampaignsPage() {
         <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("New campaign","حملة جديدة")}</button>
       </div>
 
-      {loading ? <SkCards th={th} count={6} h={120} min={240}/> : (
+      {loading ? <SkCards th={th} count={6} h={120} min={240}/> : campaigns.length === 0 ? (
+        <div style={{ background:th.card, border:`1px dashed ${th.border}`, borderRadius:16, padding:"48px 24px", textAlign:"center" }}>
+          <Megaphone size={28} color={th.text3} style={{ marginBottom:12, opacity:0.6 }}/>
+          <div style={{ fontSize:15, fontWeight:600, color:th.text, marginBottom:6 }}>{L("No campaigns yet","لا توجد حملات بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, marginBottom:16, maxWidth:360, marginInline:"auto", lineHeight:1.6 }}>{L("Create your first campaign to group posts and track them against a goal.","أنشئ أول حملة لتجميع المنشورات وتتبّعها مقابل هدف.")}</div>
+          <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("New campaign","حملة جديدة")}</button>
+        </div>
+      ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:16 }}>
           {campaigns.map(c => {
             const st = STATUS[c.status] || STATUS.active;
