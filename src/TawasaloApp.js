@@ -12449,15 +12449,27 @@ function LinkInBioBuilderPage() {
   const [pages, setPages] = useState([]);
   const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
 
-  useEffect(() => { if (!selClient?.name) return; setLoading(true); supabase.from('clients').select('id,logo').eq('name', selClient.name).limit(1).then(({ data }) => { if (data && data[0]) setCid(data[0].id); else setLoading(false); }); }, [selClient]);
+  useEffect(() => {
+    if (!selClient?.name) { setLoading(false); setRow(r => r || defaultRow()); return; }
+    setLoading(true);
+    supabase.from('clients').select('id,logo').eq('name', selClient.name).limit(1)
+      .then(({ data }) => { if (data && data[0]) setCid(data[0].id); else { setRow(defaultRow()); setLoading(false); } })
+      .catch(() => { setRow(defaultRow()); setLoading(false); });
+  }, [selClient]);
   useEffect(() => {
     if (!cid) return;
-    supabase.from('bio_pages').select('*').eq('client_id', cid).order('created_at', { ascending: true }).then(({ data, error }) => {
-      if (error) { setPages([]); setRow(defaultRow()); setLoading(false); return; }
-      const list = data || []; setPages(list);
-      setRow(list.length ? list[0] : defaultRow());
-      setLoading(false);
-    });
+    let done = false;
+    // Safety net: never let the page hang on "Loading…" if the query stalls or the table is missing.
+    const guard = setTimeout(() => { if (!done) { setRow(r => r || defaultRow()); setLoading(false); } }, 6000);
+    supabase.from('bio_pages').select('*').eq('client_id', cid).order('created_at', { ascending: true })
+      .then(({ data, error }) => {
+        done = true; clearTimeout(guard);
+        if (error) { setPages([]); setRow(defaultRow()); setLoading(false); return; }
+        const list = data || []; setPages(list);
+        setRow(list.length ? list[0] : defaultRow());
+        setLoading(false);
+      })
+      .catch(() => { done = true; clearTimeout(guard); setPages([]); setRow(defaultRow()); setLoading(false); });
   }, [cid, selClient]);
   const defaultRow = () => ({ client_id:cid, slug: slugify(selClient?.name) + '-' + Math.random().toString(36).slice(2,6), title: selClient?.name || "", bio: "", avatar_url: selClient?.logo || "", accent: "#7C83FF", show_posts: true, links: [], hub: {} });
   const newPage = () => setRow(defaultRow());
