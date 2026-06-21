@@ -92,6 +92,14 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY not set in Vercel' });
   }
 
+  // ── SAFETY GATE ──────────────────────────────────────────────────────
+  // Auto-publishing stays OFF until you explicitly enable it (set PUBLISH_ENABLED=1
+  // in Vercel). This guarantees no approved/scheduled test post can ever go live by
+  // accident during setup. Flip it on only when you're truly ready to publish for real.
+  if (process.env.PUBLISH_ENABLED !== '1') {
+    return res.status(200).json({ ok: true, published: 0, message: 'auto-publishing disabled — set PUBLISH_ENABLED=1 in Vercel to enable' });
+  }
+
   const nowIso = new Date().toISOString();
   const results = [];
 
