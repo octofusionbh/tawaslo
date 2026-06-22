@@ -62,8 +62,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
       if (action === 'respondAll') {
-        const { decision } = req.body;
-        await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&appr_status=in.(pending,revised)`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ appr_status: decision, appr_responded_at: new Date().toISOString() }) });
+        const { decision, comment } = req.body;
+        const patch = { appr_status: decision, appr_responded_at: new Date().toISOString() };
+        if (comment) patch.appr_comment = comment;
+        await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&appr_status=in.(pending,revised)`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) });
         return res.status(200).json({ ok: true });
       }
       // ── Shareable engagement report (tawaslo.com/r/<token>) ──────────────

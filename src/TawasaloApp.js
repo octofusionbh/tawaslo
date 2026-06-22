@@ -13112,6 +13112,8 @@ function ClientApprovalPage({ token }) {
   const [slide, setSlide] = useState(0);
   const [commenting, setCommenting] = useState(false);
   const [comment, setComment] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
   const touch = useRef(null);
 
   useEffect(() => { let live = true;
@@ -13147,9 +13149,9 @@ function ClientApprovalPage({ token }) {
     setData(prev => ({ ...prev, posts: prev.posts.map(p => p.id === id ? { ...p, status:decision, comment:note || p.comment } : p) }));
     try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respond", token, postId:id, decision, comment:note || "" }) }); } catch (e) { /* ignore */ }
   };
-  const respondAll = (decision) => {
-    setData(prev => ({ ...prev, posts: prev.posts.map(p => (p.status === "pending" || p.status === "revised") ? { ...p, status:decision } : p) }));
-    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respondAll", token, decision }) }); } catch (e) { /* ignore */ }
+  const respondAll = (decision, note) => {
+    setData(prev => ({ ...prev, posts: prev.posts.map(p => (p.status === "pending" || p.status === "revised") ? { ...p, status:decision, comment: note || p.comment } : p) }));
+    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respondAll", token, decision, comment: note || "" }) }); } catch (e) { /* ignore */ }
   };
 
   const openPost = (id) => { setCur(id); setSlide(0); setCommenting(false); setComment(""); setView("post"); window.scrollTo(0, 0); };
@@ -13269,11 +13271,21 @@ function ClientApprovalPage({ token }) {
         <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:"0.5px solid rgba(150,175,205,0.12)" }}>
           <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
             <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:"#9CB3C9", marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
-            {pendingN>0 && <div style={{ display:"flex", gap:9 }}>
-              <button onClick={()=>respondAll("changes")} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
+            {pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
+              <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
               <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
             </div>}
           </div>
+          {pendingN>0 && bulkOpen && (
+            <div style={{ marginTop:13 }}>
+              <div style={{ fontSize:12, color:"#9CB3C9", marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
+              <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                <button onClick={()=>{ setBulkOpen(false); setBulkNote(""); }} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>{ respondAll("changes", bulkNote.trim()); setBulkOpen(false); setBulkNote(""); }} disabled={!bulkNote.trim()} style={{ flex:1, padding:"12px", borderRadius:11, background: bulkNote.trim()?"#4F6B8C":"#243140", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor: bulkNote.trim()?"pointer":"not-allowed", opacity: bulkNote.trim()?1:0.6 }}>Send request</button>
+              </div>
+            </div>
+          )}
         </div>
         {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
         <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
