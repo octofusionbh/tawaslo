@@ -320,6 +320,15 @@ Return ONLY a JSON object in this exact format (no markdown, no extra text):
   "playbook": ["concrete move to win (5-6 specific actions, most impactful first)"]
 }
 Notes: "sentiment" is the estimated % of their audience reactions/comments that are positive (0-100 integer). Order "playbook" from highest impact to lowest.`;
+  } else if (theMode === 'report') {
+    // Reports — turn the month's stats into a short executive insight + a recommendation.
+    maxTokens = 700;
+    const stats = req.body.stats ? JSON.stringify(req.body.stats) : '{}';
+    const langRule = language === 'ar' ? 'Write in Arabic.' : 'Write in English.';
+    messageContent = `You are a senior social-media strategist writing the executive summary of a client's monthly report. ${langRule}
+Here are this month's figures: ${stats}
+Write a sharp, confident 2–3 sentence read of how the account is doing — what's working, what stands out — then one specific, actionable recommendation for next month. No fluff, no restating every number; give insight a busy client would value. If figures are zero or missing, focus on growth setup and next steps honestly.
+Return ONLY a JSON object (no markdown): {"summary": "the 2-3 sentence read", "recommendation": "one concrete next step"}`;
   } else if (theMode === 'score') {
     // Post Score & Optimizer — rate a caption's engagement potential and rewrite it stronger.
     maxTokens = 1100;

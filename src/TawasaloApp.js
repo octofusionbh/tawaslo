@@ -8803,6 +8803,9 @@ function ReportsPage() {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [rClient, setRClient] = useState("all");
   const [rPlat, setRPlat] = useState("all");
+  const [aiSummary, setAiSummary] = useState(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState("");
 
   const cName = (id) => (clients.find(c=>String(c.id)===String(id))||{}).name || "";
   const platLabel = (p) => ({ ig:"Instagram", fb:"Facebook", li:"LinkedIn", tt:"TikTok", tw:"X", yt:"YouTube" }[p] || p);
@@ -9045,6 +9048,18 @@ ${topPosts.length > 0 ? `<div class="page">
     { label:L("Engagement rate","معدل التفاعل"), value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2" },
   ];
 
+  const genReport = async () => {
+    if (aiBusy) return;
+    setAiBusy(true); setAiErr("");
+    try {
+      const top = (analyticsData && analyticsData.recentPosts ? analyticsData.recentPosts : []).slice(0,3).map(p=>({ likes:p.likes, comments:p.comments, type:p.type }));
+      const stats = { scope: scopeLabel, month, followers: totalFollowers, accounts: accounts.length, platforms: platforms.map(platLabel), engagementRate: er, reach: (analyticsData && analyticsData.summary && analyticsData.summary.totalReach) || 0, topPosts: top };
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ mode:'report', stats, lang: isAR?'ar':'en' }) }).then(r=>r.json());
+      if (r && r.summary) setAiSummary(r); else setAiErr(L("Couldn't generate. Please try again.","تعذّر التوليد. حاول مجددًا."));
+    } catch (e) { setAiErr(L("Something went wrong.","حدث خطأ ما.")); }
+    setAiBusy(false);
+  };
+
   return (
     <div style={{padding:"26px 30px", maxWidth:1060}}>
       <div style={{marginBottom:18}}>
@@ -9077,6 +9092,25 @@ ${topPosts.length > 0 ? `<div class="page">
           ) : (
             <>{scopeLabel} reaches <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> followers across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> {accounts.length===1?"account":"accounts"} on <span className="tw-num">{platforms.length}</span> {platforms.length===1?"platform":"platforms"}{er!=null?<>, with a <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span> engagement rate</>:""}.</>
           )}
+        </div>
+      )}
+
+      {accounts.length>0 && (
+        <div style={{...rcard, padding:"15px 18px", marginBottom:16}}>
+          <div style={{display:"flex", alignItems:"center", gap:8}}>
+            <Sparkles size={15} color={th.accent}/>
+            <span style={{fontSize:13, fontWeight:600}}>{L("AI insights","رؤى الذكاء")}</span>
+            {!aiSummary ? (
+              <button onClick={genReport} disabled={aiBusy} style={{marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:aiBusy?"default":"pointer"}}>{aiBusy?<><RefreshCw size={13}/>{L("Analyzing…","يحلّل…")}</>:<><Sparkles size={13}/>{L("Generate","توليد")}</>}</button>
+            ) : (
+              <button onClick={genReport} disabled={aiBusy} title={L("Regenerate","إعادة التوليد")} style={{marginLeft:"auto", background:"transparent", border:"none", color:th.text3, cursor:"pointer", display:"flex"}}><RefreshCw size={14}/></button>
+            )}
+          </div>
+          {aiErr && <div style={{fontSize:12, color:th.danger, marginTop:9}}>{aiErr}</div>}
+          {aiSummary && <>
+            <div style={{fontSize:13.5, color:th.text, lineHeight:1.65, marginTop:11}}>{aiSummary.summary}</div>
+            {aiSummary.recommendation && <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginTop:10, paddingTop:10, borderTop:`1px solid ${th.border}`}}><span style={{color:th.accent, fontWeight:600}}>{L("Recommendation: ","التوصية: ")}</span>{aiSummary.recommendation}</div>}
+          </>}
         </div>
       )}
 
@@ -9533,6 +9567,12 @@ function InboxPage() {
   const L = (en, ar) => isAR ? ar : en;
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
   const platOf = (m) => PLAT[m && m.platform] || PLAT.ig;
+  // Lightweight sentiment so every message shows a mood at a glance (no API cost).
+  const SENT_POS = ['love','great','amazing','best','awesome','excellent','perfect','good','nice','thank','happy','recommend','beautiful','helpful','wonderful','😍','❤','🙌','🔥','😊','💛'];
+  const SENT_NEG = ['bad','worst','terrible','awful','poor','slow','disappointed','hate','rude','broken','late','problem','issue','refund','wrong','angry','scam','😡','👎','😠'];
+  const msgSent = (text) => { const t = ' ' + String(text||'').toLowerCase() + ' '; let s=0; SENT_POS.forEach(w=>{ if (t.includes(w)) s++; }); SENT_NEG.forEach(w=>{ if (t.includes(w)) s--; }); if (/(رائع|ممتاز|شكرا|أحب|جميل|حلو|روعة)/.test(text||'')) s++; if (/(سيء|سيئ|مشكلة|بطيء|وقح|زفت|مزعج)/.test(text||'')) s--; return s>0?'pos':s<0?'neg':'neu'; };
+  const sentColor = (s) => s==='pos'?th.success : s==='neg'?'#E2574B' : th.text3;
+  const sentLabel = (s) => s==='pos'?L('Positive','إيجابي') : s==='neg'?L('Negative','سلبي') : L('Neutral','محايد');
   const [accounts, setAccounts] = useState([]);
   const [messages, setMessages] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -9825,6 +9865,7 @@ function InboxPage() {
                   </div>
                   <div style={{fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5}}>{msg.text}</div>
                   <div style={{display:"flex", gap:6, alignItems:"center"}}>
+                    {(()=>{ const ms=msgSent(msg.text); return <span title={sentLabel(ms)} style={{width:7, height:7, borderRadius:"50%", background:sentColor(ms), flexShrink:0}}/>; })()}
                     <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":msg.type==='saved'?th.accent:th.text2, background:msg.type==='dm'?"#7C3AED1a":msg.type==='saved'?th.accentSoft:th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):msg.type==='saved'?L("Mention","إشارة"):L("Comment","تعليق")}</span>
                     {triage[String(msg.id)] && (()=>{ const t=triage[String(msg.id)]; const c=TRIAGE_CATS[t.category]; return <span style={{display:"inline-flex", alignItems:"center", gap:4, fontSize:9, fontWeight:700, color:c.color, background:c.color+"1f", padding:"2px 7px", borderRadius:5}}>{t.priority==='high' && <span style={{width:5, height:5, borderRadius:"50%", background:c.color}}/>}{isAR?c.ar:c.en}</span>; })()}
                     {msg.likeCount > 0 && <span style={{fontSize:9.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9}/> <span className="tw-num">{msg.likeCount}</span></span>}
@@ -9848,6 +9889,7 @@ function InboxPage() {
                     <div style={{fontSize:14, fontWeight:600, color:th.text}}>@{selected.from}</div>
                     <div style={{fontSize:11.5, color:th.text2}}><span style={{fontWeight:600, color:P.color}}>{P.name}</span> &middot; {selected.type === 'dm' ? L("Direct message","رسالة مباشرة") : selected.type === 'saved' ? L("Saved mention","إشارة محفوظة") : L("Comment","تعليق")} &middot; <span className="tw-num">{formatTime(selected.time)}</span></div>
                   </div>
+                  {(()=>{ const ms=msgSent(selected.text); return <span style={{display:"inline-flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:sentColor(ms), background:sentColor(ms)+"1a", padding:"3px 9px", borderRadius:20, flexShrink:0}}><span style={{width:6, height:6, borderRadius:"50%", background:sentColor(ms)}}/>{sentLabel(ms)}</span>; })()}
                   {selected.accountName && <span style={{fontSize:10.5, color:th.text3, flexShrink:0}}>&rarr; {selected.accountName}</span>}
                 </div>
                 <div style={{flex:1, overflowY:"auto", marginBottom:16}}>
