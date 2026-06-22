@@ -2584,38 +2584,29 @@ function ApprovalsPage() {
         <button onClick={openPicker} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 17px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}><Send size={15}/>{L("Send for approval","إرسال للموافقة")}</button>
       </div>
 
-      <div style={{ ...card, padding:"16px 18px", marginBottom:14 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:13 }}>
-          <Shield size={16} color={th.accent}/>
-          <span style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("June approvals","موافقات يونيو")}</span>
-          <span style={{ marginLeft:"auto", fontSize:11, color:th.text3 }}>{L("Link expires in ","ينتهي الرابط خلال ")}<span className="tw-num">6</span>{L(" days","أيام")}</span>
-        </div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:14 }}>
-          {[["approved",L("Approved","موافق")],["pending",L("Pending","بانتظار")],["changes",L("Changes","تعديلات")]].map(([k,lbl])=>(
-            <div key={k} style={{ background:th.card2, borderRadius:10, padding:"11px 12px" }}>
-              <div className="tw-num" style={{ fontSize:22, fontWeight:700, color:APPR_STATUS[k].color }}>{counts[k]||0}</div>
-              <div style={{ fontSize:11, color:th.text2 }}>{lbl}</div>
-            </div>
-          ))}
-        </div>
-        <div style={{ height:6, borderRadius:4, overflow:"hidden", display:"flex", marginBottom:15, background:th.card2 }}>
-          {["approved","pending","changes"].map(k=>{ const w = rows.length?((counts[k]||0)/rows.length*100):0; return w>0?<div key={k} style={{ width:w+"%", background:APPR_STATUS[k].color }}/>:null; })}
-        </div>
-        <div style={{ display:"flex", gap:9, flexWrap:"wrap" }}>
-          <button onClick={openPicker} style={{ flex:1, minWidth:140, display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Send size={14}/>{L("Send for approval","إرسال للموافقة")}</button>
-          <button onClick={()=>{ setExported(true); setTimeout(()=>setExported(false), 3000); }} disabled={!counts.approved} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"10px 14px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:counts.approved?th.text:th.text3, fontSize:12, fontWeight:600, cursor:counts.approved?"pointer":"not-allowed" }}><Image size={14}/>{exported?L("Preparing PDF…","يُحضّر الملف…"):L("Export approved plan as PDF","تصدير الخطة المعتمدة PDF")}</button>
+      {/* Clean inline summary — counts, export, expiry (no boxes / chunky bar) */}
+      <div style={{ display:"flex", alignItems:"center", gap:34, flexWrap:"wrap", marginBottom:14 }}>
+        {[["approved",L("Approved","موافق")],["pending",L("Pending","بانتظار")],["changes",L("Changes","تعديلات")]].map(([k,lbl])=>(
+          <div key={k} style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+            <span className="tw-num" style={{ fontSize:26, fontWeight:700, color:APPR_STATUS[k].color }}>{counts[k]||0}</span>
+            <span style={{ fontSize:12.5, color:th.text2 }}>{lbl}</span>
+          </div>
+        ))}
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:18 }}>
+          <button onClick={()=>{ setExported(true); setTimeout(()=>setExported(false), 3000); }} disabled={!counts.approved} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"transparent", border:"none", color:counts.approved?th.text2:th.text3, fontSize:12, cursor:counts.approved?"pointer":"not-allowed", padding:0 }}><Image size={13}/>{exported?L("Preparing PDF…","يُحضّر الملف…"):L("Export PDF","تصدير PDF")}</button>
+          <span style={{ fontSize:11.5, color:th.text3 }}>{L("expires in ","ينتهي خلال ")}<span className="tw-num">6</span>{L(" days","أيام")}</span>
         </div>
       </div>
-
-      <div style={{ ...card, padding:"12px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:12 }}>
-        <Shield size={16} color={th.text2}/>
-        <div style={{ flex:1 }}>
-          <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("This client requires approval","هذا العميل يتطلب موافقة")}</div>
-          <div style={{ fontSize:11, color:th.text3 }}>{L("New posts default to Send for approval.","المنشورات الجديدة تُرسل للموافقة افتراضياً.")}</div>
+      {rows.length>0 && (
+        <div style={{ height:3, borderRadius:2, overflow:"hidden", display:"flex", background:th.card2, marginBottom:22 }}>
+          {["approved","pending","changes"].map(k=>{ const w = ((counts[k]||0)/rows.length*100); return w>0?<div key={k} style={{ width:w+"%", background:APPR_STATUS[k].color }}/>:null; })}
         </div>
-        <span onClick={toggleNeeds} style={{ width:42, height:24, borderRadius:14, background:needs?th.accent:th.border, position:"relative", cursor:"pointer", transition:"background .2s", flexShrink:0 }}>
-          <span style={{ position:"absolute", top:3, left:needs?21:3, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/>
+      )}
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20, fontSize:12, color:th.text2 }}>
+        <span onClick={toggleNeeds} style={{ width:34, height:20, borderRadius:12, background:needs?th.accent:th.border, position:"relative", cursor:"pointer", transition:"background .2s", flexShrink:0 }}>
+          <span style={{ position:"absolute", top:2.5, left:needs?16:2.5, width:15, height:15, borderRadius:"50%", background:"#fff", transition:"left .2s" }}/>
         </span>
+        {L("This client requires approval — new posts default to Send for approval.","هذا العميل يتطلب موافقة — المنشورات الجديدة تُرسل للموافقة افتراضياً.")}
       </div>
 
       <div className="tw-scroll-x" style={{ display:"flex", gap:8, marginBottom:14 }}>
