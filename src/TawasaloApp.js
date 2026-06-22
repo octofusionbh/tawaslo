@@ -2531,7 +2531,6 @@ function ApprovalsPage() {
   const [posts, setPosts] = useState([]);
   const [override, setOverride] = useState({});
   const [loading, setLoading] = useState(true);
-  const PC = { ig:"#E1306C", fb:"#1877F2", tw:"#1DA1F2", li:"#0A66C2", tt:"#111", yt:"#FF0000" };
   const PN = { ig:"Instagram", fb:"Facebook", tw:"X", li:"LinkedIn", tt:"TikTok", yt:"YouTube" };
   const fmtTime = (iso) => { const d = new Date(iso); let h = d.getHours(); const mm = String(d.getMinutes()).padStart(2,'0'); const ap = h>=12?'PM':'AM'; h = h%12||12; return `${h}:${mm} ${ap}`; };
   const fmtWhen = (iso) => new Date(iso).toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short", day:"numeric", month:"short" }) + " · " + fmtTime(iso);
@@ -2550,15 +2549,8 @@ function ApprovalsPage() {
 
   // Real posts sent for approval; demo fallback (real images) so the queue is never empty in a walkthrough.
   const realRows = posts.map(p => ({ id:p.id, title:p.caption || L("(no caption)","(بدون نص)"), p:p.platform, when:p.scheduled_at?fmtWhen(p.scheduled_at):"", img:p.image_url, comment:p.appr_comment, _st:p.appr_status }));
-  const demoRows = [
-    { id:"a1", title:"Sunset reel",          p:"ig", when:"Tue 2 Jun · 6:00 PM",  _st:"approved", img:APPROVAL_IMAGES[0] },
-    { id:"a2", title:"Weekend brunch offer",  p:"fb", when:"Thu 4 Jun · 1:00 PM",  _st:"approved", img:APPROVAL_IMAGES[1] },
-    { id:"a3", title:"Pool day carousel",     p:"ig", when:"Sat 6 Jun · 5:00 PM",  _st:"pending",  img:APPROVAL_IMAGES[2] },
-    { id:"a4", title:"Spa treatment promo",   p:"ig", when:"Sat 13 Jun · 6:00 PM", _st:"pending",  img:APPROVAL_IMAGES[3] },
-    { id:"a5", title:"Family package",        p:"fb", when:"Thu 18 Jun · 1:00 PM", _st:"changes",  img:APPROVAL_IMAGES[4], comment:L("Can we use the poolside photo instead, and add the price?","هل يمكن استخدام صورة المسبح وإضافة السعر؟") },
-    { id:"a6", title:"Drone over the marina", p:"ig", when:"Sat 20 Jun · 5:30 PM", _st:"approved", img:APPROVAL_IMAGES[5] },
-  ];
-  const baseRows = realRows.length ? realRows : demoRows;
+  const baseRows = realRows;   // real posts only — no demo fallback
+  const isVid = (u) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(u || "");
   const stOf = (r) => override[r.id] || r._st || apprStatusOf(r.id) || "pending";
   const rows = baseRows.map(r => ({ ...r, st: stOf(r) }));
   const setSt = (id, st) => { setOverride(o => ({ ...o, [id]: st })); setApprStatus(id, st); try { supabase.from('posts').update({ appr_status: st, appr_responded_at: new Date().toISOString() }).eq('id', id).then(()=>{}, ()=>{}); } catch (e) { /* demo rows */ } };
@@ -2569,9 +2561,6 @@ function ApprovalsPage() {
   const confirmSend = () => { setSentCount(sel.length); setPickerOpen(false); setSendOpen(true); };
   const FILTERS = [["all",L("All","الكل")],["pending",L("Pending","بانتظار")],["approved",L("Approved","موافق")],["changes",L("Changes","تعديلات")],["draft",L("Draft","مسودة")]];
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
-  const pill = (st) => { const s = APPR_STATUS[st]; return (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:s.color, background:s.color+"1F", padding:"3px 9px", borderRadius:20, whiteSpace:"nowrap" }}><span style={{ width:5, height:5, borderRadius:"50%", background:s.color }}/>{L(s.label,s.ar)}</span>
-  ); };
   if (loading) return (
     <div style={{ padding:"26px 30px", maxWidth:980 }}>
       <Sk w={170} h={22} mb={7}/>
@@ -2635,40 +2624,45 @@ function ApprovalsPage() {
         ); })}
       </div>
 
-      <div style={{ ...card, overflow:"hidden" }}>
-        <style>{`.tw-apprrow{transition:background .15s ease}.tw-apprrow:hover{background:${th.card2}}`}</style>
-        {shown.length === 0 ? <div style={{ padding:"40px 0", textAlign:"center", fontSize:12.5, color:th.text3 }}>{L("Nothing here.","لا شيء هنا.")}</div> :
-          shown.map((r,i) => { const Pi = ({ ig:FaInstagram, fb:FaFacebook, tw:FaTwitter, li:FaLinkedin, tt:FaTiktok, yt:FaYoutube }[r.p]) || Globe; const sc = (APPR_STATUS[r.st] || {}).color || th.text3; return (
-            <div key={r.id} className="tw-apprrow" style={{ padding:"13px 16px 13px 13px", borderLeft:`3px solid ${sc}`, borderBottom:i<shown.length-1?`1px solid ${th.border}`:"none" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-                <div style={{ width:48, height:48, borderRadius:11, flexShrink:0, position:"relative", background:r.img?`center/cover url(${r.img})`:(PC[r.p]||th.accent)+"55", boxShadow:"0 2px 8px rgba(0,0,0,0.25)" }}>
-                  <span style={{ position:"absolute", bottom:-4, right:-4, width:18, height:18, borderRadius:6, background:PC[r.p]||th.accent, border:`2px solid ${th.card}`, display:"flex", alignItems:"center", justifyContent:"center" }}><Pi style={{ fontSize:9, color:"#fff" }}/></span>
+      {shown.length === 0 ? (
+        <div style={{ ...card, padding:"56px 24px", textAlign:"center" }}>
+          <Shield size={26} color={th.text3} style={{ opacity:0.5, marginBottom:12 }}/>
+          <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:5 }}>{L("Nothing to approve yet","لا شيء للموافقة بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text2 }}>{L("Send posts for sign-off and they'll appear here.","أرسل منشورات للموافقة وستظهر هنا.")}</div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(212px, 1fr))", gap:16 }}>
+          {shown.map((r) => {
+            const Pi = ({ ig:FaInstagram, fb:FaFacebook, tw:FaTwitter, li:FaLinkedin, tt:FaTiktok, yt:FaYoutube }[r.p]) || Globe;
+            const s = APPR_STATUS[r.st] || {}; const sc = s.color || th.text3; const vid = isVid(r.img);
+            return (
+              <div key={r.id} style={{ border:`1px solid ${th.border}`, borderRadius:13, overflow:"hidden", background:th.card }}>
+                <div style={{ aspectRatio:"4 / 5", position:"relative", overflow:"hidden", background: r.img && !vid ? `center/cover url(${r.img})` : th.card2, display:"flex", alignItems:"flex-end", padding:12 }}>
+                  {vid && <video src={r.img} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/>}
+                  <span style={{ position:"absolute", top:12, left:12, width:26, height:26, borderRadius:7, background:"rgba(8,10,14,0.5)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1 }}><Pi style={{ fontSize:12, color:"#fff" }}/></span>
+                  <span style={{ position:"absolute", top:12, right:12, fontSize:10, fontWeight:700, color: r.st==="approved"?sc:"#0E1013", background: r.st==="approved"?"rgba(8,10,14,0.5)":sc, borderRadius:20, padding:"3px 9px", display:"inline-flex", alignItems:"center", gap:4, zIndex:1, ...(r.st==="approved"?{color:sc,backdropFilter:"blur(4px)"}:{}) }}>{r.st==="approved" && <CheckCircle size={11}/>}{L(s.label||r.st, s.ar||r.st)}</span>
+                  {vid && <span style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", color:"rgba(255,255,255,0.85)", zIndex:1 }}><Play size={22}/></span>}
+                  <div style={{ position:"relative", zIndex:1, fontSize:13, fontWeight:600, color:"#fff", lineHeight:1.35, textShadow:"0 1px 8px rgba(0,0,0,0.65)", maxHeight:54, overflow:"hidden" }}>{r.title}</div>
                 </div>
-                <div style={{ minWidth:0, flex:1 }}>
-                  <div style={{ fontSize:13.5, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
-                  <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{PN[r.p]||r.p} · {r.when}</div>
-                </div>
-                {pill(r.st)}
-                {r.st === "pending" || r.st === "changes" ? (
-                  <div style={{ display:"flex", gap:7, flexShrink:0 }}>
-                    <button onClick={()=>setSt(r.id,"changes")} title={L("Request changes","طلب تعديل")} style={{ width:33, height:33, borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><MessageCircle size={14}/></button>
-                    <button onClick={()=>setSt(r.id,"approved")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 13px", borderRadius:9, background:th.successSoft, border:`1px solid ${th.success}55`, color:th.success, fontSize:12, fontWeight:600, cursor:"pointer" }}><CheckCircle size={13}/>{L("Approve","موافقة")}</button>
+                <div style={{ padding:"11px 13px", borderTop:`1px solid ${th.border}` }}>
+                  {r.st === "changes" && r.comment ? <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.5, marginBottom:9 }}>&ldquo;{r.comment}&rdquo;</div> : null}
+                  <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <span style={{ fontSize:10, letterSpacing:"0.05em", textTransform:"uppercase", color:th.text3, flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{PN[r.p]||r.p} · {r.when}</span>
+                    {(r.st==="pending"||r.st==="changes") ? (<>
+                      <span onClick={()=>setSt(r.id,"changes")} style={{ fontSize:12, color:th.text2, cursor:"pointer" }}>{L("Changes","تعديل")}</span>
+                      <span onClick={()=>setSt(r.id,"approved")} style={{ fontSize:12, fontWeight:600, color:th.accent, cursor:"pointer" }}>{L("Approve","موافقة")}</span>
+                    </>) : r.st==="draft" ? (
+                      <span onClick={()=>setSt(r.id,"pending")} style={{ fontSize:12, color:th.text2, cursor:"pointer" }}>{L("Send","إرسال")}</span>
+                    ) : (
+                      <span style={{ fontSize:11, color:th.text3, display:"inline-flex", alignItems:"center", gap:4 }}><CheckCircle size={11} color={sc}/>{L("Signed off","تمت")}</span>
+                    )}
                   </div>
-                ) : r.st === "draft" ? (
-                  <button onClick={()=>setSt(r.id,"pending")} style={{ display:"flex", alignItems:"center", gap:5, padding:"8px 13px", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", flexShrink:0 }}><Send size={12}/>{L("Send","إرسال")}</button>
-                ) : (
-                  <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:th.text3, flexShrink:0 }}><CheckCircle size={12} color={sc}/>{L("Signed off","تمت")}</span>
-                )}
-              </div>
-              {r.st === "changes" && r.comment && (
-                <div style={{ display:"flex", gap:8, margin:"10px 0 1px 61px", padding:"9px 12px", background:"rgba(217,138,106,0.10)", border:"1px solid rgba(217,138,106,0.32)", borderRadius:11 }}>
-                  <MessageCircle size={13} color="#D98A6A" style={{ flexShrink:0, marginTop:1 }}/>
-                  <span style={{ fontSize:11.5, color:th.text2, lineHeight:1.45 }}>{r.comment} <span style={{ color:th.text3 }}>— {L("the client","العميل")}</span></span>
                 </div>
-              )}
-            </div>
-          ); })}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
