@@ -6419,9 +6419,14 @@ function PublisherPage() {
   };
 
   // ── Best time to post — recommended upcoming slots per platform ───────
+  // "Best time" only applies to chronological/feed platforms (IG, FB, LinkedIn, X).
+  // TikTok & YouTube distribute by algorithm, so post time barely matters there.
+  const CHRONO_PLATS = ["ig", "fb", "li", "tw"];
+  const schedPlat = selPlats.find(p => CHRONO_PLATS.includes(p)) || selPlats[0] || 'ig';
+  const bestTimeApplies = selPlats.some(p => CHRONO_PLATS.includes(p));
   const bestTimeSlots = () => {
-    const plat = selPlats[0] || 'ig';
-    const HRS = { ig:[11,13,19], fb:[9,13,15], li:[8,12,17], tw:[9,12,18], tt:[12,19,21], yt:[14,17,20] };
+    const plat = schedPlat;
+    const HRS = { ig:[11,13,19], fb:[9,13,15], li:[8,12,17], tw:[9,12,18] };
     const hours = HRS[plat] || [11,18];
     const now = new Date(); const out = [];
     for (let d = 0; d < 7 && out.length < 3; d++) {
@@ -6868,14 +6873,21 @@ function PublisherPage() {
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
                 </div>
-                <div style={{ marginBottom:13 }}>
-                  <div style={{ fontSize:10.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Clock size={11} color={th.accent}/>{L("Best times to post","أفضل أوقات النشر")}<span style={{ color:th.text3 }}>· {(PLAT[selPlats[0]]||{name:"Instagram"}).name}</span></div>
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                    {bestTimeSlots().map((s,i)=>{ const k = slotKey(s); const active = scheduleDate===k.date && scheduleTime===k.time;
-                      return <button key={i} onClick={()=>pickSlot(s)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 11px", borderRadius:999, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2, fontSize:11, fontWeight:active?600:400, cursor:"pointer" }}>{s.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short" })} <span className="tw-num">{k.time}</span></button>;
-                    })}
+                {bestTimeApplies ? (
+                  <div style={{ marginBottom:13 }}>
+                    <div style={{ fontSize:10.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Clock size={11} color={th.accent}/>{L("Best times to post","أفضل أوقات النشر")}<span style={{ color:th.text3 }}>· {(PLAT[schedPlat]||{name:"Instagram"}).name}</span></div>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      {bestTimeSlots().map((s,i)=>{ const k = slotKey(s); const active = scheduleDate===k.date && scheduleTime===k.time;
+                        return <button key={i} onClick={()=>pickSlot(s)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 11px", borderRadius:999, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accent:th.text2, fontSize:11, fontWeight:active?600:400, cursor:"pointer" }}>{s.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short" })} <span className="tw-num">{k.time}</span></button>;
+                      })}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ marginBottom:13, display:"flex", gap:8, alignItems:"flex-start", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"9px 11px" }}>
+                    <Info size={13} color={th.text3} style={{ flexShrink:0, marginTop:1 }}/>
+                    <span style={{ fontSize:10.5, color:th.text3, lineHeight:1.5 }}>{L("TikTok & YouTube distribute by algorithm, not post time — schedule whenever suits you. Consistency and content matter more than the exact slot.","تيك توك ويوتيوب يوزّعان بالخوارزمية لا بوقت النشر — جدوِل في أي وقت يناسبك. الاستمرارية والمحتوى أهم من الوقت المحدد.")}</span>
+                  </div>
+                )}
                 <div style={{ marginBottom:13 }}>
                   <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Repeat","التكرار")}</div>
                   <div style={{ display:"flex", gap:6 }}>
