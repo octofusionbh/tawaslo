@@ -133,6 +133,53 @@ export default async function handler(req, res) {
     return res.status(200).json({ items: all.slice(0, 16) });
   }
 
+  // ── Concierge — the AI front desk. Reads the venue's menu + availability,
+  // answers guest questions and books a table. Multi-turn: takes the chat
+  // history + a context object, returns { reply, booking }. The booking is
+  // executed client-side against Supabase so no service key is needed here.
+  if (theMode === 'concierge') {
+    const ctx = req.body.context || {};
+    const convo = Array.isArray(req.body.messages) ? req.body.messages.slice(-12) : [];
+    if (!convo.length) return res.status(400).json({ error: 'messages required' });
+    const menuLines = (ctx.menu || []).slice(0, 60).map(m =>
+      `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : ''}${m.available === false ? ' (sold out)' : ''}`
+    ).join('\n');
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const closed = (ctx.closedDays || []).map(d => dayNames[d]).join(', ') || 'none';
+    const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
+You can: answer menu and price questions, give opening hours, and book a table.
+Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
+Menu (prices in ${ctx.currency || 'BHD'}):
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}
+
+Rules:
+- Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
+- To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
+- Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
+
+Return ONLY a JSON object, no markdown:
+{ "reply": "your message to the guest", "booking": null }
+When (and only when) all required details are gathered and confirmed, set "booking" to:
+{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }`;
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5', max_tokens: 600, system: sys,
+          messages: convo.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 900) })),
+        }),
+      });
+      if (!r.ok) { const e = await r.text(); return res.status(500).json({ error: 'Concierge AI error', details: e }); }
+      const d = await r.json();
+      const text = ((d.content && d.content[0] && d.content[0].text) || '').trim();
+      const jm = text.match(/\{[\s\S]*\}/);
+      if (!jm) return res.status(200).json({ reply: text || '…', booking: null });
+      let parsed; try { parsed = JSON.parse(jm[0]); } catch (e) { return res.status(200).json({ reply: text, booking: null }); }
+      return res.status(200).json({ reply: parsed.reply || '', booking: parsed.booking || null });
+    } catch (e) { return res.status(500).json({ error: 'Concierge failed', details: e.message }); }
+  }
+
   // Vision modes need an image; reply needs a message; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });

@@ -686,6 +686,38 @@ function Sidebar() {
   useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
   const col = collapsed && !isMobile; // effective collapsed (mobile uses the drawer, never the rail)
 
+  // New-booking badge for Reservations: count bookings created since the host last opened the page.
+  const [resvNew, setResvNew] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const resolveCid = async () => {
+      if (selClient && selClient.id) return selClient.id;
+      if (selClient && selClient.name) { const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1); return data && data[0] && data[0].id; }
+      return null;
+    };
+    const check = async () => {
+      try {
+        const cidv = await resolveCid(); if (!cidv || !active) return;
+        const seen = (()=>{ try{ return localStorage.getItem('tw_resv_seen_'+cidv) || '1970-01-01'; }catch(e){ return '1970-01-01'; } })();
+        const { count } = await supabase.from('bookings').select('id', { count:'exact', head:true }).eq('client_id', cidv).gt('created_at', seen);
+        if (active) setResvNew(count || 0);
+      } catch(e){}
+    };
+    check();
+    const iv = setInterval(check, 25000);
+    return () => { active = false; clearInterval(iv); };
+  }, [selClient]);
+  useEffect(() => {
+    if (page !== 'reservations') return;
+    (async () => {
+      try {
+        let cidv = selClient && selClient.id;
+        if (!cidv && selClient && selClient.name) { const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1); cidv = data && data[0] && data[0].id; }
+        if (cidv) { try{ localStorage.setItem('tw_resv_seen_'+cidv, new Date().toISOString()); }catch(e){} setResvNew(0); }
+      } catch(e){}
+    })();
+  }, [page, selClient]);
+
   const OWNER_NAV = [
     {key:"overview", Icon:LayoutDashboard, label:"Overview"     },
     {key:"clients",  Icon:Building2,       label:"All Clients"  },
@@ -833,7 +865,7 @@ function Sidebar() {
             <div key={si} style={{marginBottom:16}}>
               {!col&&<div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {sec.items.filter(it=>!(isMobile&&it.key==="publisher")).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),badge,page===key,()=>setPage(key)))}
+              {sec.items.filter(it=>!(isMobile&&it.key==="publisher")).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
           ))
         )}
@@ -12653,6 +12685,86 @@ function MenuBuilderPage() {
   );
 }
 
+// ── Concierge — AI front desk on public pages. Reads menu + availability,
+// answers questions, and books a table straight into the bookings engine. ──
+function ConciergeWidget({ clientId, name, currency }) {
+  const [open, setOpen] = useState(false);
+  const [ctx, setCtx] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    if (!clientId) return;
+    let live = true;
+    (async () => {
+      let menu = [], settings = {}, cur = currency || 'BHD';
+      try { const { data: mn } = await supabase.from('menus').select('id,currency').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,price,available').eq('menu_id', m.id).limit(80); menu = it || []; } } catch (e) {}
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
+      if (live) setCtx({ menu, settings, currency: cur });
+    })();
+    return () => { live = false; };
+  }, [clientId, currency]);
+
+  useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, open, busy]);
+  const openChat = () => { setOpen(true); if (msgs.length===0) setMsgs([{ role:'assistant', content:`Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋` }]); };
+
+  const send = async () => {
+    const text = input.trim(); if (!text || busy) return;
+    const next = [...msgs, { role:'user', content:text }];
+    setMsgs(next); setInput(""); setBusy(true);
+    try {
+      const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
+      const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
+      let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+      const d = await r.json();
+      setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
+      const b = d.booking;
+      if (b && b.date && b.time && b.name) {
+        const t = b.time.length===5 ? b.time : ('0'+b.time);
+        const sd = new Date(b.date + 'T' + t + ':00');
+        if (!isNaN(sd.getTime())) {
+          await supabase.from('bookings').insert([{ client_id:clientId, customer_name:b.name, customer_phone:b.phone||null, party_size:Number(b.party)||2, starts_at:sd.toISOString(), source:'concierge', status:'confirmed', note:b.occasion||null }]);
+          setMsgs(m => [...m, { role:'system', content:`Booked — ${sd.toLocaleDateString([], { weekday:'long', day:'numeric', month:'long' })} at ${sd.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })} for ${b.party} ${Number(b.party)>1?'guests':'guest'}.` }]);
+        }
+      }
+    } catch (e) { setMsgs(m => [...m, { role:'assistant', content:"I'm having trouble right now — please use the booking form below." }]); }
+    setBusy(false);
+  };
+
+  if (!clientId) return null;
+  return (
+    <>
+      {!open && <button onClick={openChat} style={{ position:"fixed", insetInlineEnd:18, bottom:18, zIndex:9990, display:"inline-flex", alignItems:"center", gap:8, padding:"12px 16px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer", boxShadow:"0 8px 26px rgba(0,0,0,0.4)", fontFamily:"'Plus Jakarta Sans',sans-serif" }}><MessageCircle size={17}/>Chat &amp; book</button>}
+      {open && (
+        <div style={{ position:"fixed", insetInlineEnd:14, bottom:14, zIndex:9991, width:"min(380px, calc(100vw - 28px))", height:"min(560px, calc(100vh - 80px))", background:"#0E1013", border:"1px solid #20242b", borderRadius:18, display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 18px 50px rgba(0,0,0,0.55)", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 15px", borderBottom:"1px solid #20242b" }}>
+            <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={15} color="#fff"/></div>
+            <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13.5, fontWeight:700, color:"#ECEAE1" }}>{name}</div><div style={{ fontSize:10.5, color:"#5e6b78" }}>Concierge · usually replies instantly</div></div>
+            <button onClick={()=>setOpen(false)} style={{ background:"none", border:"none", color:"#7E8794", cursor:"pointer", display:"flex" }}><X size={18}/></button>
+          </div>
+          <div style={{ flex:1, overflowY:"auto", padding:"14px 14px 4px", display:"flex", flexDirection:"column", gap:9 }}>
+            {msgs.map((m,i)=> m.role==='system' ? (
+              <div key={i} style={{ alignSelf:"center", display:"inline-flex", alignItems:"center", gap:6, background:"rgba(63,185,131,0.14)", border:"1px solid rgba(63,185,131,0.3)", color:"#3FB983", borderRadius:10, padding:"7px 12px", fontSize:11.5, fontWeight:600, textAlign:"center" }}><Check size={13}/>{m.content}</div>
+            ) : (
+              <div key={i} style={{ alignSelf: m.role==='user'?"flex-end":"flex-start", maxWidth:"82%", background: m.role==='user'?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#141923", color: m.role==='user'?"#fff":"#ECEAE1", border: m.role==='user'?"none":"1px solid #20242b", borderRadius:14, padding:"9px 12px", fontSize:13, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{m.content}</div>
+            ))}
+            {busy && <div style={{ alignSelf:"flex-start", background:"#141923", border:"1px solid #20242b", borderRadius:14, padding:"9px 14px", fontSize:13, color:"#7E8794" }}>…</div>}
+            <div ref={endRef}/>
+          </div>
+          <div style={{ display:"flex", gap:8, padding:"12px 13px", borderTop:"1px solid #20242b" }}>
+            <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') send(); }} placeholder="Type a message…" style={{ flex:1, boxSizing:"border-box", background:"#141923", border:"1px solid #20242b", borderRadius:11, padding:"11px 13px", color:"#ECEAE1", fontSize:16, outline:"none" }}/>
+            <button onClick={send} disabled={busy||!input.trim()} style={{ width:44, borderRadius:11, background: input.trim()?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", cursor: input.trim()&&!busy?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center" }}><Send size={16}/></button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Public digital menu (tawaslo.com/menu/<slug>) — no login. ──
 function MenuPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
@@ -12709,6 +12821,7 @@ function MenuPublicPage({ slug }) {
         )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
       </div>
+      <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur}/>
     </div>
   );
 }
@@ -12983,7 +13096,7 @@ function ReservePublicPage({ slug }) {
       <button onClick={confirm} disabled={!time||!name.trim()||busy} style={{ width:"100%", padding:"14px", borderRadius:12, background:(time&&name.trim())?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor:(time&&name.trim()&&!busy)?"pointer":"not-allowed", opacity:(time&&name.trim())?1:0.6 }}>{busy?"Booking…":"Confirm reservation"}</button>
 
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:24 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
-    </div></div>
+    </div><ConciergeWidget clientId={info.client_id} name={info.name}/></div>
   );
 }
 
