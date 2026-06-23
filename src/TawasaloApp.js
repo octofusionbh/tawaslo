@@ -719,6 +719,7 @@ function Sidebar() {
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
       {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
+      {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
@@ -12568,7 +12569,7 @@ function MenuBuilderPage() {
   };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
-  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:13, outline:"none" };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
   if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
   if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to build their menu.","اختر عميلاً لإنشاء قائمته.")}</div>;
 
@@ -12708,6 +12709,650 @@ function MenuPublicPage({ slug }) {
         )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
       </div>
+    </div>
+  );
+}
+
+// ── Reservations (owner) — bookings dashboard + availability + public link. ──
+function ReservationsPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const slugify = (s) => String(s||'r').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,26) || 'r';
+  const [cid, setCid] = useState(null);
+  const [pubSlug, setPubSlug] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("today");
+  const [copied, setCopied] = useState(false);
+  const [openT, setOpenT] = useState("12:00");
+  const [closeT, setCloseT] = useState("22:00");
+  const [slot, setSlot] = useState(30);
+  const [cap, setCap] = useState(4);
+  const [closedDays, setClosedDays] = useState([]);
+  const [savedMsg, setSavedMsg] = useState(false);
+  const [tab, setTab] = useState("bookings");
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id;
+      if (!active) return;
+      setCid(id || null);
+      if (!id) { setLoading(false); return; }
+      let bs = null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); bs = bp && bp[0] && bp[0].slug; if (!bs) { bs = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:bs, title:selClient.name }]); } } catch(e){}
+      if (active) setPubSlug(bs);
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); } } catch(e){}
+      const t0 = new Date(); t0.setHours(0,0,0,0);
+      try { const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', t0.toISOString()).order('starts_at',{ascending:true}); if (active) setBookings(bk||[]); } catch(e){}
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const saveSettings = async () => {
+    if (!cid) return;
+    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
+  };
+  const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); };
+
+  const reserveUrl = pubSlug ? `${origin}/reserve/${pubSlug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(reserveUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+  const isToday = (d) => new Date(d).toDateString()===new Date().toDateString();
+  const todayB = bookings.filter(b=>isToday(b.starts_at) && b.status!=='cancelled');
+  const upcomingB = bookings.filter(b=>!isToday(b.starts_at) && new Date(b.starts_at)>=new Date() && b.status!=='cancelled');
+  const covers = todayB.reduce((a,b)=>a+(b.party_size||1),0);
+  const shown = filter==='today'?todayB : filter==='upcoming'?upcomingB : bookings;
+  const fmtT = (iso) => new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  const fmtD = (iso) => new Date(iso).toLocaleDateString(isAR?'ar-u-nu-latn':[], {weekday:'short',day:'numeric',month:'short'});
+  const SC = { confirmed:th.success, seated:th.accent, no_show:'#D98A6A', cancelled:th.text3 };
+  const SL = { confirmed:L("Confirmed","مؤكد"), seated:L("Seated","جلس"), no_show:L("No-show","لم يحضر"), cancelled:L("Cancelled","ملغى") };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp = { background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to manage reservations.","اختر عميلاً لإدارة الحجوزات.")}</div>;
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Reservations","الحجوزات")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("bookings from your bio, QR & the AI","حجوزات من البايو ورمز QR والذكاء")}</p>
+        </div>
+        {tab==="bookings" && <div style={{ display:"flex", gap:8 }}>
+          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy booking link","نسخ رابط الحجز")}</button>
+          <a href={reserveUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("Open","فتح")}</a>
+        </div>}
+      </div>
+
+      <div style={{ display:"flex", gap:7, marginBottom:18, borderBottom:`1px solid ${th.border}`, paddingBottom:0 }}>
+        {[["bookings",L("Bookings","الحجوزات")],["floor",L("Floor","المخطط")],["guests",L("Guests","الضيوف")]].map(([k,lbl])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{ padding:"9px 14px", background:"none", border:"none", borderBottom:`2px solid ${tab===k?th.accent:"transparent"}`, color:tab===k?th.text:th.text2, fontSize:13, fontWeight:tab===k?600:500, cursor:"pointer", marginBottom:-1 }}>{lbl}</button>
+        ))}
+      </div>
+
+      {tab==="floor" && <FloorView cid={cid}/>}
+      {tab==="guests" && <GuestsView cid={cid}/>}
+
+      {tab==="bookings" && (<>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, marginBottom:14 }}>
+        {[[L("Today","اليوم"), todayB.length],[L("Upcoming","قادمة"), upcomingB.length],[L("Covers today","الأشخاص اليوم"), covers]].map(([k,v],i)=>(
+          <div key={i} style={{ ...card, padding:"13px 16px" }}><div className="tw-num" style={{ fontSize:22, fontWeight:700, color:th.text }}>{v}</div><div style={{ fontSize:11, color:th.text2 }}>{k}</div></div>
+        ))}
+      </div>
+
+      <div style={{ ...card, padding:16, marginBottom:16 }}>
+        <div style={{ fontSize:12.5, fontWeight:600, color:th.text, marginBottom:11 }}>{L("Availability","التوفر")}</div>
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end", marginBottom:14 }}>
+          <div><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Opens","يفتح")}</div><input type="time" value={openT} onChange={e=>setOpenT(e.target.value)} style={inp}/></div>
+          <div><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Closes","يغلق")}</div><input type="time" value={closeT} onChange={e=>setCloseT(e.target.value)} style={inp}/></div>
+          <div><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Slot (min)","الفترة (د)")}</div><input type="number" value={slot} onChange={e=>setSlot(e.target.value)} style={{ ...inp, width:80 }}/></div>
+          <div><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Seats / slot","مقاعد/فترة")}</div><input type="number" value={cap} onChange={e=>setCap(e.target.value)} style={{ ...inp, width:90 }}/></div>
+        </div>
+        <div style={{ fontSize:10.5, color:th.text2, marginBottom:7 }}>{L("Closed on (customers can't book these days)","مغلق في (لا يمكن الحجز هذه الأيام)")}</div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:15 }}>
+          {[L("Sun","أحد"),L("Mon","اثنين"),L("Tue","ثلاثاء"),L("Wed","أربعاء"),L("Thu","خميس"),L("Fri","جمعة"),L("Sat","سبت")].map((d,i)=>{ const on=closedDays.includes(i); return (
+            <button key={i} onClick={()=>setClosedDays(cd=>cd.includes(i)?cd.filter(x=>x!==i):[...cd,i].sort())} style={{ padding:"7px 13px", borderRadius:9, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid ${on?'#D98A6A':th.border}`, background:on?'rgba(217,138,106,0.14)':th.card2, color:on?'#D98A6A':th.text2 }}>{d}</button>
+          ); })}
+        </div>
+        <button onClick={saveSettings} style={{ padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved","تم"):L("Save availability","حفظ التوفر")}</button>
+      </div>
+
+      <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+        {[["today",L("Today","اليوم"),todayB.length],["upcoming",L("Upcoming","قادمة"),upcomingB.length],["all",L("All","الكل"),bookings.length]].map(([k,lbl,n])=>(
+          <button key={k} onClick={()=>setFilter(k)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:600, cursor:"pointer", border:`1px solid ${filter===k?th.accent:th.border}`, background:filter===k?th.accentSoft:th.card, color:filter===k?th.accent:th.text2 }}>{lbl} <span className="tw-num" style={{opacity:.7}}>{n}</span></button>
+        ))}
+      </div>
+
+      <div style={{ ...card, overflow:"hidden" }}>
+        {shown.length===0 ? <div style={{ padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No bookings here yet.","لا حجوزات هنا بعد.")}</div> :
+          shown.map((b,i)=>(
+            <div key={b.id} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 16px", borderBottom:i<shown.length-1?`1px solid ${th.border}`:"none", opacity:b.status==='cancelled'?0.5:1 }}>
+              <div style={{ width:38, textAlign:"center", flexShrink:0 }}><div className="tw-num" style={{ fontSize:14, fontWeight:700, color:th.text }}>{b.party_size||1}</div><div style={{ fontSize:9, color:th.text3 }}>{L("pax","ضيف")}</div></div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.customer_name||L("Guest","ضيف")}</span>
+                  {b.note && <span style={{ fontSize:9, color:'#C7942B', border:'1px solid #C7942B55', borderRadius:5, padding:'1px 6px', whiteSpace:"nowrap", flexShrink:0 }}>{b.note}</span>}
+                </div>
+                <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{fmtD(b.starts_at)} · {fmtT(b.starts_at)}{b.customer_phone?` · ${b.customer_phone}`:""}</div>
+              </div>
+              <span style={{ fontSize:9.5, color:th.text3, background:th.card2, borderRadius:5, padding:"2px 7px", flexShrink:0 }}>{b.source==='concierge'?L("AI","ذكاء"):b.source==='manual'?L("manual","يدوي"):L("bio","بايو")}</span>
+              <span style={{ fontSize:11, fontWeight:600, color:SC[b.status]||th.text3, flexShrink:0 }}>{SL[b.status]||b.status}</span>
+              {b.status!=='cancelled' && b.status!=='seated' && (
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  <button onClick={()=>setStatus(b,'seated')} title={L("Seated","جلس")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.success, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={14}/></button>
+                  <button onClick={()=>setStatus(b,'cancelled')} title={L("Cancel","إلغاء")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text3, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={14}/></button>
+                </div>
+              )}
+            </div>
+          ))}
+      </div>
+      </>)}
+    </div>
+  );
+}
+
+// ── Public reservation page (tawaslo.com/reserve/<slug>) — no login. ──
+function ReservePublicPage({ slug }) {
+  const [info, setInfo] = useState(undefined);
+  const [date, setDate] = useState(null);
+  const [dayBookings, setDayBookings] = useState([]);
+  const [time, setTime] = useState("");
+  const [party, setParty] = useState(2);
+  const [customOn, setCustomOn] = useState(false);
+  const [occasion, setOccasion] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cid=null, cname=null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('client_id,title').eq('slug', slug).limit(1); if (bp && bp[0]) { cid=bp[0].client_id; cname=bp[0].title; } } catch(e){}
+      if (!cid) { try { const { data: mn } = await supabase.from('menus').select('client_id,title').eq('slug', slug).limit(1); if (mn && mn[0]) { cid=mn[0].client_id; cname=mn[0].title; } } catch(e){} }
+      if (!live) return;
+      if (!cid) { setInfo(null); return; }
+      let settings = { slot_minutes:30, capacity:4, hours:{ open:'12:00', close:'22:00' } };
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', cid).limit(1); if (st && st[0]) settings = st[0]; } catch(e){}
+      try { if (!cname) { const { data: c } = await supabase.from('clients').select('name').eq('id', cid).limit(1); cname = c && c[0] && c[0].name; } } catch(e){}
+      if (live) { setInfo({ client_id:cid, name:cname||'', settings }); const cl=(settings.hours&&settings.hours.closed_days)||[]; const d=new Date(); d.setHours(0,0,0,0); let g=0; while(g<14 && cl.includes(d.getDay())){ d.setDate(d.getDate()+1); g++; } setDate(d); }
+    })();
+    return () => { live = false; };
+  }, [slug]);
+
+  useEffect(() => {
+    if (!info || !date) return;
+    let live = true;
+    const start = new Date(date); start.setHours(0,0,0,0);
+    const end = new Date(date); end.setHours(23,59,59,999);
+    supabase.from('bookings').select('starts_at,party_size,status').eq('client_id', info.client_id).gte('starts_at', start.toISOString()).lte('starts_at', end.toISOString()).then(({ data }) => { if (live) setDayBookings((data||[]).filter(b=>b.status!=='cancelled')); });
+    setTime("");
+    return () => { live = false; };
+  }, [info, date]);
+
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 16px 60px", boxSizing:"border-box" };
+  if (info === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (info === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Booking not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+
+  const s = info.settings || {};
+  const hours = s.hours || { open:'12:00', close:'22:00' };
+  const slotMin = s.slot_minutes || 30; const capacity = s.capacity || 4;
+  const closed = (hours.closed_days)||[];
+  const days = Array.from({length:14}, (_,i)=>{ const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+i); return d; });
+  const toMin = (t) => { const [h,m]=String(t||'0:0').split(':').map(Number); return h*60+(m||0); };
+  const slots = [];
+  if (date) {
+    const now = new Date();
+    const open=toMin(hours.open), close=toMin(hours.close);
+    for (let m=open; m<=close-slotMin; m+=slotMin) {
+      const sd = new Date(date); sd.setHours(Math.floor(m/60), m%60, 0, 0);
+      if (sd <= now) continue;
+      const cnt = dayBookings.filter(b=>{ const bd=new Date(b.starts_at); return bd.getHours()*60+bd.getMinutes()===m; }).reduce((a,b)=>a+(b.party_size||1),0);
+      slots.push({ m, label:sd.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}), full:(capacity-cnt)<=0 });
+    }
+  }
+
+  const confirm = async () => {
+    if (!time || !name.trim() || busy) return;
+    setBusy(true);
+    const m = Number(time);
+    const sd = new Date(date); sd.setHours(Math.floor(m/60), m%60, 0, 0);
+    try { await supabase.from('bookings').insert([{ client_id:info.client_id, customer_name:name.trim(), customer_phone:phone.trim()||null, party_size:Number(party)||1, starts_at:sd.toISOString(), source:'bio', status:'confirmed', note:occasion.trim()||null }]); setDone({ when:sd }); } catch(e){}
+    setBusy(false);
+  };
+
+  if (done) return (
+    <div style={wrap}><div style={{ maxWidth:420, margin:"0 auto", textAlign:"center", paddingTop:50 }}>
+      <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto 16px", background:"rgba(63,185,131,0.14)", display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={30} color="#3FB983"/></div>
+      <div style={{ fontSize:19, fontWeight:700 }}>You're booked</div>
+      <div style={{ fontSize:13.5, color:"#9aa6b3", marginTop:8, lineHeight:1.6 }}>{info.name} · {done.when.toLocaleDateString([], {weekday:'long',day:'numeric',month:'long'})} · {done.when.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}<br/>{party} {party>1?'guests':'guest'}</div>
+      <div style={{ fontSize:11, color:"#5e6b78", marginTop:20 }}>See you soon! · Powered by Tawaslo</div>
+    </div></div>
+  );
+
+  const inp = { background:"#141923", border:"1px solid #20242b", borderRadius:12, width:"100%", boxSizing:"border-box", padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none" };
+  const lbl = { fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#5e6b78", marginBottom:8 };
+  return (
+    <div style={wrap}><div style={{ maxWidth:420, margin:"0 auto" }}>
+      <div style={{ textAlign:"center", marginBottom:22 }}>
+        <div style={{ fontSize:20, fontWeight:700 }}>{info.name}</div>
+        <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Reserve a table</div>
+      </div>
+
+      <div style={lbl}>Date</div>
+      <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:6, marginBottom:16 }}>
+        {days.map((d,i)=>{ const isClosed=closed.includes(d.getDay()); const on=!isClosed&&date&&d.toDateString()===date.toDateString(); return (
+          <button key={i} disabled={isClosed} onClick={()=>!isClosed&&setDate(d)} title={isClosed?'Closed':''} style={{ flexShrink:0, minWidth:54, padding:"9px 4px", borderRadius:10, border:`1px solid ${on?'#6E8CAB':'#2a3340'}`, background:on?'rgba(110,140,171,0.14)':'transparent', color:isClosed?'#3f4954':(on?'#ECEAE1':'#8794A8'), cursor:isClosed?'not-allowed':'pointer', textAlign:"center", opacity:isClosed?0.6:1 }}>
+            <div style={{ fontSize:10 }}>{i===0?'Today':d.toLocaleDateString([], {weekday:'short'})}</div>
+            <div style={{ fontSize:15, fontWeight:700, marginTop:2 }}>{d.getDate()}</div>
+            {isClosed && <div style={{ fontSize:7.5, letterSpacing:".05em", marginTop:1 }}>CLOSED</div>}
+          </button>
+        ); })}
+      </div>
+
+      <div style={lbl}>Guests</div>
+      <div style={{ display:"flex", gap:7, marginBottom:customOn?9:16, flexWrap:"wrap" }}>
+        {[1,2,3,4,5,6].map(p=>{ const on=!customOn&&party===p; return <button key={p} onClick={()=>{setCustomOn(false);setParty(p);}} style={{ minWidth:42, padding:"9px 0", borderRadius:9, border:`1px solid ${on?'#6E8CAB':'#2a3340'}`, background:on?'rgba(110,140,171,0.14)':'transparent', color:on?'#ECEAE1':'#8794A8', cursor:"pointer", fontSize:13, fontWeight:600 }}>{p}</button>; })}
+        <button onClick={()=>{setCustomOn(true);setParty(7);}} style={{ padding:"9px 16px", borderRadius:9, border:`1px solid ${customOn?'#6E8CAB':'#2a3340'}`, background:customOn?'rgba(110,140,171,0.14)':'transparent', color:customOn?'#ECEAE1':'#8794A8', cursor:"pointer", fontSize:13, fontWeight:600 }}>Custom</button>
+      </div>
+      {customOn && <input type="number" min="1" value={party} onChange={e=>setParty(Math.max(1, Number(e.target.value)||1))} placeholder="Number of guests" style={{ ...inp, marginBottom:16 }}/>}
+
+      <div style={lbl}>Time</div>
+      {slots.length===0 ? <div style={{ fontSize:12.5, color:"#5e6b78", padding:"8px 0 16px" }}>No times left for this day — try another date.</div> : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:7, marginBottom:18 }}>
+          {slots.map((sl,i)=>{ const on=time===String(sl.m); return <button key={i} disabled={sl.full} onClick={()=>setTime(String(sl.m))} style={{ padding:"9px 0", borderRadius:9, border:`1px solid ${on?'#6E8CAB':'#2a3340'}`, background:on?'rgba(110,140,171,0.14)':'transparent', color:sl.full?'#3f4954':(on?'#ECEAE1':'#aeb8c6'), cursor:sl.full?'not-allowed':'pointer', fontSize:12, fontWeight:on?700:500, fontVariantNumeric:"tabular-nums", textDecoration:sl.full?'line-through':'none' }}>{sl.label}</button>; })}
+        </div>
+      )}
+
+      <div style={lbl}>Special occasion <span style={{ textTransform:"none", letterSpacing:0, color:"#3f4954" }}>(optional)</span></div>
+      <div style={{ display:"flex", gap:7, marginBottom:9, flexWrap:"wrap" }}>
+        {['Birthday','Anniversary','Date night','Business'].map(o=>{ const on=occasion===o; return <button key={o} onClick={()=>setOccasion(on?'':o)} style={{ padding:"7px 12px", borderRadius:20, fontSize:12, cursor:"pointer", border:`1px solid ${on?'#6E8CAB':'#2a3340'}`, background:on?'rgba(110,140,171,0.14)':'transparent', color:on?'#ECEAE1':'#8794A8' }}>{o}</button>; })}
+      </div>
+      <input value={occasion} onChange={e=>setOccasion(e.target.value)} placeholder="e.g. Birthday — anything we should know?" style={{ ...inp, marginBottom:16 }}/>
+
+      <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{ ...inp, marginBottom:9 }}/>
+      <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone (optional)" style={{ ...inp, marginBottom:16 }}/>
+
+      <button onClick={confirm} disabled={!time||!name.trim()||busy} style={{ width:"100%", padding:"14px", borderRadius:12, background:(time&&name.trim())?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor:(time&&name.trim()&&!busy)?"pointer":"not-allowed", opacity:(time&&name.trim())?1:0.6 }}>{busy?"Booking…":"Confirm reservation"}</button>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:24 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
+    </div></div>
+  );
+}
+
+// ── Floor / Host stand — rooms, drag-and-drop tables, live seating, waitlist. ──
+function FloorView({ cid }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [rooms, setRooms] = useState([]);
+  const [roomId, setRoomId] = useState(null);
+  const [tables, setTables] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [guests, setGuests] = useState([]);
+  const [mode, setMode] = useState("host");
+  const [armed, setArmed] = useState(null);
+  const [selTable, setSelTable] = useState(null);
+  const [walkOpen, setWalkOpen] = useState(false);
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2);
+  const [loading, setLoading] = useState(true);
+  const [, setTick] = useState(0);
+  const canvasRef = useRef(null);
+  const dragRef = useRef(null);
+
+  useEffect(() => { const t=setInterval(()=>setTick(x=>x+1), 30000); return ()=>clearInterval(t); }, []);
+  useEffect(() => {
+    let active = true;
+    if (!cid) { setLoading(false); return; }
+    (async () => {
+      let { data: rm } = await supabase.from('dining_rooms').select('*').eq('client_id', cid).order('sort',{ascending:true});
+      if (!active) return;
+      if (!rm || rm.length===0) { const ins = await supabase.from('dining_rooms').insert([{ client_id:cid, name:'Main', sort:0 }]).select(); rm = ins.data||[]; }
+      setRooms(rm); setRoomId(rm[0] && rm[0].id);
+      const { data: tb } = await supabase.from('dining_tables').select('*').eq('client_id', cid);
+      if (active) setTables(tb||[]);
+      const t0=new Date(); t0.setHours(0,0,0,0); const t1=new Date(); t1.setHours(23,59,59,999);
+      const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', cid).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString()).order('starts_at',{ascending:true});
+      if (active) setBookings(bk||[]);
+      const { data: gs } = await supabase.from('guests').select('phone,vip').eq('client_id', cid);
+      if (active) { setGuests(gs||[]); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [cid]);
+
+  const reload = async () => {
+    const t0=new Date(); t0.setHours(0,0,0,0); const t1=new Date(); t1.setHours(23,59,59,999);
+    const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', cid).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString()).order('starts_at',{ascending:true});
+    setBookings(bk||[]);
+  };
+
+  const roomTables = tables.filter(t=>t.room_id===roomId);
+  const bookingFor = (tid) => bookings.find(b=> b.table_id===tid && (b.status==='seated'||b.status==='confirmed'));
+  const seatedFor = (tid) => bookings.find(b=> b.table_id===tid && b.status==='seated');
+  const arriving = bookings.filter(b=> b.status==='confirmed' && !b.table_id);
+  const waitlist = bookings.filter(b=> b.status==='waitlist');
+  const isVip = (phone) => { const g=guests.find(x=>x.phone && phone && x.phone===phone); return g && g.vip; };
+
+  const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id:t.id, status:'seated', seated_at:new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
+  const clearTable = async (t) => { const b=bookingFor(t.id); if(b){ await supabase.from('bookings').update({ table_id:null }).eq('id', b.id); } setSelTable(null); await reload(); };
+  const seatNow = async (b) => { const t=roomTables.find(x=>x.id===selTable); await supabase.from('bookings').update({ status:'seated', seated_at:new Date().toISOString() }).eq('id', b.id); await reload(); };
+  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id:cid, customer_name:wName.trim()||'Walk-in', party_size:Number(wParty)||2, starts_at:new Date().toISOString(), source:'manual', status: toWait?'waitlist':'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); await reload(); };
+
+  const addTable = async () => { const n=roomTables.length+1; const ins=await supabase.from('dining_tables').insert([{ client_id:cid, room_id:roomId, name:'T'+n, seats:2, shape:'square', pos_x:24+((n-1)%6)*78, pos_y:24+Math.floor((n-1)/6)*78 }]).select(); if(ins.data) setTables(ts=>[...ts, ins.data[0]]); };
+  const updTable = async (id, patch) => { setTables(ts=>ts.map(t=>t.id===id?{...t,...patch}:t)); await supabase.from('dining_tables').update(patch).eq('id', id); };
+  const delTable = async (id) => { setTables(ts=>ts.filter(t=>t.id!==id)); setSelTable(null); await supabase.from('dining_tables').delete().eq('id', id); };
+  const addRoom = async () => { const ins=await supabase.from('dining_rooms').insert([{ client_id:cid, name:'Room '+(rooms.length+1), sort:rooms.length }]).select(); if(ins.data){ setRooms(r=>[...r,ins.data[0]]); setRoomId(ins.data[0].id); } };
+
+  const onDown = (e, t) => {
+    if (mode!=='edit') { return; }
+    const rect = canvasRef.current.getBoundingClientRect();
+    dragRef.current = { id:t.id, dx:e.clientX-rect.left-t.pos_x, dy:e.clientY-rect.top-t.pos_y, moved:false };
+    setSelTable(t.id);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_){}
+  };
+  const onCanvasMove = (e) => { const d=dragRef.current; if(!d||mode!=='edit') return; const rect=canvasRef.current.getBoundingClientRect(); const nx=Math.max(0,Math.min(rect.width-58, e.clientX-rect.left-d.dx)); const ny=Math.max(0,Math.min(rect.height-58, e.clientY-rect.top-d.dy)); d.moved=true; setTables(ts=>ts.map(t=>t.id===d.id?{...t,pos_x:Math.round(nx),pos_y:Math.round(ny)}:t)); };
+  const onCanvasUp = async () => { const d=dragRef.current; if(!d) return; dragRef.current=null; if(d.moved){ const t=tables.find(x=>x.id===d.id); if(t) await supabase.from('dining_tables').update({ pos_x:t.pos_x, pos_y:t.pos_y }).eq('id', d.id); } };
+
+  const elapsed = (iso) => { if(!iso) return ''; const m=Math.floor((Date.now()-new Date(iso).getTime())/60000); if(m<1) return L('just now','الآن'); if(m<60) return m+'m'; return Math.floor(m/60)+'h '+(m%60)+'m'; };
+  const fmtT=(iso)=>new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+
+  const seatedCount = roomTables.filter(t=>seatedFor(t.id)).length;
+  const freeCount = roomTables.filter(t=>!bookingFor(t.id)).length;
+  const reservedCount = roomTables.filter(t=>!seatedFor(t.id)&&bookingFor(t.id)).length;
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const tbtn = (on) => ({ padding:"6px 12px", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card2, color:on?th.accent:th.text2 });
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading floor…","تحميل المخطط…")}</div>;
+
+  const selT = roomTables.find(t=>t.id===selTable);
+
+  return (
+    <div>
+      {/* toolbar */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:12 }}>
+        <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+          <button onClick={()=>{setMode("host");setSelTable(null);}} style={{ ...tbtn(mode==='host'), border:"none", background:mode==='host'?th.accentSoft:"transparent" }}>{L("Host","المضيف")}</button>
+          <button onClick={()=>{setMode("edit");setArmed(null);}} style={{ ...tbtn(mode==='edit'), border:"none", background:mode==='edit'?th.accentSoft:"transparent" }}>{L("Edit layout","تعديل المخطط")}</button>
+        </div>
+        <div style={{ flex:1 }}/>
+        {mode==='edit' && <button onClick={addTable} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Add table","إضافة طاولة")}</button>}
+        {mode==='host' && <button onClick={()=>setWalkOpen(true)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Walk-in","زائر")}</button>}
+      </div>
+
+      {/* rooms */}
+      <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
+        {rooms.map(r=>(
+          <button key={r.id} onClick={()=>{setRoomId(r.id);setSelTable(null);}} style={tbtn(roomId===r.id)}>{r.name}</button>
+        ))}
+        {mode==='edit' && <button onClick={addRoom} style={{ ...tbtn(false), color:th.text3 }}>+ {L("Room","غرفة")}</button>}
+      </div>
+
+      {/* stats (host) */}
+      {mode==='host' && <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+        {[[L("Seated","جالسون"),seatedCount,th.success],[L("Reserved","محجوزة"),reservedCount,th.accent],[L("Free","متاحة"),freeCount,th.text2],[L("Waitlist","قائمة الانتظار"),waitlist.length,'#D98A6A']].map(([k,v,c],i)=>(
+          <div key={i} style={{ ...card, padding:"8px 14px", display:"flex", alignItems:"center", gap:8 }}><span className="tw-num" style={{ fontSize:17, fontWeight:700, color:c }}>{v}</span><span style={{ fontSize:11, color:th.text2 }}>{k}</span></div>
+        ))}
+      </div>}
+
+      {armed && <div style={{ ...card, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10, borderColor:th.accent }}>
+        <span style={{ fontSize:12.5, color:th.text }}>{L("Tap a table to seat","انقر على طاولة للإجلاس")} <b>{(arriving.concat(waitlist).find(b=>b.id===armed)||{}).customer_name}</b></span>
+        <div style={{ flex:1 }}/>
+        <button onClick={()=>setArmed(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", fontSize:12 }}>{L("Cancel","إلغاء")}</button>
+      </div>}
+
+      <div style={{ display:"flex", gap:14, flexWrap:"wrap", alignItems:"flex-start" }}>
+        {/* canvas */}
+        <div ref={canvasRef} onPointerMove={onCanvasMove} onPointerUp={onCanvasUp} onPointerLeave={onCanvasUp}
+          style={{ flex:"1 1 420px", minWidth:300, height:460, position:"relative", borderRadius:14, border:`1px solid ${th.border}`, background:`${th.card}`, backgroundImage:`radial-gradient(${th.border} 1px, transparent 1px)`, backgroundSize:"22px 22px", overflow:"hidden", touchAction: mode==='edit'?'none':'auto' }}>
+          {roomTables.length===0 && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", color:th.text3, fontSize:12.5, textAlign:"center", padding:20 }}>{mode==='edit'?L("Add tables, then drag them into your layout.","أضف الطاولات ثم اسحبها إلى مكانها."):L("No tables yet — switch to Edit layout to add them.","لا طاولات بعد — انتقل إلى تعديل المخطط لإضافتها.")}</div>}
+          {roomTables.map(t=>{
+            const seated=seatedFor(t.id); const resv=bookingFor(t.id);
+            const occupied=!!seated; const reserved=!occupied&&!!resv;
+            const bg=occupied?'rgba(16,185,129,0.16)':reserved?'rgba(110,140,171,0.16)':th.card2;
+            const bd=occupied?th.success:reserved?th.accent:th.border;
+            const round=t.shape==='round'; const wide=t.shape==='rect';
+            return (
+              <div key={t.id} onPointerDown={(e)=>onDown(e,t)} onClick={()=>{ if(mode==='host'){ armed?seatArmed(t):setSelTable(t.id); } }}
+                style={{ position:"absolute", left:t.pos_x, top:t.pos_y, width:wide?86:56, height:56, borderRadius:round?"50%":12, border:`1.5px solid ${bd}`, background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:mode==='edit'?'grab':'pointer', userSelect:"none", boxShadow:selTable===t.id?`0 0 0 2px ${th.accent}66`:"none", touchAction:"none" }}>
+                <div style={{ fontSize:12, fontWeight:700, color:th.text }}>{t.name}</div>
+                {occupied ? <div style={{ fontSize:8, color:th.success, fontWeight:600 }}>{elapsed(seated.seated_at)}</div>
+                  : reserved ? <div style={{ fontSize:8, color:th.accent, fontWeight:600 }}>{fmtT(resv.starts_at)}</div>
+                  : <div style={{ fontSize:8, color:th.text3 }}>{t.seats}p</div>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* side panel */}
+        <div style={{ flex:"1 1 250px", minWidth:230, maxWidth:340, display:"flex", flexDirection:"column", gap:12 }}>
+          {mode==='host' ? (<>
+            <div style={card}>
+              <div style={{ padding:"11px 14px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Arriving","قادمون")} · {arriving.length}</div>
+              {arriving.length===0 ? <div style={{ padding:"18px 14px", fontSize:12, color:th.text3 }}>{L("Nobody expected right now.","لا أحد متوقع الآن.")}</div> :
+                arriving.map(b=>(
+                  <div key={b.id} onClick={()=>setArmed(b.id)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom:`1px solid ${th.border}`, background:armed===b.id?th.accentSoft:"transparent" }}>
+                    <span className="tw-num" style={{ width:22, textAlign:"center", fontWeight:700, color:th.text }}>{b.party_size||1}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{b.customer_name||L("Guest","ضيف")}{isVip(b.customer_phone)&&<Star size={10} color="#C7942B" style={{ marginInlineStart:5, verticalAlign:"middle" }}/>}</div>
+                      <div style={{ fontSize:10, color:th.text3 }}>{fmtT(b.starts_at)}{b.note?` · ${b.note}`:""}</div>
+                    </div>
+                    <span style={{ fontSize:10.5, fontWeight:700, color:th.accent }}>{L("Seat","إجلاس")}</span>
+                  </div>
+                ))}
+            </div>
+            <div style={card}>
+              <div style={{ padding:"11px 14px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Waitlist","قائمة الانتظار")} · {waitlist.length}</div>
+              {waitlist.length===0 ? <div style={{ padding:"18px 14px", fontSize:12, color:th.text3 }}>{L("No one waiting.","لا أحد ينتظر.")}</div> :
+                waitlist.map(b=>(
+                  <div key={b.id} onClick={()=>setArmed(b.id)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom:`1px solid ${th.border}`, background:armed===b.id?th.accentSoft:"transparent" }}>
+                    <span className="tw-num" style={{ width:22, textAlign:"center", fontWeight:700, color:th.text }}>{b.party_size||1}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{b.customer_name||L("Guest","ضيف")}</div>
+                      <div style={{ fontSize:10, color:th.text3 }}>{L("waiting","ينتظر")} {elapsed(b.starts_at)}</div>
+                    </div>
+                    <span style={{ fontSize:10.5, fontWeight:700, color:th.accent }}>{L("Seat","إجلاس")}</span>
+                  </div>
+                ))}
+            </div>
+          </>) : (
+            <div style={{ ...card, padding:16 }}>
+              {selT ? (<>
+                <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:12 }}>{L("Edit table","تعديل الطاولة")}</div>
+                <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Name","الاسم")}</div>
+                <input value={selT.name} onChange={e=>updTable(selT.id,{ name:e.target.value })} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none", marginBottom:11 }}/>
+                <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Seats","المقاعد")}</div>
+                <input type="number" value={selT.seats} onChange={e=>updTable(selT.id,{ seats:Number(e.target.value)||1 })} style={{ width:90, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none", marginBottom:11 }}/>
+                <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Shape","الشكل")}</div>
+                <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+                  {[["square",L("Square","مربع")],["round",L("Round","دائري")],["rect",L("Long","طويل")]].map(([sh,lbl])=>(
+                    <button key={sh} onClick={()=>updTable(selT.id,{ shape:sh })} style={tbtn(selT.shape===sh)}>{lbl}</button>
+                  ))}
+                </div>
+                <button onClick={()=>delTable(selT.id)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:'#D98A6A', fontSize:12, fontWeight:600, cursor:"pointer" }}><Trash2 size={13}/>{L("Delete","حذف")}</button>
+              </>) : <div style={{ fontSize:12, color:th.text3, lineHeight:1.6 }}>{L("Tap + Add table, then drag tables to arrange your floor. Tap a table to rename, set seats & shape, or delete.","اضغط إضافة طاولة ثم اسحب الطاولات لترتيب مخططك. اضغط على طاولة لإعادة التسمية وضبط المقاعد والشكل أو الحذف.")}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* table popover (host) */}
+      {mode==='host' && selTable && !armed && selT && createPortal((
+        <div onClick={()=>setSelTable(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.6)", backdropFilter:"blur(3px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:360, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
+            {(()=>{ const seated=seatedFor(selT.id); const resv=bookingFor(selT.id);
+              if (seated) return (<>
+                <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{selT.name} · {L("Seated","جالس")}</div>
+                <div style={{ fontSize:13, color:th.text2, marginTop:8 }}>{seated.customer_name||L("Guest","ضيف")} · {seated.party_size||1} {L("pax","ضيف")} · {elapsed(seated.seated_at)}</div>
+                {seated.note && <div style={{ fontSize:11.5, color:'#C7942B', marginTop:6 }}>{seated.note}</div>}
+                <button onClick={()=>clearTable(selT)} style={{ marginTop:16, width:"100%", padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Clear table","إخلاء الطاولة")}</button>
+              </>);
+              if (resv) return (<>
+                <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{selT.name} · {L("Reserved","محجوزة")}</div>
+                <div style={{ fontSize:13, color:th.text2, marginTop:8 }}>{resv.customer_name||L("Guest","ضيف")} · {resv.party_size||1} {L("pax","ضيف")} · {fmtT(resv.starts_at)}</div>
+                <div style={{ display:"flex", gap:8, marginTop:16 }}>
+                  <button onClick={()=>{ supabase.from('bookings').update({ table_id:null }).eq('id', resv.id).then(reload); setSelTable(null); }} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{L("Unassign","إلغاء التعيين")}</button>
+                  <button onClick={()=>seatNow(resv)} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Seat now","إجلاس الآن")}</button>
+                </div>
+              </>);
+              return (<>
+                <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{selT.name} · {L("Free","متاحة")}</div>
+                <div style={{ fontSize:12, color:th.text3, marginTop:6 }}>{selT.seats} {L("seats","مقاعد")}</div>
+                <div style={{ fontSize:11, color:th.text2, marginTop:14, marginBottom:7 }}>{L("Assign an arriving guest:","عيّن ضيفاً قادماً:")}</div>
+                <div style={{ maxHeight:200, overflowY:"auto" }}>
+                  {arriving.concat(waitlist).length===0 ? <div style={{ fontSize:12, color:th.text3 }}>{L("No one waiting. Use Walk-in.","لا أحد ينتظر. استخدم زائر.")}</div> :
+                    arriving.concat(waitlist).map(b=>(
+                      <button key={b.id} onClick={async()=>{ await supabase.from('bookings').update({ table_id:selT.id, status:'seated', seated_at:new Date().toISOString() }).eq('id', b.id); setSelTable(null); await reload(); }} style={{ width:"100%", textAlign:"start", padding:"9px 11px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, cursor:"pointer", marginBottom:6, display:"flex", justifyContent:"space-between" }}><span>{b.customer_name||L("Guest","ضيف")} · {b.party_size||1}p</span><span style={{ color:th.accent, fontWeight:700 }}>{L("Seat","إجلاس")}</span></button>
+                    ))}
+                </div>
+              </>);
+            })()}
+          </div>
+        </div>
+      ), document.body)}
+
+      {/* walk-in modal */}
+      {walkOpen && createPortal((
+        <div onClick={()=>setWalkOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.6)", backdropFilter:"blur(3px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:340, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:14 }}>{L("Walk-in","زائر")}</div>
+            <input value={wName} onChange={e=>setWName(e.target.value)} placeholder={L("Name (optional)","الاسم (اختياري)")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
+            <div style={{ fontSize:10.5, color:th.text2, marginBottom:6 }}>{L("Party size","عدد الأشخاص")}</div>
+            <input type="number" min="1" value={wParty} onChange={e=>setWParty(e.target.value)} style={{ width:100, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:16 }}/>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>addWalkin(true)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{L("To waitlist","لقائمة الانتظار")}</button>
+              <button onClick={()=>addWalkin(false)} style={{ flex:1.4, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Add → seat","إضافة ← إجلاس")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
+// ── Guests (CRM) — profile auto-built from bookings + persistent tags/notes. ──
+function GuestsView({ cid }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [rows, setRows] = useState([]);
+  const [gmeta, setGmeta] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState(null);
+  const [tagInput, setTagInput] = useState("");
+
+  useEffect(() => {
+    let active=true;
+    if(!cid){ setLoading(false); return; }
+    (async () => {
+      const { data: bk } = await supabase.from('bookings').select('customer_name,customer_phone,party_size,starts_at,status,note').eq('client_id', cid).order('starts_at',{ascending:false});
+      const { data: gs } = await supabase.from('guests').select('*').eq('client_id', cid);
+      if(!active) return;
+      const meta={}; (gs||[]).forEach(g=>{ if(g.phone) meta[g.phone]=g; });
+      const map={};
+      (bk||[]).forEach(b=>{ const key=(b.customer_phone||'').trim()||('n:'+(b.customer_name||'').trim()); if(key==='n:'||!key) return; if(!map[key]) map[key]={ key, phone:(b.customer_phone||'').trim(), name:b.customer_name||'Guest', visits:0, covers:0, noshows:0, last:null, history:[] }; const g=map[key]; if(b.status!=='cancelled'){ g.visits++; g.covers+=(b.party_size||1); } if(b.status==='no_show') g.noshows++; if(!g.last) g.last=b.starts_at; g.history.push(b); });
+      const list=Object.values(map).sort((a,b)=> new Date(b.last)-new Date(a.last));
+      setRows(list); setGmeta(meta); setLoading(false);
+    })();
+    return ()=>{active=false;};
+  }, [cid]);
+
+  const saveMeta = async (g, patch) => {
+    if(!g.phone){ return; }
+    const cur = gmeta[g.phone] || {};
+    const next = { client_id:cid, phone:g.phone, name:g.name, vip: patch.vip!==undefined?patch.vip:(cur.vip||false), tags: patch.tags!==undefined?patch.tags:(cur.tags||[]), preferences: patch.preferences!==undefined?patch.preferences:(cur.preferences||''), notes: patch.notes!==undefined?patch.notes:(cur.notes||''), updated_at:new Date().toISOString() };
+    setGmeta(m=>({ ...m, [g.phone]: next }));
+    await supabase.from('guests').upsert(next, { onConflict:'client_id,phone' });
+  };
+
+  const fmtD=(iso)=>new Date(iso).toLocaleDateString(isAR?'ar-u-nu-latn':[], {day:'numeric',month:'short',year:'numeric'});
+  const filtered = rows.filter(g=> !q || (g.name||'').toLowerCase().includes(q.toLowerCase()) || (g.phone||'').includes(q));
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading guests…","تحميل الضيوف…")}</div>;
+  if (rows.length===0) return <div style={{ ...card, padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No guests yet — they appear here automatically once people book.","لا ضيوف بعد — يظهرون هنا تلقائياً عند الحجز.")}</div>;
+
+  const g = sel && rows.find(r=>r.key===sel);
+  const meta = g && g.phone ? (gmeta[g.phone]||{}) : {};
+  const tags = (meta.tags)||[];
+
+  return (
+    <div>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder={L("Search name or phone…","ابحث بالاسم أو الهاتف…")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:16, outline:"none", marginBottom:12 }}/>
+      <div style={{ ...card, overflow:"hidden" }}>
+        {filtered.map((r,i)=>{ const m=r.phone?(gmeta[r.phone]||{}):{}; return (
+          <div key={r.key} onClick={()=>{setSel(r.key);setTagInput("");}} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 15px", borderBottom:i<filtered.length-1?`1px solid ${th.border}`:"none", cursor:"pointer" }}>
+            <div style={{ width:36, height:36, borderRadius:"50%", flexShrink:0, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:14, fontWeight:700 }}>{(r.name||"G")[0].toUpperCase()}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{r.name}{m.vip&&<Star size={10} color="#C7942B" style={{ marginInlineStart:5, verticalAlign:"middle" }}/>}</div>
+              <div style={{ fontSize:11, color:th.text3 }}>{r.phone||L("no phone","بدون هاتف")} · {L("last","آخر")} {fmtD(r.last)}</div>
+            </div>
+            <div style={{ textAlign:"end", flexShrink:0 }}><div className="tw-num" style={{ fontSize:14, fontWeight:700, color:th.text }}>{r.visits}</div><div style={{ fontSize:9, color:th.text3 }}>{L("visits","زيارة")}</div></div>
+          </div>
+        ); })}
+      </div>
+
+      {g && createPortal((
+        <div onClick={()=>setSel(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.6)", backdropFilter:"blur(3px)", zIndex:9998, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:480, maxHeight:"88vh", overflowY:"auto", background:th.card, border:`1px solid ${th.border}`, borderRadius:"18px 18px 0 0", padding:20 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:13, marginBottom:16 }}>
+              <div style={{ width:50, height:50, borderRadius:"50%", background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:19, fontWeight:700 }}>{(g.name||"G")[0].toUpperCase()}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:16, fontWeight:700, color:th.text }}>{g.name}{meta.vip&&<Star size={12} color="#C7942B" style={{ marginInlineStart:6, verticalAlign:"middle" }}/>}</div>
+                <div style={{ fontSize:12, color:th.text2 }}>{g.phone||L("no phone on file","لا هاتف مسجل")}</div>
+              </div>
+              <button onClick={()=>setSel(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer" }}><X size={18}/></button>
+            </div>
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:16 }}>
+              {[[g.visits,L("Visits","زيارات")],[g.covers,L("Covers","أشخاص")],[g.noshows,L("No-shows","تغيّب")],[fmtD(g.last).split(' ').slice(0,2).join(' '),L("Last","آخر")]].map(([v,k],i)=>(
+                <div key={i} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 8px", textAlign:"center" }}><div className="tw-num" style={{ fontSize:i<3?18:12, fontWeight:700, color:th.text }}>{v}</div><div style={{ fontSize:9, color:th.text2, marginTop:2 }}>{k}</div></div>
+              ))}
+            </div>
+
+            {!g.phone && <div style={{ fontSize:11, color:'#D98A6A', marginBottom:12 }}>{L("Add a phone to this guest's bookings to save tags & notes.","أضف هاتفاً لحجوزات هذا الضيف لحفظ الوسوم والملاحظات.")}</div>}
+
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+              <span style={{ fontSize:10.5, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Tags & preferences","الوسوم والتفضيلات")}</span>
+              {g.phone && <button onClick={()=>saveMeta(g,{ vip:!meta.vip })} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:11, fontWeight:600, color:meta.vip?'#C7942B':th.text3, background:"none", border:`1px solid ${meta.vip?'#C7942B55':th.border}`, borderRadius:20, padding:"3px 10px", cursor:"pointer" }}><Star size={11}/>{meta.vip?L("VIP","مميز"):L("Mark VIP","تمييز")}</button>}
+            </div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+              {tags.map((t,i)=>(
+                <span key={i} style={{ fontSize:11, border:`1px solid ${th.border}`, borderRadius:20, padding:"4px 10px", color:th.text2, display:"inline-flex", alignItems:"center", gap:6 }}>{t}{g.phone&&<X size={11} style={{ cursor:"pointer" }} onClick={()=>saveMeta(g,{ tags:tags.filter((_,j)=>j!==i) })}/>}</span>
+              ))}
+              {tags.length===0 && <span style={{ fontSize:11.5, color:th.text3 }}>{L("e.g. Regular, Window seat, Nut allergy","مثلاً: زبون دائم، طاولة بنافذة، حساسية")}</span>}
+            </div>
+            {g.phone && <div style={{ display:"flex", gap:7, marginBottom:14 }}>
+              <input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'&&tagInput.trim()){ saveMeta(g,{ tags:[...tags, tagInput.trim()] }); setTagInput(""); } }} placeholder={L("Add a tag…","أضف وسماً…")} style={{ flex:1, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"8px 11px", color:th.text, fontSize:16, outline:"none" }}/>
+              <button onClick={()=>{ if(tagInput.trim()){ saveMeta(g,{ tags:[...tags, tagInput.trim()] }); setTagInput(""); } }} style={{ padding:"8px 14px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.accent, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{L("Add","إضافة")}</button>
+            </div>}
+
+            {g.phone && <>
+              <div style={{ fontSize:10.5, letterSpacing:".08em", textTransform:"uppercase", color:th.text2, marginBottom:6 }}>{L("Notes","ملاحظات")}</div>
+              <textarea defaultValue={meta.notes||''} onBlur={e=>saveMeta(g,{ notes:e.target.value })} placeholder={L("Allergies, seating preference, regular order…","حساسية، تفضيل الجلوس، الطلب المعتاد…")} style={{ width:"100%", boxSizing:"border-box", minHeight:64, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 11px", color:th.text, fontSize:16, outline:"none", resize:"vertical", marginBottom:16, fontFamily:"inherit" }}/>
+            </>}
+
+            <div style={{ fontSize:10.5, letterSpacing:".08em", textTransform:"uppercase", color:th.text2, marginBottom:8 }}>{L("Visit history","سجل الزيارات")}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+              {g.history.slice(0,12).map((b,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"center", gap:10, fontSize:12, color:th.text2 }}>
+                  <span style={{ width:90, color:th.text3, flexShrink:0 }}>{fmtD(b.starts_at)}</span>
+                  <span className="tw-num" style={{ color:th.text }}>{b.party_size||1}p</span>
+                  {b.note && <span style={{ color:'#C7942B', fontSize:11 }}>{b.note}</span>}
+                  <span style={{ flex:1 }}/>
+                  <span style={{ fontSize:10.5, color: b.status==='no_show'?'#D98A6A':b.status==='cancelled'?th.text3:th.success }}>{b.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   );
 }
@@ -13206,6 +13851,7 @@ function LinkInBioPage({ slug }) {
   const [data, setData] = useState(undefined); // undefined=loading, null=not found
   const [posts, setPosts] = useState([]);
   const [menuSlug, setMenuSlug] = useState(null);
+  const [hasReserve, setHasReserve] = useState(false);
   useEffect(() => {
     supabase.from('bio_pages').select('*').eq('slug', slug).limit(1).then(({ data }) => {
       const row = data && data[0]; setData(row || null);
@@ -13215,6 +13861,7 @@ function LinkInBioPage({ slug }) {
             .then(({ data:ps }) => { if (ps) setPosts(ps.filter(p=>p.image_url)); });
         }
         supabase.from('menus').select('slug').eq('client_id', row.client_id).limit(1).then(({ data:md }) => { if (md && md[0]) setMenuSlug(md[0].slug); }, () => {});
+        supabase.from('booking_settings').select('client_id').eq('client_id', row.client_id).limit(1).then(({ data:rs }) => { if (rs && rs[0]) setHasReserve(true); }, () => {});
       }
     });
   }, [slug]);
@@ -13240,6 +13887,7 @@ function LinkInBioPage({ slug }) {
         </div>
 
         <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:11 }}>
+          {hasReserve && <a href={`/reserve/${slug}`} style={{ width:"100%", padding:"15px", borderRadius:14, background:accent, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, textDecoration:"none" }}><CalendarCheck size={16}/>Reserve a table</a>}
           {menuSlug && <a href={`/menu/${menuSlug}`} style={{ width:"100%", padding:"15px", ...TH.btnStyle, fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, textDecoration:"none" }}><FileText size={16}/>{data.hub && data.hub.menuLabel ? data.hub.menuLabel : "Menu"}</a>}
           {links.map(l => (
             <button key={l.id} onClick={()=>click(l)} style={{ width:"100%", padding:"15px", ...TH.btnStyle, fontSize:14, fontWeight:600, cursor:"pointer", transition:"transform .12s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }} onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>{l.label || l.url}</button>
@@ -13744,6 +14392,7 @@ export default function TawasloApp() {
     if (page==="business") return <BusinessProfilePage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="menu") return <MenuBuilderPage/>;
+    if (page==="reservations") return <ReservationsPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
@@ -13790,6 +14439,10 @@ export default function TawasloApp() {
   // Public digital menu (tawaslo.com/menu/<slug>) — no login.
   const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
   if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
+
+  // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
+  const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
+  if (resMatch) return <ReservePublicPage slug={resMatch[1]}/>;
 
   // Public branded client portal (tawaslo.com/portal/<token>) — no login.
   const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
