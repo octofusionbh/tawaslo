@@ -1,5 +1,7 @@
-// api/tap.js — Tap Payments checkout (create charge + verify + webhook)
-// Uses TAP_SECRET_KEY (sk_test_... or sk_live_...) from Vercel env. Runs in test mode until live keys are set.
+import crypto from 'node:crypto';
+export const config = { api: { bodyParser: false } };
+// api/tap.js — Tawaslo billing backend (Polar webhooks + discounts + customer portal; legacy Tap kept harmless).
+// Uses TAP_SECRET_KEY (legacy) and POLAR_API_TOKEN + POLAR_WEBHOOK_SECRET from Vercel env.
 const PRICES = {
   Essential:   { monthly: 49,  annual: 39  },
   Professional:{ monthly: 99,  annual: 79  },
@@ -15,6 +17,87 @@ function sbq(path, opts = {}) {
     ...opts,
     headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
   });
+}
+
+// ── Polar (Merchant of Record) — signed webhooks, discount sync, customer portal. ──
+const POLAR_API = 'https://api.polar.sh';
+const POLAR_TOKEN = process.env.POLAR_API_TOKEN;
+const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;
+
+function readRawBody(req) {
+  return new Promise((resolve) => { let d = ''; req.on('data', c => { d += c; }); req.on('end', () => resolve(d)); req.on('error', () => resolve('')); });
+}
+// Standard Webhooks signature verification (https://www.standardwebhooks.com/).
+function verifyPolarSig(rawBody, headers) {
+  try {
+    if (!POLAR_WEBHOOK_SECRET) return false;
+    const id = headers['webhook-id'], ts = headers['webhook-timestamp'], sigH = headers['webhook-signature'];
+    if (!id || !ts || !sigH) return false;
+    // Polar secrets are prefixed "polar_whs_"; Standard Webhooks uses "whsec_".
+    let sec = POLAR_WEBHOOK_SECRET;
+    if (sec.startsWith('polar_whs_')) sec = sec.slice(10);
+    else if (sec.startsWith('whsec_')) sec = sec.slice(6);
+    const signed = `${id}.${ts}.${rawBody}`;
+    // Try the secret both base64-decoded (spec) and as raw bytes, for robustness.
+    const keys = [];
+    try { const b = Buffer.from(sec, 'base64'); if (b.length) keys.push(b); } catch (e) {}
+    keys.push(Buffer.from(sec, 'utf8'));
+    const sigs = String(sigH).split(' ').map(p => (p.includes(',') ? p.split(',')[1] : p));
+    return keys.some(key => {
+      const expected = crypto.createHmac('sha256', key).update(signed).digest('base64');
+      return sigs.some(s => { try { return crypto.timingSafeEqual(Buffer.from(s), Buffer.from(expected)); } catch (e) { return s === expected; } });
+    });
+  } catch (e) { return false; }
+}
+function polarPlanFromName(name) { const n = String(name || ''); return /enterprise/i.test(n) ? 'Enterprise' : /professional/i.test(n) ? 'Professional' : /essential/i.test(n) ? 'Essential' : null; }
+
+// Create a Polar discount that mirrors an owner-dashboard promo code.
+async function polarCreateDiscount(b) {
+  if (!POLAR_TOKEN) return { ok: false, data: { detail: 'POLAR_API_TOKEN not set' } };
+  const body = { name: b.name || b.code, code: b.code, duration: b.duration || 'once', metadata: { source: 'tawaslo' } };
+  if (b.maxRedemptions) body.max_redemptions = Number(b.maxRedemptions);
+  if (b.endsAt) body.ends_at = b.endsAt;
+  if (Array.isArray(b.products) && b.products.length) body.products = b.products;
+  if (b.percent != null) { body.type = 'percentage'; body.basis_points = Math.round(Number(b.percent) * 100); }
+  else { body.type = 'fixed'; body.amounts = { usd: Math.round(Number(b.amount || 0) * 100) }; }
+  const r = await fetch(`${POLAR_API}/v1/discounts/`, { method: 'POST', headers: { Authorization: `Bearer ${POLAR_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, data };
+}
+// Create a Customer Portal session so a customer can self-manage / cancel.
+async function polarPortalSession(customerId, email) {
+  if (!POLAR_TOKEN) return { ok: false, error: 'POLAR_API_TOKEN not set' };
+  const payload = customerId ? { customer_id: customerId } : { customer_external_id: email };
+  const r = await fetch(`${POLAR_API}/v1/customer-sessions/`, { method: 'POST', headers: { Authorization: `Bearer ${POLAR_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, url: data.customer_portal_url || null, data };
+}
+// Handle a verified Polar webhook event → keep the subscriptions table in sync.
+async function handlePolarWebhook(evt) {
+  const type = evt && evt.type; const data = (evt && evt.data) || {};
+  if (!type) return;
+  if (type.indexOf('subscription.') === 0) {
+    const cust = data.customer || {};
+    const status = (type === 'subscription.canceled' || type === 'subscription.revoked') ? 'canceled' : (data.status || 'active');
+    const row = {
+      email: cust.email || data.user_email || null,
+      customer_id: cust.id || data.customer_id || null,
+      polar_subscription_id: data.id || null,
+      plan: polarPlanFromName((data.product && data.product.name) || data.product_name),
+      interval: data.recurring_interval || (data.product && data.product.recurring_interval) || null,
+      status,
+      current_period_end: data.current_period_end || data.ends_at || null,
+      updated_at: new Date().toISOString(),
+    };
+    try { await sbq(`subscriptions?on_conflict=polar_subscription_id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) }); } catch (e) { /* non-fatal */ }
+  }
+  if (type === 'order.paid' || type === 'order.created') {
+    const cust = data.customer || {};
+    const cur = String(data.currency || 'usd').toUpperCase();
+    const amt = data.total_amount != null ? (data.total_amount / 100) : (data.amount != null ? data.amount : '');
+    if (cust.email) { try { await sendToCustomer(cust.email, 'Your Tawaslo receipt', receiptHtml({ plan: polarPlanFromName(data.product && data.product.name) || '', period: '', amount: amt, currency: cur, invoiceNo: data.id || `TW-${Date.now()}`, date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }), last4: '' })); } catch (e) {} }
+    try { await notify(`New Tawaslo subscription: ${cur} ${amt}`, `<div style="font-family:sans-serif"><p><b>${cust.email || 'A customer'}</b> just subscribed via Polar. Order ${data.id || ''}.</p></div>`); } catch (e) {}
+  }
 }
 
 // Look a code up in promo_codes and apply every rule: active, not expired,
@@ -168,10 +251,34 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // bodyParser is disabled, so read the raw body (needed to verify Polar's signed webhooks).
+  const rawBody = await readRawBody(req);
+
+  // ── Polar webhook (Standard Webhooks, signed). ──
+  if (req.headers['webhook-signature'] || req.headers['webhook-id']) {
+    if (!verifyPolarSig(rawBody, req.headers)) return res.status(401).json({ error: 'invalid signature' });
+    let evt = {}; try { evt = JSON.parse(rawBody); } catch (e) {}
+    try { await handlePolarWebhook(evt); } catch (e) { /* never hard-fail a webhook */ }
+    return res.status(200).json({ received: true });
+  }
+
+  let body = {}; try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (e) { body = {}; }
+
+  // ── Owner dashboard → create a matching Polar discount for a promo code. ──
+  if (body.action === 'polar_create_discount') {
+    const out = await polarCreateDiscount(body);
+    return res.status(out.ok ? 200 : 400).json(out.ok ? { ok: true, discount: out.data } : { ok: false, error: (out.data && out.data.detail) || 'create failed', data: out.data });
+  }
+  // ── Customer Portal session (Manage subscription / cancel). ──
+  if (body.action === 'polar_portal') {
+    const out = await polarPortalSession(body.customer_id, body.email);
+    return res.status(out.ok ? 200 : 400).json(out);
+  }
+
   // Tap webhooks POST the charge object (no plan field).
-  if (!req.body || !req.body.plan) {
+  if (!body || !body.plan) {
     try {
-      const c = req.body || {};
+      const c = body || {};
       const cur = c.currency || 'USD';
       const email = c.customer && c.customer.email;
       const firstName = (c.customer && c.customer.first_name) || 'there';
@@ -205,7 +312,7 @@ export default async function handler(req, res) {
 
   if (!KEY) return res.status(200).json({ configured: false, error: 'Payments not connected yet. Add TAP_SECRET_KEY in Vercel.' });
 
-  const { plan, period, name, email, promo, addon, topup } = req.body;
+  const { plan, period, name, email, promo, addon, topup } = body;
 
   // One-time image-credit top-up — a standalone charge, no plan change.
   if (topup) {
