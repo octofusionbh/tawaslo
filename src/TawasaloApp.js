@@ -10156,6 +10156,12 @@ function BillingPage() {
     Professional: { monthly: process.env.REACT_APP_PADDLE_PRO_M,       annual: process.env.REACT_APP_PADDLE_PRO_Y },
     Enterprise:   { monthly: process.env.REACT_APP_PADDLE_ENT_M,       annual: process.env.REACT_APP_PADDLE_ENT_Y },
   };
+  // ── Polar (Merchant of Record — no CR, handles VAT). Public hosted checkout links. ──
+  const POLAR_LINKS = {
+    Essential:    { monthly: "https://buy.polar.sh/polar_cl_t90FjtEJfhm4tH5iA87Fu3sNSCvamHtkd9yDk1GnMiz", annual: "https://buy.polar.sh/polar_cl_x3acgLGUejk77aFLPYoPTjDZmpd4yQmLsS4uQ4cDoBA" },
+    Professional: { monthly: "https://buy.polar.sh/polar_cl_2bKo134bQOslnmpGWX8WzjIKS8rMJ6bZHQTku0E4bJn", annual: "https://buy.polar.sh/polar_cl_sUVmyeTEGGjBcb8mRXKuj6TLgwDoUQEJp8Ooh26bitb" },
+    Enterprise:   { monthly: "https://buy.polar.sh/polar_cl_zw3oznG33atWqGUsrXZYwH2B7gblW9pYhlofT1ceE0x", annual: "https://buy.polar.sh/polar_cl_YqtKEfHdKdPbJjC9tFSpcyP4eO2hwsyClMqOm223tWL" },
+  };
   const paddleReady = useRef(false);
   useEffect(() => {
     if (!PADDLE_TOKEN || typeof window === "undefined") return;
@@ -10206,7 +10212,17 @@ function BillingPage() {
 
   const startCheckout = async (planName, addonId) => {
     setBusy(planName); setNotice("");
-    // Prefer Paddle (Merchant of Record) when configured — opens a secure overlay, no redirect.
+    // Prefer Polar (Merchant of Record — no CR, handles VAT) — redirect to its hosted checkout.
+    const polarUrl = POLAR_LINKS[planName] && POLAR_LINKS[planName][period === "annual" ? "annual" : "monthly"];
+    if (polarUrl) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        try { if (addonId && addonId !== "none") sessionStorage.setItem("tw_pending_pack", addonId); else sessionStorage.removeItem("tw_pending_pack"); } catch (e) {}
+        window.location.href = user?.email ? `${polarUrl}?customer_email=${encodeURIComponent(user.email)}` : polarUrl;
+        return;
+      } catch (e) { window.location.href = polarUrl; return; }
+    }
+    // Fallback: Paddle (Merchant of Record) when configured — opens a secure overlay, no redirect.
     const pid = PADDLE_PRICES[planName] && PADDLE_PRICES[planName][period === "annual" ? "annual" : "monthly"];
     if (PADDLE_TOKEN && paddleReady.current && pid && window.Paddle) {
       try {
@@ -10317,7 +10333,7 @@ function BillingPage() {
         <button onClick={()=>startCheckout(checkoutPlan, addon)} disabled={busy===checkoutPlan} style={{ width:"100%", padding:"13px", borderRadius:13, background:th.gradient, border:"none", color:"#fff", fontSize:13.5, fontWeight:700, cursor:busy===checkoutPlan?"not-allowed":"pointer", opacity:busy===checkoutPlan?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
           <Lock size={15}/>{busy===checkoutPlan?L("Starting…","جارٍ…"):L("Proceed to secure payment","المتابعة للدفع الآمن")}
         </button>
-        <div style={{ textAlign:"center", fontSize:10.5, color:th.text3, marginTop:10 }}>{L("Secure checkout by Tap · Visa, Mastercard, Apple Pay, Benefit & more · cancel anytime.","دفع آمن عبر Tap · فيزا، ماستركارد، آبل باي، بنفت وغيرها · يمكنك الإلغاء في أي وقت.")}</div>
+        <div style={{ textAlign:"center", fontSize:10.5, color:th.text3, marginTop:10 }}>{L("Secure checkout by Polar · Visa, Mastercard, Apple Pay & more · cancel anytime.","دفع آمن عبر Polar · فيزا، ماستركارد، آبل باي وغيرها · يمكنك الإلغاء في أي وقت.")}</div>
       </div>
     );
   }
