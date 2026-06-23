@@ -718,6 +718,7 @@ function Sidebar() {
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
+      {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
@@ -12499,6 +12500,218 @@ const resolveBioTheme = (row) => {
   return { preset, font, accent, btn, btnStyle };
 };
 
+// ── Menu builder (owner) — bilingual digital menu, shown on the bio link + QR. ──
+function MenuBuilderPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const slugify = (s) => String(s||'menu').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,26) || 'menu';
+  const [cid, setCid] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cat, setCat] = useState("All");
+  const [editing, setEditing] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => {
+      const id = data && data[0] && data[0].id;
+      if (!active) return;
+      setCid(id || null);
+      if (!id) { setLoading(false); return; }
+      supabase.from('menus').select('*').eq('client_id', id).limit(1).then(async ({ data: md, error }) => {
+        if (!active) return;
+        if (error) { setLoading(false); return; }
+        let m = md && md[0];
+        if (!m) {
+          const slug = slugify(selClient.name) + '-' + Math.random().toString(36).slice(2,5);
+          const ins = await supabase.from('menus').insert([{ client_id:id, slug, title:selClient.name, currency:'BHD' }]).select();
+          m = ins.data && ins.data[0];
+        }
+        setMenu(m || null);
+        if (m) { const it = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true}).order('created_at',{ascending:true}); if (active) setItems(it.data || []); }
+        if (active) setLoading(false);
+      }, () => { if (active) setLoading(false); });
+    }, () => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [selClient]);
+
+  const cats = ["All", ...Array.from(new Set(items.map(i=>i.category||'General')))];
+  const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
+  const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+  const blankItem = () => ({ name_en:"", name_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", available:true });
+  const saveItem = async () => {
+    if (!editing || !menu) return;
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), price: editing.price===""?null:Number(editing.price), photo_url:editing.photo_url||null, available: editing.available!==false, sort: editing.sort!=null?editing.sort:items.length };
+    if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
+    else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
+    setEditing(null);
+  };
+  const delItem = async (id) => { await supabase.from('menu_items').delete().eq('id', id); setItems(its=>its.filter(i=>i.id!==id)); };
+  const toggleAvail = async (it) => { const v = !(it.available!==false); await supabase.from('menu_items').update({ available:v }).eq('id', it.id); setItems(its=>its.map(i=>i.id===it.id?{...i,available:v}:i)); };
+  const uploadPhoto = async (file) => {
+    if (!file) return; setUploading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const ext = (file.name.split('.').pop()||'jpg');
+      const path = `${user?.id||'x'}/menu/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('media').upload(path, file, { upsert:true, contentType:file.type||'image/jpeg' });
+      if (!error) { const { data:url } = supabase.storage.from('media').getPublicUrl(path); setEditing(e=>({...e, photo_url:(url&&url.publicUrl)||""})); }
+    } catch(e){}
+    setUploading(false);
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:13, outline:"none" };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to build their menu.","اختر عميلاً لإنشاء قائمته.")}</div>;
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Menu","القائمة")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("bilingual menu — shown on your bio link & QR","قائمة ثنائية اللغة — تظهر على رابط البايو ورمز QR")}</p>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
+          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("View menu","عرض القائمة")}</a>
+        </div>
+      </div>
+
+      {menu && (
+        <div style={{ ...card, padding:14, marginBottom:14, display:"flex", alignItems:"center", gap:14 }}>
+          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(publicUrl)}`} alt="Menu QR" style={{ width:70, height:70, borderRadius:8, background:"#fff", padding:5, flexShrink:0 }}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Table QR code","رمز QR للطاولة")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Print it for your tables — customers scan to open the menu.","اطبعه لطاولاتك — يمسحه العملاء لفتح القائمة.")}</div>
+          </div>
+          <a href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=12&data=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, textDecoration:"none", flexShrink:0 }}><Download size={13}/>{L("Download","تنزيل")}</a>
+        </div>
+      )}
+
+      <div className="tw-scroll-x" style={{ display:"flex", gap:7, marginBottom:14, flexWrap:"wrap" }}>
+        {cats.map(c=>(
+          <button key={c} onClick={()=>setCat(c)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:cat===c?600:400, cursor:"pointer", border:`1px solid ${cat===c?th.accent:th.border}`, background:cat===c?th.accentSoft:th.card, color:cat===c?th.accent:th.text2, whiteSpace:"nowrap" }}>{c}</button>
+        ))}
+      </div>
+
+      <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+        {shown.length===0 && <div style={{ ...card, padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No items yet — add your first.","لا توجد أصناف بعد — أضف أول صنف.")}</div>}
+        {shown.map(it=>(
+          <div key={it.id} style={{ ...card, padding:11, display:"flex", alignItems:"center", gap:12, opacity: it.available!==false?1:0.55 }}>
+            <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, background: it.photo_url?`center/cover url(${it.photo_url})`:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{!it.photo_url && <Image size={16} color={th.text3}/>}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}{it.available===false && <span style={{ fontSize:9, color:th.warning, border:`1px solid ${th.warning}55`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("sold out","نفد")}</span>}</div>
+              {it.name_ar && <div style={{ fontSize:11.5, color:th.text2, direction:"rtl", fontFamily:"'Cairo',sans-serif" }}>{it.name_ar}</div>}
+            </div>
+            <span className="tw-num" style={{ fontSize:13, fontWeight:600, color:th.accent }}>{it.price!=null?Number(it.price).toFixed(3):"—"} <span style={{ fontSize:9, color:th.text3 }}>{(menu&&menu.currency)||"BHD"}</span></span>
+            <button onClick={()=>toggleAvail(it)} title={L("Toggle availability","تبديل التوفر")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}>{it.available!==false?<Eye size={15}/>:<XCircle size={15}/>}</button>
+            <button onClick={()=>setEditing({ ...it })} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><Edit3 size={14}/></button>
+            <button onClick={()=>delItem(it.id)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
+          </div>
+        ))}
+        <button onClick={()=>setEditing(blankItem())} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Plus size={15}/>{L("Add item","إضافة صنف")}</button>
+      </div>
+
+      {editing && createPortal((
+        <div onClick={()=>setEditing(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:420, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20 }}>
+            <h3 style={{ margin:"0 0 14px", fontSize:16, fontWeight:700, color:th.text }}>{editing.id?L("Edit item","تعديل الصنف"):L("Add item","إضافة صنف")}</h3>
+            <div style={{ display:"flex", gap:12, marginBottom:12 }}>
+              <label style={{ width:64, height:64, borderRadius:10, flexShrink:0, background: editing.photo_url?`center/cover url(${editing.photo_url})`:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
+                {!editing.photo_url && <Image size={18} color={th.text3}/>}
+                <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>uploadPhoto(e.target.files[0])}/>
+              </label>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Category","الفئة")}</div>
+                <input value={editing.category} onChange={e=>setEditing({...editing, category:e.target.value})} placeholder={L("e.g. Hot Coffee","مثلاً: قهوة ساخنة")} style={inp}/>
+              </div>
+            </div>
+            {uploading && <div style={{ fontSize:11, color:th.text3, marginBottom:8 }}>{L("Uploading photo…","جارٍ رفع الصورة…")}</div>}
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name (English)","الاسم (إنجليزي)")}</div>
+            <input value={editing.name_en} onChange={e=>setEditing({...editing, name_en:e.target.value})} style={{ ...inp, marginBottom:10 }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name (Arabic)","الاسم (عربي)")}</div>
+            <input value={editing.name_ar} onChange={e=>setEditing({...editing, name_ar:e.target.value})} dir="rtl" style={{ ...inp, marginBottom:10, fontFamily:"'Cairo',sans-serif" }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"})</div>
+            <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:16 }}/>
+            <div style={{ display:"flex", gap:9 }}>
+              <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+              <button onClick={saveItem} disabled={!editing.name_en.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:editing.name_en.trim()?"pointer":"not-allowed", opacity:editing.name_en.trim()?1:0.6 }}>{L("Save","حفظ")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
+// ── Public digital menu (tawaslo.com/menu/<slug>) — no login. ──
+function MenuPublicPage({ slug }) {
+  const [data, setData] = useState(undefined);
+  const [items, setItems] = useState([]);
+  const [cat, setCat] = useState("All");
+  useEffect(() => {
+    let live = true;
+    supabase.from('menus').select('id,title,currency,client_id').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+      if (!live) return;
+      const m = md && md[0];
+      if (error || !m) { setData(null); return; }
+      let name = m.title, logo = null;
+      try { const { data: c } = await supabase.from('clients').select('name,logo_url').eq('id', m.client_id).limit(1); if (c && c[0]) { name = m.title || c[0].name; logo = c[0].logo_url || null; } } catch(e){}
+      const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).eq('available', true).order('sort',{ascending:true}).order('created_at',{ascending:true});
+      if (live) { setData({ ...m, name, logo }); setItems(it || []); }
+    }, () => { if (live) setData(null); });
+    return () => { live = false; };
+  }, [slug]);
+
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 16px 60px", boxSizing:"border-box" };
+  if (data === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Menu not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+
+  const cats = ["All", ...Array.from(new Set(items.map(i=>i.category||'General')))];
+  const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
+  const cur = data.currency || "BHD";
+  return (
+    <div style={wrap}>
+      <div style={{ maxWidth:560, margin:"0 auto" }}>
+        <div style={{ textAlign:"center", marginBottom:20 }}>
+          {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"M")[0]}</div>}
+          <div style={{ fontSize:20, fontWeight:700, marginTop:10 }}>{data.name}</div>
+          <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Menu</div>
+        </div>
+        {cats.length>1 && (
+          <div style={{ display:"flex", gap:8, overflowX:"auto", justifyContent:"center", marginBottom:18, flexWrap:"wrap" }}>
+            {cats.map(c=><span key={c} onClick={()=>setCat(c)} style={{ fontSize:12.5, padding:"6px 12px", borderRadius:20, cursor:"pointer", background:cat===c?"#1a2230":"transparent", color:cat===c?"#ECEAE1":"#5e6b78", whiteSpace:"nowrap" }}>{c}</span>)}
+          </div>
+        )}
+        {items.length===0 ? <div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"40px 0" }}>This menu is being prepared.</div> : (
+          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+            {shown.map(it=>(
+              <div key={it.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11 }}>
+                {it.photo_url && <div style={{ width:52, height:52, borderRadius:9, flexShrink:0, background:`center/cover url(${it.photo_url})` }}/>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:14, fontWeight:600 }}>{it.name_en}</div>
+                  {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:"rtl", fontFamily:"'Cairo',sans-serif", marginTop:1 }}>{it.name_ar}</div>}
+                  {it.description && <div style={{ fontSize:11, color:"#6b7785", marginTop:3 }}>{it.description}</div>}
+                </div>
+                <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{it.price!=null?Number(it.price).toFixed(3):""} <span style={{ fontSize:9, color:"#5e6b78" }}>{cur}</span></span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
+      </div>
+    </div>
+  );
+}
+
 function LinkInBioBuilderPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -12992,12 +13205,16 @@ function CreateBioPage() {
 function LinkInBioPage({ slug }) {
   const [data, setData] = useState(undefined); // undefined=loading, null=not found
   const [posts, setPosts] = useState([]);
+  const [menuSlug, setMenuSlug] = useState(null);
   useEffect(() => {
     supabase.from('bio_pages').select('*').eq('slug', slug).limit(1).then(({ data }) => {
       const row = data && data[0]; setData(row || null);
-      if (row && row.show_posts && row.client_id) {
-        supabase.from('posts').select('image_url,permalink,caption').eq('client_id', row.client_id).eq('status','published').order('published_at',{ascending:false}).limit(6)
-          .then(({ data:ps }) => { if (ps) setPosts(ps.filter(p=>p.image_url)); });
+      if (row && row.client_id) {
+        if (row.show_posts) {
+          supabase.from('posts').select('image_url,permalink,caption').eq('client_id', row.client_id).eq('status','published').order('published_at',{ascending:false}).limit(6)
+            .then(({ data:ps }) => { if (ps) setPosts(ps.filter(p=>p.image_url)); });
+        }
+        supabase.from('menus').select('slug').eq('client_id', row.client_id).limit(1).then(({ data:md }) => { if (md && md[0]) setMenuSlug(md[0].slug); }, () => {});
       }
     });
   }, [slug]);
@@ -13023,6 +13240,7 @@ function LinkInBioPage({ slug }) {
         </div>
 
         <div style={{ marginTop:24, display:"flex", flexDirection:"column", gap:11 }}>
+          {menuSlug && <a href={`/menu/${menuSlug}`} style={{ width:"100%", padding:"15px", ...TH.btnStyle, fontSize:14, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, textDecoration:"none" }}><FileText size={16}/>{data.hub && data.hub.menuLabel ? data.hub.menuLabel : "Menu"}</a>}
           {links.map(l => (
             <button key={l.id} onClick={()=>click(l)} style={{ width:"100%", padding:"15px", ...TH.btnStyle, fontSize:14, fontWeight:600, cursor:"pointer", transition:"transform .12s", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }} onMouseDown={e=>e.currentTarget.style.transform="scale(0.98)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"}>{l.label || l.url}</button>
           ))}
@@ -13525,6 +13743,7 @@ export default function TawasloApp() {
     if (page==="social") return <SocialAccountsPage/>;
     if (page==="business") return <BusinessProfilePage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
+    if (page==="menu") return <MenuBuilderPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
@@ -13567,6 +13786,10 @@ export default function TawasloApp() {
   // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
   const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
   if (bioMatch) return <LinkInBioPage slug={bioMatch[1]}/>;
+
+  // Public digital menu (tawaslo.com/menu/<slug>) — no login.
+  const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
+  if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
 
   // Public branded client portal (tawaslo.com/portal/<token>) — no login.
   const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
