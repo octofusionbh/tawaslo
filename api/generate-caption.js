@@ -576,12 +576,14 @@ async function waBuildContext(clientId) {
 }
 async function waSend(phoneId, token, to, bodyText) {
   try {
-    await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+    const r = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: String(bodyText || '').slice(0, 3500) } }),
     });
-  } catch (e) {}
+    if (!r.ok) { const e = await r.text(); console.error('WA_SEND_FAIL status=' + r.status + ' body=' + String(e).slice(0, 400) + ' phoneId=' + phoneId + ' tokenLen=' + String(token || '').length); }
+    else { console.log('WA_SEND_OK to=' + to); }
+  } catch (e) { console.error('WA_SEND_ERR ' + String((e && e.message) || e)); }
 }
 async function handleWhatsApp(body) {
   const token = process.env.WHATSAPP_TOKEN;
