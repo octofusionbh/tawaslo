@@ -10260,8 +10260,10 @@ function BillingPage() {
     const planPrice = dBase != null ? dBase : base;
     const addonObj = addon !== "none" ? IMG_PACKS.find(p => p.id === addon) : null;
     const addonPrice = addonObj ? addonObj.price : 0;
-    const total = Math.round((planPrice + addonPrice) * 100) / 100;
-    const ap = approxLabel(geo, total);
+    const total = Math.round((planPrice + addonPrice) * 100) / 100;          // per-month figure
+    // What Polar actually charges this cycle: yearly is billed as one annual payment (×12).
+    const cycleTotal = period === "annual" ? Math.round(total * 12 * 100) / 100 : total;
+    const ap = approxLabel(geo, cycleTotal);
     return (
       <div style={{ padding:"28px 32px", maxWidth:520, margin:"0 auto" }}>
         <button onClick={()=>{ setCheckoutPlan(null); setNotice(""); }} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:th.text2, fontSize:12.5, cursor:"pointer", marginBottom:14, padding:0 }}>
@@ -10320,13 +10322,14 @@ function BillingPage() {
         <div style={{ borderTop:`1px solid ${th.border}`, paddingTop:13, marginBottom:16 }}>
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:th.text2, marginBottom:6 }}>
             <span>{cp.name} ({period==="annual"?L("yearly","سنوي"):L("monthly","شهري")})</span>
-            <span className="tw-num">{dBase!=null && <span style={{ textDecoration:"line-through", color:th.text3, marginInlineEnd:6 }}>${base}</span>}${planPrice}</span>
+            <span className="tw-num">{dBase!=null && <span style={{ textDecoration:"line-through", color:th.text3, marginInlineEnd:6 }}>${period==="annual"?Math.round(base*12*100)/100:base}</span>}${period==="annual"?Math.round(planPrice*12*100)/100:planPrice}</span>
           </div>
-          {addonObj && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:th.text2, marginBottom:9 }}><span>{addonObj.name} {L("image pack","حزمة صور")}</span><span className="tw-num">${addonObj.price}</span></div>}
+          {addonObj && <div style={{ display:"flex", justifyContent:"space-between", fontSize:12.5, color:th.text2, marginBottom:9 }}><span>{addonObj.name} {L("image pack","حزمة صور")}</span><span className="tw-num">${period==="annual"?Math.round(addonObj.price*12*100)/100:addonObj.price}{period==="annual"?L("/yr","/سنة"):""}</span></div>}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", fontSize:16, fontWeight:700 }}>
-            <span>{L("Total","الإجمالي")}</span>
-            <span className="tw-num" style={{ color:th.accent }}>${total}<span style={{ fontSize:11, color:th.text2, fontWeight:400 }}>/{L("mo","شهر")}</span></span>
+            <span>{period==="annual"?L("Total billed today","الإجمالي اليوم"):L("Total","الإجمالي")}</span>
+            <span className="tw-num" style={{ color:th.accent }}>${cycleTotal}<span style={{ fontSize:11, color:th.text2, fontWeight:400 }}>{period==="annual"?L("/year","/سنة"):L("/mo","/شهر")}</span></span>
           </div>
+          {period==="annual" && <div style={{ textAlign:isAR?"left":"right", fontSize:11, color:th.text2, marginTop:3 }}>= ${total}/{L("mo","شهر")} · {L("billed once a year","يُدفع مرة واحدة سنوياً")}</div>}
           {ap && <div style={{ textAlign:isAR?"left":"right", fontSize:10.5, color:th.text3, marginTop:3 }}>{ap.replace("approx ","≈ ")}</div>}
         </div>
 
