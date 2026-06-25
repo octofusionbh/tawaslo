@@ -12590,6 +12590,14 @@ const resolveBioTheme = (row) => {
 };
 
 // ── Menu builder (owner) — bilingual digital menu, shown on the bio link + QR. ──
+// All-world currency formatting for menus (correct symbol + decimals per ISO currency).
+const WORLD_CURRENCIES = ["BHD","SAR","AED","KWD","OMR","QAR","USD","EUR","GBP","EGP","JOD","TRY","INR","PKR","JPY","CNY","CAD","AUD","CHF","SEK","NOK","DKK","RUB","BRL","MXN","ZAR","SGD","HKD","NZD","KRW","THB","MYR","IDR","PHP","NGN","KES","MAD","TND","DZD","LKR","BDT","VND","PLN","CZK","HUF","ILS","RON","UAH"];
+function fmtMoney(amount, currency) {
+  if (amount == null || amount === "") return "";
+  const cur = String(currency || "BHD").toUpperCase();
+  try { return new Intl.NumberFormat(undefined, { style:"currency", currency:cur, currencyDisplay:"narrowSymbol" }).format(Number(amount)); }
+  catch (e) { try { return new Intl.NumberFormat(undefined, { style:"currency", currency:cur }).format(Number(amount)); } catch (e2) { return Number(amount).toFixed(2) + " " + cur; } }
+}
 function MenuBuilderPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -12634,10 +12642,11 @@ function MenuBuilderPage() {
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
-  const blankItem = () => ({ name_en:"", name_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", available:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", available:true, show_price:true });
+  const updateMenu = async (patch) => { setMenu(m => ({ ...m, ...patch })); if (menu && menu.id) { try { await supabase.from('menus').update(patch).eq('id', menu.id); } catch(e){} } };
   const saveItem = async () => {
     if (!editing || !menu) return;
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), price: editing.price===""?null:Number(editing.price), photo_url:editing.photo_url||null, available: editing.available!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), price: editing.price===""?null:Number(editing.price), photo_url:editing.photo_url||null, available: editing.available!==false, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -12685,6 +12694,22 @@ function MenuBuilderPage() {
         </div>
       )}
 
+      {menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("Currency","العملة")}</span>
+            <select value={(menu&&menu.currency)||"BHD"} onChange={e=>updateMenu({ currency:e.target.value })} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none" }}>
+              {WORLD_CURRENCIES.map(c=> <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ flex:1 }}/>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <input type="checkbox" checked={!!(menu&&menu.hide_prices)} onChange={e=>updateMenu({ hide_prices:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
+            <span style={{ fontSize:12, color:th.text2 }}>{L("Hide all prices on this menu","إخفاء كل الأسعار في هذه القائمة")}</span>
+          </label>
+        </div>
+      )}
+
       <div className="tw-scroll-x" style={{ display:"flex", gap:7, marginBottom:14, flexWrap:"wrap" }}>
         {cats.map(c=>(
           <button key={c} onClick={()=>setCat(c)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:cat===c?600:400, cursor:"pointer", border:`1px solid ${cat===c?th.accent:th.border}`, background:cat===c?th.accentSoft:th.card, color:cat===c?th.accent:th.text2, whiteSpace:"nowrap" }}>{c}</button>
@@ -12700,7 +12725,7 @@ function MenuBuilderPage() {
               <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}{it.available===false && <span style={{ fontSize:9, color:th.warning, border:`1px solid ${th.warning}55`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("sold out","نفد")}</span>}</div>
               {it.name_ar && <div style={{ fontSize:11.5, color:th.text2, direction:"rtl", fontFamily:"'Cairo',sans-serif" }}>{it.name_ar}</div>}
             </div>
-            <span className="tw-num" style={{ fontSize:13, fontWeight:600, color:th.accent }}>{it.price!=null?Number(it.price).toFixed(3):"—"} <span style={{ fontSize:9, color:th.text3 }}>{(menu&&menu.currency)||"BHD"}</span></span>
+            <span className="tw-num" style={{ fontSize:13, fontWeight:600, color:th.accent }}>{(menu&&menu.hide_prices)||it.show_price===false ? <span style={{ fontSize:9.5, color:th.text3, fontWeight:400, fontStyle:"italic" }}>{L("price hidden","مخفي")}</span> : (it.price!=null ? fmtMoney(it.price,(menu&&menu.currency)||"BHD") : "—")}</span>
             <button onClick={()=>toggleAvail(it)} title={L("Toggle availability","تبديل التوفر")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}>{it.available!==false?<Eye size={15}/>:<XCircle size={15}/>}</button>
             <button onClick={()=>setEditing({ ...it })} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><Edit3 size={14}/></button>
             <button onClick={()=>delItem(it.id)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
@@ -12729,7 +12754,11 @@ function MenuBuilderPage() {
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name (Arabic)","الاسم (عربي)")}</div>
             <input value={editing.name_ar} onChange={e=>setEditing({...editing, name_ar:e.target.value})} dir="rtl" style={{ ...inp, marginBottom:10, fontFamily:"'Cairo',sans-serif" }}/>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"})</div>
-            <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:16 }}/>
+            <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:10 }}/>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:16, cursor:"pointer" }}>
+              <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
+            </label>
             <div style={{ display:"flex", gap:9 }}>
               <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
               <button onClick={saveItem} disabled={!editing.name_en.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:editing.name_en.trim()?"pointer":"not-allowed", opacity:editing.name_en.trim()?1:0.6 }}>{L("Save","حفظ")}</button>
@@ -12756,7 +12785,7 @@ function ConciergeWidget({ clientId, name, currency }) {
     let live = true;
     (async () => {
       let menu = [], settings = {}, cur = currency || 'BHD';
-      try { const { data: mn } = await supabase.from('menus').select('id,currency').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,price,available').eq('menu_id', m.id).limit(80); menu = it || []; } } catch (e) {}
+      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,price,available,show_price').eq('menu_id', m.id).limit(80); menu = (it||[]).map(x => ({ ...x, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
       if (live) setCtx({ menu, settings, currency: cur });
     })();
@@ -12828,7 +12857,7 @@ function MenuPublicPage({ slug }) {
   const [cat, setCat] = useState("All");
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -12870,7 +12899,7 @@ function MenuPublicPage({ slug }) {
                   {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:"rtl", fontFamily:"'Cairo',sans-serif", marginTop:1 }}>{it.name_ar}</div>}
                   {it.description && <div style={{ fontSize:11, color:"#6b7785", marginTop:3 }}>{it.description}</div>}
                 </div>
-                <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{it.price!=null?Number(it.price).toFixed(3):""} <span style={{ fontSize:9, color:"#5e6b78" }}>{cur}</span></span>
+                <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{data.hide_prices || it.show_price===false ? "" : (it.price!=null ? fmtMoney(it.price, cur) : "")}</span>
               </div>
             ))}
           </div>
@@ -12902,6 +12931,7 @@ function ReservationsPage() {
   const [closedDays, setClosedDays] = useState([]);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tab, setTab] = useState("bookings");
+  const [hostPin, setHostPin] = useState("");
 
   useEffect(() => {
     let active = true; setLoading(true);
@@ -12915,7 +12945,7 @@ function ReservationsPage() {
       let bs = null;
       try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); bs = bp && bp[0] && bp[0].slug; if (!bs) { bs = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:bs, title:selClient.name }]); } } catch(e){}
       if (active) setPubSlug(bs);
-      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); } } catch(e){}
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); if(h.host_pin) setHostPin(h.host_pin); } } catch(e){}
       const t0 = new Date(); t0.setHours(0,0,0,0);
       try { const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', t0.toISOString()).order('starts_at',{ascending:true}); if (active) setBookings(bk||[]); } catch(e){}
       if (active) setLoading(false);
@@ -12925,7 +12955,7 @@ function ReservationsPage() {
 
   const saveSettings = async () => {
     if (!cid) return;
-    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
+    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
   };
   const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); };
 
@@ -12965,7 +12995,23 @@ function ReservationsPage() {
         ))}
       </div>
 
-      {tab==="floor" && <FloorView cid={cid}/>}
+      {tab==="floor" && (<>
+        {pubSlug && (
+          <div style={{ ...card, padding:16, marginBottom:14, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>
+            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(origin+'/host/'+pubSlug)}`} alt="Host QR" style={{ width:64, height:64, borderRadius:8, background:"#fff", padding:5, flexShrink:0 }}/>
+            <div style={{ flex:1, minWidth:180 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Host stand (iPad)","شاشة المضيف (آيباد)")}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Open on the restaurant's iPad — a locked, full-screen seating view. Set a 4-digit PIN to unlock it.","افتحها على آيباد المطعم — شاشة إجلاس مقفلة. اضبط رمز PIN من 4 أرقام لفتحها.")}</div>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <input value={hostPin} onChange={e=>setHostPin(e.target.value.replace(/\D/g,'').slice(0,4))} placeholder={L("PIN","الرمز")} maxLength={4} style={{ width:74, textAlign:"center", letterSpacing:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 8px", color:th.text, fontSize:16, outline:"none" }}/>
+              <button onClick={saveSettings} style={{ padding:"9px 13px", borderRadius:9, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved","تم"):L("Save PIN","حفظ الرمز")}</button>
+              <a href={`${origin}/host/${pubSlug}`} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:9, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("Open","فتح")}</a>
+            </div>
+          </div>
+        )}
+        <FloorView cid={cid}/>
+      </>)}
       {tab==="guests" && <GuestsView cid={cid}/>}
 
       {tab==="bookings" && (<>
@@ -13153,6 +13199,182 @@ function ReservePublicPage({ slug }) {
 
       <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:24 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
     </div><ConciergeWidget clientId={info.client_id} name={info.name}/></div>
+  );
+}
+
+// ── Host mode (tawaslo.com/host/<slug>) — PIN-locked iPad host stand, no login. ──
+function HostStandPage({ slug }) {
+  const [info, setInfo] = useState(undefined);   // undefined=loading, null=not found, else {client_id,name,pin}
+  const [unlocked, setUnlocked] = useState(false);
+  const [pin, setPin] = useState("");
+  const [pinErr, setPinErr] = useState(false);
+  const [rooms, setRooms] = useState([]);
+  const [roomId, setRoomId] = useState(null);
+  const [tables, setTables] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [armed, setArmed] = useState(null);
+  const [selTable, setSelTable] = useState(null);
+  const [walkOpen, setWalkOpen] = useState(false);
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2);
+  const [, setTick] = useState(0);
+
+  useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cid = null, name = null, pinVal = null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('client_id,title').eq('slug', slug).limit(1); if (bp && bp[0]) { cid = bp[0].client_id; name = bp[0].title; } } catch (e) {}
+      if (!cid) { try { const { data: mn } = await supabase.from('menus').select('client_id,title').eq('slug', slug).limit(1); if (mn && mn[0]) { cid = mn[0].client_id; name = mn[0].title; } } catch (e) {} }
+      if (!live) return;
+      if (!cid) { setInfo(null); return; }
+      try { const { data: st } = await supabase.from('booking_settings').select('hours').eq('client_id', cid).limit(1); pinVal = st && st[0] && st[0].hours && st[0].hours.host_pin; } catch (e) {}
+      if (!name) { try { const { data: c } = await supabase.from('clients').select('name').eq('id', cid).limit(1); name = c && c[0] && c[0].name; } catch (e) {} }
+      if (live) { setInfo({ client_id: cid, name: name || '', pin: pinVal || null }); if (!pinVal) setUnlocked(true); }
+    })();
+    return () => { live = false; };
+  }, [slug]);
+
+  const reload = async (cidArg) => {
+    const cid = cidArg || (info && info.client_id); if (!cid) return;
+    const t0 = new Date(); t0.setHours(0,0,0,0); const t1 = new Date(); t1.setHours(23,59,59,999);
+    const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', cid).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString()).order('starts_at', { ascending: true });
+    setBookings(bk || []);
+  };
+  useEffect(() => {
+    if (!unlocked || !info || !info.client_id) return;
+    let live = true;
+    (async () => {
+      const cid = info.client_id;
+      const { data: rm } = await supabase.from('dining_rooms').select('*').eq('client_id', cid).order('sort', { ascending: true });
+      if (!live) return;
+      setRooms(rm || []); setRoomId(p => p || (rm && rm[0] && rm[0].id));
+      const { data: tb } = await supabase.from('dining_tables').select('*').eq('client_id', cid);
+      if (live) { setTables(tb || []); reload(cid); }
+    })();
+    return () => { live = false; };
+  }, [unlocked, info]);
+
+  const tryPin = (val) => { if (val === (info && info.pin)) { setUnlocked(true); setPinErr(false); } else { setPinErr(true); setTimeout(() => { setPin(""); setPinErr(false); }, 700); } };
+  const pressKey = (k) => { if (k === 'del') { setPin(p => p.slice(0, -1)); return; } const np = (pin + k).slice(0, 4); setPin(np); if (np.length === 4) setTimeout(() => tryPin(np), 150); };
+
+  const roomTables = tables.filter(t => t.room_id === roomId);
+  const bookingFor = (tid) => bookings.find(b => b.table_id === tid && (b.status === 'seated' || b.status === 'confirmed'));
+  const seatedFor = (tid) => bookings.find(b => b.table_id === tid && b.status === 'seated');
+  const arriving = bookings.filter(b => b.status === 'confirmed' && !b.table_id);
+  const waitlist = bookings.filter(b => b.status === 'waitlist');
+  const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id: t.id, status: 'seated', seated_at: new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
+  const clearTable = async (t) => { const b = bookingFor(t.id); if (b) await supabase.from('bookings').update({ table_id: null }).eq('id', b.id); setSelTable(null); await reload(); };
+  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id: info.client_id, customer_name: wName.trim() || 'Walk-in', party_size: Number(wParty) || 2, starts_at: new Date().toISOString(), source: 'manual', status: toWait ? 'waitlist' : 'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); await reload(); };
+  const elapsed = (iso) => { if (!iso) return ''; const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); if (m < 1) return 'now'; if (m < 60) return m + 'm'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
+  const fmtT = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  const wrap = { minHeight: "100vh", background: "#0A0D11", color: "#F2F5F9", fontFamily: "'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" };
+  if (info === undefined) return <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 13, color: "#7E8794" }}>Loading…</div></div>;
+  if (info === null) return <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 600 }}>Host stand not available</div><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12.5, color: "#7E8794", marginTop: 6 }}><img src="/logo-transparent.png" alt="" style={{ width: 14, height: 14, objectFit: "contain" }} />Powered by Tawaslo</div></div></div>;
+
+  if (!unlocked) {
+    return (
+      <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ width: 44, height: 44, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><img src="/logo-transparent.png" alt="" style={{ width: 26, height: 26, objectFit: "contain" }} /></div>
+          <div style={{ fontSize: 17, fontWeight: 700 }}>{info.name}</div>
+          <div style={{ fontSize: 11, color: "#5e6b78", marginBottom: 18, letterSpacing: ".06em", textTransform: "uppercase" }}>Host stand · enter PIN</div>
+          <div style={{ display: "flex", gap: 11, justifyContent: "center", marginBottom: 22 }}>
+            {[0,1,2,3].map(i => <span key={i} style={{ width: 12, height: 12, borderRadius: "50%", background: pinErr ? "#E5484D" : (i < pin.length ? "#6E8CAB" : "#2a3340"), transition: "background .15s" }} />)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,64px)", gap: 12, justifyContent: "center" }}>
+            {['1','2','3','4','5','6','7','8','9'].map(k => <button key={k} onClick={() => pressKey(k)} style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid #232B38", background: "#141923", color: "#F2F5F9", fontSize: 22, fontWeight: 600, cursor: "pointer" }}>{k}</button>)}
+            <span />
+            <button onClick={() => pressKey('0')} style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid #232B38", background: "#141923", color: "#F2F5F9", fontSize: 22, fontWeight: 600, cursor: "pointer" }}>0</button>
+            <button onClick={() => pressKey('del')} style={{ width: 64, height: 64, borderRadius: "50%", border: "none", background: "transparent", color: "#8794A8", fontSize: 16, cursor: "pointer" }}>⌫</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const selT = roomTables.find(t => t.id === selTable);
+  const seatedCount = roomTables.filter(t => seatedFor(t.id)).length;
+  const freeCount = roomTables.filter(t => !bookingFor(t.id)).length;
+  return (
+    <div style={{ ...wrap, display: "flex", flexDirection: "column", height: "100vh" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderBottom: "1px solid #232B38", flexWrap: "wrap" }}>
+        <img src="/logo-transparent.png" alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{info.name}</div><div style={{ fontSize: 10.5, color: "#5e6b78" }}>{new Date().toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}</div></div>
+        <span style={{ fontSize: 12, color: "#10B981", fontWeight: 700 }}>{seatedCount} seated</span><span style={{ fontSize: 12, color: "#5e6b78" }}>·</span><span style={{ fontSize: 12, color: "#8794A8", fontWeight: 700 }}>{freeCount} free</span>
+        <button onClick={() => setWalkOpen(true)} style={{ marginInlineStart: 6, padding: "8px 14px", borderRadius: 9, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Walk-in</button>
+      </div>
+      {rooms.length > 1 && <div style={{ display: "flex", gap: 7, padding: "10px 18px 0", flexWrap: "wrap" }}>{rooms.map(r => <button key={r.id} onClick={() => { setRoomId(r.id); setSelTable(null); }} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${roomId === r.id ? "#6E8CAB" : "#232B38"}`, background: roomId === r.id ? "rgba(110,140,171,.14)" : "#141923", color: roomId === r.id ? "#cdd9e8" : "#8794A8" }}>{r.name}</button>)}</div>}
+      {armed && <div style={{ margin: "10px 18px 0", padding: "9px 13px", background: "rgba(110,140,171,.12)", border: "1px solid #6E8CAB", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "center", gap: 10 }}><span>Tap a table to seat <b>{(arriving.concat(waitlist).find(b => b.id === armed) || {}).customer_name}</b></span><div style={{ flex: 1 }} /><button onClick={() => setArmed(null)} style={{ background: "none", border: "none", color: "#8794A8", cursor: "pointer", fontSize: 12 }}>Cancel</button></div>}
+      <div style={{ flex: 1, display: "flex", gap: 14, padding: 16, overflow: "hidden", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 420px", minWidth: 280, position: "relative", borderRadius: 14, border: "1px solid #232B38", background: "#0E1216", backgroundImage: "radial-gradient(#232B38 1px, transparent 1px)", backgroundSize: "24px 24px", overflow: "auto" }}>
+          {roomTables.length === 0 && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#5e6b78", fontSize: 12.5, textAlign: "center", padding: 20 }}>No tables set up yet.</div>}
+          {roomTables.map(t => {
+            const seated = seatedFor(t.id); const resv = bookingFor(t.id);
+            const occupied = !!seated; const reserved = !occupied && !!resv;
+            const bg = occupied ? 'rgba(16,185,129,0.16)' : reserved ? 'rgba(110,140,171,0.16)' : '#141923';
+            const bd = occupied ? '#10B981' : reserved ? '#6E8CAB' : '#232B38';
+            const round = t.shape === 'round'; const wide = t.shape === 'rect';
+            return (
+              <div key={t.id} onClick={() => { armed ? seatArmed(t) : setSelTable(t.id); }} style={{ position: "absolute", left: t.pos_x, top: t.pos_y, width: wide ? 86 : 58, height: 58, borderRadius: round ? "50%" : 12, border: `1.5px solid ${bd}`, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", boxShadow: selTable === t.id ? "0 0 0 2px #6E8CAB66" : "none" }}>
+                <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                {occupied ? <div style={{ fontSize: 8, color: "#10B981", fontWeight: 600 }}>{elapsed(seated.seated_at)}</div> : reserved ? <div style={{ fontSize: 8, color: "#6E8CAB", fontWeight: 600 }}>{fmtT(resv.starts_at)}</div> : <div style={{ fontSize: 8, color: "#5e6b78" }}>{t.seats}p</div>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ flex: "1 1 240px", minWidth: 220, maxWidth: 320, display: "flex", flexDirection: "column", gap: 12, overflow: "auto" }}>
+          <div style={{ background: "#141923", border: "1px solid #232B38", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "10px 13px", borderBottom: "1px solid #232B38", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "#8794A8" }}>Arriving · {arriving.length}</div>
+            {arriving.length === 0 ? <div style={{ padding: "16px 13px", fontSize: 12, color: "#5e6b78" }}>Nobody expected right now.</div> : arriving.map(b => (
+              <div key={b.id} onClick={() => setArmed(b.id)} style={{ padding: "10px 13px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer", borderBottom: "1px solid #232B38", background: armed === b.id ? "rgba(110,140,171,.14)" : "transparent" }}>
+                <span style={{ width: 20, textAlign: "center", fontWeight: 700 }}>{b.party_size || 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>{b.customer_name || 'Guest'}</div><div style={{ fontSize: 10, color: "#5e6b78" }}>{fmtT(b.starts_at)}{b.note ? ` · ${b.note}` : ""}</div></div>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6E8CAB" }}>Seat</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: "#141923", border: "1px solid #232B38", borderRadius: 12, overflow: "hidden" }}>
+            <div style={{ padding: "10px 13px", borderBottom: "1px solid #232B38", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "#8794A8" }}>Waitlist · {waitlist.length}</div>
+            {waitlist.length === 0 ? <div style={{ padding: "16px 13px", fontSize: 12, color: "#5e6b78" }}>No one waiting.</div> : waitlist.map(b => (
+              <div key={b.id} onClick={() => setArmed(b.id)} style={{ padding: "10px 13px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer", borderBottom: "1px solid #232B38", background: armed === b.id ? "rgba(110,140,171,.14)" : "transparent" }}>
+                <span style={{ width: 20, textAlign: "center", fontWeight: 700 }}>{b.party_size || 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>{b.customer_name || 'Guest'}</div><div style={{ fontSize: 10, color: "#5e6b78" }}>waiting {elapsed(b.starts_at)}</div></div>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6E8CAB" }}>Seat</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {selT && !armed && createPortal((
+        <div onClick={() => setSelTable(null)} style={{ position: "fixed", inset: 0, background: "rgba(4,6,12,0.6)", backdropFilter: "blur(3px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: "#141923", border: "1px solid #232B38", borderRadius: 16, padding: 18 }}>
+            {(() => { const seated = seatedFor(selT.id); const resv = bookingFor(selT.id);
+              if (seated) return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Seated</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{seated.customer_name || 'Guest'} · {seated.party_size || 1} pax · {elapsed(seated.seated_at)}</div>{seated.note && <div style={{ fontSize: 11.5, color: "#C7942B", marginTop: 6 }}>{seated.note}</div>}<button onClick={() => clearTable(selT)} style={{ marginTop: 16, width: "100%", padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Clear table</button></>);
+              if (resv) return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Reserved</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{resv.customer_name || 'Guest'} · {resv.party_size || 1} pax · {fmtT(resv.starts_at)}</div><button onClick={async () => { await supabase.from('bookings').update({ status: 'seated', seated_at: new Date().toISOString() }).eq('id', resv.id); setSelTable(null); await reload(); }} style={{ marginTop: 16, width: "100%", padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Seat now</button></>);
+              return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Free</div><div style={{ fontSize: 12, color: "#5e6b78", marginTop: 6 }}>{selT.seats} seats</div><div style={{ fontSize: 11, color: "#8794A8", marginTop: 14, marginBottom: 7 }}>Seat an arriving guest:</div><div style={{ maxHeight: 200, overflowY: "auto" }}>{arriving.concat(waitlist).length === 0 ? <div style={{ fontSize: 12, color: "#5e6b78" }}>No one waiting. Use Walk-in.</div> : arriving.concat(waitlist).map(b => <button key={b.id} onClick={async () => { await supabase.from('bookings').update({ table_id: selT.id, status: 'seated', seated_at: new Date().toISOString() }).eq('id', b.id); setSelTable(null); await reload(); }} style={{ width: "100%", textAlign: "start", padding: "9px 11px", borderRadius: 9, background: "#0E1216", border: "1px solid #232B38", color: "#F2F5F9", fontSize: 12.5, cursor: "pointer", marginBottom: 6, display: "flex", justifyContent: "space-between" }}><span>{b.customer_name || 'Guest'} · {b.party_size || 1}p</span><span style={{ color: "#6E8CAB", fontWeight: 700 }}>Seat</span></button>)}</div></>);
+            })()}
+          </div>
+        </div>
+      ), document.body)}
+
+      {walkOpen && createPortal((
+        <div onClick={() => setWalkOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(4,6,12,0.6)", backdropFilter: "blur(3px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 340, background: "#141923", border: "1px solid #232B38", borderRadius: 16, padding: 18 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Walk-in</div>
+            <input value={wName} onChange={e => setWName(e.target.value)} placeholder="Name (optional)" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
+            <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 6 }}>Party size</div>
+            <input type="number" min="1" value={wParty} onChange={e => setWParty(e.target.value)} style={{ width: 100, boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 16 }} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => addWalkin(true)} style={{ flex: 1, padding: 11, borderRadius: 11, background: "transparent", border: "1px solid #232B38", color: "#8794A8", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>To waitlist</button>
+              <button onClick={() => addWalkin(false)} style={{ flex: 1.4, padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Add → seat</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
   );
 }
 
@@ -14612,6 +14834,10 @@ export default function TawasloApp() {
   // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
   const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
   if (resMatch) return <ReservePublicPage slug={resMatch[1]}/>;
+
+  // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
+  const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
+  if (hostMatch) return <HostStandPage slug={hostMatch[1]}/>;
 
   // Public branded client portal (tawaslo.com/portal/<token>) — no login.
   const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
