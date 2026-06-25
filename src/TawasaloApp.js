@@ -1899,6 +1899,8 @@ function OwnerPromosPage() {
     if (live) {
       const { data } = await createPromoCode({ code:clean, discount_type:type, discount_value:Number(value), applies_to:plans, usage_limit:Number(limit)||0, expiry:expiry||null });
       if (data && data[0]) setCodes(cs => [mapPromo(data[0]), ...cs]);
+      // Mirror the code into Polar so it actually applies at the Polar checkout.
+      try { await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'polar_create_discount', code:clean, name:'Tawaslo '+clean, duration:'once', percent: type==='percent'?Number(value):undefined, amount: type==='fixed'?Number(value):undefined, maxRedemptions: Number(limit)||undefined, endsAt: expiry?new Date(expiry+'T23:59:59').toISOString():undefined }) }); } catch(e){}
     } else {
       setCodes(cs => [{ id:"p"+Date.now(), code:clean, type, value:Number(value), plans, uses:0, limit:Number(limit)||0, expiry:expiry||"—", active:true }, ...cs]);
     }
@@ -10129,6 +10131,7 @@ function BillingPage() {
   const [addon, setAddon] = useState("none");               // optional AI image pack at checkout
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [liveSub, setLiveSub] = useState(null);   // the customer's real Polar subscription (synced by the webhook)
   const [, setImgTick] = useState(0);   // re-read image credits after a change
   const imgAcct = (userEmail || "").toLowerCase();
   const imgIsPaid = (() => { try { return !isTrialUser(userEmail); } catch(e){ return true; } })();
@@ -10143,6 +10146,19 @@ function BillingPage() {
       if (localStorage.getItem('tw_sub_status') === 'cancelled') setCancelled(true);
     } catch (e) { /* ignore */ }
   }, []);
+
+  // Read the live Polar subscription (kept in sync by the webhook) and reflect it in the UI.
+  useEffect(() => {
+    if (!userEmail) return;
+    let active = true;
+    supabase.from('subscriptions').select('*').eq('email', userEmail).order('updated_at', { ascending: false }).limit(1)
+      .then(({ data }) => {
+        if (!active) return;
+        const s = data && data[0];
+        if (s) { setLiveSub(s); if (s.status === 'active' || s.status === 'trialing') setPaid(true); if (s.status === 'canceled') setCancelled(true); }
+      }, () => {});
+    return () => { active = false; };
+  }, [userEmail]);
 
   // ── Paddle (Merchant of Record — no CR needed) ───────────────────────
   // Set these in Vercel → Project → Environment Variables, then redeploy:
@@ -10178,8 +10194,23 @@ function BillingPage() {
   }, []); // eslint-disable-line
 
   // The plan and billing cycle the user is actually subscribed to.
-  const currentPlanName = "Essential";
-  const currentPeriod = "annual";
+  const hasActiveSub = !!(liveSub && (liveSub.status === 'active' || liveSub.status === 'trialing'));
+  const subCancelled = !!(liveSub && liveSub.status === 'canceled');
+  const currentPlanName = (liveSub && liveSub.plan) || null;
+  const currentPeriod = liveSub && liveSub.interval === 'year' ? 'annual' : 'monthly';
+  const subEndsAt = liveSub && liveSub.current_period_end ? new Date(liveSub.current_period_end) : null;
+  const fmtSubDate = (d) => (d && !isNaN(d.getTime())) ? d.toLocaleDateString(isAR ? 'ar-u-nu-latn' : [], { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  // Open Polar's Customer Portal so the customer can change plan, update card, or cancel.
+  const openPortal = async () => {
+    if (!liveSub) { setNotice(L("No active subscription found.", "لا يوجد اشتراك نشط.")); return; }
+    setBusy('portal'); setNotice("");
+    try {
+      const r = await fetch('/api/tap', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'polar_portal', customer_id: liveSub.customer_id, email: userEmail }) });
+      const d = await r.json();
+      if (d && d.url) { window.location.href = d.url; return; }
+      setBusy(""); setNotice(L("Couldn't open the billing portal. Please try again.", "تعذّر فتح بوابة الفوترة. حاول مجدداً."));
+    } catch (e) { setBusy(""); setNotice(L("Couldn't open the billing portal.", "تعذّر فتح بوابة الفوترة.")); }
+  };
   // Prices are grossed up to absorb the Merchant-of-Record fee (5% + $0.50) so the
   // net landing in the ila USD account stays at the ~$49 / $99 / $199 targets.
   const plans = [
@@ -10346,10 +10377,12 @@ function BillingPage() {
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22, flexWrap:"wrap", gap:14}}>
         <div>
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Plans & billing","الخطط والفوترة")}</h2>
-          {cancelled ? (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Your","خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> {L("plan ends","تنتهي في")} <strong style={{color:th.text}}>July 1, 2026</strong> · <span onClick={()=>{ setCancelled(false); try{localStorage.removeItem('tw_sub_status');}catch(e){} }} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>{L("Reactivate","إعادة التفعيل")}</span></p>
+          {subCancelled ? (
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Your","خطة")} <span style={{color:th.accent, fontWeight:600}}>{currentPlanName||""}</span> {L("plan ends","تنتهي في")} <strong style={{color:th.text}}>{fmtSubDate(subEndsAt)||"—"}</strong> · <span onClick={openPortal} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>{busy==='portal'?L("Opening…","جارٍ…"):L("Reactivate","إعادة التفعيل")}</span></p>
+          ) : hasActiveSub ? (
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("You're on","أنت على خطة")} <span style={{color:th.accent, fontWeight:600}}>{currentPlanName}</span> · {currentPeriod==="annual"?L("billed yearly","فوترة سنوية"):L("billed monthly","فوترة شهرية")}{subEndsAt?` · ${L("renews","تتجدد")} ${fmtSubDate(subEndsAt)}`:""} · <span onClick={openPortal} style={{color:th.accent, fontWeight:600, cursor:"pointer"}}>{busy==='portal'?L("Opening…","جارٍ…"):L("Manage subscription","إدارة الاشتراك")}</span></p>
           ) : (
-            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("You're on","أنت على خطة")} <span style={{color:th.accent, fontWeight:600}}>Essential</span> · {currentPeriod==="annual"?L("billed yearly","فوترة سنوية"):L("billed monthly","فوترة شهرية")} · {L("renews July 1, 2026","تتجدد في 1 يوليو 2026")} · <span onClick={()=>setShowCancel(true)} style={{color:th.danger, fontWeight:600, cursor:"pointer"}}>{L("Cancel subscription","إلغاء الاشتراك")}</span></p>
+            <p style={{margin:"6px 0 0", fontSize:13, color:th.text2}}>{L("Choose a plan below to subscribe — billed in USD, cancel anytime.","اختر خطة بالأسفل للاشتراك — بالدولار، يمكنك الإلغاء في أي وقت.")}</p>
           )}
         </div>
         <div style={{display:"inline-flex", alignItems:"center", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:4}}>
@@ -10413,6 +10446,10 @@ function BillingPage() {
               <div style={{marginTop:"auto"}}>
                 {isCurrent ? (
                   <div style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, textAlign:"center", boxSizing:"border-box"}}>{L("Your current plan","خطتك الحالية")}</div>
+                ) : hasActiveSub ? (
+                  <button onClick={openPortal} style={{width:"100%", padding:"11px", borderRadius:10, background:featured?th.gradient:"transparent", border:featured?"none":`1px solid ${th.accent}`, color:featured?"#fff":th.accent, fontSize:12.5, fontWeight:700, cursor:busy==='portal'?"not-allowed":"pointer", opacity:busy==='portal'?0.6:1, boxSizing:"border-box"}}>
+                    {busy==='portal'?L("Opening…","جارٍ…"):L("Change to this plan","التغيير لهذه الخطة")}
+                  </button>
                 ) : otherCycle ? (
                   <button onClick={()=>{ setPromo(null); setPromoInput(""); setPromoErr(""); setAddon("none"); setNotice(""); setCheckoutPlan(plan.name); }} style={{width:"100%", padding:"11px", borderRadius:10, background:"transparent", border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:700, cursor:"pointer", opacity:busy===plan.name?0.6:1, boxSizing:"border-box"}}>
                     {busy===plan.name?L("Starting checkout…","جارٍ بدء الدفع…"):L(`Switch to ${period==="annual"?"yearly":"monthly"} billing`,`التحويل إلى الفوترة ${period==="annual"?"السنوية":"الشهرية"}`)}
