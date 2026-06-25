@@ -13803,7 +13803,8 @@ function HostStandPage({ slug }) {
   const [armed, setArmed] = useState(null);
   const [selTable, setSelTable] = useState(null);
   const [walkOpen, setWalkOpen] = useState(false);
-  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2);
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState("");
+  const [notified, setNotified] = useState({});
   const [hmode, setHmode] = useState("host");   // host | edit
   const [editTable, setEditTable] = useState(null);
   const [, setTick] = useState(0);
@@ -13857,7 +13858,8 @@ function HostStandPage({ slug }) {
   const waitlist = bookings.filter(b => b.status === 'waitlist');
   const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id: t.id, status: 'seated', seated_at: new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
   const clearTable = async (t) => { const b = bookingFor(t.id); if (b) await supabase.from('bookings').update({ table_id: null }).eq('id', b.id); setSelTable(null); await reload(); };
-  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id: info.client_id, customer_name: wName.trim() || 'Walk-in', party_size: Number(wParty) || 2, starts_at: new Date().toISOString(), source: 'manual', status: toWait ? 'waitlist' : 'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); await reload(); };
+  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id: info.client_id, customer_name: wName.trim() || 'Walk-in', customer_phone: wPhone.trim() || null, party_size: Number(wParty) || 2, starts_at: new Date().toISOString(), source: 'manual', status: toWait ? 'waitlist' : 'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); await reload(); };
+  const notifyReady = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if (!ph) return; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, your table at ${info.name||'us'} is ready — please come to the host stand. See you in a moment!`); if (typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); setNotified(n => ({ ...n, [b.id]: true })); };
   const elapsed = (iso) => { if (!iso) return ''; const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); if (m < 1) return 'now'; if (m < 60) return m + 'm'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
   const fmtT = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
@@ -13899,6 +13901,8 @@ function HostStandPage({ slug }) {
   const seatedCount = roomTables.filter(t => seatedFor(t.id)).length;
   const freeCount = roomTables.filter(t => !bookingFor(t.id) && !t.out_of_service).length;
   const editMode = hmode === 'edit';
+  const freeAll = tables.filter(t => !t.out_of_service && !bookingFor(t.id));
+  const nextReady = waitlist.filter(b => b.customer_phone && !notified[b.id]).sort((a,b)=> new Date(a.starts_at)-new Date(b.starts_at)).find(b => freeAll.some(t => (t.seats||0) >= (b.party_size||1)));
   return (
     <div style={{ ...wrap, display: "flex", flexDirection: "column", height: "100vh" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderBottom: "1px solid #232B38", flexWrap: "wrap" }}>
@@ -13913,6 +13917,14 @@ function HostStandPage({ slug }) {
       </div>
       {(rooms.length > 1 || editMode) && <div style={{ display: "flex", gap: 7, padding: "10px 18px 0", flexWrap: "wrap", alignItems: "center" }}>{rooms.map(r => <button key={r.id} onClick={() => { setRoomId(r.id); setSelTable(null); setEditTable(null); }} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${roomId === r.id ? "#6E8CAB" : "#232B38"}`, background: roomId === r.id ? "rgba(110,140,171,.14)" : "#141923", color: roomId === r.id ? "#cdd9e8" : "#8794A8" }}>{r.name}</button>)}{editMode && <button onClick={addRoom} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px dashed #232B38", background: "transparent", color: "#5e6b78" }}>+ Section</button>}</div>}
       {armed && <div style={{ margin: "10px 18px 0", padding: "9px 13px", background: "rgba(110,140,171,.12)", border: "1px solid #6E8CAB", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "center", gap: 10 }}><span>Tap a table to seat <b>{(arriving.concat(waitlist).find(b => b.id === armed) || {}).customer_name}</b></span><div style={{ flex: 1 }} /><button onClick={() => setArmed(null)} style={{ background: "none", border: "none", color: "#8794A8", cursor: "pointer", fontSize: 12 }}>Cancel</button></div>}
+      {!editMode && !armed && nextReady && <div style={{ margin: "10px 18px 0", padding: "11px 14px", background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.5)", borderRadius: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(37,211,102,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#25D366", flexShrink: 0 }}><FaWhatsapp /></div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#ECEAE1" }}>A table just opened for {nextReady.customer_name || 'a guest'}</div>
+          <div style={{ fontSize: 11, color: "#8794A8" }}>Party of {nextReady.party_size || 1} · waiting {elapsed(nextReady.starts_at)} — let them know their table is ready.</div>
+        </div>
+        <button onClick={() => notifyReady(nextReady)} style={{ padding: "9px 16px", borderRadius: 10, background: "#25D366", border: "none", color: "#06301a", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0 }}><FaWhatsapp />Notify now</button>
+      </div>}
       <div style={{ flex: 1, display: "flex", gap: 14, padding: 16, overflow: "hidden", flexWrap: "wrap" }}>
         <div ref={canvasRef} onPointerMove={onCanvasMove} onPointerUp={onCanvasUp} onPointerLeave={onCanvasUp} style={{ flex: "1 1 420px", minWidth: 280, position: "relative", borderRadius: 14, border: "1px solid #232B38", background: "#0E1216", backgroundImage: "radial-gradient(#232B38 1px, transparent 1px)", backgroundSize: "24px 24px", overflow: "auto", touchAction: editMode ? "none" : "auto" }}>
           {roomTables.length === 0 && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#5e6b78", fontSize: 12.5, textAlign: "center", padding: 20 }}>{editMode ? "Tap + Table, then drag tables into place." : "No tables set up yet — switch to Edit layout."}</div>}
@@ -13945,9 +13957,10 @@ function HostStandPage({ slug }) {
           <div style={{ background: "#141923", border: "1px solid #232B38", borderRadius: 12, overflow: "hidden" }}>
             <div style={{ padding: "10px 13px", borderBottom: "1px solid #232B38", fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: "#8794A8" }}>Waitlist · {waitlist.length}</div>
             {waitlist.length === 0 ? <div style={{ padding: "16px 13px", fontSize: 12, color: "#5e6b78" }}>No one waiting.</div> : waitlist.map(b => (
-              <div key={b.id} onClick={() => setArmed(b.id)} style={{ padding: "10px 13px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer", borderBottom: "1px solid #232B38", background: armed === b.id ? "rgba(110,140,171,.14)" : "transparent" }}>
+              <div key={b.id} onClick={() => setArmed(b.id)} style={{ padding: "10px 13px", display: "flex", alignItems: "center", gap: 9, cursor: "pointer", borderBottom: "1px solid #232B38", background: armed === b.id ? "rgba(110,140,171,.14)" : (nextReady && b.id === nextReady.id ? "rgba(37,211,102,0.10)" : "transparent") }}>
                 <span style={{ width: 20, textAlign: "center", fontWeight: 700 }}>{b.party_size || 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600 }}>{b.customer_name || 'Guest'}</div><div style={{ fontSize: 10, color: "#5e6b78" }}>waiting {elapsed(b.starts_at)}</div></div>
+                {b.customer_phone && <button onClick={(e) => { e.stopPropagation(); notifyReady(b); }} title="Table ready — notify on WhatsApp" style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid #232B38", background: notified[b.id] ? "rgba(37,211,102,0.16)" : "#0E1216", color: notified[b.id] ? "#25D366" : "#8794A8", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{notified[b.id] ? <Check size={14} /> : <FaWhatsapp />}</button>}
                 <span style={{ fontSize: 10.5, fontWeight: 700, color: "#6E8CAB" }}>Seat</span>
               </div>
             ))}
@@ -13972,6 +13985,7 @@ function HostStandPage({ slug }) {
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 340, background: "#141923", border: "1px solid #232B38", borderRadius: 16, padding: 18 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Walk-in</div>
             <input value={wName} onChange={e => setWName(e.target.value)} placeholder="Name (optional)" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
+            <input value={wPhone} onChange={e => setWPhone(e.target.value)} type="tel" inputMode="tel" placeholder="WhatsApp number — for 'table ready'" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
             <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 6 }}>Party size</div>
             <input type="number" min="1" value={wParty} onChange={e => setWParty(e.target.value)} style={{ width: 100, boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 16 }} />
             <div style={{ display: "flex", gap: 8 }}>
@@ -14010,7 +14024,7 @@ function HostStandPage({ slug }) {
 
 // ── Floor / Host stand — rooms, drag-and-drop tables, live seating, waitlist. ──
 function FloorView({ cid }) {
-  const { dark, lang } = useApp();
+  const { dark, lang, selClient } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [rooms, setRooms] = useState([]);
@@ -14022,7 +14036,8 @@ function FloorView({ cid }) {
   const [armed, setArmed] = useState(null);
   const [selTable, setSelTable] = useState(null);
   const [walkOpen, setWalkOpen] = useState(false);
-  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2);
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState("");
+  const [notified, setNotified] = useState({});
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
   const canvasRef = useRef(null);
@@ -14064,7 +14079,8 @@ function FloorView({ cid }) {
   const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id:t.id, status:'seated', seated_at:new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
   const clearTable = async (t) => { const b=bookingFor(t.id); if(b){ await supabase.from('bookings').update({ table_id:null }).eq('id', b.id); } setSelTable(null); await reload(); };
   const seatNow = async (b) => { const t=roomTables.find(x=>x.id===selTable); await supabase.from('bookings').update({ status:'seated', seated_at:new Date().toISOString() }).eq('id', b.id); await reload(); };
-  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id:cid, customer_name:wName.trim()||'Walk-in', party_size:Number(wParty)||2, starts_at:new Date().toISOString(), source:'manual', status: toWait?'waitlist':'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); await reload(); };
+  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id:cid, customer_name:wName.trim()||'Walk-in', customer_phone:wPhone.trim()||null, party_size:Number(wParty)||2, starts_at:new Date().toISOString(), source:'manual', status: toWait?'waitlist':'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); await reload(); };
+  const notifyReady = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if (!ph) return; const venue = (selClient && selClient.name) || 'us'; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, your table at ${venue} is ready — please come to the host stand. See you in a moment!`); if (typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); setNotified(n => ({ ...n, [b.id]: true })); };
 
   const addTable = async () => { const n=roomTables.length+1; const ins=await supabase.from('dining_tables').insert([{ client_id:cid, room_id:roomId, name:'T'+n, seats:2, shape:'square', pos_x:24+((n-1)%6)*78, pos_y:24+Math.floor((n-1)/6)*78 }]).select(); if(ins.data) setTables(ts=>[...ts, ins.data[0]]); };
   const updTable = async (id, patch) => { setTables(ts=>ts.map(t=>t.id===id?{...t,...patch}:t)); await supabase.from('dining_tables').update(patch).eq('id', id); };
@@ -14087,6 +14103,8 @@ function FloorView({ cid }) {
   const seatedCount = roomTables.filter(t=>seatedFor(t.id)).length;
   const freeCount = roomTables.filter(t=>!bookingFor(t.id)&&!t.out_of_service).length;
   const reservedCount = roomTables.filter(t=>!seatedFor(t.id)&&bookingFor(t.id)).length;
+  const freeAllF = tables.filter(t=>!t.out_of_service && !bookingFor(t.id));
+  const nextReady = waitlist.filter(b=>b.customer_phone && !notified[b.id]).sort((a,b)=> new Date(a.starts_at)-new Date(b.starts_at)).find(b=> freeAllF.some(t=>(t.seats||0)>=(b.party_size||1)));
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const tbtn = (on) => ({ padding:"6px 12px", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card2, color:on?th.accent:th.text2 });
@@ -14126,6 +14144,15 @@ function FloorView({ cid }) {
         <span style={{ fontSize:12.5, color:th.text }}>{L("Tap a table to seat","انقر على طاولة للإجلاس")} <b>{(arriving.concat(waitlist).find(b=>b.id===armed)||{}).customer_name}</b></span>
         <div style={{ flex:1 }}/>
         <button onClick={()=>setArmed(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", fontSize:12 }}>{L("Cancel","إلغاء")}</button>
+      </div>}
+
+      {mode==='host' && !armed && nextReady && <div style={{ padding:"11px 14px", marginBottom:12, borderRadius:14, background:"rgba(37,211,102,0.10)", border:"1px solid rgba(37,211,102,0.5)", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+        <div style={{ width:30, height:30, borderRadius:8, background:"rgba(37,211,102,0.2)", display:"flex", alignItems:"center", justifyContent:"center", color:"#25D366", flexShrink:0 }}><FaWhatsapp/></div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{L("A table just opened for","طاولة متاحة الآن لـ")} {nextReady.customer_name||L("a guest","ضيف")}</div>
+          <div style={{ fontSize:11, color:th.text2 }}>{L("Party of","مجموعة من")} {nextReady.party_size||1} · {L("waiting","ينتظر")} {elapsed(nextReady.starts_at)} — {L("let them know their table is ready.","أبلغهم أن طاولتهم جاهزة.")}</div>
+        </div>
+        <button onClick={()=>notifyReady(nextReady)} style={{ padding:"9px 16px", borderRadius:10, background:"#25D366", border:"none", color:"#06301a", fontSize:12.5, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7, flexShrink:0 }}><FaWhatsapp/>{L("Notify now","أبلغ الآن")}</button>
       </div>}
 
       <div style={{ display:"flex", gap:14, flexWrap:"wrap", alignItems:"flex-start" }}>
@@ -14174,12 +14201,13 @@ function FloorView({ cid }) {
               <div style={{ padding:"11px 14px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Waitlist","قائمة الانتظار")} · {waitlist.length}</div>
               {waitlist.length===0 ? <div style={{ padding:"18px 14px", fontSize:12, color:th.text3 }}>{L("No one waiting.","لا أحد ينتظر.")}</div> :
                 waitlist.map(b=>(
-                  <div key={b.id} onClick={()=>setArmed(b.id)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom:`1px solid ${th.border}`, background:armed===b.id?th.accentSoft:"transparent" }}>
+                  <div key={b.id} onClick={()=>setArmed(b.id)} style={{ padding:"10px 14px", display:"flex", alignItems:"center", gap:10, cursor:"pointer", borderBottom:`1px solid ${th.border}`, background:armed===b.id?th.accentSoft:(nextReady && b.id===nextReady.id ? "rgba(37,211,102,0.10)" : "transparent") }}>
                     <span className="tw-num" style={{ width:22, textAlign:"center", fontWeight:700, color:th.text }}>{b.party_size||1}</span>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{b.customer_name||L("Guest","ضيف")}</div>
                       <div style={{ fontSize:10, color:th.text3 }}>{L("waiting","ينتظر")} {elapsed(b.starts_at)}</div>
                     </div>
+                    {b.customer_phone && <button onClick={(e)=>{ e.stopPropagation(); notifyReady(b); }} title={L("Table ready — notify on WhatsApp","الطاولة جاهزة — أبلغ عبر واتساب")} style={{ width:28, height:28, borderRadius:7, border:`1px solid ${th.border}`, background:notified[b.id]?"rgba(37,211,102,0.16)":th.card2, color:notified[b.id]?"#25D366":th.text3, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{notified[b.id]?<Check size={14}/>:<FaWhatsapp/>}</button>}
                     <span style={{ fontSize:10.5, fontWeight:700, color:th.accent }}>{L("Seat","إجلاس")}</span>
                   </div>
                 ))}
@@ -14247,6 +14275,7 @@ function FloorView({ cid }) {
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:340, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
             <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:14 }}>{L("Walk-in","زائر")}</div>
             <input value={wName} onChange={e=>setWName(e.target.value)} placeholder={L("Name (optional)","الاسم (اختياري)")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
+            <input value={wPhone} onChange={e=>setWPhone(e.target.value)} type="tel" inputMode="tel" placeholder={L("WhatsApp number — for 'table ready'","رقم واتساب — لتنبيه 'الطاولة جاهزة'")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
             <div style={{ fontSize:10.5, color:th.text2, marginBottom:6 }}>{L("Party size","عدد الأشخاص")}</div>
             <input type="number" min="1" value={wParty} onChange={e=>setWParty(e.target.value)} style={{ width:100, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:16 }}/>
             <div style={{ display:"flex", gap:8 }}>
