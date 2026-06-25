@@ -1,4 +1,15 @@
 export default async function handler(req, res) {
+  // ── WhatsApp Cloud API webhook (folded in here to stay under Vercel's function cap) ──
+  if (req.method === 'GET' && req.query && req.query['hub.mode']) {
+    const vt = process.env.WHATSAPP_VERIFY_TOKEN || 'tawaslo_wa_verify';
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === vt) return res.status(200).send(req.query['hub.challenge']);
+    return res.status(403).send('Forbidden');
+  }
+  if (req.method === 'POST' && req.body && req.body.object === 'whatsapp_business_account') {
+    try { await handleWhatsApp(req.body); } catch (e) { /* never fail the webhook — Meta retries */ }
+    return res.status(200).json({ received: true });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -141,58 +152,9 @@ export default async function handler(req, res) {
     const ctx = req.body.context || {};
     const convo = Array.isArray(req.body.messages) ? req.body.messages.slice(-12) : [];
     if (!convo.length) return res.status(400).json({ error: 'messages required' });
-    const tagWords = { veg: 'vegetarian', vegan: 'vegan', halal: 'halal', glutenfree: 'gluten-free', dairyfree: 'dairy-free', nuts: 'contains nuts', spicy: 'spicy', popular: "chef's pick" };
-    const menuLines = (ctx.menu || []).slice(0, 60).map(m => {
-      const tg = Array.isArray(m.tags) && m.tags.length ? ' [' + m.tags.map(t => tagWords[t] || t).join(', ') + ']' : '';
-      const vs = Array.isArray(m.variants) ? m.variants.filter(v => v && v.name) : [];
-      const priceStr = vs.length
-        ? ' — sizes: ' + vs.map(v => `${v.name}${v.price != null ? ' ' + v.price + ' ' + (ctx.currency || 'BHD') : ''}`).join(', ')
-        : (m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : '');
-      const ad = Array.isArray(m.addons) ? m.addons.filter(a => a && a.name) : [];
-      const adStr = ad.length ? ' — extras: ' + ad.map(a => `${a.name}${a.price != null ? ' +' + a.price : ''}`).join(', ') : '';
-      return `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${priceStr}${adStr}${m.available === false ? ' (sold out)' : ''}${tg}`;
-    }).join('\n');
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const closed = (ctx.closedDays || []).map(d => dayNames[d]).join(', ') || 'none';
-    const dp = ctx.dayparts;
-    const hrs = (dp && dp.hours) ? `breakfast ${(dp.hours.breakfast || []).join('–')}h, lunch ${(dp.hours.lunch || []).join('–')}h, dinner ${(dp.hours.dinner || []).join('–')}h` : '';
-    const catTimes = (dp && dp.cats) ? Object.entries(dp.cats).filter(([, v]) => v && v !== 'all').map(([c, v]) => `${c} (${v} only)`).join('; ') : '';
-    const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
-    const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
-    const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
-You can: answer menu and price questions, give opening hours, and book a table.
-Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
-Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}
-
-Rules:
-- Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
-- Dietary questions: use the bracketed tags to answer "what's vegan / vegetarian / halal / gluten-free / dairy-free / spicy?" — list only items that carry that exact tag, and warn if nothing matches.
-- Time-based menu: if a section is served only at certain times, and the guest asks for it outside those hours, tell them warmly when it's available (e.g. "Breakfast is served 7–11am").
-- To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
-- Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
-
-Return ONLY a JSON object, no markdown:
-{ "reply": "your message to the guest", "booking": null }
-When (and only when) all required details are gathered and confirmed, set "booking" to:
-{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }`;
-    try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5', max_tokens: 600, system: sys,
-          messages: convo.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 900) })),
-        }),
-      });
-      if (!r.ok) { const e = await r.text(); return res.status(500).json({ error: 'Concierge AI error', details: e }); }
-      const d = await r.json();
-      const text = ((d.content && d.content[0] && d.content[0].text) || '').trim();
-      const jm = text.match(/\{[\s\S]*\}/);
-      if (!jm) return res.status(200).json({ reply: text || '…', booking: null });
-      let parsed; try { parsed = JSON.parse(jm[0]); } catch (e) { return res.status(200).json({ reply: text, booking: null }); }
-      return res.status(200).json({ reply: parsed.reply || '', booking: parsed.booking || null });
-    } catch (e) { return res.status(500).json({ error: 'Concierge failed', details: e.message }); }
+    const out = await conciergeReply(ctx, convo);
+    if (out.error) return res.status(500).json({ error: 'Concierge AI error', details: out.details });
+    return res.status(200).json({ reply: out.reply, booking: out.booking });
   }
 
   // Vision modes need an image; reply needs a message; everything else needs a topic.
@@ -514,5 +476,135 @@ ${shape}`;
 
   } catch (err) {
     return res.status(500).json({ error: 'Failed to generate caption', details: err.message });
+  }
+}
+
+// ── Shared Concierge brain — used by the web widget AND the WhatsApp webhook. ──
+async function conciergeReply(ctx, convo) {
+  ctx = ctx || {}; convo = Array.isArray(convo) ? convo.slice(-12) : [];
+  const tagWords = { veg: 'vegetarian', vegan: 'vegan', halal: 'halal', glutenfree: 'gluten-free', dairyfree: 'dairy-free', nuts: 'contains nuts', spicy: 'spicy', popular: "chef's pick" };
+  const menuLines = (ctx.menu || []).slice(0, 60).map(m => {
+    const tg = Array.isArray(m.tags) && m.tags.length ? ' [' + m.tags.map(t => tagWords[t] || t).join(', ') + ']' : '';
+    const vs = Array.isArray(m.variants) ? m.variants.filter(v => v && v.name) : [];
+    const priceStr = vs.length
+      ? ' — sizes: ' + vs.map(v => `${v.name}${v.price != null ? ' ' + v.price + ' ' + (ctx.currency || 'BHD') : ''}`).join(', ')
+      : (m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : '');
+    const ad = Array.isArray(m.addons) ? m.addons.filter(a => a && a.name) : [];
+    const adStr = ad.length ? ' — extras: ' + ad.map(a => `${a.name}${a.price != null ? ' +' + a.price : ''}`).join(', ') : '';
+    return `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${priceStr}${adStr}${m.available === false ? ' (sold out)' : ''}${tg}`;
+  }).join('\n');
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const closed = (ctx.closedDays || []).map(d => dayNames[d]).join(', ') || 'none';
+  const dp = ctx.dayparts;
+  const hrs = (dp && dp.hours) ? `breakfast ${(dp.hours.breakfast || []).join('–')}h, lunch ${(dp.hours.lunch || []).join('–')}h, dinner ${(dp.hours.dinner || []).join('–')}h` : '';
+  const catTimes = (dp && dp.cats) ? Object.entries(dp.cats).filter(([, v]) => v && v !== 'all').map(([c, v]) => `${c} (${v} only)`).join('; ') : '';
+  const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
+  const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
+  const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
+You can: answer menu and price questions, give opening hours, and book a table.
+Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
+Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}
+
+Rules:
+- Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
+- Dietary questions: use the bracketed tags to answer "what's vegan / vegetarian / halal / gluten-free / dairy-free / spicy?" — list only items that carry that exact tag, and warn if nothing matches.
+- Time-based menu: if a section is served only at certain times, and the guest asks for it outside those hours, tell them warmly when it's available (e.g. "Breakfast is served 7–11am").
+- To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
+- Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
+
+Return ONLY a JSON object, no markdown:
+{ "reply": "your message to the guest", "booking": null }
+When (and only when) all required details are gathered and confirmed, set "booking" to:
+{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }`;
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5', max_tokens: 600, system: sys,
+        messages: convo.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 900) })),
+      }),
+    });
+    if (!r.ok) { const e = await r.text(); return { error: true, details: e }; }
+    const d = await r.json();
+    const text = ((d.content && d.content[0] && d.content[0].text) || '').trim();
+    const jm = text.match(/\{[\s\S]*\}/);
+    if (!jm) return { reply: text || '…', booking: null };
+    let parsed; try { parsed = JSON.parse(jm[0]); } catch (e) { return { reply: text, booking: null }; }
+    return { reply: parsed.reply || '', booking: parsed.booking || null };
+  } catch (e) { return { error: true, details: e.message }; }
+}
+
+// ── WhatsApp Cloud API helpers ──
+const WA_SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
+const WA_SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function waSb(path, opts = {}) {
+  return fetch(`${WA_SUPA}/rest/v1/${path}`, { ...opts, headers: { apikey: WA_SB_KEY, Authorization: `Bearer ${WA_SB_KEY}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+}
+function waActiveDaypart(hours) {
+  const h = new Date().getHours();
+  const H = { breakfast: [7, 11], brunch: [11, 15], lunch: [12, 16], dinner: [16, 23], ...(hours || {}) };
+  for (const k of ['breakfast', 'brunch', 'lunch', 'dinner']) { const r = H[k]; if (Array.isArray(r) && r.length === 2 && h >= r[0] && h < r[1]) return k; }
+  return null;
+}
+async function waBuildContext(clientId) {
+  const ctx = { name: 'the restaurant', currency: 'BHD', menu: [], open: '12:00', close: '22:00', closedDays: [], slotMinutes: 30, special: null, dayparts: null };
+  const now = new Date(); ctx.today = now.toISOString().slice(0, 10) + ' (' + now.toLocaleDateString('en', { weekday: 'long' }) + ')';
+  try { const r = await waSb(`clients?id=eq.${clientId}&select=name&limit=1`); const c = await r.json(); if (c && c[0] && c[0].name) ctx.name = c[0].name; } catch (e) {}
+  try {
+    const r = await waSb(`menus?client_id=eq.${clientId}&select=id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours&limit=1`);
+    const m = (await r.json())[0];
+    if (m) {
+      ctx.currency = m.currency || ctx.currency;
+      ctx.special = (m.special_on && m.special) ? m.special : null;
+      ctx.dayparts = { hours: m.daypart_hours || {}, cats: m.cat_dayparts || {}, now: waActiveDaypart(m.daypart_hours) };
+      const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons&limit=120`);
+      const items = await ri.json();
+      ctx.menu = (items || []).filter(x => !x.hidden).map(x => ({ category: x.category, name_en: x.name_en, name_ar: x.name_ar, description: x.description || null, available: x.available, tags: Array.isArray(x.tags) ? x.tags : [], variants: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.variants) ? x.variants : []), addons: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.addons) ? x.addons : []), price: (m.hide_prices || x.show_price === false) ? null : x.price }));
+    }
+  } catch (e) {}
+  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=slot_minutes,hours&limit=1`); const s = (await r.json())[0]; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; } } catch (e) {}
+  return ctx;
+}
+async function waSend(phoneId, token, to, bodyText) {
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: String(bodyText || '').slice(0, 3500) } }),
+    });
+  } catch (e) {}
+}
+async function handleWhatsApp(body) {
+  const token = process.env.WHATSAPP_TOKEN;
+  const clientId = process.env.WHATSAPP_DEFAULT_CLIENT_ID;
+  for (const en of (body.entry || [])) {
+    for (const ch of (en.changes || [])) {
+      const val = ch.value || {};
+      const phoneId = val.metadata && val.metadata.phone_number_id;
+      for (const m of (val.messages || [])) {
+        if (m.type !== 'text' || !m.text || !phoneId || !token || !clientId) continue;
+        const from = m.from; const text = m.text.body || '';
+        let thread = [];
+        try { const r = await waSb(`wa_threads?client_id=eq.${clientId}&wa_from=eq.${encodeURIComponent(from)}&select=messages&limit=1`); const t = (await r.json())[0]; if (t && Array.isArray(t.messages)) thread = t.messages; } catch (e) {}
+        thread.push({ role: 'user', content: text }); thread = thread.slice(-12);
+        const ctx = await waBuildContext(clientId);
+        const out = await conciergeReply(ctx, thread);
+        const reply = (out && out.reply) || "Sorry, I didn't catch that — could you rephrase?";
+        thread.push({ role: 'assistant', content: reply }); thread = thread.slice(-12);
+        try { await waSb(`wa_threads?on_conflict=client_id,wa_from`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ client_id: clientId, wa_from: from, messages: thread, updated_at: new Date().toISOString() }) }); } catch (e) {}
+        await waSend(phoneId, token, from, reply);
+        const b = out && out.booking;
+        if (b && b.date && b.time && b.name) {
+          const tt = String(b.time).length === 5 ? b.time : ('0' + b.time);
+          const sd = new Date(b.date + 'T' + tt + ':00');
+          if (!isNaN(sd.getTime())) {
+            try { await waSb(`bookings`, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ client_id: clientId, customer_name: b.name, customer_phone: b.phone || from, party_size: Number(b.party) || 2, starts_at: sd.toISOString(), source: 'whatsapp', status: 'confirmed', note: b.occasion || null }) }); } catch (e) {}
+            await waSend(phoneId, token, from, `Booked ✓ ${sd.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${sd.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })} for ${b.party}. See you then!`);
+          }
+        }
+      }
+    }
   }
 }
