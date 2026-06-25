@@ -141,19 +141,32 @@ export default async function handler(req, res) {
     const ctx = req.body.context || {};
     const convo = Array.isArray(req.body.messages) ? req.body.messages.slice(-12) : [];
     if (!convo.length) return res.status(400).json({ error: 'messages required' });
-    const menuLines = (ctx.menu || []).slice(0, 60).map(m =>
-      `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : ''}${m.available === false ? ' (sold out)' : ''}`
-    ).join('\n');
+    const tagWords = { veg: 'vegetarian', vegan: 'vegan', halal: 'halal', glutenfree: 'gluten-free', dairyfree: 'dairy-free', nuts: 'contains nuts', spicy: 'spicy', popular: "chef's pick" };
+    const menuLines = (ctx.menu || []).slice(0, 60).map(m => {
+      const tg = Array.isArray(m.tags) && m.tags.length ? ' [' + m.tags.map(t => tagWords[t] || t).join(', ') + ']' : '';
+      const vs = Array.isArray(m.variants) ? m.variants.filter(v => v && v.name) : [];
+      const priceStr = vs.length
+        ? ' — sizes: ' + vs.map(v => `${v.name}${v.price != null ? ' ' + v.price + ' ' + (ctx.currency || 'BHD') : ''}`).join(', ')
+        : (m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : '');
+      return `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${priceStr}${m.available === false ? ' (sold out)' : ''}${tg}`;
+    }).join('\n');
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const closed = (ctx.closedDays || []).map(d => dayNames[d]).join(', ') || 'none';
+    const dp = ctx.dayparts;
+    const hrs = (dp && dp.hours) ? `breakfast ${(dp.hours.breakfast || []).join('–')}h, lunch ${(dp.hours.lunch || []).join('–')}h, dinner ${(dp.hours.dinner || []).join('–')}h` : '';
+    const catTimes = (dp && dp.cats) ? Object.entries(dp.cats).filter(([, v]) => v && v !== 'all').map(([c, v]) => `${c} (${v} only)`).join('; ') : '';
+    const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
+    const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
     const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
 You can: answer menu and price questions, give opening hours, and book a table.
 Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
-Menu (prices in ${ctx.currency || 'BHD'}):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}
+Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}
 
 Rules:
 - Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
+- Dietary questions: use the bracketed tags to answer "what's vegan / vegetarian / halal / gluten-free / dairy-free / spicy?" — list only items that carry that exact tag, and warn if nothing matches.
+- Time-based menu: if a section is served only at certain times, and the guest asks for it outside those hours, tell them warmly when it's available (e.g. "Breakfast is served 7–11am").
 - To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
 - Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
 

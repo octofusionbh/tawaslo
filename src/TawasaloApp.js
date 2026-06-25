@@ -12616,6 +12616,8 @@ const WORLD_LANGUAGES = [
 const langName = (c) => { const f = WORLD_LANGUAGES.find(x=>x.c===c); return f ? f.n : String(c||"").toUpperCase(); };
 const isRTLLang = (c) => RTL_LANGS.includes(String(c||"").toLowerCase());
 const itemPhotos = (it) => { const p = Array.isArray(it&&it.photos) ? it.photos.filter(Boolean) : []; if (p.length) return p; return (it&&it.photo_url) ? [it.photo_url] : []; };
+const itemVariants = (it) => Array.isArray(it&&it.variants) ? it.variants.filter(v=>v&&v.name) : [];
+const itemMinPrice = (it) => { const vs = itemVariants(it).map(v=>Number(v.price)).filter(n=>!isNaN(n)); return vs.length ? Math.min(...vs) : (it && it.price); };
 // Dietary / attribute tags shown on items + used as public filters.
 const DIET_TAGS = [
   {k:"veg",        en:"Vegetarian",  ar:"نباتي",            icon:"🥗", color:"#3FB983"},
@@ -12630,10 +12632,11 @@ const DIET_TAGS = [
 const dietTag = (k) => DIET_TAGS.find(t=>t.k===k);
 const itemTags = (it) => Array.isArray(it&&it.tags) ? it.tags : [];
 // Time-based menu (dayparting).
-const DAYPARTS = [ {k:"all",en:"All day",ar:"طوال اليوم"}, {k:"breakfast",en:"Breakfast",ar:"فطور"}, {k:"lunch",en:"Lunch",ar:"غداء"}, {k:"dinner",en:"Dinner",ar:"عشاء"} ];
-const DEFAULT_DAYPART_HOURS = { breakfast:[7,11], lunch:[11,16], dinner:[16,23] };
+const DAYPARTS = [ {k:"all",en:"All day",ar:"طوال اليوم"}, {k:"breakfast",en:"Breakfast",ar:"فطور"}, {k:"brunch",en:"Brunch",ar:"برانش"}, {k:"lunch",en:"Lunch",ar:"غداء"}, {k:"dinner",en:"Dinner",ar:"عشاء"} ];
+const DAYPART_KEYS = ["breakfast","brunch","lunch","dinner"];
+const DEFAULT_DAYPART_HOURS = { breakfast:[7,11], brunch:[11,15], lunch:[12,16], dinner:[16,23] };
 const daypartName = (k) => { const d = DAYPARTS.find(x=>x.k===k); return d ? d.en : k; };
-const activeDaypart = (hours) => { const h = (typeof window!=="undefined") ? new Date().getHours() : 12; const H = { ...DEFAULT_DAYPART_HOURS, ...(hours||{}) }; for (const k of ["breakfast","lunch","dinner"]) { const r = H[k]; if (Array.isArray(r) && r.length===2 && h>=r[0] && h<r[1]) return k; } return null; };
+const activeDaypart = (hours) => { const h = (typeof window!=="undefined") ? new Date().getHours() : 12; const H = { ...DEFAULT_DAYPART_HOURS, ...(hours||{}) }; for (const k of DAYPART_KEYS) { const r = H[k]; if (Array.isArray(r) && r.length===2 && h>=r[0] && h<r[1]) return k; } return null; };
 function MenuBuilderPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -12685,7 +12688,7 @@ function MenuBuilderPage() {
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
-  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], available:true, hidden:false, show_price:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], available:true, hidden:false, show_price:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
     const patch = st==="hidden" ? { hidden:true } : st==="sold_out" ? { hidden:false, available:false } : { hidden:false, available:true };
@@ -12697,7 +12700,8 @@ function MenuBuilderPage() {
   const saveItem = async () => {
     if (!editing || !menu) return;
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const variants = (Array.isArray(editing.variants)?editing.variants:[]).map(v=>({ name:(v.name||"").trim(), price: v.price===""||v.price==null?null:Number(v.price) })).filter(v=>v.name);
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -12793,7 +12797,8 @@ function MenuBuilderPage() {
 
           <div style={{ fontSize:10.5, color:th.text2, marginBottom:6 }}>{L("Daypart hours (24h) — sections auto-show at these times","ساعات الأوقات (24س) — تظهر الأقسام تلقائياً")}</div>
           <div style={{ display:"flex", flexDirection:"column", gap:7, marginBottom:15 }}>
-            {[["breakfast",L("Breakfast","فطور")],["lunch",L("Lunch","غداء")],["dinner",L("Dinner","عشاء")]].map(([dk,dl])=>{
+            {DAYPART_KEYS.map((dk)=>{
+              const dd = DAYPARTS.find(x=>x.k===dk); const dl = isAR ? dd.ar : dd.en;
               const HH = { ...DEFAULT_DAYPART_HOURS, ...((menu&&menu.daypart_hours)||{}) };
               const r = HH[dk] || [0,0];
               const setH = (idx,val)=>{ const nr=[...r]; nr[idx]=Math.max(0,Math.min(24,Number(val)||0)); updateMenu({ daypart_hours:{ ...HH, [dk]:nr } }); };
@@ -12899,8 +12904,17 @@ function MenuBuilderPage() {
             <textarea value={editing.description||""} onChange={e=>setEditing({...editing, description:e.target.value})} dir={isRTLLang(lang1)?"rtl":"ltr"} rows={2} style={{ ...inp, marginBottom:10, resize:"vertical", fontFamily:isRTLLang(lang1)?"'Cairo',sans-serif":undefined }}/>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Description","الوصف")} ({langName(lang2)}) <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
             <textarea value={editing.description_ar||""} onChange={e=>setEditing({...editing, description_ar:e.target.value})} dir={rtl2?"rtl":"ltr"} rows={2} style={{ ...inp, marginBottom:10, resize:"vertical", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}/>
-            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"})</div>
-            <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:10 }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"}) {(editing.variants||[]).length>0 && <span style={{ color:th.text3 }}>· {L("used if no size matches","يُستخدم إن لم يوجد حجم")}</span>}</div>
+            <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:12 }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 6px" }}>{L("Sizes / options","الأحجام / الخيارات")} <span style={{ color:th.text3 }}>· {L("optional — name your own (Small, Large…)","اختياري — سمِّ أحجامك")}</span></div>
+            {(editing.variants||[]).map((v,idx)=>(
+              <div key={idx} style={{ display:"flex", gap:7, marginBottom:7 }}>
+                <input value={v.name||""} onChange={e=>setEditing(ed=>{ const arr=[...(ed.variants||[])]; arr[idx]={...arr[idx], name:e.target.value}; return {...ed, variants:arr}; })} placeholder={L("Size (e.g. Large)","الحجم")} style={{ ...inp, flex:2, width:"auto" }}/>
+                <input value={v.price==null?"":v.price} onChange={e=>setEditing(ed=>{ const arr=[...(ed.variants||[])]; arr[idx]={...arr[idx], price:e.target.value}; return {...ed, variants:arr}; })} type="number" step="0.001" placeholder={L("Price","السعر")} style={{ ...inp, flex:1, width:"auto" }}/>
+                <button onClick={()=>setEditing(ed=>({ ...ed, variants:(ed.variants||[]).filter((_,i)=>i!==idx) }))} style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:9, color:th.text3, cursor:"pointer", padding:"0 10px", display:"flex", alignItems:"center", flexShrink:0 }}><X size={13}/></button>
+              </div>
+            ))}
+            <button onClick={()=>setEditing(ed=>({ ...ed, variants:[...(ed.variants||[]), {name:"", price:""}] }))} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:10 }}><Plus size={13}/>{L("Add size","إضافة حجم")}</button>
             <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
               <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
@@ -12946,10 +12960,10 @@ function ConciergeWidget({ clientId, name, currency }) {
     if (!clientId) return;
     let live = true;
     (async () => {
-      let menu = [], settings = {}, cur = currency || 'BHD';
-      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null;
+      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
-      if (live) setCtx({ menu, settings, currency: cur });
+      if (live) setCtx({ menu, settings, currency: cur, special, dayparts });
     })();
     return () => { live = false; };
   }, [clientId, currency]);
@@ -12965,7 +12979,7 @@ function ConciergeWidget({ clientId, name, currency }) {
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -13080,7 +13094,7 @@ function MenuPublicPage({ slug }) {
   if (data === null) return <div style={{ ...wrap, padding:"30px 16px 60px", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Menu not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
 
   const cur = data.currency || "BHD";
-  const priceOf = (it) => (data.hide_prices || it.show_price===false) ? "" : (it.price!=null ? fmtMoney(it.price, cur) : "");
+  const priceOf = (it) => { if (data.hide_prices || it.show_price===false) return ""; const vs = itemVariants(it); if (vs.length) { const m = itemMinPrice(it); return (m!=null && isFinite(m)) ? "from "+fmtMoney(m, cur) : ""; } return it.price!=null ? fmtMoney(it.price, cur) : ""; };
   const detailPhotos = detail ? itemPhotos(detail) : [];
 
   return (
@@ -13149,7 +13163,10 @@ function MenuPublicPage({ slug }) {
                   const tgs = itemTags(it).map(dietTag).filter(Boolean);
                   return (
                     <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11, cursor:"pointer", opacity:soldOut?0.62:1 }}>
-                      {ph[0] && <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background:`center/cover url(${ph[0]})`, position:"relative", filter:soldOut?"grayscale(0.7)":undefined }}>{ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}</div>}
+                      <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background: ph[0]?`center/cover url(${ph[0]})`:"#161b23", position:"relative", filter:soldOut?"grayscale(0.7)":undefined, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        {!ph[0] && <Image size={18} color="#3f4954"/>}
+                        {ph[0] && ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}
+                      </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:14, fontWeight:600, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{it.name_en}{soldOut && <span style={{ fontSize:9, fontWeight:700, color:"#D98A6A", border:"1px solid rgba(217,138,106,0.4)", borderRadius:5, padding:"1px 6px", marginInlineStart:7, verticalAlign:"middle" }}>SOLD OUT</span>}</div>
                         {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined, marginTop:1 }}>{it.name_ar}</div>}
@@ -13196,6 +13213,15 @@ function MenuPublicPage({ slug }) {
                 {priceOf(detail) && <div style={{ fontSize:17, fontWeight:800, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{priceOf(detail)}</div>}
               </div>
               {itemTags(detail).map(dietTag).filter(Boolean).length>0 && <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:12 }}>{itemTags(detail).map(dietTag).filter(Boolean).map(tg=> <span key={tg.k} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", borderRadius:16, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:4 }}><span>{tg.icon}</span>{tg.en}</span>)}</div>}
+              {itemVariants(detail).length>0 && !(data.hide_prices||detail.show_price===false) && <div style={{ marginTop:16 }}>
+                <div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#5e6b78", marginBottom:6 }}>Sizes</div>
+                {itemVariants(detail).map((v,idx)=>(
+                  <div key={idx} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderTop:"1px solid #20242b" }}>
+                    <span style={{ fontSize:14, color:"#c4ccd6" }}>{v.name}</span>
+                    <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums" }}>{v.price!=null && v.price!=="" ? fmtMoney(Number(v.price), cur) : ""}</span>
+                  </div>
+                ))}
+              </div>}
               {(detail.description||detail.description_ar) && <div style={{ height:1, background:"#20242b", margin:"16px 0" }}/>}
               {detail.description && <div style={{ fontSize:13.5, lineHeight:1.6, color:"#c4ccd6", direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{detail.description}</div>}
               {detail.description_ar && <div style={{ fontSize:13.5, lineHeight:1.7, color:"#9aa6b3", marginTop:detail.description?12:0, direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}>{detail.description_ar}</div>}

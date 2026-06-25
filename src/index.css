@@ -21,6 +21,11 @@ body {
 .tw-noscroll { scrollbar-width: none; -ms-overflow-style: none; }
 .tw-noscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* Horizontal chip/tab rows: scroll, but never show a classic scrollbar
+   (applies on desktop too, not just mobile). */
+.tw-scroll-x { scrollbar-width: none; -ms-overflow-style: none; }
+.tw-scroll-x::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
 /* Skeleton loaders — shaped placeholders with a soft shimmer sweep, shown
    while data loads instead of a "Loading…" line. The translucent base adapts
    to both light and dark cards. */
