@@ -753,6 +753,7 @@ function Sidebar() {
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
       {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
       {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
+      {key:"loyalty",   Icon:Gift,            label:"Loyalty", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
@@ -13086,6 +13087,371 @@ function MenuPublicPage({ slug }) {
   );
 }
 
+// ── Loyalty helpers ──
+const loyGenCode = () => Math.random().toString(36).slice(2,8).toUpperCase();
+const loyNormPhone = (s) => String(s||'').replace(/[^\d+]/g,'');
+const loyRewardReady = (p, c) => { if(!p||!c) return false; if(p.type==='points') return (c.points||0) >= (p.points_goal||100); if(p.type==='stamps') return (c.stamps||0) >= (p.stamp_goal||8); return false; };
+const loyTierFor = (p, c) => { const ts=(p&&Array.isArray(p.tiers))?[...p.tiers].sort((a,b)=>(a.visits||0)-(b.visits||0)):[]; let cur=null; (ts||[]).forEach(t=>{ if((c.visits||0) >= (t.visits||0)) cur=t; }); return cur; };
+
+// ── QR scanner (BarcodeDetector when available; manual code entry otherwise) ──
+function LoyaltyScanner({ onResult, onClose, dark }) {
+  const th = dark ? DARK : LIGHT;
+  const videoRef = useRef(null);
+  const [supported, setSupported] = useState(true);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    let stream=null, raf=null, det=null, stop=false;
+    (async () => {
+      if (typeof window==="undefined" || !('BarcodeDetector' in window) || !navigator.mediaDevices) { setSupported(false); return; }
+      try {
+        det = new window.BarcodeDetector({ formats:['qr_code'] });
+        stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' } });
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+        const tick = async () => { if(stop) return; try { const codes = await det.detect(videoRef.current); if (codes && codes[0] && codes[0].rawValue) { stop=true; onResult(codes[0].rawValue.trim()); return; } } catch(e){} raf = requestAnimationFrame(tick); };
+        raf = requestAnimationFrame(tick);
+      } catch(e){ setErr("Camera unavailable — enter the code instead."); setSupported(false); }
+    })();
+    return () => { stop=true; if(raf) cancelAnimationFrame(raf); if(stream) stream.getTracks().forEach(t=>t.stop()); };
+  }, []); // eslint-disable-line
+  return createPortal((
+    <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.82)", backdropFilter:"blur(4px)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:360, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:18, textAlign:"center" }}>
+        <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:12 }}>Scan guest's card</div>
+        {supported ? (
+          <div style={{ position:"relative", width:"100%", aspectRatio:"1/1", borderRadius:14, overflow:"hidden", background:"#000", marginBottom:12 }}>
+            <video ref={videoRef} playsInline muted style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <div style={{ position:"absolute", inset:"18%", border:`2px solid ${th.accent}`, borderRadius:12, boxShadow:"0 0 0 9999px rgba(0,0,0,0.25)" }}/>
+          </div>
+        ) : <div style={{ fontSize:12.5, color:th.text2, padding:"18px 6px", lineHeight:1.6 }}>{err || "Scanning isn't supported on this device. Close this and type the guest's card code instead."}</div>}
+        <button onClick={onClose} style={{ width:"100%", padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Close</button>
+      </div>
+    </div>
+  ), document.body);
+}
+
+// ── Loyalty (owner) — program config + staff stamping + members. ──
+function LoyaltyPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const slugify = (s) => String(s||'r').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,26) || 'r';
+  const [cid, setCid] = useState(null);
+  const [slug, setSlug] = useState(null);
+  const [program, setProgram] = useState(null);
+  const [cards, setCards] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [stampQ, setStampQ] = useState("");
+  const [scanOpen, setScanOpen] = useState(false);
+  const [result, setResult] = useState(null);   // { card, msg, ready }
+  const [tierDraft, setTierDraft] = useState({ visits:"", name:"", perk:"" });
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id;
+      if (!active) return;
+      setCid(id || null);
+      if (!id) { setLoading(false); return; }
+      let s = null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); s = bp && bp[0] && bp[0].slug; if (!s) { s = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:s, title:selClient.name }]); } } catch(e){}
+      if (active) setSlug(s);
+      let p = null;
+      try { const { data: pr } = await supabase.from('loyalty_programs').select('*').eq('client_id', id).limit(1); p = pr && pr[0]; if (!p) { const ins = await supabase.from('loyalty_programs').insert([{ client_id:id, type:'stamps', stamp_goal:8, reward:'Free item', points_per_visit:10, points_goal:100, tiers:[] }]).select(); p = ins.data && ins.data[0]; } } catch(e){}
+      if (active) setProgram(p || null);
+      try { const { data: cs } = await supabase.from('loyalty_cards').select('*').eq('client_id', id).order('updated_at',{ascending:false}); if (active) setCards(cs || []); } catch(e){}
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const updateProgram = async (patch) => { setProgram(p => ({ ...p, ...patch })); if (program && program.id) { try { await supabase.from('loyalty_programs').update(patch).eq('id', program.id); } catch(e){} } };
+  const publicUrl = slug ? `${origin}/loyalty/${slug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+
+  const findCard = (q) => { const v=(q||"").trim(); if(!v) return null; const up=v.toUpperCase(); const np=loyNormPhone(v); return cards.find(c => (c.code && c.code.toUpperCase()===up) || (c.phone && np.length>=6 && loyNormPhone(c.phone)===np)) || null; };
+  const recordVisit = async (card) => {
+    const p = program; const patch = { visits:(card.visits||0)+1, updated_at:new Date().toISOString() };
+    if (p.type==='points') patch.points = (card.points||0) + (p.points_per_visit||10);
+    else if (p.type==='stamps') patch.stamps = (card.stamps||0)+1;
+    try { await supabase.from('loyalty_cards').update(patch).eq('id', card.id); } catch(e){}
+    const nc = { ...card, ...patch }; setCards(cs => cs.map(c=>c.id===card.id?nc:c)); return nc;
+  };
+  const redeem = async (card) => {
+    const p = program; const patch = { redeemed:(card.redeemed||0)+1, updated_at:new Date().toISOString() };
+    if (p.type==='points') patch.points = Math.max(0,(card.points||0)-(p.points_goal||100));
+    else if (p.type==='stamps') patch.stamps = Math.max(0,(card.stamps||0)-(p.stamp_goal||8));
+    try { await supabase.from('loyalty_cards').update(patch).eq('id', card.id); } catch(e){}
+    const nc = { ...card, ...patch }; setCards(cs => cs.map(c=>c.id===card.id?nc:c)); setResult(r => r && r.card.id===card.id ? { ...r, card:nc, ready:false, msg:L("Reward redeemed 🎉","تم استبدال المكافأة 🎉") } : r);
+  };
+  const doStamp = async (q) => {
+    const card = findCard(q);
+    if (!card) { setResult({ card:null, msg:L("No card found for that code or phone.","لا توجد بطاقة لهذا الرمز أو الرقم."), ready:false }); return; }
+    const nc = await recordVisit(card);
+    const ready = loyRewardReady(program, nc);
+    setResult({ card:nc, msg: ready ? L("Stamp added — reward ready!","تمت الإضافة — المكافأة جاهزة!") : L("Stamp added.","تمت إضافة الطابع."), ready });
+    setStampQ("");
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
+  const lbl = { fontSize:10.5, color:th.text2, margin:"0 0 5px" };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to set up loyalty.","اختر عميلاً لإعداد الولاء.")}</div>;
+  const p = program || {};
+  const goalNote = p.type==='points' ? L(`Reward at ${p.points_goal||100} points`,`المكافأة عند ${p.points_goal||100} نقطة`) : p.type==='stamps' ? L(`Reward after ${p.stamp_goal||8} stamps`,`المكافأة بعد ${p.stamp_goal||8} طابع`) : L("Tier perks by visit count","مزايا حسب عدد الزيارات");
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Loyalty","الولاء")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("digital cards — no app, guests open a link or scan a QR","بطاقات رقمية — بلا تطبيق، يفتحها الضيوف برابط أو رمز QR")}</p>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
+          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("View card","عرض البطاقة")}</a>
+        </div>
+      </div>
+
+      {/* Stamp tool */}
+      <div style={{ ...card, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:4 }}>{L("Stamp a card","ختم بطاقة")}</div>
+        <div style={{ fontSize:11.5, color:th.text2, marginBottom:11 }}>{L("Scan the guest's card, or type their code / phone.","امسح بطاقة الضيف أو اكتب الرمز / الهاتف.")}</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <input value={stampQ} onChange={e=>setStampQ(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') doStamp(stampQ); }} placeholder={L("Card code or phone","رمز البطاقة أو الهاتف")} style={{ ...inp, flex:"1 1 180px", width:"auto" }}/>
+          <button onClick={()=>setScanOpen(true)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><ScanLine size={14}/>{L("Scan","مسح")}</button>
+          <button onClick={()=>doStamp(stampQ)} disabled={!stampQ.trim()} style={{ padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:stampQ.trim()?"pointer":"not-allowed", opacity:stampQ.trim()?1:0.6 }}>{p.type==='stamps'?L("Add stamp","إضافة طابع"):L("Record visit","تسجيل زيارة")}</button>
+        </div>
+        {result && (
+          <div style={{ marginTop:12, padding:"11px 13px", borderRadius:11, background: result.ready?"rgba(63,185,131,0.12)":th.card2, border:`1px solid ${result.ready?"rgba(63,185,131,0.4)":th.border}` }}>
+            <div style={{ fontSize:12.5, fontWeight:600, color: result.ready?th.success:th.text }}>{result.msg}</div>
+            {result.card && <div style={{ fontSize:11.5, color:th.text2, marginTop:4 }}>{result.card.name||L("Guest","ضيف")} · {result.card.phone||result.card.code} · {p.type==='points'?`${result.card.points||0} pts`:p.type==='stamps'?`${result.card.stamps||0}/${p.stamp_goal||8}`:`${result.card.visits||0} ${L("visits","زيارات")}`}</div>}
+            {result.ready && <button onClick={()=>redeem(result.card)} style={{ marginTop:9, padding:"8px 14px", borderRadius:9, background:th.success, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>{L("Redeem reward","استبدال المكافأة")}</button>}
+          </div>
+        )}
+      </div>
+
+      {/* Program config */}
+      <div style={{ ...card, padding:16, marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:13 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{L("Program","البرنامج")}</div>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <input type="checkbox" checked={p.enabled!==false} onChange={e=>updateProgram({ enabled:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
+            <span style={{ fontSize:12, color:th.text2 }}>{p.enabled!==false?L("Active","مُفعّل"):L("Off","معطّل")}</span>
+          </label>
+        </div>
+        <div style={lbl}>{L("Card type","نوع البطاقة")}</div>
+        <div style={{ display:"flex", gap:7, marginBottom:14, flexWrap:"wrap" }}>
+          {[["stamps",L("Stamp card","بطاقة طوابع"),L("Buy N, get a reward","اشترِ N واحصل على مكافأة")],["points",L("Points","نقاط"),L("Earn points per visit","نقاط لكل زيارة")],["tiers",L("Tiers","مستويات"),L("Unlock perks by visits","مزايا حسب الزيارات")]].map(([k,t,d])=>(
+            <button key={k} onClick={()=>updateProgram({ type:k })} style={{ flex:"1 1 160px", textAlign:"start", padding:"11px 13px", borderRadius:11, cursor:"pointer", border:`1px solid ${p.type===k?th.accent:th.border}`, background:p.type===k?th.accentSoft:th.card2 }}>
+              <div style={{ fontSize:12.5, fontWeight:700, color:p.type===k?th.accent:th.text }}>{t}</div>
+              <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{d}</div>
+            </button>
+          ))}
+        </div>
+
+        {p.type==='stamps' && <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+          <div style={{ flex:"0 0 120px" }}><div style={lbl}>{L("Stamps for a reward","عدد الطوابع للمكافأة")}</div><input type="number" min="1" value={p.stamp_goal||8} onChange={e=>updateProgram({ stamp_goal:Number(e.target.value)||1 })} style={inp}/></div>
+          <div style={{ flex:"1 1 200px" }}><div style={lbl}>{L("Reward","المكافأة")}</div><input value={p.reward||""} onChange={e=>updateProgram({ reward:e.target.value })} placeholder={L("e.g. Free coffee","مثلاً قهوة مجانية")} style={inp}/></div>
+        </div>}
+        {p.type==='points' && <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+          <div style={{ flex:"0 0 120px" }}><div style={lbl}>{L("Points / visit","نقاط/زيارة")}</div><input type="number" min="1" value={p.points_per_visit||10} onChange={e=>updateProgram({ points_per_visit:Number(e.target.value)||1 })} style={inp}/></div>
+          <div style={{ flex:"0 0 120px" }}><div style={lbl}>{L("Points for reward","النقاط للمكافأة")}</div><input type="number" min="1" value={p.points_goal||100} onChange={e=>updateProgram({ points_goal:Number(e.target.value)||1 })} style={inp}/></div>
+          <div style={{ flex:"1 1 200px" }}><div style={lbl}>{L("Reward","المكافأة")}</div><input value={p.reward||""} onChange={e=>updateProgram({ reward:e.target.value })} placeholder={L("e.g. 20% off","مثلاً خصم 20%")} style={inp}/></div>
+        </div>}
+        {p.type==='tiers' && <div>
+          {(p.tiers||[]).slice().sort((a,b)=>(a.visits||0)-(b.visits||0)).map((t,i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 11px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, marginBottom:7 }}>
+              <span className="tw-num" style={{ fontSize:12, fontWeight:700, color:th.accent, minWidth:54 }}>{t.visits}+ {L("visits","زيارة")}</span>
+              <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{t.name}</div><div style={{ fontSize:11, color:th.text2 }}>{t.perk}</div></div>
+              <button onClick={()=>updateProgram({ tiers:(p.tiers||[]).filter(x=>x!==t) })} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
+            </div>
+          ))}
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:8 }}>
+            <input type="number" min="1" value={tierDraft.visits} onChange={e=>setTierDraft({...tierDraft, visits:e.target.value})} placeholder={L("Visits","زيارات")} style={{ ...inp, flex:"0 0 90px", width:"auto" }}/>
+            <input value={tierDraft.name} onChange={e=>setTierDraft({...tierDraft, name:e.target.value})} placeholder={L("Tier name (Gold)","اسم المستوى")} style={{ ...inp, flex:"1 1 130px", width:"auto" }}/>
+            <input value={tierDraft.perk} onChange={e=>setTierDraft({...tierDraft, perk:e.target.value})} placeholder={L("Perk","الميزة")} style={{ ...inp, flex:"1 1 130px", width:"auto" }}/>
+            <button onClick={()=>{ if(!tierDraft.visits||!tierDraft.name.trim()) return; updateProgram({ tiers:[...(p.tiers||[]), { visits:Number(tierDraft.visits)||1, name:tierDraft.name.trim(), perk:tierDraft.perk.trim() }] }); setTierDraft({ visits:"", name:"", perk:"" }); }} style={{ padding:"9px 14px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer" }}>{L("Add tier","إضافة مستوى")}</button>
+          </div>
+        </div>}
+        <div style={{ fontSize:11, color:th.text3, marginTop:12 }}>{goalNote}</div>
+      </div>
+
+      {/* Members */}
+      <div style={{ ...card, overflow:"hidden" }}>
+        <div style={{ padding:"12px 15px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:th.text2 }}>{L("Members","الأعضاء")} · {cards.length}</div>
+        {cards.length===0 ? <div style={{ padding:"30px 16px", textAlign:"center", color:th.text3, fontSize:12.5 }}>{L("No members yet — they join when they open the card link.","لا أعضاء بعد — ينضمون عند فتح رابط البطاقة.")}</div> : cards.map(c=>{
+          const ready = loyRewardReady(p, c); const tier = p.type==='tiers' ? loyTierFor(p, c) : null;
+          return (
+            <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"11px 15px", borderBottom:`1px solid ${th.border}` }}>
+              <div style={{ width:34, height:34, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:th.accent, flexShrink:0 }}>{((c.name||c.phone||"?")[0]||"?").toUpperCase()}</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{c.name||L("Guest","ضيف")} {c.code && <span style={{ fontSize:10, color:th.text3, fontWeight:500 }}>· {c.code}</span>}</div>
+                <div style={{ fontSize:11, color:th.text2 }}>{c.phone||""}{c.redeemed>0 && ` · ${c.redeemed} ${L("redeemed","مستبدلة")}`}</div>
+              </div>
+              <div style={{ textAlign:"end" }}>
+                <div style={{ fontSize:12.5, fontWeight:700, color: ready?th.success:th.text }}>{p.type==='points'?`${c.points||0} pts`:p.type==='tiers'?(tier?tier.name:L("—","—")):`${c.stamps||0}/${p.stamp_goal||8}`}</div>
+                {p.type!=='tiers' && <div style={{ fontSize:10, color:th.text3 }}>{c.visits||0} {L("visits","زيارة")}</div>}
+              </div>
+              <button onClick={()=>doStamp(c.code||c.phone)} title={L("Add","إضافة")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 10px", color:th.accent, fontSize:12, fontWeight:700, cursor:"pointer" }}>+1</button>
+            </div>
+          );
+        })}
+      </div>
+
+      {scanOpen && <LoyaltyScanner dark={dark} onClose={()=>setScanOpen(false)} onResult={(v)=>{ setScanOpen(false); setStampQ(v); doStamp(v); }}/>}
+    </div>
+  );
+}
+
+// ── Public loyalty card (tawaslo.com/loyalty/<slug>) — no login. ──
+function LoyaltyPublicPage({ slug }) {
+  const [data, setData] = useState(undefined);   // undefined=loading, null=not found
+  const [program, setProgram] = useState(null);
+  const [phase, setPhase] = useState("enter");
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [cardRow, setCardRow] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cid=null, nm=null, logo=null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('client_id,title').eq('slug', slug).limit(1); if (bp && bp[0]) { cid=bp[0].client_id; nm=bp[0].title; } } catch(e){}
+      if (!cid) { try { const { data: mn } = await supabase.from('menus').select('client_id,title').eq('slug', slug).limit(1); if (mn && mn[0]) { cid=mn[0].client_id; nm=mn[0].title; } } catch(e){} }
+      if (!live) return;
+      if (!cid) { setData(null); return; }
+      try { const { data: c } = await supabase.from('clients').select('name,logo_url').eq('id', cid).limit(1); if (c && c[0]) { nm = nm || c[0].name; logo = c[0].logo_url || null; } } catch(e){}
+      let pr=null; try { const { data: pp } = await supabase.from('loyalty_programs').select('*').eq('client_id', cid).limit(1); pr = pp && pp[0]; } catch(e){}
+      if (live) { setData({ client_id:cid, name:nm||'', logo }); setProgram(pr||null); }
+    })();
+    return () => { live = false; };
+  }, [slug]);
+
+  const join = async () => {
+    const np = loyNormPhone(phone); if (np.length < 6 || busy) return; setBusy(true);
+    try {
+      const { data: ex } = await supabase.from('loyalty_cards').select('*').eq('client_id', data.client_id).eq('phone', np).limit(1);
+      let row = ex && ex[0];
+      if (!row) { const code = loyGenCode(); const ins = await supabase.from('loyalty_cards').insert([{ client_id:data.client_id, phone:np, name:name.trim()||null, code, stamps:0, points:0, visits:0, redeemed:0 }]).select(); row = ins.data && ins.data[0]; }
+      else if (name.trim() && !row.name) { try { await supabase.from('loyalty_cards').update({ name:name.trim() }).eq('id', row.id); row.name = name.trim(); } catch(e){} }
+      if (row) { setCardRow(row); setPhase("card"); }
+    } catch(e){}
+    setBusy(false);
+  };
+
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 18px 60px", boxSizing:"border-box" };
+  if (data === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Card not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+  const enabled = program && program.enabled !== false;
+
+  const Header = (
+    <div style={{ textAlign:"center", marginBottom:22 }}>
+      {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"L")[0]}</div>}
+      <div style={{ fontSize:20, fontWeight:700, marginTop:10 }}>{data.name}</div>
+      <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Loyalty</div>
+    </div>
+  );
+  const Footer = <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>;
+
+  if (!enabled) return <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>{Header}<div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"30px 0" }}>This loyalty program isn't active right now.</div>{Footer}</div></div>;
+
+  if (phase === "enter") {
+    return (
+      <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>
+        {Header}
+        <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:20 }}>
+          <div style={{ fontSize:15, fontWeight:700, marginBottom:5 }}>Your loyalty card</div>
+          <div style={{ fontSize:12, color:"#9aa6b3", marginBottom:16, lineHeight:1.5 }}>{program.type==='points' ? `Earn ${program.points_per_visit||10} points each visit${program.reward?` — ${program.reward} at ${program.points_goal||100} points.`:'.'}` : program.type==='tiers' ? "Visit more to unlock better perks." : `Collect ${program.stamp_goal||8} stamps${program.reward?` and get ${program.reward}.`:'.'}`}</div>
+          <div style={{ fontSize:10.5, color:"#7E8794", marginBottom:5 }}>Mobile number</div>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="e.g. +973 3000 0000" style={{ width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none", marginBottom:11 }}/>
+          <div style={{ fontSize:10.5, color:"#7E8794", marginBottom:5 }}>Name <span style={{ color:"#4a5462" }}>· optional</span></div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{ width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none", marginBottom:16 }}/>
+          <button onClick={join} disabled={loyNormPhone(phone).length<6||busy} style={{ width:"100%", padding:"14px", borderRadius:13, background: loyNormPhone(phone).length>=6?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor: loyNormPhone(phone).length>=6&&!busy?"pointer":"not-allowed" }}>{busy?"…":"View my card"}</button>
+        </div>
+        {Footer}
+      </div></div>
+    );
+  }
+
+  // phase === "card"
+  const c = cardRow; const p = program;
+  const ready = loyRewardReady(p, c);
+  const tier = p.type==='tiers' ? loyTierFor(p, c) : null;
+  const tiers = (p.type==='tiers' && Array.isArray(p.tiers)) ? [...p.tiers].sort((a,b)=>(a.visits||0)-(b.visits||0)) : [];
+  const goal = p.stamp_goal||8; const filled = Math.min(c.stamps||0, goal);
+  const qrData = encodeURIComponent(c.code||"");
+  return (
+    <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>
+      {Header}
+
+      {ready && <div style={{ background:"rgba(63,185,131,0.14)", border:"1px solid rgba(63,185,131,0.45)", borderRadius:14, padding:"13px 15px", marginBottom:14, textAlign:"center" }}>
+        <div style={{ fontSize:14, fontWeight:800, color:"#3FB983" }}>🎉 Reward ready!</div>
+        {p.reward && <div style={{ fontSize:12.5, color:"#cfeede", marginTop:3 }}>{p.reward} — show this card to staff.</div>}
+      </div>}
+
+      <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:20, marginBottom:14 }}>
+        {p.type==='stamps' && <>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:700 }}>{c.name||"Your card"}</div>
+            <div style={{ fontSize:12, color:"#9aa6b3" }}>{filled} / {goal}</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(goal,5)}, 1fr)`, gap:10 }}>
+            {Array.from({length:goal}).map((_,i)=>(
+              <div key={i} style={{ aspectRatio:"1/1", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${i<filled?"#9DB6D6":"#262c36"}`, background:i<filled?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent", color:i<filled?"#fff":"#3f4954" }}>
+                {i<filled ? <Check size={16}/> : <span style={{ fontSize:12, fontWeight:700 }}>{i+1}</span>}
+              </div>
+            ))}
+          </div>
+          {p.reward && <div style={{ fontSize:11.5, color:"#7E8794", marginTop:14, textAlign:"center" }}>Reward: <span style={{ color:"#cdd9e8" }}>{p.reward}</span></div>}
+        </>}
+
+        {p.type==='points' && <>
+          <div style={{ textAlign:"center", marginBottom:12 }}>
+            <div style={{ fontSize:34, fontWeight:800, color:"#9DB6D6", lineHeight:1 }}>{c.points||0}</div>
+            <div style={{ fontSize:11, color:"#7E8794", marginTop:4, letterSpacing:".08em", textTransform:"uppercase" }}>Points</div>
+          </div>
+          <div style={{ height:8, borderRadius:6, background:"#0E1013", overflow:"hidden", marginBottom:8 }}>
+            <div style={{ width:`${Math.min(100, Math.round((c.points||0)/(p.points_goal||100)*100))}%`, height:"100%", background:"linear-gradient(90deg,#6E8CAB,#9DB6D6)" }}/>
+          </div>
+          <div style={{ fontSize:11.5, color:"#7E8794", textAlign:"center" }}>{p.reward?`${p.reward} at `:"Reward at "}{p.points_goal||100} points</div>
+        </>}
+
+        {p.type==='tiers' && <>
+          <div style={{ textAlign:"center", marginBottom:14 }}>
+            <div style={{ fontSize:11, color:"#7E8794", letterSpacing:".08em", textTransform:"uppercase" }}>Your tier</div>
+            <div style={{ fontSize:24, fontWeight:800, color:"#9DB6D6", marginTop:3 }}>{tier?tier.name:"—"}</div>
+            <div style={{ fontSize:11.5, color:"#7E8794", marginTop:2 }}>{c.visits||0} visits</div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+            {tiers.length===0 ? <div style={{ fontSize:12, color:"#5e6b78", textAlign:"center" }}>Tiers coming soon.</div> : tiers.map((t,i)=>{
+              const reached = (c.visits||0) >= (t.visits||0);
+              return <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:10, background:reached?"rgba(110,140,171,0.14)":"#0E1013", border:`1px solid ${reached?"#3a4a5e":"#20242b"}` }}>
+                <span style={{ fontSize:11.5, fontWeight:700, color:reached?"#9DB6D6":"#5e6b78", minWidth:50 }}>{t.visits}+ </span>
+                <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:600, color:reached?"#ECEAE1":"#7E8794" }}>{t.name}</div>{t.perk && <div style={{ fontSize:10.5, color:"#5e6b78" }}>{t.perk}</div>}</div>
+                {reached && <Check size={14} color="#3FB983"/>}
+              </div>;
+            })}
+          </div>
+        </>}
+      </div>
+
+      <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:18, textAlign:"center" }}>
+        <div style={{ fontSize:11.5, color:"#9aa6b3", marginBottom:12 }}>Show this to staff to collect</div>
+        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${qrData}`} alt="" style={{ width:160, height:160, borderRadius:12, background:"#fff", padding:10 }}/>
+        <div style={{ fontSize:22, fontWeight:800, letterSpacing:"0.18em", marginTop:12, color:"#ECEAE1" }}>{c.code}</div>
+        {c.redeemed>0 && <div style={{ fontSize:11, color:"#5e6b78", marginTop:8 }}>{c.redeemed} reward{c.redeemed>1?"s":""} earned so far</div>}
+      </div>
+      {Footer}
+    </div></div>
+  );
+}
+
 // ── Reservations (owner) — bookings dashboard + availability + public link. ──
 function ReservationsPage() {
   const { selClient, dark, lang } = useApp();
@@ -15004,6 +15370,7 @@ export default function TawasloApp() {
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="menu") return <MenuBuilderPage/>;
     if (page==="reservations") return <ReservationsPage/>;
+    if (page==="loyalty") return <LoyaltyPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
@@ -15054,6 +15421,10 @@ export default function TawasloApp() {
   // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
   const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
   if (resMatch) return <ReservePublicPage slug={resMatch[1]}/>;
+
+  // Public digital loyalty card (tawaslo.com/loyalty/<slug>) — no login.
+  const loyaltyMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/loyalty\/([A-Za-z0-9_-]+)/);
+  if (loyaltyMatch) return <LoyaltyPublicPage slug={loyaltyMatch[1]}/>;
 
   // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
   const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
