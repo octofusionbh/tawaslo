@@ -554,18 +554,20 @@ async function waBuildContext(clientId) {
   const now = new Date(); ctx.today = now.toISOString().slice(0, 10) + ' (' + now.toLocaleDateString('en', { weekday: 'long' }) + ')';
   try { const r = await waSb(`clients?id=eq.${clientId}&select=name&limit=1`); const c = await r.json(); if (c && c[0] && c[0].name) ctx.name = c[0].name; } catch (e) {}
   try {
-    const r = await waSb(`menus?client_id=eq.${clientId}&select=id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours&limit=1`);
-    const m = (await r.json())[0];
+    const r = await waSb(`menus?client_id=eq.${clientId}&select=*&limit=1`);
+    const mj = await r.json();
+    const m = Array.isArray(mj) ? mj[0] : null;
     if (m) {
       ctx.currency = m.currency || ctx.currency;
       ctx.special = (m.special_on && m.special) ? m.special : null;
       ctx.dayparts = { hours: m.daypart_hours || {}, cats: m.cat_dayparts || {}, now: waActiveDaypart(m.daypart_hours) };
-      const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons&limit=120`);
-      const items = await ri.json();
-      ctx.menu = (items || []).filter(x => !x.hidden).map(x => ({ category: x.category, name_en: x.name_en, name_ar: x.name_ar, description: x.description || null, available: x.available, tags: Array.isArray(x.tags) ? x.tags : [], variants: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.variants) ? x.variants : []), addons: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.addons) ? x.addons : []), price: (m.hide_prices || x.show_price === false) ? null : x.price }));
+      const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=*&limit=120`);
+      const ij = await ri.json();
+      const items = Array.isArray(ij) ? ij : [];
+      ctx.menu = items.filter(x => !x.hidden).map(x => ({ category: x.category, name_en: x.name_en, name_ar: x.name_ar, description: x.description || null, available: x.available, tags: Array.isArray(x.tags) ? x.tags : [], variants: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.variants) ? x.variants : []), addons: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.addons) ? x.addons : []), price: (m.hide_prices || x.show_price === false) ? null : x.price }));
     }
   } catch (e) {}
-  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=slot_minutes,hours&limit=1`); const s = (await r.json())[0]; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; } } catch (e) {}
+  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=*&limit=1`); const sj = await r.json(); const s = Array.isArray(sj) ? sj[0] : null; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; } } catch (e) {}
   return ctx;
 }
 async function waSend(phoneId, token, to, bodyText) {
