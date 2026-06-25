@@ -17,6 +17,7 @@ import {
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
   Monitor, Info, ScanLine, Check, CalendarCheck, Zap, Maximize2, X,
+  GripVertical,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest, FaGoogle } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -12598,6 +12599,22 @@ function fmtMoney(amount, currency) {
   try { return new Intl.NumberFormat(undefined, { style:"currency", currency:cur, currencyDisplay:"narrowSymbol" }).format(Number(amount)); }
   catch (e) { try { return new Intl.NumberFormat(undefined, { style:"currency", currency:cur }).format(Number(amount)); } catch (e2) { return Number(amount).toFixed(2) + " " + cur; } }
 }
+// ── World languages for the menu (any two can be shown, Arabic is just a default). ──
+const RTL_LANGS = ["ar","he","fa","ur","ckb","ps","sd"];
+const WORLD_LANGUAGES = [
+  {c:"en",n:"English"},{c:"ar",n:"العربية"},{c:"fr",n:"Français"},{c:"es",n:"Español"},
+  {c:"de",n:"Deutsch"},{c:"it",n:"Italiano"},{c:"pt",n:"Português"},{c:"tr",n:"Türkçe"},
+  {c:"ru",n:"Русский"},{c:"zh",n:"中文"},{c:"ja",n:"日本語"},{c:"ko",n:"한국어"},
+  {c:"hi",n:"हिन्दी"},{c:"ur",n:"اردو"},{c:"fa",n:"فارسی"},{c:"he",n:"עברית"},
+  {c:"id",n:"Bahasa Indonesia"},{c:"ms",n:"Bahasa Melayu"},{c:"th",n:"ไทย"},{c:"vi",n:"Tiếng Việt"},
+  {c:"nl",n:"Nederlands"},{c:"sv",n:"Svenska"},{c:"pl",n:"Polski"},{c:"el",n:"Ελληνικά"},
+  {c:"uk",n:"Українська"},{c:"ro",n:"Română"},{c:"cs",n:"Čeština"},{c:"hu",n:"Magyar"},
+  {c:"bn",n:"বাংলা"},{c:"ta",n:"தமிழ்"},{c:"ur2",n:"اردو"},{c:"tl",n:"Filipino"},
+  {c:"sw",n:"Kiswahili"},{c:"af",n:"Afrikaans"},{c:"az",n:"Azərbaycan"},{c:"kk",n:"Қазақша"}
+];
+const langName = (c) => { const f = WORLD_LANGUAGES.find(x=>x.c===c); return f ? f.n : String(c||"").toUpperCase(); };
+const isRTLLang = (c) => RTL_LANGS.includes(String(c||"").toLowerCase());
+const itemPhotos = (it) => { const p = Array.isArray(it&&it.photos) ? it.photos.filter(Boolean) : []; if (p.length) return p; return (it&&it.photo_url) ? [it.photo_url] : []; };
 function MenuBuilderPage() {
   const { selClient, dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -12612,6 +12629,8 @@ function MenuBuilderPage() {
   const [editing, setEditing] = useState(null);
   const [copied, setCopied] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [cropFile, setCropFile] = useState(null);
+  const [dragCat, setDragCat] = useState(null);
 
   useEffect(() => {
     let active = true; setLoading(true);
@@ -12638,32 +12657,45 @@ function MenuBuilderPage() {
     return () => { active = false; };
   }, [selClient]);
 
-  const cats = ["All", ...Array.from(new Set(items.map(i=>i.category||'General')))];
+  const lang1 = (menu&&menu.lang1) || "en";
+  const lang2 = (menu&&menu.lang2) || "ar";
+  const rtl2 = isRTLLang(lang2);
+  const present = Array.from(new Set(items.map(i=>i.category||'General')));
+  const orderedCats = () => { const ord = (menu&&Array.isArray(menu.cat_order))?menu.cat_order:[]; const inOrder = ord.filter(c=>present.includes(c)); const rest = present.filter(c=>!inOrder.includes(c)); return [...inOrder, ...rest]; };
+  const cats = ["All", ...orderedCats()];
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
-  const blankItem = () => ({ name_en:"", name_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", available:true, show_price:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], available:true, show_price:true });
   const updateMenu = async (patch) => { setMenu(m => ({ ...m, ...patch })); if (menu && menu.id) { try { await supabase.from('menus').update(patch).eq('id', menu.id); } catch(e){} } };
+  const moveCat = async (from, to) => { const arr = orderedCats(); const i=arr.indexOf(from), j=arr.indexOf(to); if(i<0||j<0||i===j) return; arr.splice(j,0,arr.splice(i,1)[0]); await updateMenu({ cat_order: arr }); };
   const saveItem = async () => {
     if (!editing || !menu) return;
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), price: editing.price===""?null:Number(editing.price), photo_url:editing.photo_url||null, available: editing.available!==false, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, available: editing.available!==false, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
   };
   const delItem = async (id) => { await supabase.from('menu_items').delete().eq('id', id); setItems(its=>its.filter(i=>i.id!==id)); };
   const toggleAvail = async (it) => { const v = !(it.available!==false); await supabase.from('menu_items').update({ available:v }).eq('id', it.id); setItems(its=>its.map(i=>i.id===it.id?{...i,available:v}:i)); };
-  const uploadPhoto = async (file) => {
-    if (!file) return; setUploading(true);
+  const uploadBlob = async (blob, ext) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      const ext = (file.name.split('.').pop()||'jpg');
-      const path = `${user?.id||'x'}/menu/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('media').upload(path, file, { upsert:true, contentType:file.type||'image/jpeg' });
-      if (!error) { const { data:url } = supabase.storage.from('media').getPublicUrl(path); setEditing(e=>({...e, photo_url:(url&&url.publicUrl)||""})); }
-    } catch(e){}
-    setUploading(false);
+      const path = `${user?.id||'x'}/menu/${Date.now()}-${Math.random().toString(36).slice(2,6)}.${ext||'png'}`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { upsert:true, contentType: blob.type||'image/png' });
+      if (error) return null;
+      const { data:url } = supabase.storage.from('media').getPublicUrl(path);
+      return (url&&url.publicUrl) || null;
+    } catch(e){ return null; }
   };
+  const onCropSave = async (blob) => {
+    setUploading(true);
+    const url = await uploadBlob(blob, 'png');
+    if (url) setEditing(e=>{ const photos=[...((e&&e.photos)||[]), url]; return { ...e, photos, photo_url: (e&&e.photo_url)||url }; });
+    setUploading(false); setCropFile(null);
+  };
+  const removePhoto = (idx) => setEditing(e=>{ const photos=((e&&e.photos)||[]).filter((_,i)=>i!==idx); return { ...e, photos, photo_url: photos[0]||null }; });
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
@@ -12702,6 +12734,18 @@ function MenuBuilderPage() {
               {WORLD_CURRENCIES.map(c=> <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("Primary language","اللغة الأساسية")}</span>
+            <select value={lang1} onChange={e=>updateMenu({ lang1:e.target.value })} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none" }}>
+              {WORLD_LANGUAGES.map(l=> <option key={l.c} value={l.c}>{l.n}</option>)}
+            </select>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("Second language","اللغة الثانية")}</span>
+            <select value={lang2} onChange={e=>updateMenu({ lang2:e.target.value })} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none" }}>
+              {WORLD_LANGUAGES.map(l=> <option key={l.c} value={l.c}>{l.n}</option>)}
+            </select>
+          </div>
           <div style={{ flex:1 }}/>
           <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
             <input type="checkbox" checked={!!(menu&&menu.hide_prices)} onChange={e=>updateMenu({ hide_prices:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
@@ -12710,11 +12754,20 @@ function MenuBuilderPage() {
         </div>
       )}
 
-      <div className="tw-scroll-x" style={{ display:"flex", gap:7, marginBottom:14, flexWrap:"wrap" }}>
+      <div className="tw-scroll-x" style={{ display:"flex", gap:7, marginBottom:5, flexWrap:"wrap", alignItems:"center" }}>
         {cats.map(c=>(
-          <button key={c} onClick={()=>setCat(c)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:cat===c?600:400, cursor:"pointer", border:`1px solid ${cat===c?th.accent:th.border}`, background:cat===c?th.accentSoft:th.card, color:cat===c?th.accent:th.text2, whiteSpace:"nowrap" }}>{c}</button>
+          <button key={c} onClick={()=>setCat(c)}
+            draggable={c!=="All"}
+            onDragStart={()=>setDragCat(c)}
+            onDragOver={c!=="All"?(e)=>e.preventDefault():undefined}
+            onDrop={c!=="All"?()=>{ if(dragCat&&dragCat!==c) moveCat(dragCat,c); setDragCat(null); }:undefined}
+            onDragEnd={()=>setDragCat(null)}
+            style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:cat===c?600:400, cursor:c!=="All"?"grab":"pointer", border:`1px solid ${cat===c?th.accent:th.border}`, background:cat===c?th.accentSoft:th.card, color:cat===c?th.accent:th.text2, whiteSpace:"nowrap", opacity: dragCat===c?0.5:1 }}>
+            {c!=="All" && <GripVertical size={11} style={{ opacity:0.5, marginInlineStart:-2 }}/>}{c}
+          </button>
         ))}
       </div>
+      {present.length>1 && <div style={{ fontSize:10.5, color:th.text3, marginBottom:14 }}>{L("Drag a category to reorder how sections appear on the menu.","اسحب الفئة لإعادة ترتيب ظهور الأقسام في القائمة.")}</div>}
 
       <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
         {shown.length===0 && <div style={{ ...card, padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No items yet — add your first.","لا توجد أصناف بعد — أضف أول صنف.")}</div>}
@@ -12738,27 +12791,38 @@ function MenuBuilderPage() {
         <div onClick={()=>setEditing(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.72)", backdropFilter:"blur(4px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:420, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20 }}>
             <h3 style={{ margin:"0 0 14px", fontSize:16, fontWeight:700, color:th.text }}>{editing.id?L("Edit item","تعديل الصنف"):L("Add item","إضافة صنف")}</h3>
-            <div style={{ display:"flex", gap:12, marginBottom:12 }}>
-              <label style={{ width:64, height:64, borderRadius:10, flexShrink:0, background: editing.photo_url?`center/cover url(${editing.photo_url})`:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
-                {!editing.photo_url && <Image size={18} color={th.text3}/>}
-                <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>uploadPhoto(e.target.files[0])}/>
+            <div style={{ maxHeight:"calc(100vh - 200px)", overflowY:"auto", marginInline:-2, paddingInline:2 }}>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 6px" }}>{L("Photos","الصور")} <span style={{ color:th.text3 }}>· {L("first one is the thumbnail","الأولى هي الصورة المصغّرة")}</span></div>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:12 }}>
+              {(editing.photos||[]).map((p,idx)=>(
+                <div key={idx} style={{ width:64, height:64, borderRadius:10, background:`center/cover url(${p})`, border:`1px solid ${idx===0?th.accent:th.border}`, position:"relative" }}>
+                  {idx===0 && <span style={{ position:"absolute", bottom:3, insetInlineStart:3, fontSize:8, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.55)", borderRadius:4, padding:"1px 4px" }}>{L("Cover","الغلاف")}</span>}
+                  <button onClick={()=>removePhoto(idx)} style={{ position:"absolute", top:-6, insetInlineEnd:-6, width:18, height:18, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:0 }}><X size={11}/></button>
+                </div>
+              ))}
+              <label style={{ width:64, height:64, borderRadius:10, flexShrink:0, background:th.card2, border:`1px dashed ${th.border}`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:"pointer", gap:3, color:th.text3 }}>
+                <Plus size={16}/><span style={{ fontSize:8.5 }}>{L("Add","إضافة")}</span>
+                <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files[0]; if(f) setCropFile(f); e.target.value=''; }}/>
               </label>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>{L("Category","الفئة")}</div>
-                <input value={editing.category} onChange={e=>setEditing({...editing, category:e.target.value})} placeholder={L("e.g. Hot Coffee","مثلاً: قهوة ساخنة")} style={inp}/>
-              </div>
             </div>
             {uploading && <div style={{ fontSize:11, color:th.text3, marginBottom:8 }}>{L("Uploading photo…","جارٍ رفع الصورة…")}</div>}
-            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name (English)","الاسم (إنجليزي)")}</div>
-            <input value={editing.name_en} onChange={e=>setEditing({...editing, name_en:e.target.value})} style={{ ...inp, marginBottom:10 }}/>
-            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name (Arabic)","الاسم (عربي)")}</div>
-            <input value={editing.name_ar} onChange={e=>setEditing({...editing, name_ar:e.target.value})} dir="rtl" style={{ ...inp, marginBottom:10, fontFamily:"'Cairo',sans-serif" }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Category","الفئة")}</div>
+            <input value={editing.category} onChange={e=>setEditing({...editing, category:e.target.value})} placeholder={L("e.g. Hot Coffee","مثلاً: قهوة ساخنة")} style={{ ...inp, marginBottom:10 }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name","الاسم")} ({langName(lang1)})</div>
+            <input value={editing.name_en} onChange={e=>setEditing({...editing, name_en:e.target.value})} dir={isRTLLang(lang1)?"rtl":"ltr"} style={{ ...inp, marginBottom:10, fontFamily:isRTLLang(lang1)?"'Cairo',sans-serif":undefined }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Name","الاسم")} ({langName(lang2)}) <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+            <input value={editing.name_ar} onChange={e=>setEditing({...editing, name_ar:e.target.value})} dir={rtl2?"rtl":"ltr"} style={{ ...inp, marginBottom:10, fontFamily:rtl2?"'Cairo',sans-serif":undefined }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Description","الوصف")} ({langName(lang1)}) <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+            <textarea value={editing.description||""} onChange={e=>setEditing({...editing, description:e.target.value})} dir={isRTLLang(lang1)?"rtl":"ltr"} rows={2} style={{ ...inp, marginBottom:10, resize:"vertical", fontFamily:isRTLLang(lang1)?"'Cairo',sans-serif":undefined }}/>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Description","الوصف")} ({langName(lang2)}) <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+            <textarea value={editing.description_ar||""} onChange={e=>setEditing({...editing, description_ar:e.target.value})} dir={rtl2?"rtl":"ltr"} rows={2} style={{ ...inp, marginBottom:10, resize:"vertical", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}/>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"})</div>
             <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:10 }}/>
-            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:16, cursor:"pointer" }}>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:8, cursor:"pointer" }}>
               <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
             </label>
+            </div>
             <div style={{ display:"flex", gap:9 }}>
               <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
               <button onClick={saveItem} disabled={!editing.name_en.trim()} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:editing.name_en.trim()?"pointer":"not-allowed", opacity:editing.name_en.trim()?1:0.6 }}>{L("Save","حفظ")}</button>
@@ -12766,6 +12830,7 @@ function MenuBuilderPage() {
           </div>
         </div>
       ), document.body)}
+      {cropFile && <LogoCropper file={cropFile} onCancel={()=>setCropFile(null)} onSave={onCropSave}/>}
     </div>
   );
 }
@@ -12785,7 +12850,7 @@ function ConciergeWidget({ clientId, name, currency }) {
     let live = true;
     (async () => {
       let menu = [], settings = {}, cur = currency || 'BHD';
-      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,price,available,show_price').eq('menu_id', m.id).limit(80); menu = (it||[]).map(x => ({ ...x, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,show_price').eq('menu_id', m.id).limit(80); menu = (it||[]).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
       if (live) setCtx({ menu, settings, currency: cur });
     })();
@@ -12850,14 +12915,21 @@ function ConciergeWidget({ clientId, name, currency }) {
   );
 }
 
-// ── Public digital menu (tawaslo.com/menu/<slug>) — no login. ──
+// ── Public digital menu (tawaslo.com/menu/<slug>) — no login. Sectioned, ──
+// ── sticky category bar, tap-to-detail with photo gallery + bilingual text. ──
 function MenuPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
   const [items, setItems] = useState([]);
-  const [cat, setCat] = useState("All");
+  const [active, setActive] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [pIdx, setPIdx] = useState(0);
+  const sectionRefs = useRef({});
+  const barRef = useRef(null);
+  const chipRefs = useRef({});
+  const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -12869,43 +12941,124 @@ function MenuPublicPage({ slug }) {
     return () => { live = false; };
   }, [slug]);
 
-  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 16px 60px", boxSizing:"border-box" };
-  if (data === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
-  if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Menu not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+  const lang1 = (data&&data.lang1) || "en";
+  const lang2 = (data&&data.lang2) || "ar";
+  const rtl1 = isRTLLang(lang1), rtl2 = isRTLLang(lang2);
+  const present = Array.from(new Set(items.map(i=>i.category||'General')));
+  const ord = (data&&Array.isArray(data.cat_order))?data.cat_order:[];
+  const sections = [...ord.filter(c=>present.includes(c)), ...present.filter(c=>!ord.includes(c))];
 
-  const cats = ["All", ...Array.from(new Set(items.map(i=>i.category||'General')))];
-  const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
+  useEffect(() => {
+    if (!sections.length) return;
+    const obs = new IntersectionObserver((entries) => {
+      if (clicking.current) return;
+      const vis = entries.filter(e=>e.isIntersecting).sort((a,b)=>a.boundingClientRect.top-b.boundingClientRect.top);
+      if (vis[0]) setActive(vis[0].target.dataset.cat);
+    }, { rootMargin:"-96px 0px -62% 0px", threshold:0 });
+    Object.values(sectionRefs.current).forEach(el=>{ if(el) obs.observe(el); });
+    return () => obs.disconnect();
+  }, [items]); // eslint-disable-line
+  useEffect(() => { const el = active && chipRefs.current[active]; if (el && el.scrollIntoView) el.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"center" }); }, [active]);
+
+  const jump = (c) => {
+    setActive(c); clicking.current = true;
+    const el = sectionRefs.current[c];
+    if (el) el.scrollIntoView({ behavior:"smooth", block:"start" });
+    setTimeout(()=>{ clicking.current = false; }, 650);
+  };
+  const openDetail = (it) => { setDetail(it); setPIdx(0); };
+
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", boxSizing:"border-box" };
+  if (data === undefined) return <div style={{ ...wrap, padding:"30px 16px 60px", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, padding:"30px 16px 60px", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Menu not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+
   const cur = data.currency || "BHD";
+  const priceOf = (it) => (data.hide_prices || it.show_price===false) ? "" : (it.price!=null ? fmtMoney(it.price, cur) : "");
+  const detailPhotos = detail ? itemPhotos(detail) : [];
+
   return (
     <div style={wrap}>
-      <div style={{ maxWidth:560, margin:"0 auto" }}>
-        <div style={{ textAlign:"center", marginBottom:20 }}>
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"30px 16px 0" }}>
+        <div style={{ textAlign:"center", marginBottom:18 }}>
           {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"M")[0]}</div>}
           <div style={{ fontSize:20, fontWeight:700, marginTop:10 }}>{data.name}</div>
           <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Menu</div>
         </div>
-        {cats.length>1 && (
-          <div style={{ display:"flex", gap:8, overflowX:"auto", justifyContent:"center", marginBottom:18, flexWrap:"wrap" }}>
-            {cats.map(c=><span key={c} onClick={()=>setCat(c)} style={{ fontSize:12.5, padding:"6px 12px", borderRadius:20, cursor:"pointer", background:cat===c?"#1a2230":"transparent", color:cat===c?"#ECEAE1":"#5e6b78", whiteSpace:"nowrap" }}>{c}</span>)}
-          </div>
-        )}
-        {items.length===0 ? <div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"40px 0" }}>This menu is being prepared.</div> : (
-          <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
-            {shown.map(it=>(
-              <div key={it.id} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11 }}>
-                {it.photo_url && <div style={{ width:52, height:52, borderRadius:9, flexShrink:0, background:`center/cover url(${it.photo_url})` }}/>}
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:14, fontWeight:600 }}>{it.name_en}</div>
-                  {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:"rtl", fontFamily:"'Cairo',sans-serif", marginTop:1 }}>{it.name_ar}</div>}
-                  {it.description && <div style={{ fontSize:11, color:"#6b7785", marginTop:3 }}>{it.description}</div>}
-                </div>
-                <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{data.hide_prices || it.show_price===false ? "" : (it.price!=null ? fmtMoney(it.price, cur) : "")}</span>
-              </div>
+      </div>
+
+      {sections.length>1 && (
+        <div ref={barRef} style={{ position:"sticky", top:0, zIndex:50, background:"rgba(14,16,19,0.92)", backdropFilter:"blur(10px)", borderBottom:"1px solid #1b1f26" }}>
+          <div className="tw-scroll-x" style={{ maxWidth:560, margin:"0 auto", display:"flex", gap:8, overflowX:"auto", padding:"11px 16px", WebkitOverflowScrolling:"touch" }}>
+            {sections.map(c=>(
+              <button key={c} ref={el=>{ chipRefs.current[c]=el; }} onClick={()=>jump(c)} style={{ flexShrink:0, fontSize:12.5, fontWeight:active===c?700:500, padding:"7px 13px", borderRadius:20, cursor:"pointer", border:"none", background:active===c?"#9DB6D6":"#161b23", color:active===c?"#0E1013":"#9aa6b3", whiteSpace:"nowrap", transition:"all .15s" }}>{c}</button>
             ))}
           </div>
+        </div>
+      )}
+
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"18px 16px 60px" }}>
+        {items.length===0 ? <div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"40px 0" }}>This menu is being prepared.</div> : (
+          sections.map(sec=>(
+            <div key={sec} ref={el=>{ sectionRefs.current[sec]=el; }} data-cat={sec} style={{ scrollMarginTop:72, marginBottom:26 }}>
+              <div style={{ fontSize:15, fontWeight:800, letterSpacing:"0.01em", marginBottom:11, paddingBottom:7, borderBottom:"1px solid #20242b" }}>{sec}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+                {items.filter(i=>(i.category||'General')===sec).map(it=>{
+                  const ph = itemPhotos(it);
+                  return (
+                    <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11, cursor:"pointer" }}>
+                      {ph[0] && <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background:`center/cover url(${ph[0]})`, position:"relative" }}>{ph.length>1 && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}</div>}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:14, fontWeight:600, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{it.name_en}</div>
+                        {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined, marginTop:1 }}>{it.name_ar}</div>}
+                        {(it.description||it.description_ar) && <div style={{ fontSize:11, color:"#6b7785", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.description||it.description_ar}</div>}
+                      </div>
+                      <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{priceOf(it)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:14 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
       </div>
+
+      {detail && createPortal((
+        <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, display:"flex", alignItems:"flex-end", justifyContent:"center", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", background:"#0E1013", border:"1px solid #20242b", borderBottom:"none", borderRadius:"22px 22px 0 0", boxShadow:"0 -16px 50px rgba(0,0,0,0.6)" }}>
+            <div style={{ position:"sticky", top:0, display:"flex", justifyContent:"center", padding:"9px 0 4px", background:"#0E1013", zIndex:2 }}>
+              <div style={{ width:40, height:4, borderRadius:4, background:"#2b313b" }}/>
+              <button onClick={()=>setDetail(null)} style={{ position:"absolute", insetInlineEnd:12, top:8, width:30, height:30, borderRadius:"50%", background:"#161b23", border:"1px solid #262c36", color:"#9aa6b3", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={16}/></button>
+            </div>
+            {detailPhotos.length>0 && (
+              <div style={{ position:"relative", width:"100%", aspectRatio:"4/3", background:`center/cover url(${detailPhotos[Math.min(pIdx,detailPhotos.length-1)]}) #161b23` }}
+                onTouchStart={e=>{ detail._tx = e.touches[0].clientX; }}
+                onTouchEnd={e=>{ const dx = e.changedTouches[0].clientX - (detail._tx||0); if (dx>40) setPIdx(i=>Math.max(0,i-1)); else if (dx<-40) setPIdx(i=>Math.min(detailPhotos.length-1,i+1)); }}>
+                {detailPhotos.length>1 && <>
+                  <button onClick={()=>setPIdx(i=>Math.max(0,i-1))} style={{ position:"absolute", insetInlineStart:8, top:"50%", transform:"translateY(-50%)", width:34, height:34, borderRadius:"50%", background:"rgba(0,0,0,0.5)", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity:pIdx===0?0.4:1 }}><ChevronLeft size={18}/></button>
+                  <button onClick={()=>setPIdx(i=>Math.min(detailPhotos.length-1,i+1))} style={{ position:"absolute", insetInlineEnd:8, top:"50%", transform:"translateY(-50%)", width:34, height:34, borderRadius:"50%", background:"rgba(0,0,0,0.5)", border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", opacity:pIdx>=detailPhotos.length-1?0.4:1 }}><ChevronRight size={18}/></button>
+                  <div style={{ position:"absolute", bottom:10, left:0, right:0, display:"flex", justifyContent:"center", gap:6 }}>
+                    {detailPhotos.map((_,i)=><span key={i} onClick={()=>setPIdx(i)} style={{ width:i===pIdx?20:7, height:7, borderRadius:4, background:i===pIdx?"#9DB6D6":"rgba(255,255,255,0.45)", cursor:"pointer", transition:"all .2s" }}/>)}
+                  </div>
+                </>}
+              </div>
+            )}
+            <div style={{ padding:"18px 20px 30px" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:19, fontWeight:700, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{detail.name_en}</div>
+                  {detail.name_ar && <div style={{ fontSize:15, color:"#9aa6b3", marginTop:3, direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}>{detail.name_ar}</div>}
+                </div>
+                {priceOf(detail) && <div style={{ fontSize:17, fontWeight:800, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{priceOf(detail)}</div>}
+              </div>
+              {(detail.description||detail.description_ar) && <div style={{ height:1, background:"#20242b", margin:"16px 0" }}/>}
+              {detail.description && <div style={{ fontSize:13.5, lineHeight:1.6, color:"#c4ccd6", direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{detail.description}</div>}
+              {detail.description_ar && <div style={{ fontSize:13.5, lineHeight:1.7, color:"#9aa6b3", marginTop:detail.description?12:0, direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}>{detail.description_ar}</div>}
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
       <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur}/>
     </div>
   );
@@ -14394,551 +14547,4 @@ function ClientApprovalPage({ token }) {
 
   const DEMO = { agency:{ name:"Octo Fusion", logo:null }, client:{ name:"Tawaslo Beach Resort" }, month:"June 2026", expires:7, firstDow:1, days:30,
     posts:[
-      { id:"d2", day:"Tue", date:2, time:"6:00 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#7FC9A8)"], caption:"Golden hour hits different by the water. Book your June staycation and watch the sun melt into the Gulf.", tags:"#TawasloBeach #SunsetVibes", status:"pending" },
-      { id:"d4", day:"Thu", date:4, time:"1:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#5A3B2C,#B5824E)"], caption:"Bottomless weekend brunch is back. Fresh seafood, live grill and a sea view that does the talking.", tags:"#BrunchBH #Manama", status:"pending" },
-      { id:"d6", day:"Sat", date:6, time:"5:00 PM", platform:"ig", type:"Carousel", media:["linear-gradient(135deg,#2C3E4F,#5B7BA8)","linear-gradient(135deg,#3A2C4F,#7B5BA8)","linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Three reasons to spend Saturday poolside. Swipe for the cabana, the cocktails and the calm.", tags:"#PoolDay #SummerBH", status:"pending" },
-      { id:"d11", day:"Thu", date:11, time:"12:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Celebrate Eid by the sea. Two nights, breakfast for two and late checkout.", tags:"#EidBH", status:"pending" },
-      { id:"d13", day:"Sat", date:13, time:"6:00 PM", platform:"ig", type:"Single", media:["linear-gradient(135deg,#4F2C3A,#A85B74)"], caption:"Switch off this weekend. Our signature 60 minute ritual is 20 percent off through June.", tags:"#SpaDay #SelfCare", status:"pending" },
-      { id:"d20", day:"Sat", date:20, time:"5:30 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#4F9EC9)"], caption:"From above, the blue goes on forever. Your summer starts here.", tags:"#SeaView #DroneBH", status:"pending" },
-    ] };
-
-  const [data, setData] = useState(null);
-  const [view, setView] = useState("cal");
-  const [cur, setCur] = useState(null);
-  const [slide, setSlide] = useState(0);
-  const [commenting, setCommenting] = useState(false);
-  const [comment, setComment] = useState("");
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkNote, setBulkNote] = useState("");
-  const touch = useRef(null);
-
-  useEffect(() => { let live = true;
-    (async () => {
-      try {
-        const r = await fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"load", token }) });
-        const d = await r.json();
-        if (live) {
-          if (d && Array.isArray(d.posts) && d.posts.length) setData(d);
-          else if (token === "preview" || token === "demo") setData(DEMO);   // explicit demo link only
-          else setData({ ...(d || {}), posts: [], empty: true });            // real link, nothing queued yet
-        }
-      } catch (e) { if (live) setData(token === "preview" || token === "demo" ? DEMO : { posts: [], empty: true, error: true }); }
-    })();
-    return () => { live = false; };
-  }, [token]); // eslint-disable-line
-
-  const PC = { ig:"#C13584", fb:"#1877F2" }, PN = { ig:"Instagram", fb:"Facebook" };
-  const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E" };
-  const isVid = (m) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(m || "");
-  const mediaBg = (m) => (isVid(m) ? "#0C1420" : (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A")));
-  // Renders a video frame (so reels/clips show a real cover) or an image background.
-  const VidCover = ({ m }) => isVid(m) ? <video src={m} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/> : null;
-
-  if (!data) return <div style={{ minHeight:"100vh", background:"#0A0F18", display:"flex", alignItems:"center", justifyContent:"center", color:"#9CB3C9", fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
-
-  const posts = data.posts || [];
-  const byDate = {}; posts.forEach(p => { byDate[p.date] = p; });
-  const pendingN = posts.filter(p => p.status === "pending" || p.status === "revised").length;
-  const approvedN = posts.filter(p => p.status === "approved").length;
-
-  const respond = (id, decision, note) => {
-    setData(prev => ({ ...prev, posts: prev.posts.map(p => p.id === id ? { ...p, status:decision, comment:note || p.comment } : p) }));
-    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respond", token, postId:id, decision, comment:note || "" }) }); } catch (e) { /* ignore */ }
-  };
-  const respondAll = (decision, note) => {
-    setData(prev => ({ ...prev, posts: prev.posts.map(p => (p.status === "pending" || p.status === "revised") ? { ...p, status:decision, comment: note || p.comment } : p) }));
-    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respondAll", token, decision, comment: note || "" }) }); } catch (e) { /* ignore */ }
-  };
-
-  const openPost = (id) => { setCur(id); setSlide(0); setCommenting(false); setComment(""); setView("post"); window.scrollTo(0, 0); };
-  const P = posts.find(x => x.id === cur);
-
-  const wrap = { minHeight:"100vh", background:"#0A0F18", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
-  const inner = { maxWidth: 700, margin:"0 auto" };
-  const ag = data.agency || {}, cl = data.client || {};
-
-  const header = (
-    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: phone ? 14 : 18 }}>
-      {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:"#4F6B8C", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
-      <span style={{ fontSize:14, fontWeight:600 }}>{ag.name || "Your agency"}</span>
-      <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:"#8FB0C9", background:"rgba(79,107,140,0.16)", padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
-    </div>
-  );
-
-  const statDot = (st) => <span style={{ width:7, height:7, borderRadius:"50%", background:SC[st]||"#E0B973", flexShrink:0 }}/>;
-
-  if (data.empty) return (
-    <div style={wrap}><div style={inner}>{header}
-      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, padding:"46px 24px", textAlign:"center" }}>
-        <Clock size={26} color="#5C7082" style={{ marginBottom:12 }}/>
-        <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
-        <div style={{ fontSize:12.5, color:"#9CB3C9", lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#7E94A8", marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
-      </div>
-    </div></div>
-  );
-
-  if (view === "post" && P) {
-    const multi = (P.media || []).length > 1;
-    const story = P.type === "Story";
-    const done = P.status === "approved" || P.status === "changes";
-    return (
-      <div style={wrap}><div style={{ maxWidth:440, margin:"0 auto" }}>
-        <div onClick={()=>setView("cal")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:"#9CB3C9", fontSize:12.5, cursor:"pointer" }}><ArrowLeft size={16}/>Back to {data.month || "calendar"}<span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5 }}><Clock size={13}/>{P.day} {P.date} &middot; {P.time}</span></div>
-        {P.status === "revised" && <div style={{ background:"rgba(201,162,78,0.1)", border:"0.5px solid rgba(201,162,78,0.34)", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:11.5, color:"#E6D6AE" }}><Sparkles size={13} style={{ verticalAlign:-2 }}/> Updated since you last saw it. Please take another look.</div>}
-        <div style={{ background:"#fff", borderRadius:14, overflow:"hidden", border: P.status==="revised" ? "1.5px solid #C9A24E" : "0.5px solid rgba(0,0,0,0.1)" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
-            <span style={{ width:32, height:32, borderRadius:"50%", padding:2, background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)" }}><span style={{ display:"block", width:"100%", height:"100%", borderRadius:"50%", background:"#4F6B8C", color:"#fff", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>{(cl.name||"C")[0]}</span></span>
-            <span style={{ lineHeight:1.2 }}><span style={{ display:"block", fontSize:13, fontWeight:600, color:"#111" }}>{(cl.handle)||(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span><span style={{ display:"block", fontSize:11, color:"#888" }}>{PN[P.platform]}</span></span>
-            <span style={{ marginLeft:"auto", fontSize:18, color:"#222" }}>&middot;&middot;&middot;</span>
-          </div>
-          <div
-            onTouchStart={(e)=>{ touch.current = e.touches[0].clientX; }}
-            onTouchEnd={(e)=>{ if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (dx < -40 && slide < P.media.length-1) setSlide(slide+1); else if (dx > 40 && slide > 0) setSlide(slide-1); touch.current = null; }}
-            style={{ aspectRatio: story ? "9 / 16" : "1 / 1", maxHeight: phone ? "66vh" : 430, background: mediaBg(P.media[slide]), position:"relative", display:"flex", alignItems:"flex-end", justifyContent:"center", overflow:"hidden", touchAction:"pan-y" }}>
-            <VidCover m={P.media[slide]}/>
-            <span style={{ position:"absolute", top:12, right:12, background:"rgba(0,0,0,0.4)", color:"#fff", fontSize:10.5, padding:"3px 10px", borderRadius:20 }}>{multi ? (slide+1)+"/"+P.media.length : P.type}</span>
-            {multi && slide>0 && <span onClick={()=>setSlide(slide-1)} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronLeft size={18}/></span>}
-            {multi && slide<P.media.length-1 && <span onClick={()=>setSlide(slide+1)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronRight size={18}/></span>}
-            {multi && <span style={{ position:"absolute", bottom:12, left:0, right:0, display:"flex", justifyContent:"center", gap:5 }}>{P.media.map((_,k)=><span key={k} style={{ width:k===slide?16:6, height:6, borderRadius:6, background:k===slide?"#4F6B8C":"rgba(255,255,255,0.6)", transition:"width .2s" }}/>)}</span>}
-          </div>
-          <div style={{ display:"flex", alignItems:"center", gap:15, padding:"10px 13px 4px", color:"#222", fontSize:20 }}><Heart size={20}/><MessageCircle size={20}/><Send size={20}/><Bookmark size={20} style={{ marginLeft:"auto" }}/></div>
-          <div style={{ padding:"2px 13px 14px", fontSize:13, color:"#111", lineHeight:1.5 }}><span style={{ fontWeight:600 }}>{(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span> {P.caption} <span style={{ color:"#385185" }}>{P.tags}</span></div>
-        </div>
-        <div style={{ marginTop:14 }}>
-          {done ? (
-            <div style={{ textAlign:"center", padding:12, borderRadius:11, background: P.status==="approved"?"rgba(95,191,146,0.12)":"rgba(217,138,106,0.12)", border:`0.5px solid ${P.status==="approved"?"rgba(95,191,146,0.4)":"rgba(217,138,106,0.4)"}`, color:P.status==="approved"?"#7FCFA6":"#D98A6A", fontSize:13, fontWeight:600 }}>{P.status==="approved" ? "Approved — thank you" : "Changes requested"}</div>
-          ) : commenting ? (
-            <div>
-              <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="What would you like changed?" style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
-              <div style={{ display:"flex", gap:10, marginTop:10 }}>
-                <button onClick={()=>setCommenting(false)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
-                <button onClick={()=>{ respond(P.id, "changes", comment.trim()); }} style={{ flex:1, padding:"12px", borderRadius:11, background:"#4F6B8C", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>Send request</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setCommenting(true)} style={{ flex:1, background:"transparent", border:"0.5px solid rgba(150,175,205,0.32)", color:"#CFE0F0", fontSize:13, padding:12, borderRadius:11, cursor:"pointer" }}>Request changes</button>
-              <button onClick={()=>respond(P.id, "approved")} style={{ flex:1, background:"#2F6E54", border:"none", color:"#fff", fontSize:13, fontWeight:600, padding:12, borderRadius:11, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><CheckCircle size={15}/>Approve this post</button>
-            </div>
-          )}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:"#7E94A8", marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
-      </div></div>
-    );
-  }
-
-  const agendaRow = (p) => (
-    <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:"0.5px solid rgba(150,175,205,0.1)", cursor:"pointer" }}>
-      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}>{isVid(p.media[0]) && <span style={{ position:"absolute", inset:0, borderRadius:11, overflow:"hidden" }}><VidCover m={p.media[0]}/></span>}<span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
-      <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:"#7E94A8", marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
-      {p.status==="approved" ? <CheckCircle size={17} color="#5FBF92"/> : p.status==="revised" ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#C9A24E", background:"rgba(201,162,78,0.16)", padding:"3px 8px", borderRadius:20 }}><Sparkles size={11}/>New</span> : statDot(p.status)}
-      <ChevronRight size={16} color="#5C7082"/>
-    </div>
-  );
-
-  const calGrid = () => {
-    const dows = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
-    const cells = [];
-    for (let i=0;i<(data.firstDow||1);i++) cells.push(<div key={"b"+i}/>);
-    for (let d=1; d<=(data.days||30); d++) {
-      const p = byDate[d];
-      if (p) {
-        const c = SC[p.status]||"#E0B973", rev = p.status==="revised";
-        cells.push(<div key={d} onClick={()=>openPost(p.id)} style={{ minHeight:62, border: rev?"1px solid #C9A24E":`0.5px solid ${c}55`, borderRadius:9, padding:"5px 6px", background:c+(rev?"14":"10"), cursor:"pointer", position:"relative" }}>
-          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#CFE0F0", marginBottom:3 }}>{d}</div>
-          <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]), position:"relative", overflow:"hidden" }}><VidCover m={p.media[0]}/></div>
-          {rev ? <span style={{ position:"absolute", top:4, right:4, display:"inline-flex", alignItems:"center", gap:2, fontSize:8, color:"#C9A24E", background:"rgba(201,162,78,0.22)", padding:"2px 5px", borderRadius:9 }}><Sparkles size={9}/>New</span>
-            : p.status==="approved" ? <span style={{ position:"absolute", top:5, right:5 }}><CheckCircle size={13} color="#5FBF92"/></span>
-            : <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:c }}/>}
-        </div>);
-      } else cells.push(<div key={d} style={{ minHeight:62, border:"0.5px solid rgba(150,175,205,0.08)", borderRadius:9, padding:"5px 6px" }}><div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#5C7388" }}>{d}</div></div>);
-    }
-    return (<div style={{ padding:"14px 16px 6px" }}>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, marginBottom:5 }}>{dows.map(d=><div key={d} style={{ textAlign:"center", fontSize:10, color:"#6E869C" }}>{d}</div>)}</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, paddingBottom:12 }}>{cells}</div>
-    </div>);
-  };
-
-  return (
-    <div style={wrap}><div style={inner}>
-      {header}
-      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, overflow:"hidden" }}>
-        <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:"0.5px solid rgba(150,175,205,0.12)" }}>
-          <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
-            <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:"#9CB3C9", marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
-            {pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
-              <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
-              <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
-            </div>}
-          </div>
-          {pendingN>0 && bulkOpen && (
-            <div style={{ marginTop:13 }}>
-              <div style={{ fontSize:12, color:"#9CB3C9", marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
-              <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
-              <div style={{ display:"flex", gap:10, marginTop:10 }}>
-                <button onClick={()=>{ setBulkOpen(false); setBulkNote(""); }} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
-                <button onClick={()=>{ respondAll("changes", bulkNote.trim()); setBulkOpen(false); setBulkNote(""); }} disabled={!bulkNote.trim()} style={{ flex:1, padding:"12px", borderRadius:11, background: bulkNote.trim()?"#4F6B8C":"#243140", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor: bulkNote.trim()?"pointer":"not-allowed", opacity: bulkNote.trim()?1:0.6 }}>Send request</button>
-              </div>
-            </div>
-          )}
-        </div>
-        {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
-        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
-      </div>
-    </div></div>
-  );
-}
-
-export default function TawasloApp() {
-  const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') !== 'light'; } catch(e){ return true; } });
-  useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
-  const [lang,      setLang]      = useState("en");
-  const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
-  const [mobileNav, setMobileNav] = useState(false);
-  const [isAuthed,  setIsAuthed]  = useState(false);
-  const [authPage,  setAuthPage]  = useState("login");
-  const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
-  const [mode,      setMode]      = useState("agency");
-  const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
-  const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
-  const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
-  const [userEmail, setUserEmail] = useState(null);
-  const [userName,  setUserName]  = useState("");
-  const [userPlan,  setUserPlan]  = useState("");
-  const [userCompany, setUserCompany] = useState("");
-  const [clients,   setClients]   = useState([]);
-  const [accountType, setAccountType] = useState("agency");
-  const [selPlatform, setSelPlatform] = useState("all"); // shared client/platform context-bar filter
-  const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
-  const isAdminUser = userEmail === ADMIN_EMAIL;
-
-  // Load the signed-in user's real brands + decide which app (client vs admin) to show
-  const loadWorkspace = async (user, fresh) => {
-    setUserEmail(user.email || null);
-    const { data: prof } = await getProfile(user.id);
-    setAccountType(prof?.account_type || "agency");
-    setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
-    setUserPlan(prof?.plan || "");
-    setUserCompany(prof?.company || prof?.company_name || prof?.agency_name || "");
-    // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
-    if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
-    const { data: rows } = await getClients(user.id);
-    // Count the real connected accounts per brand so the sidebar shows a true number, not 0.
-    const ids = (rows || []).map(c => c.id).filter(Boolean);
-    let countByClient = {};
-    if (ids.length) {
-      try {
-        const { data: accs } = await supabase.from('social_accounts').select('client_id').in('client_id', ids).neq('is_active', false);
-        (accs || []).forEach(a => { countByClient[a.client_id] = (countByClient[a.client_id] || 0) + 1; });
-      } catch (e) { /* ignore */ }
-    }
-    const norm = (rows || []).map(c => ({
-      ...c,
-      free: c.is_free ?? false,
-      accounts: countByClient[c.id] ?? (c.accounts ?? 0),
-      posts: c.posts ?? 0,
-      reach: c.reach ?? "—",
-      health: c.health ?? 100,
-      spend: c.spend ?? 0,
-    }));
-    setClients(norm);
-    // Preserve the user's current brand selection across reloads/auth refreshes —
-    // only fall back to the first brand on the very first load (no real selection yet).
-    if (norm.length) setSelClient(prev => {
-      const keep = prev && prev.id && norm.find(c => c.id === prev.id);
-      if (keep) return keep;
-      // On a fresh reload prev has no real id — restore the last-selected brand from storage.
-      let storedId = null; try { storedId = localStorage.getItem('tw_selclient'); } catch (e) {}
-      const stored = storedId && norm.find(c => String(c.id) === String(storedId));
-      return stored || norm[0];
-    });
-    const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
-    const owner = onAdminHost && user.email === ADMIN_EMAIL;
-    setMode(owner ? "owner" : "agency");
-    // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
-    // A page reload also fires a SIGNED_IN event, which would otherwise yank the user to the
-    // home page. Keep their last page when one is saved (reload); only land on home for a
-    // genuine fresh login — logout clears tw_page, so `saved` is null in that case.
-    if (fresh) {
-      const home = owner ? "overview" : "dashboard";
-      let saved = null; try { saved = sessionStorage.getItem('tw_page'); } catch (e) {}
-      const target = saved || home;
-      try { sessionStorage.setItem('tw_page', target); } catch (e) {}
-      setPage(target);
-    }
-  };
-
-  // Restore session on load
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setIsAuthed(true);
-        loadWorkspace(session.user);
-      }
-      setAuthReady(true);
-    });
-    // Listen for auth changes (e.g. email confirmation callback)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setAuthPage('recovery'); setAuthReady(true); return; }
-      setIsAuthed(!!session?.user);
-      if (session?.user) loadWorkspace(session.user, event === 'SIGNED_IN');
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Remember the selected brand across reloads so a refresh keeps you on the same client.
-  useEffect(() => { try { if (selClient && selClient.id) localStorage.setItem('tw_selclient', String(selClient.id)); } catch (e) {} }, [selClient]);
-
-  // Auto sign-out after inactivity — keeps the workspace secure if the laptop is
-  // left open, closed, or goes to sleep. Resets on any activity; also checks on
-  // wake (visibility change) in case timers were paused while asleep.
-  useEffect(() => {
-    if (!isAuthed) return;
-    // "Remember me" keeps the user signed in — skip the idle auto sign-out. When it's off, the
-    // workspace still locks after 30 minutes of inactivity for security.
-    let remembered = true; try { remembered = localStorage.getItem('tw_remember') !== '0'; } catch (e) {}
-    if (remembered) return;
-    const IDLE_MS = 30 * 60 * 1000;
-    let timer, last = Date.now();
-    const doLogout = async () => { try { sessionStorage.removeItem('tw_page'); } catch (e) {} try { await signOut(); } catch (e) {} setIsAuthed(false); };
-    const reset = () => { last = Date.now(); clearTimeout(timer); timer = setTimeout(doLogout, IDLE_MS); };
-    const onVis = () => { if (document.visibilityState === 'visible' && Date.now() - last > IDLE_MS) doLogout(); else reset(); };
-    const evts = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
-    evts.forEach(e => window.addEventListener(e, reset, { passive: true }));
-    document.addEventListener('visibilitychange', onVis);
-    reset();
-    return () => { clearTimeout(timer); evts.forEach(e => window.removeEventListener(e, reset)); document.removeEventListener('visibilitychange', onVis); };
-  }, [isAuthed]);
-
-  // Remember that the user is inside the app, so a refresh keeps them here instead of bouncing to the landing page.
-  useEffect(() => {
-    try {
-      if (isAuthed && !showLanding) sessionStorage.setItem('tw_in_app', '1');
-      else if (!isAuthed) sessionStorage.removeItem('tw_in_app');
-    } catch (e) { /* ignore */ }
-  }, [isAuthed, showLanding]);
-
-  useEffect(() => { if (recovery) setAuthPage('recovery'); }, [recovery]);
-
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href);
-      if (u.searchParams.get('tap_return') || u.searchParams.get('tap_id')) {
-        if (sessionStorage.getItem('tw_pending_topup')) {
-          // One-time image top-up — add the credits and return to AI Studio.
-          applyPendingTopup();
-          setPage('aistudio');
-        } else {
-          sessionStorage.setItem('tw_pay', 'success');
-          try { localStorage.setItem('tw_sub_active', '1'); } catch (e) { /* ignore */ }
-          setPage('billing');
-        }
-        ['tap_return','tap_id','tap_status'].forEach(k => u.searchParams.delete(k));
-        window.history.replaceState({}, '', u.pathname);
-      }
-    } catch (e) { /* ignore */ }
-  }, []);
-
-  const th = dark ? DARK : LIGHT;
-  const isMobile = useIsMobile();
-
-  const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
-  const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
-
-  const ctx = {
-    dark, setDark, lang, setLang,
-    t: (k, fb) => (TR[lang] && TR[lang][k]) || TR.en[k] || fb || k,
-    isAuthed, setIsAuthed,
-    recovery, setRecovery,
-    authPage, setAuthPage,
-    mode, setMode: saveMode,
-    page, setPage: savePage,
-    selClient, setSelClient,
-    clients, setClients,
-    accountType, userEmail,
-    userName, setUserName,
-    userPlan, userCompany,
-    selPlatform, setSelPlatform,
-    setShowLanding,
-    mobileNav, setMobileNav,
-  };
-
-  const renderPage = () => {
-    if (mode==="owner") {
-      if (page==="overview") return <OwnerDashboard/>;
-      if (page==="clients")  return <OwnerClientsPage/>;
-      if (page==="promos")   return <OwnerPromosPage/>;
-      if (page==="gifts")    return <OwnerGiftsPage/>;
-      if (page==="support")  return <OwnerSupportPage/>;
-      if (page==="revenue")  return <OwnerRevenuePage/>;
-      if (page==="apiusage") return <OwnerApiUsagePage/>;
-      if (page==="team")     return <OwnerTeamPage/>;
-      if (page==="settings") return <SettingsPage/>;
-      return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
-    }
-    if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
-    if (page==="clients") return <ClientsPage/>;
-    if (page==="social") return <SocialAccountsPage/>;
-    if (page==="business") return <BusinessProfilePage/>;
-    if (page==="linkbio") return <LinkInBioBuilderPage/>;
-    if (page==="menu") return <MenuBuilderPage/>;
-    if (page==="reservations") return <ReservationsPage/>;
-    if (page==="shortlinks") return <ShortLinksPage/>;
-    if (page==="suggested") return <SuggestedPage/>;
-    if (page==="whatsapp") return <WhatsAppPage/>;
-    if (page==="reelstudio") return <ReelStudioPage/>;
-    if (page==="competitor") return <CompetitorSpyPage/>;
-    if (page==="publisher") return <PublisherPage/>;
-    if (page==="planner") return <CalendarPage/>;
-    if (page==="approvals") return <ApprovalsPage/>;
-    if (page==="calendar") return <CalendarRoomPage/>;
-    if (page==="aistudio") return <AIStudioPage/>;
-    if (page==="campaigns") return <CampaignsPage/>;
-    if (page==="streams") return <StreamsPage/>;
-    if (page==="media") return <MediaPage/>;
-    if (page==="analytics") return <AnalyticsPage/>;
-    if (page==="ads") return <AdsPage/>;
-    if (page==="reports") return <ReportsPage/>;
-    if (page==="inbox") return <InboxPage/>;
-    if (page==="listening") return <TrendingPage/>;
-    if (page==="agencyteam") return <TeamPage/>;
-    if (page==="billing") return <BillingPage/>;
-    if (page==="agencysets") return <SettingsPage/>;
-    const SOON = {
-      streams: { Icon:Radio, title:"Streams", desc:"Monitor mentions, hashtags and keywords across your connected networks in live, side-by-side columns \u2014 a real-time pulse of every conversation about your brand.", features:["Custom keyword & hashtag columns","Brand mention monitoring","Side-by-side multi-network view"], ctaLabel:"Open Listening", ctaPage:"listening" },
-      campaigns: { Icon:Megaphone, title:"Campaigns", desc:"Group posts into campaigns, track them together, and measure performance against a goal \u2014 perfect for launches, seasonal pushes and client retainers.", features:["Bundle posts into one campaign","Campaign-level analytics","Goal & budget tracking"], ctaLabel:"Plan a post", ctaPage:"planner" },
-      aistudio: { Icon:Wand2, title:"AI Studio", desc:"A dedicated home for AI content \u2014 generate captions, hashtags, image ideas and full content calendars in Arabic & English, tuned to each brand's voice.", features:["Bulk AI caption generation","Bilingual content ideas (AR / EN)","AI image prompt suggestions"], ctaLabel:"Try the AI writer", ctaPage:"publisher" },
-    };
-    const cfg = SOON[page] || { Icon:Settings, title:page.charAt(0).toUpperCase()+page.slice(1), desc:"This feature is on the way." };
-    return <Placeholder icon={cfg.Icon} badge="Coming soon" title={cfg.title} description={cfg.desc} features={cfg.features} ctaLabel={cfg.ctaLabel} ctaPage={cfg.ctaPage}/>;
-  };
-
-  // Public client approval link (tawaslo.com/a/<token>) — no login, renders
-  // before the auth gate so clients open it straight away.
-  const apprMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/a\/([A-Za-z0-9_-]+)/);
-  if (apprMatch) return <ClientApprovalPage token={apprMatch[1]} dark={dark}/>;
-
-  // Public shareable engagement report (tawaslo.com/r/<token>) — no login.
-  const repMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
-  if (repMatch) return <ClientReportPage token={repMatch[1]}/>;
-
-  // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
-  const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
-  if (bioMatch) return <LinkInBioPage slug={bioMatch[1]}/>;
-
-  // Public digital menu (tawaslo.com/menu/<slug>) — no login.
-  const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
-  if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
-
-  // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
-  const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
-  if (resMatch) return <ReservePublicPage slug={resMatch[1]}/>;
-
-  // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
-  const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
-  if (hostMatch) return <HostStandPage slug={hostMatch[1]}/>;
-
-  // Public branded client portal (tawaslo.com/portal/<token>) — no login.
-  const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
-  if (portalMatch) return <ClientPortalPage token={portalMatch[1]}/>;
-
-  // Public self-serve bio creator (tawaslo.com/create) — no login.
-  const createMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/create\/?$/);
-  if (createMatch) return <CreateBioPage/>;
-
-  // Branded short link (tawaslo.com/s/<code>) — count the click and forward.
-  const shortMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/);
-  if (shortMatch) return <ShortLinkRedirect code={shortMatch[1]}/>;
-
-  // Free public AI caption generator (tawaslo.com/free-caption-generator) — no login, SEO lead magnet.
-  const capToolMatch = typeof window !== "undefined" && /^\/free-caption-generator\/?$/.test(window.location.pathname);
-  if (capToolMatch) return <FreeCaptionTool/>;
-
-  // Public info pages (no login) — pricing + legal pages required for Paddle verification.
-  if (typeof window !== "undefined") {
-    const pth = window.location.pathname;
-    if (/^\/pricing\/?$/.test(pth)) return <PublicInfoPage kind="pricing"/>;
-    if (/^\/terms\/?$/.test(pth)) return <PublicInfoPage kind="terms"/>;
-    if (/^\/privacy\/?$/.test(pth)) return <PublicInfoPage kind="privacy"/>;
-    if (/^\/refund\/?$/.test(pth)) return <PublicInfoPage kind="refund"/>;
-  }
-
-  // Don't render anything until we've checked the session
-  if (!authReady) return null;
-
-  // Password reset link → show the set-new-password screen
-  if (recovery) {
-    return (<AppCtx.Provider value={ctx}><AuthPage/></AppCtx.Provider>);
-  }
-
-  // admin.tawaslo.com is the private Super Admin console — only the admin email may enter
-  if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
-    return (
-      <AppCtx.Provider value={ctx}>
-        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>
-          <div>
-            <div style={{fontSize:20,fontWeight:900,marginBottom:8}}>Restricted area</div>
-            <div style={{fontSize:13,color:th.text2,marginBottom:18}}>This is the Tawaslo admin console. Your account doesn't have access.</div>
-            <a href="https://www.tawaslo.com" style={{color:th.accent,fontSize:13,fontWeight:700,textDecoration:"none"}}>Go to your dashboard →</a>
-          </div>
-        </div>
-      </AppCtx.Provider>
-    );
-  }
-
-  // The public site is always the entry point — even with a saved session, visitors
-  // land on the marketing page and choose to enter (never auto-dropped into an account).
-  // Admin console subdomain skips it and goes straight to its own login.
-  if (showLanding && !isAdminHost) {
-    return (
-      <AppCtx.Provider value={ctx}>
-        <LandingPage
-          onGetStarted={async ()=>{ if(isAuthed){ try{ await signOut(); }catch(e){} setIsAuthed(false); } setAuthPage('register'); setShowLanding(false); }}
-          onLogin={async ()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); setAuthPage('login'); setShowLanding(false); }}
-        />
-      </AppCtx.Provider>
-    );
-  }
-
-  // Admin subdomain → dedicated centered HQ login (not the user-facing auth screen)
-  if (isAdminHost && !isAuthed) {
-    return (
-      <AppCtx.Provider value={ctx}>
-        <AdminLogin/>
-      </AppCtx.Provider>
-    );
-  }
-
-  if (!isAuthed) {
-    return (
-      <AppCtx.Provider value={ctx}>
-        <AuthPage/>
-      </AppCtx.Provider>
-    );
-  }
-
-  return (
-    <AppCtx.Provider value={ctx}>
-      <div style={{
-        display:"flex", height:"100vh",
-        background:th.bg, color:th.text,
-        fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",
-        direction:lang==="ar"?"rtl":"ltr",
-        transition:"all 0.3s", overflow:"hidden",
-      }}>
-        <Sidebar/>
-        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-          <Topbar/>
-          {mode==="agency" && <TrialLifecycle/>}
-          {mode==="agency" && <TrialBanner/>}
-          {mode==="agency" && !["social","agencyteam","billing","agencysets","settings","clients"].includes(page) && <ContextBar/>}
-          <div className="tw-scroll-area" style={{flex:1,overflowY:"auto",padding:22}}>
-            <div key={mode+page} className="tw-page-in">{renderPage()}</div>
-          </div>
-        </div>
-      </div>
-    </AppCtx.Provider>
-  );
-}
-// build integrity check
+      { id:"d2", day:"Tue", date:2, time:"6:00 PM", pl
