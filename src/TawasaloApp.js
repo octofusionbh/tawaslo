@@ -754,6 +754,7 @@ function Sidebar() {
       {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
       {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
       {key:"loyalty",   Icon:Gift,            label:"Loyalty", badge:null},
+      {key:"reviews",   Icon:Star,            label:"Reviews", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
@@ -13683,6 +13684,219 @@ function LoyaltyPublicPage({ slug }) {
   );
 }
 
+// ── Reviews (owner) — funnel settings, star stats, private feedback. ──
+function ReviewsPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const slugify = (s) => String(s||'r').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,26) || 'r';
+  const [cid, setCid] = useState(null);
+  const [slug, setSlug] = useState(null);
+  const [st, setSt] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id;
+      if (!active) return; setCid(id || null);
+      if (!id) { setLoading(false); return; }
+      let s = null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); s = bp && bp[0] && bp[0].slug; if (!s) { s = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:s, title:selClient.name }]); } } catch(e){}
+      if (active) setSlug(s);
+      let row = null;
+      try { const { data: rs } = await supabase.from('review_settings').select('*').eq('client_id', id).limit(1); row = rs && rs[0]; if (!row) { const ins = await supabase.from('review_settings').insert([{ client_id:id, threshold:4, headline:'How was your visit?' }]).select(); row = ins.data && ins.data[0]; } } catch(e){}
+      if (active) setSt(row || null);
+      try { const { data: rv } = await supabase.from('reviews').select('*').eq('client_id', id).order('created_at',{ascending:false}); if (active) setReviews(rv || []); } catch(e){}
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const update = async (patch) => { setSt(s => ({ ...s, ...patch })); if (st && st.id) { try { await supabase.from('review_settings').update(patch).eq('id', st.id); } catch(e){} } };
+  const publicUrl = slug ? `${origin}/review/${slug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+  const stars = (n, sz) => <span style={{ display:"inline-flex", gap:2 }}>{[1,2,3,4,5].map(i=> <Star key={i} size={sz||13} color="#C7942B" fill={i<=n?"#C7942B":"none"}/>)}</span>;
+  const count = reviews.length;
+  const avg = count ? (reviews.reduce((a,r)=>a+(r.rating||0),0)/count) : 0;
+  const dist = [5,4,3,2,1].map(n => reviews.filter(r=>r.rating===n).length);
+  const priv = reviews.filter(r => r.route==='private' || (r.comment && r.comment.trim()));
+  const fmtD = (iso) => new Date(iso).toLocaleDateString(isAR?'ar-u-nu-latn':[], {day:'numeric',month:'short',year:'numeric'});
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
+  const lbl = { fontSize:10.5, color:th.text2, margin:"0 0 5px" };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to set up reviews.","اختر عميلاً لإعداد التقييمات.")}</div>;
+  const p = st || {};
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
+        <div>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Reviews","التقييمات")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("happy guests → Google, unhappy → private","السعداء إلى جوجل، غير الراضين بشكل خاص")}</p>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
+          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("Open","فتح")}</a>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginBottom:14 }}>
+        <div style={{ ...card, padding:16, flex:"1 1 200px", textAlign:"center" }}>
+          <div style={{ fontSize:34, fontWeight:800, color:th.text, lineHeight:1 }}>{avg.toFixed(1)}</div>
+          <div style={{ margin:"7px 0 4px" }}>{stars(Math.round(avg), 16)}</div>
+          <div style={{ fontSize:11.5, color:th.text2 }}>{count} {L("ratings","تقييم")}</div>
+        </div>
+        <div style={{ ...card, padding:16, flex:"2 1 320px" }}>
+          {[5,4,3,2,1].map((n,i)=>{ const v=dist[i]; const pct = count?Math.round(v/count*100):0; return (
+            <div key={n} style={{ display:"flex", alignItems:"center", gap:9, marginBottom:i<4?7:0 }}>
+              <span style={{ fontSize:11, color:th.text2, width:12 }}>{n}</span><Star size={11} color="#C7942B" fill="#C7942B"/>
+              <div style={{ flex:1, height:7, borderRadius:4, background:th.card2, overflow:"hidden" }}><div style={{ width:pct+"%", height:"100%", background: n>=4?th.success:n===3?'#C7942B':'#D98A6A' }}/></div>
+              <span className="tw-num" style={{ fontSize:11, color:th.text3, width:22, textAlign:"end" }}>{v}</span>
+            </div>
+          ); })}
+        </div>
+      </div>
+
+      <div style={{ ...card, padding:16, marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:13 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:th.text }}>{L("Funnel settings","إعدادات المسار")}</div>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <input type="checkbox" checked={p.enabled!==false} onChange={e=>update({ enabled:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
+            <span style={{ fontSize:12, color:th.text2 }}>{p.enabled!==false?L("Active","مُفعّل"):L("Off","معطّل")}</span>
+          </label>
+        </div>
+        <div style={lbl}>{L("Google review link (where happy guests go)","رابط تقييم جوجل")}</div>
+        <input value={p.google_url||""} onChange={e=>update({ google_url:e.target.value })} placeholder="https://g.page/r/...  /  https://search.google.com/local/writereview?placeid=..." style={{ ...inp, marginBottom:12 }}/>
+        <div style={lbl}>{L("Send to Google when rating is","أرسل إلى جوجل عندما يكون التقييم")}</div>
+        <select value={p.threshold||4} onChange={e=>update({ threshold:Number(e.target.value) })} style={{ ...inp, marginBottom:12, cursor:"pointer" }}>
+          <option value={4}>{L("4 stars and up","4 نجوم فأكثر")}</option>
+          <option value={5}>{L("5 stars only","5 نجوم فقط")}</option>
+        </select>
+        <div style={lbl}>{L("Prompt headline","عنوان السؤال")}</div>
+        <input value={p.headline||""} onChange={e=>update({ headline:e.target.value })} placeholder={L("How was your visit?","كيف كانت زيارتك؟")} style={inp}/>
+        <div style={{ fontSize:11, color:th.text3, marginTop:11, lineHeight:1.5 }}>{L("Ratings below the threshold open a private form — that feedback stays here and is never posted publicly.","التقييمات الأقل تفتح نموذجاً خاصاً — تبقى هنا ولا تُنشر علناً.")}</div>
+      </div>
+
+      {slug && (
+        <div style={{ ...card, padding:14, marginBottom:14, display:"flex", alignItems:"center", gap:14 }}>
+          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(publicUrl)}`} alt="" style={{ width:70, height:70, borderRadius:8, background:"#fff", padding:5, flexShrink:0 }}/>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Feedback QR","رمز التقييم")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Put it on receipts, tables or the door — guests scan to rate.","ضعه على الفواتير أو الطاولات — يمسحه الضيوف للتقييم.")}</div>
+          </div>
+          <a href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=12&data=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, textDecoration:"none", flexShrink:0 }}><Download size={13}/>{L("Download","تنزيل")}</a>
+        </div>
+      )}
+
+      <div style={{ ...card, overflow:"hidden" }}>
+        <div style={{ padding:"12px 15px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:th.text2 }}>{L("Private feedback","ملاحظات خاصة")} · {priv.length}</div>
+        {priv.length===0 ? <div style={{ padding:"30px 16px", textAlign:"center", color:th.text3, fontSize:12.5 }}>{L("No private feedback yet — this is where unhappy guests' notes land.","لا ملاحظات خاصة بعد.")}</div> : priv.map(r=>(
+          <div key={r.id} style={{ padding:"12px 15px", borderBottom:`1px solid ${th.border}` }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>{stars(r.rating, 13)}<span style={{ fontSize:12, fontWeight:600, color:th.text }}>{r.name||L("Guest","ضيف")}</span></div>
+              <span style={{ fontSize:10.5, color:th.text3 }}>{fmtD(r.created_at)}</span>
+            </div>
+            {r.comment && <div style={{ fontSize:12.5, color:th.text2, marginTop:6, lineHeight:1.5 }}>{r.comment}</div>}
+            {r.phone && <a href={`https://wa.me/${String(r.phone).replace(/[^\d]/g,'')}`} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:7, fontSize:11.5, color:th.accent, textDecoration:"none" }}><FaWhatsapp style={{ color:"#25D366" }}/>{r.phone}</a>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Public review funnel (tawaslo.com/review/<slug>) — no login. ──
+function ReviewPublicPage({ slug }) {
+  const [data, setData] = useState(undefined);
+  const [st, setSt] = useState(null);
+  const [phase, setPhase] = useState("rate");
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [comment, setComment] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cid=null, nm=null, logo=null;
+      try { const { data: bp } = await supabase.from('bio_pages').select('client_id,title').eq('slug', slug).limit(1); if (bp && bp[0]) { cid=bp[0].client_id; nm=bp[0].title; } } catch(e){}
+      if (!cid) { try { const { data: mn } = await supabase.from('menus').select('client_id,title').eq('slug', slug).limit(1); if (mn && mn[0]) { cid=mn[0].client_id; nm=mn[0].title; } } catch(e){} }
+      if (!live) return;
+      if (!cid) { setData(null); return; }
+      try { const { data: c } = await supabase.from('clients').select('name,logo_url').eq('id', cid).limit(1); if (c && c[0]) { nm = nm || c[0].name; logo = c[0].logo_url || null; } } catch(e){}
+      let s=null; try { const { data: rs } = await supabase.from('review_settings').select('*').eq('client_id', cid).limit(1); s = rs && rs[0]; } catch(e){}
+      if (live) { setData({ client_id:cid, name:nm||'', logo }); setSt(s||{ threshold:4 }); }
+    })();
+    return () => { live = false; };
+  }, [slug]);
+
+  const record = async (r, route, extra) => { try { await supabase.from('reviews').insert([{ client_id:data.client_id, rating:r, route, ...(extra||{}) }]); } catch(e){} };
+  const pick = async (r) => {
+    setRating(r);
+    const threshold = (st&&st.threshold)||4; const g = st&&st.google_url;
+    if (r >= threshold && g) { await record(r,'google'); if (typeof window!=='undefined') window.location.href = g; return; }
+    if (r >= threshold && !g) { await record(r,'google'); setPhase('done'); return; }
+    setPhase('private');
+  };
+  const submitPrivate = async () => { if (busy) return; setBusy(true); await record(rating,'private',{ comment:comment.trim()||null, name:name.trim()||null, phone:phone.trim()||null }); setBusy(false); setPhase('done'); };
+
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"40px 20px 60px", boxSizing:"border-box", display:"flex", flexDirection:"column", alignItems:"center" };
+  if (data === undefined) return <div style={{ ...wrap, justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+  const enabled = st && st.enabled !== false;
+  const Logo = data.logo ? <img src={data.logo} alt="" style={{ width:66, height:66, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:66, height:66, borderRadius:"50%", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:25, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"R")[0]}</div>;
+  const Foot = <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:30 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>;
+  const inpS = { width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none" };
+
+  if (!enabled) return <div style={wrap}><div style={{ maxWidth:400, width:"100%", textAlign:"center" }}>{Logo}<div style={{ fontSize:13, color:"#7E8794", marginTop:20 }}>Thanks for visiting {data.name}.</div>{Foot}</div></div>;
+
+  return (
+    <div style={wrap}><div style={{ maxWidth:400, width:"100%", textAlign:"center" }}>
+      {Logo}
+      <div style={{ fontSize:20, fontWeight:700, marginTop:12 }}>{data.name}</div>
+
+      {phase==="rate" && <>
+        <div style={{ fontSize:14.5, color:"#c4ccd6", marginTop:8, marginBottom:22 }}>{(st&&st.headline)||"How was your visit?"}</div>
+        <div style={{ display:"flex", justifyContent:"center", gap:4 }} onMouseLeave={()=>setHover(0)}>
+          {[1,2,3,4,5].map(i=>(
+            <button key={i} onClick={()=>pick(i)} onMouseEnter={()=>setHover(i)} aria-label={i+" stars"} style={{ background:"none", border:"none", cursor:"pointer", padding:3 }}>
+              <Star size={42} color="#C7942B" fill={i<=(hover||rating)?"#C7942B":"none"}/>
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize:11.5, color:"#5e6b78", marginTop:18 }}>Tap a star to rate</div>
+      </>}
+
+      {phase==="private" && <>
+        <div style={{ marginTop:14, marginBottom:6 }}><Star size={26} color="#C7942B" fill="#C7942B" style={{ verticalAlign:"middle" }}/> <span style={{ fontSize:18, fontWeight:700 }}>{rating}/5</span></div>
+        <div style={{ fontSize:14, color:"#c4ccd6", marginBottom:18, lineHeight:1.5 }}>Sorry it wasn't perfect. Tell us what happened — this goes straight to the manager, privately.</div>
+        <textarea value={comment} onChange={e=>setComment(e.target.value)} rows={4} placeholder="What could we have done better?" style={{ ...inpS, resize:"vertical", marginBottom:11, textAlign:"start" }}/>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name (optional)" style={{ ...inpS, marginBottom:11, textAlign:"start" }}/>
+        <input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="Phone (optional — so we can make it right)" style={{ ...inpS, marginBottom:16, textAlign:"start" }}/>
+        <button onClick={submitPrivate} disabled={busy} style={{ width:"100%", padding:"14px", borderRadius:13, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor:busy?"default":"pointer" }}>{busy?"…":"Send privately"}</button>
+      </>}
+
+      {phase==="done" && <>
+        <div style={{ width:60, height:60, borderRadius:"50%", background:"rgba(63,185,131,0.16)", display:"flex", alignItems:"center", justifyContent:"center", margin:"26px auto 16px" }}><Check size={30} color="#3FB983"/></div>
+        <div style={{ fontSize:17, fontWeight:700 }}>Thank you!</div>
+        <div style={{ fontSize:13.5, color:"#9aa6b3", marginTop:7, lineHeight:1.6 }}>{rating>=((st&&st.threshold)||4) ? "We're so glad you enjoyed it." : "We appreciate you letting us know — we'll use this to make things right."}</div>
+      </>}
+
+      {Foot}
+    </div></div>
+  );
+}
+
 // ── Reservations (owner) — bookings dashboard + availability + public link. ──
 function ReservationsPage() {
   const { selClient, dark, lang } = useApp();
@@ -15631,6 +15845,7 @@ export default function TawasloApp() {
     if (page==="menu") return <MenuBuilderPage/>;
     if (page==="reservations") return <ReservationsPage/>;
     if (page==="loyalty") return <LoyaltyPage/>;
+    if (page==="reviews") return <ReviewsPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
@@ -15685,6 +15900,10 @@ export default function TawasloApp() {
   // Public digital loyalty card (tawaslo.com/loyalty/<slug>) — no login.
   const loyaltyMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/loyalty\/([A-Za-z0-9_-]+)/);
   if (loyaltyMatch) return <LoyaltyPublicPage slug={loyaltyMatch[1]}/>;
+
+  // Public review funnel (tawaslo.com/review/<slug>) — no login.
+  const reviewMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/review\/([A-Za-z0-9_-]+)/);
+  if (reviewMatch) return <ReviewPublicPage slug={reviewMatch[1]}/>;
 
   // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
   const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
