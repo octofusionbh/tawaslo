@@ -12617,6 +12617,7 @@ const langName = (c) => { const f = WORLD_LANGUAGES.find(x=>x.c===c); return f ?
 const isRTLLang = (c) => RTL_LANGS.includes(String(c||"").toLowerCase());
 const itemPhotos = (it) => { const p = Array.isArray(it&&it.photos) ? it.photos.filter(Boolean) : []; if (p.length) return p; return (it&&it.photo_url) ? [it.photo_url] : []; };
 const itemVariants = (it) => Array.isArray(it&&it.variants) ? it.variants.filter(v=>v&&v.name) : [];
+const itemAddons = (it) => Array.isArray(it&&it.addons) ? it.addons.filter(a=>a&&a.name) : [];
 const itemMinPrice = (it) => { const vs = itemVariants(it).map(v=>Number(v.price)).filter(n=>!isNaN(n)); return vs.length ? Math.min(...vs) : (it && it.price); };
 // Dietary / attribute tags shown on items + used as public filters.
 const DIET_TAGS = [
@@ -12630,6 +12631,7 @@ const DIET_TAGS = [
   {k:"popular",    en:"Chef's pick", ar:"اختيار الشيف",     icon:"⭐", color:"#C7942B"}
 ];
 const dietTag = (k) => DIET_TAGS.find(t=>t.k===k);
+const resolveTag = (t) => dietTag(t) || { k:t, en:t, ar:t, icon:"", color:"#8aa0bb", custom:true };
 const itemTags = (it) => Array.isArray(it&&it.tags) ? it.tags : [];
 // Time-based menu (dayparting).
 const DAYPARTS = [ {k:"all",en:"All day",ar:"طوال اليوم"}, {k:"breakfast",en:"Breakfast",ar:"فطور"}, {k:"brunch",en:"Brunch",ar:"برانش"}, {k:"lunch",en:"Lunch",ar:"غداء"}, {k:"dinner",en:"Dinner",ar:"عشاء"} ];
@@ -12653,6 +12655,7 @@ function MenuBuilderPage() {
   const [uploading, setUploading] = useState(false);
   const [cropFile, setCropFile] = useState(null);
   const [dragCat, setDragCat] = useState(null);
+  const [tagInput, setTagInput] = useState("");
 
   useEffect(() => {
     let active = true; setLoading(true);
@@ -12688,7 +12691,7 @@ function MenuBuilderPage() {
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
-  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], available:true, hidden:false, show_price:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
     const patch = st==="hidden" ? { hidden:true } : st==="sold_out" ? { hidden:false, available:false } : { hidden:false, available:true };
@@ -12701,7 +12704,8 @@ function MenuBuilderPage() {
     if (!editing || !menu) return;
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
     const variants = (Array.isArray(editing.variants)?editing.variants:[]).map(v=>({ name:(v.name||"").trim(), price: v.price===""||v.price==null?null:Number(v.price) })).filter(v=>v.name);
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const addons = (Array.isArray(editing.addons)?editing.addons:[]).map(a=>({ name:(a.name||"").trim(), price: a.price===""||a.price==null?null:Number(a.price) })).filter(a=>a.name);
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -12914,7 +12918,16 @@ function MenuBuilderPage() {
                 <button onClick={()=>setEditing(ed=>({ ...ed, variants:(ed.variants||[]).filter((_,i)=>i!==idx) }))} style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:9, color:th.text3, cursor:"pointer", padding:"0 10px", display:"flex", alignItems:"center", flexShrink:0 }}><X size={13}/></button>
               </div>
             ))}
-            <button onClick={()=>setEditing(ed=>({ ...ed, variants:[...(ed.variants||[]), {name:"", price:""}] }))} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:10 }}><Plus size={13}/>{L("Add size","إضافة حجم")}</button>
+            <button onClick={()=>setEditing(ed=>({ ...ed, variants:[...(ed.variants||[]), {name:"", price:""}] }))} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:14 }}><Plus size={13}/>{L("Add size","إضافة حجم")}</button>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 6px" }}>{L("Extras / add-ons","الإضافات")} <span style={{ color:th.text3 }}>· {L("optional — e.g. + cheese 0.500","اختياري — مثلاً + جبن")}</span></div>
+            {(editing.addons||[]).map((a,idx)=>(
+              <div key={idx} style={{ display:"flex", gap:7, marginBottom:7 }}>
+                <input value={a.name||""} onChange={e=>setEditing(ed=>{ const arr=[...(ed.addons||[])]; arr[idx]={...arr[idx], name:e.target.value}; return {...ed, addons:arr}; })} placeholder={L("Extra (e.g. Extra cheese)","الإضافة")} style={{ ...inp, flex:2, width:"auto" }}/>
+                <input value={a.price==null?"":a.price} onChange={e=>setEditing(ed=>{ const arr=[...(ed.addons||[])]; arr[idx]={...arr[idx], price:e.target.value}; return {...ed, addons:arr}; })} type="number" step="0.001" placeholder={L("Price","السعر")} style={{ ...inp, flex:1, width:"auto" }}/>
+                <button onClick={()=>setEditing(ed=>({ ...ed, addons:(ed.addons||[]).filter((_,i)=>i!==idx) }))} style={{ background:"none", border:`1px solid ${th.border}`, borderRadius:9, color:th.text3, cursor:"pointer", padding:"0 10px", display:"flex", alignItems:"center", flexShrink:0 }}><X size={13}/></button>
+              </div>
+            ))}
+            <button onClick={()=>setEditing(ed=>({ ...ed, addons:[...(ed.addons||[]), {name:"", price:""}] }))} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:9, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer", marginBottom:10 }}><Plus size={13}/>{L("Add extra","إضافة إضافة")}</button>
             <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
               <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
@@ -12932,6 +12945,13 @@ function MenuBuilderPage() {
                   <span>{tg.icon}</span>{isAR?tg.ar:tg.en}
                 </button>
               ); })}
+              {(editing.tags||[]).filter(t=>!dietTag(t)).map(t=>(
+                <button key={t} onClick={()=>setEditing(e=>({ ...e, tags:(e.tags||[]).filter(x=>x!==t) }))} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 10px", borderRadius:20, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid #8aa0bb`, background:"#8aa0bb22", color:"#8aa0bb" }}>{t}<X size={11}/></button>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:7, marginTop:8 }}>
+              <input value={tagInput} onChange={e=>setTagInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ e.preventDefault(); const v=tagInput.trim(); if(v && !(editing.tags||[]).includes(v)){ setEditing(ed=>({ ...ed, tags:[...(ed.tags||[]), v] })); } setTagInput(""); } }} placeholder={L("Add your own tag (e.g. House-made)","أضف وسمك الخاص")} style={{ ...inp, flex:1, width:"auto" }}/>
+              <button onClick={()=>{ const v=tagInput.trim(); if(v && !(editing.tags||[]).includes(v)){ setEditing(ed=>({ ...ed, tags:[...(ed.tags||[]), v] })); } setTagInput(""); }} style={{ padding:"9px 14px", borderRadius:9, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>{L("Add","إضافة")}</button>
             </div>
             </div>
             <div style={{ display:"flex", gap:9 }}>
@@ -12961,7 +12981,7 @@ function ConciergeWidget({ clientId, name, currency }) {
     let live = true;
     (async () => {
       let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null;
-      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
       if (live) setCtx({ menu, settings, currency: cur, special, dayparts });
     })();
@@ -13036,7 +13056,9 @@ function MenuPublicPage({ slug }) {
   const [pIdx, setPIdx] = useState(0);
   const [filters, setFilters] = useState([]);
   const [showAllDay, setShowAllDay] = useState(false);
+  const [dispLang, setDispLang] = useState(null);
   const sectionRefs = useRef({});
+  useEffect(() => { if (typeof window==="undefined") return; try { const s = window.localStorage.getItem('twmenu_lang_'+slug); if (s) setDispLang(s); } catch(e){} }, [slug]);
   const barRef = useRef(null);
   const chipRefs = useRef({});
   const clicking = useRef(false);
@@ -13056,7 +13078,13 @@ function MenuPublicPage({ slug }) {
 
   const lang1 = (data&&data.lang1) || "en";
   const lang2 = (data&&data.lang2) || "ar";
-  const rtl1 = isRTLLang(lang1), rtl2 = isRTLLang(lang2);
+  const hasSecond = lang2 && lang2 !== lang1;
+  const disp = dispLang || lang1;
+  const secondary = disp === lang2 && hasSecond;
+  const rtlDisp = isRTLLang(disp);
+  const pickLang = (a, b) => secondary ? (b||a) : (a||b);
+  const altLang = disp === lang1 ? lang2 : lang1;
+  const toggleLang = () => { setDispLang(altLang); try { if (typeof window!=="undefined") window.localStorage.setItem('twmenu_lang_'+slug, altLang); } catch(e){} };
   const present = Array.from(new Set(items.map(i=>i.category||'General')));
   const ord = (data&&Array.isArray(data.cat_order))?data.cat_order:[];
   const allSections = [...ord.filter(c=>present.includes(c)), ...present.filter(c=>!ord.includes(c))];
@@ -13067,7 +13095,8 @@ function MenuPublicPage({ slug }) {
   const secItems = (sec) => items.filter(i => (i.category||'General')===sec && passFilter(i));
   const sections = allSections.filter(c => sectionInTime(c) && secItems(c).length>0);
   const hiddenByTime = allSections.filter(c => !sectionInTime(c)).length;
-  const tagsPresent = DIET_TAGS.filter(t => items.some(i => itemTags(i).includes(t.k)));
+  const presentTagKeys = Array.from(new Set(items.flatMap(itemTags)));
+  const tagsPresent = [...DIET_TAGS.filter(t => presentTagKeys.includes(t.k)), ...presentTagKeys.filter(k => !dietTag(k)).map(resolveTag)];
 
   useEffect(() => {
     if (!sections.length) return;
@@ -13099,7 +13128,8 @@ function MenuPublicPage({ slug }) {
 
   return (
     <div style={wrap}>
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"30px 16px 0" }}>
+      <div style={{ maxWidth:560, margin:"0 auto", padding:"30px 16px 0", position:"relative" }}>
+        {hasSecond && <button onClick={toggleLang} aria-label="Switch language" style={{ position:"absolute", top:16, insetInlineEnd:16, display:"inline-flex", alignItems:"center", gap:4, border:"1px solid #2b3340", background:"rgba(20,25,35,0.55)", color:"#9aa6b3", cursor:"pointer", fontSize:11, fontWeight:600, padding:"4px 9px", borderRadius:13, fontFamily: isRTLLang(altLang)?"'Cairo',sans-serif":undefined }}><Globe size={13}/>{langName(altLang)}</button>}
         <div style={{ textAlign:"center", marginBottom:18 }}>
           {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"M")[0]}</div>}
           <div style={{ fontSize:20, fontWeight:700, marginTop:10 }}>{data.name}</div>
@@ -13124,7 +13154,7 @@ function MenuPublicPage({ slug }) {
             {tagsPresent.length>0 && (
               <div className="tw-scroll-x" style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:2 }}>
                 {tagsPresent.map(tg=>{ const on=filters.includes(tg.k); return (
-                  <button key={tg.k} onClick={()=>setFilters(f=>on?f.filter(x=>x!==tg.k):[...f,tg.k])} style={{ flexShrink:0, display:"inline-flex", alignItems:"center", gap:5, fontSize:11.5, fontWeight:600, padding:"6px 11px", borderRadius:18, cursor:"pointer", border:`1px solid ${on?tg.color:"#2b3340"}`, background:on?tg.color+"26":"transparent", color:on?"#ECEAE1":"#9aa6b3", whiteSpace:"nowrap" }}><span>{tg.icon}</span>{tg.en}</button>
+                  <button key={tg.k} onClick={()=>setFilters(f=>on?f.filter(x=>x!==tg.k):[...f,tg.k])} style={{ flexShrink:0, display:"inline-flex", alignItems:"center", gap:5, fontSize:11.5, fontWeight:600, padding:"6px 11px", borderRadius:18, cursor:"pointer", border:`1px solid ${on?tg.color:"#2b3340"}`, background:on?tg.color+"26":"transparent", color:on?"#ECEAE1":"#9aa6b3", whiteSpace:"nowrap", fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</button>
                 ); })}
                 {filters.length>0 && <button onClick={()=>setFilters([])} style={{ flexShrink:0, fontSize:11.5, padding:"6px 10px", borderRadius:18, cursor:"pointer", border:"1px solid #2b3340", background:"transparent", color:"#7E8794" }}>Clear</button>}
               </div>
@@ -13155,23 +13185,22 @@ function MenuPublicPage({ slug }) {
         ) : (
           sections.map(sec=>(
             <div key={sec} ref={el=>{ sectionRefs.current[sec]=el; }} data-cat={sec} style={{ scrollMarginTop:72, marginBottom:26 }}>
-              <div style={{ fontSize:15, fontWeight:800, letterSpacing:"0.01em", marginBottom:11, paddingBottom:7, borderBottom:"1px solid #20242b" }}>{sec}</div>
+              <div style={{ fontSize:15, fontWeight:800, letterSpacing:"0.01em", marginBottom:11, paddingBottom:7, borderBottom:"1px solid #20242b", textAlign:rtlDisp?"right":"left", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{sec}</div>
               <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
                 {secItems(sec).map(it=>{
                   const ph = itemPhotos(it);
                   const soldOut = it.available===false;
-                  const tgs = itemTags(it).map(dietTag).filter(Boolean);
+                  const tgs = itemTags(it).map(resolveTag);
                   return (
                     <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11, cursor:"pointer", opacity:soldOut?0.62:1 }}>
                       <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background: ph[0]?`center/cover url(${ph[0]})`:"#161b23", position:"relative", filter:soldOut?"grayscale(0.7)":undefined, display:"flex", alignItems:"center", justifyContent:"center" }}>
                         {!ph[0] && <Image size={18} color="#3f4954"/>}
                         {ph[0] && ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}
                       </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:14, fontWeight:600, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{it.name_en}{soldOut && <span style={{ fontSize:9, fontWeight:700, color:"#D98A6A", border:"1px solid rgba(217,138,106,0.4)", borderRadius:5, padding:"1px 6px", marginInlineStart:7, verticalAlign:"middle" }}>SOLD OUT</span>}</div>
-                        {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined, marginTop:1 }}>{it.name_ar}</div>}
-                        {(it.description||it.description_ar) && <div style={{ fontSize:11, color:"#6b7785", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.description||it.description_ar}</div>}
-                        {tgs.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:5 }}>{tgs.map(tg=> <span key={tg.k} title={tg.en} style={{ fontSize:9.5, fontWeight:600, padding:"1px 6px", borderRadius:5, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:3 }}><span>{tg.icon}</span>{tg.en}</span>)}</div>}
+                      <div style={{ flex:1, minWidth:0, textAlign:rtlDisp?"right":"left" }}>
+                        <div style={{ fontSize:14, fontWeight:600, direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{pickLang(it.name_en,it.name_ar)}{soldOut && <span style={{ fontSize:9, fontWeight:700, color:"#D98A6A", border:"1px solid rgba(217,138,106,0.4)", borderRadius:5, padding:"1px 6px", marginInlineStart:7, verticalAlign:"middle" }}>SOLD OUT</span>}</div>
+                        {pickLang(it.description,it.description_ar) && <div style={{ fontSize:11, color:"#6b7785", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.description,it.description_ar)}</div>}
+                        {tgs.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:5, justifyContent:rtlDisp?"flex-end":"flex-start" }}>{tgs.map(tg=> <span key={tg.k} title={tg.en} style={{ fontSize:9.5, fontWeight:600, padding:"1px 6px", borderRadius:5, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:3, fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</span>)}</div>}
                       </div>
                       <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0, textDecoration:soldOut?"line-through":undefined }}>{priceOf(it)}</span>
                     </div>
@@ -13206,13 +13235,12 @@ function MenuPublicPage({ slug }) {
             )}
             <div style={{ padding:"18px 20px 30px" }}>
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14 }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:19, fontWeight:700, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{detail.name_en}</div>
-                  {detail.name_ar && <div style={{ fontSize:15, color:"#9aa6b3", marginTop:3, direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}>{detail.name_ar}</div>}
+                <div style={{ flex:1, minWidth:0, textAlign:rtlDisp?"right":"left" }}>
+                  <div style={{ fontSize:19, fontWeight:700, direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(detail.name_en,detail.name_ar)}</div>
                 </div>
                 {priceOf(detail) && <div style={{ fontSize:17, fontWeight:800, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{priceOf(detail)}</div>}
               </div>
-              {itemTags(detail).map(dietTag).filter(Boolean).length>0 && <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:12 }}>{itemTags(detail).map(dietTag).filter(Boolean).map(tg=> <span key={tg.k} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", borderRadius:16, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:4 }}><span>{tg.icon}</span>{tg.en}</span>)}</div>}
+              {itemTags(detail).length>0 && <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginTop:12, justifyContent:rtlDisp?"flex-end":"flex-start" }}>{itemTags(detail).map(resolveTag).map(tg=> <span key={tg.k} style={{ fontSize:11, fontWeight:600, padding:"4px 10px", borderRadius:16, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:4, fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</span>)}</div>}
               {itemVariants(detail).length>0 && !(data.hide_prices||detail.show_price===false) && <div style={{ marginTop:16 }}>
                 <div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#5e6b78", marginBottom:6 }}>Sizes</div>
                 {itemVariants(detail).map((v,idx)=>(
@@ -13222,9 +13250,17 @@ function MenuPublicPage({ slug }) {
                   </div>
                 ))}
               </div>}
+              {itemAddons(detail).length>0 && !(data.hide_prices||detail.show_price===false) && <div style={{ marginTop:16 }}>
+                <div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#5e6b78", marginBottom:6 }}>Extras</div>
+                {itemAddons(detail).map((a,idx)=>(
+                  <div key={idx} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderTop:"1px solid #20242b" }}>
+                    <span style={{ fontSize:14, color:"#c4ccd6" }}>{a.name}</span>
+                    <span style={{ fontSize:13.5, fontWeight:700, color:"#3FB983", fontVariantNumeric:"tabular-nums" }}>{a.price!=null && a.price!=="" ? "+ "+fmtMoney(Number(a.price), cur) : ""}</span>
+                  </div>
+                ))}
+              </div>}
               {(detail.description||detail.description_ar) && <div style={{ height:1, background:"#20242b", margin:"16px 0" }}/>}
-              {detail.description && <div style={{ fontSize:13.5, lineHeight:1.6, color:"#c4ccd6", direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{detail.description}</div>}
-              {detail.description_ar && <div style={{ fontSize:13.5, lineHeight:1.7, color:"#9aa6b3", marginTop:detail.description?12:0, direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}>{detail.description_ar}</div>}
+              {pickLang(detail.description,detail.description_ar) && <div style={{ fontSize:13.5, lineHeight:1.65, color:"#c4ccd6", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined, textAlign:rtlDisp?"right":"left" }}>{pickLang(detail.description,detail.description_ar)}</div>}
             </div>
           </div>
         </div>

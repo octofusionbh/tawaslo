@@ -148,7 +148,9 @@ export default async function handler(req, res) {
       const priceStr = vs.length
         ? ' — sizes: ' + vs.map(v => `${v.name}${v.price != null ? ' ' + v.price + ' ' + (ctx.currency || 'BHD') : ''}`).join(', ')
         : (m.price != null ? ' — ' + m.price + ' ' + (ctx.currency || 'BHD') : '');
-      return `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${priceStr}${m.available === false ? ' (sold out)' : ''}${tg}`;
+      const ad = Array.isArray(m.addons) ? m.addons.filter(a => a && a.name) : [];
+      const adStr = ad.length ? ' — extras: ' + ad.map(a => `${a.name}${a.price != null ? ' +' + a.price : ''}`).join(', ') : '';
+      return `${m.category || 'Menu'}: ${m.name_en || ''}${m.name_ar ? ' / ' + m.name_ar : ''}${priceStr}${adStr}${m.available === false ? ' (sold out)' : ''}${tg}`;
     }).join('\n');
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const closed = (ctx.closedDays || []).map(d => dayNames[d]).join(', ') || 'none';
