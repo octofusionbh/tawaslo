@@ -562,7 +562,7 @@ async function waBuildContext(clientId) {
     const m = Array.isArray(mj) ? mj[0] : null;
     if (m) {
       ctx.currency = m.currency || ctx.currency;
-      if (m.slug) ctx.menuUrl = `https://www.tawaslo.com/menu/${m.slug}`;
+      ctx.menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || (m.slug ? `https://www.tawaslo.com/menu/${m.slug}` : null);
       ctx.special = (m.special_on && m.special) ? m.special : null;
       ctx.dayparts = { hours: m.daypart_hours || {}, cats: m.cat_dayparts || {}, now: waActiveDaypart(m.daypart_hours) };
       const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=*&limit=120`);
