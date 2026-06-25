@@ -17,7 +17,7 @@ import {
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
   Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
   Monitor, Info, ScanLine, Check, CalendarCheck, Zap, Maximize2, X,
-  GripVertical,
+  GripVertical, Coffee,
 } from "lucide-react";
 import { FaInstagram, FaFacebook, FaTwitter, FaLinkedin, FaTiktok, FaYoutube, FaWhatsapp, FaSnapchatGhost, FaTelegram, FaPinterest, FaGoogle } from 'react-icons/fa';
 const PlatformIcons = {  ig: () => <FaInstagram style={{color:"#E1306C", fontSize:14}}/>,
@@ -13092,6 +13092,12 @@ const loyGenCode = () => Math.random().toString(36).slice(2,8).toUpperCase();
 const loyNormPhone = (s) => String(s||'').replace(/[^\d+]/g,'');
 const loyRewardReady = (p, c) => { if(!p||!c) return false; if(p.type==='points') return (c.points||0) >= (p.points_goal||100); if(p.type==='stamps') return (c.stamps||0) >= (p.stamp_goal||8); return false; };
 const loyTierFor = (p, c) => { const ts=(p&&Array.isArray(p.tiers))?[...p.tiers].sort((a,b)=>(a.visits||0)-(b.visits||0)):[]; let cur=null; (ts||[]).forEach(t=>{ if((c.visits||0) >= (t.visits||0)) cur=t; }); return cur; };
+const LOY_ICONS = { check: Check, star: Star, heart: Heart, coffee: Coffee, gift: Gift };
+const loyIcon = (k) => LOY_ICONS[k] || Check;
+const LOY_BRANDS = ["#6E8CAB","#2FA37C","#D4537E","#C98A2E","#7F77DD","#3FA0D8","#C0453F","#1F8A70"];
+const loyTheme = (t) => t==='light'
+  ? { bg:"#F4F2EC", card:"#FFFFFF", border:"#E4E0D6", text:"#1C1B18", text2:"#6b6760", text3:"#9a958b", empty:"#EDEAE2" }
+  : { bg:"#0E1013", card:"#141923", border:"#20242b", text:"#ECEAE1", text2:"#9aa6b3", text3:"#5e6b78", empty:"#0E1013" };
 
 // ── QR scanner (BarcodeDetector when available; manual code entry otherwise) ──
 function LoyaltyScanner({ onResult, onClose, dark }) {
@@ -13281,6 +13287,36 @@ function LoyaltyPage() {
         <div style={{ fontSize:11, color:th.text3, marginTop:12 }}>{goalNote}</div>
       </div>
 
+      {/* Appearance */}
+      <div style={{ ...card, padding:16, marginBottom:14 }}>
+        <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:13 }}>{L("Appearance","المظهر")}</div>
+        <div style={lbl}>{L("Brand colour","لون العلامة")}</div>
+        <div style={{ display:"flex", gap:9, flexWrap:"wrap", alignItems:"center", marginBottom:15 }}>
+          {LOY_BRANDS.map(b=>(
+            <button key={b} onClick={()=>updateProgram({ brand_color:b })} aria-label={b} style={{ width:30, height:30, borderRadius:"50%", border:"none", cursor:"pointer", background:b, outline:(p.brand_color||"#6E8CAB")===b?`2px solid ${th.text}`:"none", outlineOffset:2 }}/>
+          ))}
+          <label style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11.5, color:th.text2, cursor:"pointer" }}>
+            <input type="color" value={p.brand_color||"#6E8CAB"} onChange={e=>updateProgram({ brand_color:e.target.value })} style={{ width:30, height:30, padding:0, border:`1px solid ${th.border}`, borderRadius:8, background:"none", cursor:"pointer" }}/>
+            {L("Custom","مخصص")}
+          </label>
+        </div>
+        <div style={lbl}>{L("Stamp icon","أيقونة الطابع")}</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:15 }}>
+          {[["check",Check],["star",Star],["heart",Heart],["coffee",Coffee],["gift",Gift]].map(([k,Ic])=>{
+            const on=(p.stamp_icon||"check")===k;
+            return <button key={k} onClick={()=>updateProgram({ stamp_icon:k })} aria-label={k} style={{ width:38, height:38, borderRadius:10, cursor:"pointer", border:`1px solid ${on?th.accent:th.border}`, background:on?(p.brand_color||th.accent):th.card2, color:on?"#fff":th.text2, display:"inline-flex", alignItems:"center", justifyContent:"center" }}><Ic size={17}/></button>;
+          })}
+        </div>
+        <div style={lbl}>{L("Card theme","سمة البطاقة")}</div>
+        <div style={{ display:"flex", gap:8, marginBottom:15 }}>
+          {[["dark",L("Dark","داكن")],["light",L("Light","فاتح")]].map(([k,t])=>(
+            <button key={k} onClick={()=>updateProgram({ theme:k })} style={{ padding:"8px 16px", borderRadius:9, fontSize:12.5, fontWeight:600, cursor:"pointer", border:`1px solid ${(p.theme||"dark")===k?th.accent:th.border}`, background:(p.theme||"dark")===k?th.accentSoft:th.card2, color:(p.theme||"dark")===k?th.accent:th.text2 }}>{t}</button>
+          ))}
+        </div>
+        <div style={lbl}>{L("Welcome message","رسالة ترحيب")} <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+        <textarea value={p.welcome||""} onChange={e=>updateProgram({ welcome:e.target.value })} rows={2} placeholder={L("e.g. Collect 8 stamps and your next dessert is on us!","مثلاً اجمع 8 طوابع واحصل على حلوى مجانية!")} style={{ ...inp, resize:"vertical" }}/>
+      </div>
+
       {/* Members */}
       <div style={{ ...card, overflow:"hidden" }}>
         <div style={{ padding:"12px 15px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".06em", textTransform:"uppercase", color:th.text2 }}>{L("Members","الأعضاء")} · {cards.length}</div>
@@ -13345,34 +13381,43 @@ function LoyaltyPublicPage({ slug }) {
     setBusy(false);
   };
 
-  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 18px 60px", boxSizing:"border-box" };
-  if (data === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
-  if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Card not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:"#7E8794", marginTop:6 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
+  const BR = (program && program.brand_color) || "#6E8CAB";
+  const T = loyTheme(program && program.theme);
+  const SIcon = loyIcon(program && program.stamp_icon);
+  const wel = (program && program.welcome) || "";
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const myUrl = `${origin}/loyalty/${slug}`;
+  const waShare = () => { const txt = encodeURIComponent(`${data.name} loyalty card — open it & collect rewards: ${myUrl}`); if (typeof window!=="undefined") window.open(`https://wa.me/?text=${txt}`, "_blank"); };
+  const wrap = { minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 18px 60px", boxSizing:"border-box" };
+  if (data === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:T.text3 }}>Loading…</div></div>;
+  if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Card not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:T.text3, marginTop:6 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
   const enabled = program && program.enabled !== false;
 
   const Header = (
     <div style={{ textAlign:"center", marginBottom:22 }}>
-      {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"L")[0]}</div>}
-      <div style={{ fontSize:20, fontWeight:700, marginTop:10 }}>{data.name}</div>
-      <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Loyalty</div>
+      {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:T.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:BR }}>{(data.name||"L")[0]}</div>}
+      <div style={{ fontSize:20, fontWeight:700, marginTop:10, color:T.text }}>{data.name}</div>
+      <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:T.text3, marginTop:4 }}>Loyalty</div>
     </div>
   );
-  const Footer = <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:26 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>;
+  const Footer = <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:T.text3, marginTop:26 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>;
+  const cardBox = { background:T.card, border:`1px solid ${T.border}`, borderRadius:16 };
 
-  if (!enabled) return <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>{Header}<div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"30px 0" }}>This loyalty program isn't active right now.</div>{Footer}</div></div>;
+  if (!enabled) return <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>{Header}<div style={{ textAlign:"center", color:T.text3, fontSize:13, padding:"30px 0" }}>This loyalty program isn't active right now.</div>{Footer}</div></div>;
 
   if (phase === "enter") {
+    const fieldInp = { width:"100%", boxSizing:"border-box", background:T.empty, border:`1px solid ${T.border}`, borderRadius:10, padding:"12px 13px", color:T.text, fontSize:16, outline:"none", marginBottom:11 };
     return (
       <div style={wrap}><div style={{ maxWidth:430, margin:"0 auto" }}>
         {Header}
-        <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:20 }}>
-          <div style={{ fontSize:15, fontWeight:700, marginBottom:5 }}>Your loyalty card</div>
-          <div style={{ fontSize:12, color:"#9aa6b3", marginBottom:16, lineHeight:1.5 }}>{program.type==='points' ? `Earn ${program.points_per_visit||10} points each visit${program.reward?` — ${program.reward} at ${program.points_goal||100} points.`:'.'}` : program.type==='tiers' ? "Visit more to unlock better perks." : `Collect ${program.stamp_goal||8} stamps${program.reward?` and get ${program.reward}.`:'.'}`}</div>
-          <div style={{ fontSize:10.5, color:"#7E8794", marginBottom:5 }}>Mobile number</div>
-          <input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="e.g. +973 3000 0000" style={{ width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none", marginBottom:11 }}/>
-          <div style={{ fontSize:10.5, color:"#7E8794", marginBottom:5 }}>Name <span style={{ color:"#4a5462" }}>· optional</span></div>
-          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{ width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"12px 13px", color:"#ECEAE1", fontSize:16, outline:"none", marginBottom:16 }}/>
-          <button onClick={join} disabled={loyNormPhone(phone).length<6||busy} style={{ width:"100%", padding:"14px", borderRadius:13, background: loyNormPhone(phone).length>=6?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", fontSize:14, fontWeight:700, cursor: loyNormPhone(phone).length>=6&&!busy?"pointer":"not-allowed" }}>{busy?"…":"View my card"}</button>
+        <div style={{ ...cardBox, padding:20 }}>
+          <div style={{ fontSize:15, fontWeight:700, marginBottom:5, color:T.text }}>Your loyalty card</div>
+          <div style={{ fontSize:12, color:T.text2, marginBottom:16, lineHeight:1.5 }}>{wel || (program.type==='points' ? `Earn ${program.points_per_visit||10} points each visit${program.reward?` — ${program.reward} at ${program.points_goal||100} points.`:'.'}` : program.type==='tiers' ? "Visit more to unlock better perks." : `Collect ${program.stamp_goal||8} stamps${program.reward?` and get ${program.reward}.`:'.'}`)}</div>
+          <div style={{ fontSize:10.5, color:T.text3, marginBottom:5 }}>Mobile number</div>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="e.g. +973 3000 0000" style={fieldInp}/>
+          <div style={{ fontSize:10.5, color:T.text3, marginBottom:5 }}>Name <span style={{ opacity:0.7 }}>· optional</span></div>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{ ...fieldInp, marginBottom:16 }}/>
+          <button onClick={join} disabled={loyNormPhone(phone).length<6||busy} style={{ width:"100%", padding:"14px", borderRadius:13, background: loyNormPhone(phone).length>=6?BR:T.empty, border:"none", color: loyNormPhone(phone).length>=6?"#fff":T.text3, fontSize:14, fontWeight:700, cursor: loyNormPhone(phone).length>=6&&!busy?"pointer":"not-allowed" }}>{busy?"…":"View my card"}</button>
         </div>
         {Footer}
       </div></div>
@@ -13392,61 +13437,63 @@ function LoyaltyPublicPage({ slug }) {
 
       {ready && <div style={{ background:"rgba(63,185,131,0.14)", border:"1px solid rgba(63,185,131,0.45)", borderRadius:14, padding:"13px 15px", marginBottom:14, textAlign:"center" }}>
         <div style={{ fontSize:14, fontWeight:800, color:"#3FB983" }}>🎉 Reward ready!</div>
-        {p.reward && <div style={{ fontSize:12.5, color:"#cfeede", marginTop:3 }}>{p.reward} — show this card to staff.</div>}
+        {p.reward && <div style={{ fontSize:12.5, color:"#3FB983", marginTop:3 }}>{p.reward} — show this card to staff.</div>}
       </div>}
 
-      <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:20, marginBottom:14 }}>
+      <div style={{ ...cardBox, padding:20, marginBottom:14 }}>
         {p.type==='stamps' && <>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:14 }}>
-            <div style={{ fontSize:13, fontWeight:700 }}>{c.name||"Your card"}</div>
-            <div style={{ fontSize:12, color:"#9aa6b3" }}>{filled} / {goal}</div>
+            <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{c.name||"Your card"}</div>
+            <div style={{ fontSize:12, color:T.text2 }}>{filled} / {goal}</div>
           </div>
           <div style={{ display:"grid", gridTemplateColumns:`repeat(${Math.min(goal,5)}, 1fr)`, gap:10 }}>
             {Array.from({length:goal}).map((_,i)=>(
-              <div key={i} style={{ aspectRatio:"1/1", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${i<filled?"#9DB6D6":"#262c36"}`, background:i<filled?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"transparent", color:i<filled?"#fff":"#3f4954" }}>
-                {i<filled ? <Check size={16}/> : <span style={{ fontSize:12, fontWeight:700 }}>{i+1}</span>}
+              <div key={i} style={{ aspectRatio:"1/1", borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${i<filled?BR:T.border}`, background:i<filled?BR:"transparent", color:i<filled?"#fff":T.text3 }}>
+                {i<filled ? <SIcon size={16}/> : <span style={{ fontSize:12, fontWeight:700 }}>{i+1}</span>}
               </div>
             ))}
           </div>
-          {p.reward && <div style={{ fontSize:11.5, color:"#7E8794", marginTop:14, textAlign:"center" }}>Reward: <span style={{ color:"#cdd9e8" }}>{p.reward}</span></div>}
+          {p.reward && <div style={{ fontSize:11.5, color:T.text3, marginTop:14, textAlign:"center" }}>Reward: <span style={{ color:T.text2 }}>{p.reward}</span></div>}
         </>}
 
         {p.type==='points' && <>
           <div style={{ textAlign:"center", marginBottom:12 }}>
-            <div style={{ fontSize:34, fontWeight:800, color:"#9DB6D6", lineHeight:1 }}>{c.points||0}</div>
-            <div style={{ fontSize:11, color:"#7E8794", marginTop:4, letterSpacing:".08em", textTransform:"uppercase" }}>Points</div>
+            <div style={{ fontSize:34, fontWeight:800, color:BR, lineHeight:1 }}>{c.points||0}</div>
+            <div style={{ fontSize:11, color:T.text3, marginTop:4, letterSpacing:".08em", textTransform:"uppercase" }}>Points</div>
           </div>
-          <div style={{ height:8, borderRadius:6, background:"#0E1013", overflow:"hidden", marginBottom:8 }}>
-            <div style={{ width:`${Math.min(100, Math.round((c.points||0)/(p.points_goal||100)*100))}%`, height:"100%", background:"linear-gradient(90deg,#6E8CAB,#9DB6D6)" }}/>
+          <div style={{ height:8, borderRadius:6, background:T.empty, overflow:"hidden", marginBottom:8 }}>
+            <div style={{ width:`${Math.min(100, Math.round((c.points||0)/(p.points_goal||100)*100))}%`, height:"100%", background:BR }}/>
           </div>
-          <div style={{ fontSize:11.5, color:"#7E8794", textAlign:"center" }}>{p.reward?`${p.reward} at `:"Reward at "}{p.points_goal||100} points</div>
+          <div style={{ fontSize:11.5, color:T.text3, textAlign:"center" }}>{p.reward?`${p.reward} at `:"Reward at "}{p.points_goal||100} points</div>
         </>}
 
         {p.type==='tiers' && <>
           <div style={{ textAlign:"center", marginBottom:14 }}>
-            <div style={{ fontSize:11, color:"#7E8794", letterSpacing:".08em", textTransform:"uppercase" }}>Your tier</div>
-            <div style={{ fontSize:24, fontWeight:800, color:"#9DB6D6", marginTop:3 }}>{tier?tier.name:"—"}</div>
-            <div style={{ fontSize:11.5, color:"#7E8794", marginTop:2 }}>{c.visits||0} visits</div>
+            <div style={{ fontSize:11, color:T.text3, letterSpacing:".08em", textTransform:"uppercase" }}>Your tier</div>
+            <div style={{ fontSize:24, fontWeight:800, color:BR, marginTop:3 }}>{tier?tier.name:"—"}</div>
+            <div style={{ fontSize:11.5, color:T.text3, marginTop:2 }}>{c.visits||0} visits</div>
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-            {tiers.length===0 ? <div style={{ fontSize:12, color:"#5e6b78", textAlign:"center" }}>Tiers coming soon.</div> : tiers.map((t,i)=>{
+            {tiers.length===0 ? <div style={{ fontSize:12, color:T.text3, textAlign:"center" }}>Tiers coming soon.</div> : tiers.map((t,i)=>{
               const reached = (c.visits||0) >= (t.visits||0);
-              return <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:10, background:reached?"rgba(110,140,171,0.14)":"#0E1013", border:`1px solid ${reached?"#3a4a5e":"#20242b"}` }}>
-                <span style={{ fontSize:11.5, fontWeight:700, color:reached?"#9DB6D6":"#5e6b78", minWidth:50 }}>{t.visits}+ </span>
-                <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:600, color:reached?"#ECEAE1":"#7E8794" }}>{t.name}</div>{t.perk && <div style={{ fontSize:10.5, color:"#5e6b78" }}>{t.perk}</div>}</div>
-                {reached && <Check size={14} color="#3FB983"/>}
+              return <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 12px", borderRadius:10, background:reached?BR+"22":T.empty, border:`1px solid ${reached?BR:T.border}` }}>
+                <span style={{ fontSize:11.5, fontWeight:700, color:reached?BR:T.text3, minWidth:50 }}>{t.visits}+ </span>
+                <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:600, color:reached?T.text:T.text2 }}>{t.name}</div>{t.perk && <div style={{ fontSize:10.5, color:T.text3 }}>{t.perk}</div>}</div>
+                {reached && <Check size={14} color={BR}/>}
               </div>;
             })}
           </div>
         </>}
       </div>
 
-      <div style={{ background:"#141923", border:"1px solid #20242b", borderRadius:16, padding:18, textAlign:"center" }}>
-        <div style={{ fontSize:11.5, color:"#9aa6b3", marginBottom:12 }}>Show this to staff to collect</div>
+      <div style={{ ...cardBox, padding:18, textAlign:"center" }}>
+        <div style={{ fontSize:11.5, color:T.text2, marginBottom:12 }}>Show this to staff to collect</div>
         <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=0&data=${qrData}`} alt="" style={{ width:160, height:160, borderRadius:12, background:"#fff", padding:10 }}/>
-        <div style={{ fontSize:22, fontWeight:800, letterSpacing:"0.18em", marginTop:12, color:"#ECEAE1" }}>{c.code}</div>
-        {c.redeemed>0 && <div style={{ fontSize:11, color:"#5e6b78", marginTop:8 }}>{c.redeemed} reward{c.redeemed>1?"s":""} earned so far</div>}
+        <div style={{ fontSize:22, fontWeight:800, letterSpacing:"0.18em", marginTop:12, color:T.text }}>{c.code}</div>
+        {c.redeemed>0 && <div style={{ fontSize:11, color:T.text3, marginTop:8 }}>{c.redeemed} reward{c.redeemed>1?"s":""} earned so far</div>}
       </div>
+
+      <button onClick={waShare} style={{ width:"100%", marginTop:12, padding:"12px", borderRadius:12, background:"transparent", border:`1px solid ${T.border}`, color:T.text2, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7 }}><FaWhatsapp style={{ color:"#25D366" }}/>Save to WhatsApp</button>
       {Footer}
     </div></div>
   );
