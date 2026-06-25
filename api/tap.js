@@ -75,29 +75,39 @@ async function polarPortalSession(customerId, email) {
   return { ok: r.ok, url: data.customer_portal_url || null, data };
 }
 // Handle a verified Polar webhook event → keep the subscriptions table in sync.
+// Ask Polar's API for a customer's current subscription (robust, event-shape-independent).
+async function polarActiveSub(customerId) {
+  if (!POLAR_TOKEN || !customerId) return null;
+  try {
+    const r = await fetch(`${POLAR_API}/v1/subscriptions/?customer_id=${encodeURIComponent(customerId)}&limit=10`, { headers: { Authorization: `Bearer ${POLAR_TOKEN}` } });
+    const d = await r.json().catch(() => ({}));
+    const items = (d && d.items) || [];
+    if (!items.length) return null;
+    return items.find(s => s.status === 'active' || s.status === 'trialing') || items[0];
+  } catch (e) { return null; }
+}
+
 async function handlePolarWebhook(evt) {
   const type = evt && evt.type; const data = (evt && evt.data) || {};
   if (!type) return { ignored: 'no-type' };
   // Checkout events arrive reliably; write the subscription row from a completed checkout.
   if (type === 'checkout.updated' || type === 'checkout.created') {
-    const st = data.status;
-    const subId = data.subscription_id || (data.subscription && data.subscription.id) || null;
-    if (st !== 'confirmed' && st !== 'succeeded' && !subId) return { checkout: true, status: st, skipped: 'not-complete' };
-    const email = data.customer_email || (data.customer && data.customer.email) || null;
-    const productName = (data.product && data.product.name) || data.product_name || (Array.isArray(data.products) && data.products[0] && data.products[0].name) || null;
+    const custId = data.customer_id || (data.customer && data.customer.id) || null;
+    const sub = await polarActiveSub(custId);   // ask Polar for the real subscription
+    if (!sub) return { checkout: true, status: data.status, noSubYet: true, custId: !!custId, hasToken: !!POLAR_TOKEN };
     const row = {
-      email,
-      customer_id: data.customer_id || (data.customer && data.customer.id) || null,
-      polar_subscription_id: subId || ('chk_' + (data.id || Date.now())),
-      plan: polarPlanFromName(productName),
-      interval: (data.product && data.product.recurring_interval) || null,
-      status: 'active',
-      current_period_end: null,
+      email: (sub.customer && sub.customer.email) || data.customer_email || null,
+      customer_id: custId,
+      polar_subscription_id: sub.id,
+      plan: polarPlanFromName((sub.product && sub.product.name) || (data.product && data.product.name)),
+      interval: sub.recurring_interval || (sub.product && sub.product.recurring_interval) || null,
+      status: sub.status || 'active',
+      current_period_end: sub.current_period_end || null,
       updated_at: new Date().toISOString(),
     };
     let dbStatus = 0, dbErr = '';
-    if (email) { try { const r = await sbq(`subscriptions?on_conflict=polar_subscription_id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) }); dbStatus = r.status; if (!r.ok) dbErr = (await r.text() || '').slice(0, 140); } catch (e) { dbErr = String((e && e.message) || e).slice(0, 140); } }
-    return { checkout: true, status: st, email, plan: row.plan, wrote: dbStatus >= 200 && dbStatus < 300, dbStatus, dbErr, hasServiceKey: !!SERVICE_KEY };
+    try { const r = await sbq(`subscriptions?on_conflict=polar_subscription_id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) }); dbStatus = r.status; if (!r.ok) dbErr = (await r.text() || '').slice(0, 140); } catch (e) { dbErr = String((e && e.message) || e).slice(0, 140); }
+    return { checkout: true, viaApi: true, email: row.email, plan: row.plan, wrote: dbStatus >= 200 && dbStatus < 300, dbStatus, dbErr, hasServiceKey: !!SERVICE_KEY };
   }
   if (type.indexOf('subscription.') === 0) {
     const cust = data.customer || {};
