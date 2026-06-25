@@ -12981,10 +12981,10 @@ function ConciergeWidget({ clientId, name, currency }) {
     if (!clientId) return;
     let live = true;
     (async () => {
-      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null;
-      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null, menuUrl = null;
+      try { const { data: mn } = await supabase.from('menus').select('id,slug,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; if (m.slug && typeof window!=='undefined') menuUrl = `${window.location.origin}/menu/${m.slug}`; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
-      if (live) setCtx({ menu, settings, currency: cur, special, dayparts });
+      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl });
     })();
     return () => { live = false; };
   }, [clientId, currency]);
@@ -13000,7 +13000,7 @@ function ConciergeWidget({ clientId, name, currency }) {
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -13944,6 +13944,7 @@ function ReservationsPage() {
     try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
   };
   const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); };
+  const notifyCancel = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if(!ph) return; const when = `${fmtD(b.starts_at)} ${fmtT(b.starts_at)}`; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, we're sorry — your reservation at ${selClient?.name||'us'} for ${when} has been cancelled. Please contact us to rebook. Apologies for the inconvenience.`); if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); };
 
   const reserveUrl = pubSlug ? `${origin}/reserve/${pubSlug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(reserveUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
@@ -14044,6 +14045,9 @@ function ReservationsPage() {
               </div>
               <span style={{ fontSize:9.5, color:th.text3, background:th.card2, borderRadius:5, padding:"2px 7px", flexShrink:0 }}>{b.source==='concierge'?L("AI","ذكاء"):b.source==='manual'?L("manual","يدوي"):L("bio","بايو")}</span>
               <span style={{ fontSize:11, fontWeight:600, color:SC[b.status]||th.text3, flexShrink:0 }}>{SL[b.status]||b.status}</span>
+              {b.status==='cancelled' && b.customer_phone && (
+                <button onClick={()=>notifyCancel(b)} title={L("Notify guest on WhatsApp","إبلاغ الضيف عبر واتساب")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><FaWhatsapp style={{ color:"#25D366" }}/>{L("Notify","إبلاغ")}</button>
+              )}
               {b.status!=='cancelled' && b.status!=='seated' && (
                 <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                   <button onClick={()=>setStatus(b,'seated')} title={L("Seated","جلس")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.success, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={14}/></button>

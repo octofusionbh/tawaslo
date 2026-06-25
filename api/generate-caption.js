@@ -501,11 +501,12 @@ async function conciergeReply(ctx, convo) {
   const catTimes = (dp && dp.cats) ? Object.entries(dp.cats).filter(([, v]) => v && v !== 'all').map(([c, v]) => `${c} (${v} only)`).join('; ') : '';
   const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
   const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
+  const menuLink = ctx.menuUrl ? `\nFull visual menu (photos, both languages, prices): ${ctx.menuUrl} — share this link whenever the guest asks to see the menu, wants pictures, or asks for "the list".` : '';
   const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
 You can: answer menu and price questions, give opening hours, and book a table.
 Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
 Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}
 
 Rules:
 - Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
@@ -514,9 +515,11 @@ Rules:
 - To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
 - Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
 
+- If the guest asks to CANCEL their reservation, confirm which booking with them first; only once they clearly confirm, set "cancel" to true (and write a warm confirmation in "reply").
+
 Return ONLY a JSON object, no markdown:
-{ "reply": "your message to the guest", "booking": null }
-When (and only when) all required details are gathered and confirmed, set "booking" to:
+{ "reply": "your message to the guest", "booking": null, "cancel": false }
+When (and only when) all booking details are gathered and confirmed, set "booking" to:
 { "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }`;
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -533,7 +536,7 @@ When (and only when) all required details are gathered and confirmed, set "booki
     const jm = text.match(/\{[\s\S]*\}/);
     if (!jm) return { reply: text || '…', booking: null };
     let parsed; try { parsed = JSON.parse(jm[0]); } catch (e) { return { reply: text, booking: null }; }
-    return { reply: parsed.reply || '', booking: parsed.booking || null };
+    return { reply: parsed.reply || '', booking: parsed.booking || null, cancel: !!parsed.cancel };
   } catch (e) { return { error: true, details: e.message }; }
 }
 
@@ -559,6 +562,7 @@ async function waBuildContext(clientId) {
     const m = Array.isArray(mj) ? mj[0] : null;
     if (m) {
       ctx.currency = m.currency || ctx.currency;
+      if (m.slug) ctx.menuUrl = `https://www.tawaslo.com/menu/${m.slug}`;
       ctx.special = (m.special_on && m.special) ? m.special : null;
       ctx.dayparts = { hours: m.daypart_hours || {}, cats: m.cat_dayparts || {}, now: waActiveDaypart(m.daypart_hours) };
       const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=*&limit=120`);
@@ -598,6 +602,16 @@ async function handleWhatsApp(body) {
         thread.push({ role: 'assistant', content: reply }); thread = thread.slice(-12);
         try { await waSb(`wa_threads?on_conflict=client_id,wa_from`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ client_id: clientId, wa_from: from, messages: thread, updated_at: new Date().toISOString() }) }); } catch (e) {}
         await waSend(phoneId, token, from, reply);
+        if (out && out.cancel) {
+          try {
+            const nowIso = new Date().toISOString();
+            const r = await waSb(`bookings?client_id=eq.${clientId}&status=eq.confirmed&starts_at=gte.${nowIso}&order=starts_at.asc&select=id,customer_phone,starts_at`);
+            const bks = await r.json();
+            const fd = String(from).replace(/[^\d]/g, '');
+            const match = (Array.isArray(bks) ? bks : []).find(x => { const cp = String(x.customer_phone || '').replace(/[^\d]/g, ''); return cp && fd && (cp.slice(-8) === fd.slice(-8)); });
+            if (match) await waSb(`bookings?id=eq.${match.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'cancelled' }) });
+          } catch (e) {}
+        }
         const b = out && out.booking;
         if (b && b.date && b.time && b.name) {
           const tt = String(b.time).length === 5 ? b.time : ('0' + b.time);
