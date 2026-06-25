@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // WhatsApp Cloud API webhook live (deploy marker v1).
+  // WhatsApp Cloud API webhook live (deploy marker v2 — force fresh deploy).
   // ── WhatsApp Cloud API webhook (folded in here to stay under Vercel's function cap) ──
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
     const vt = process.env.WHATSAPP_VERIFY_TOKEN || 'tawaslo_wa_verify';
