@@ -77,7 +77,7 @@ async function polarPortalSession(customerId, email) {
 // Handle a verified Polar webhook event → keep the subscriptions table in sync.
 async function handlePolarWebhook(evt) {
   const type = evt && evt.type; const data = (evt && evt.data) || {};
-  if (!type) return;
+  if (!type) return { ignored: 'no-type' };
   if (type.indexOf('subscription.') === 0) {
     const cust = data.customer || {};
     const status = (type === 'subscription.canceled' || type === 'subscription.revoked') ? 'canceled' : (data.status || 'active');
@@ -91,7 +91,9 @@ async function handlePolarWebhook(evt) {
       current_period_end: data.current_period_end || data.ends_at || null,
       updated_at: new Date().toISOString(),
     };
-    try { await sbq(`subscriptions?on_conflict=polar_subscription_id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) }); } catch (e) { /* non-fatal */ }
+    let dbStatus = 0, dbErr = '';
+    try { const r = await sbq(`subscriptions?on_conflict=polar_subscription_id`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(row) }); dbStatus = r.status; if (!r.ok) { dbErr = (await r.text() || '').slice(0, 140); } } catch (e) { dbErr = String((e && e.message) || e).slice(0, 140); }
+    return { sub: true, email: row.email, plan: row.plan, subId: !!row.polar_subscription_id, wrote: dbStatus >= 200 && dbStatus < 300, dbStatus, dbErr, hasServiceKey: !!SERVICE_KEY };
   }
   if (type === 'order.paid' || type === 'order.created') {
     const cust = data.customer || {};
@@ -258,10 +260,10 @@ export default async function handler(req, res) {
 
   // ── Polar webhook (Standard Webhooks, signed). ──
   if (req.headers['webhook-signature'] || req.headers['webhook-id']) {
-    if (!verifyPolarSig(rawBody, req.headers)) return res.status(401).json({ error: 'invalid signature' });
+    if (!verifyPolarSig(rawBody, req.headers)) return res.status(401).json({ error: 'invalid signature', debug: { bodyLen: (rawBody && rawBody.length) || 0, hasId: !!req.headers['webhook-id'], hasTs: !!req.headers['webhook-timestamp'], hasSig: !!req.headers['webhook-signature'], secretLen: (process.env.POLAR_WEBHOOK_SECRET || '').length } });
     let evt = {}; try { evt = JSON.parse(rawBody.toString('utf8')); } catch (e) {}
-    try { await handlePolarWebhook(evt); } catch (e) { /* never hard-fail a webhook */ }
-    return res.status(200).json({ received: true });
+    let result = {}; try { result = (await handlePolarWebhook(evt)) || {}; } catch (e) { result = { error: String((e && e.message) || e) }; }
+    return res.status(200).json({ received: true, type: evt && evt.type, ...result });
   }
 
   const rawStr = rawBody && rawBody.length ? rawBody.toString('utf8') : '';
