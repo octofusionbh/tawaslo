@@ -25,7 +25,7 @@ const POLAR_TOKEN = process.env.POLAR_API_TOKEN;
 const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET;
 
 function readRawBody(req) {
-  return new Promise((resolve) => { let d = ''; req.on('data', c => { d += c; }); req.on('end', () => resolve(d)); req.on('error', () => resolve('')); });
+  return new Promise((resolve) => { const chunks = []; req.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c))); req.on('end', () => resolve(Buffer.concat(chunks))); req.on('error', () => resolve(Buffer.alloc(0))); });
 }
 // Standard Webhooks signature verification (https://www.standardwebhooks.com/).
 function verifyPolarSig(rawBody, headers) {
@@ -33,15 +33,17 @@ function verifyPolarSig(rawBody, headers) {
     if (!POLAR_WEBHOOK_SECRET) return false;
     const id = headers['webhook-id'], ts = headers['webhook-timestamp'], sigH = headers['webhook-signature'];
     if (!id || !ts || !sigH) return false;
-    // Polar secrets are prefixed "polar_whs_"; Standard Webhooks uses "whsec_".
-    let sec = POLAR_WEBHOOK_SECRET;
-    if (sec.startsWith('polar_whs_')) sec = sec.slice(10);
-    else if (sec.startsWith('whsec_')) sec = sec.slice(6);
-    const signed = `${id}.${ts}.${rawBody}`;
-    // Try the secret both base64-decoded (spec) and as raw bytes, for robustness.
+    const bodyBuf = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(String(rawBody || ''), 'utf8');
+    const signed = Buffer.concat([Buffer.from(`${id}.${ts}.`, 'utf8'), bodyBuf]);
+    // Polar's SDK base64-encodes the FULL secret (incl. the "polar_whs_" prefix) and
+    // feeds it to Standard Webhooks — net effect: the HMAC key is the raw UTF-8 bytes
+    // of the whole secret string. We try that first, then fall back to other encodings.
+    const full = (POLAR_WEBHOOK_SECRET || '').trim();
+    const stripped = full.startsWith('polar_whs_') ? full.slice(10) : (full.startsWith('whsec_') ? full.slice(6) : full);
     const keys = [];
-    try { const b = Buffer.from(sec, 'base64'); if (b.length) keys.push(b); } catch (e) {}
-    keys.push(Buffer.from(sec, 'utf8'));
+    keys.push(Buffer.from(full, 'utf8'));            // Polar's actual method
+    try { const b = Buffer.from(stripped, 'base64'); if (b.length) keys.push(b); } catch (e) {}
+    keys.push(Buffer.from(stripped, 'utf8'));
     const sigs = String(sigH).split(' ').map(p => (p.includes(',') ? p.split(',')[1] : p));
     return keys.some(key => {
       const expected = crypto.createHmac('sha256', key).update(signed).digest('base64');
@@ -257,12 +259,13 @@ export default async function handler(req, res) {
   // ── Polar webhook (Standard Webhooks, signed). ──
   if (req.headers['webhook-signature'] || req.headers['webhook-id']) {
     if (!verifyPolarSig(rawBody, req.headers)) return res.status(401).json({ error: 'invalid signature' });
-    let evt = {}; try { evt = JSON.parse(rawBody); } catch (e) {}
+    let evt = {}; try { evt = JSON.parse(rawBody.toString('utf8')); } catch (e) {}
     try { await handlePolarWebhook(evt); } catch (e) { /* never hard-fail a webhook */ }
     return res.status(200).json({ received: true });
   }
 
-  let body = {}; try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (e) { body = {}; }
+  const rawStr = rawBody && rawBody.length ? rawBody.toString('utf8') : '';
+  let body = {}; try { body = rawStr ? JSON.parse(rawStr) : {}; } catch (e) { body = {}; }
 
   // ── Owner dashboard → create a matching Polar discount for a promo code. ──
   if (body.action === 'polar_create_discount') {
