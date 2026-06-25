@@ -12666,19 +12666,24 @@ function MenuBuilderPage() {
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
-  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], available:true, show_price:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], available:true, hidden:false, show_price:true });
+  const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
+  const setItemStatus = async (it, st) => {
+    const patch = st==="hidden" ? { hidden:true } : st==="sold_out" ? { hidden:false, available:false } : { hidden:false, available:true };
+    try { await supabase.from('menu_items').update(patch).eq('id', it.id); } catch(e){}
+    setItems(its=>its.map(i=>i.id===it.id?{...i,...patch}:i));
+  };
   const updateMenu = async (patch) => { setMenu(m => ({ ...m, ...patch })); if (menu && menu.id) { try { await supabase.from('menus').update(patch).eq('id', menu.id); } catch(e){} } };
   const moveCat = async (from, to) => { const arr = orderedCats(); const i=arr.indexOf(from), j=arr.indexOf(to); if(i<0||j<0||i===j) return; arr.splice(j,0,arr.splice(i,1)[0]); await updateMenu({ cat_order: arr }); };
   const saveItem = async () => {
     if (!editing || !menu) return;
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, available: editing.available!==false, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
   };
   const delItem = async (id) => { await supabase.from('menu_items').delete().eq('id', id); setItems(its=>its.filter(i=>i.id!==id)); };
-  const toggleAvail = async (it) => { const v = !(it.available!==false); await supabase.from('menu_items').update({ available:v }).eq('id', it.id); setItems(its=>its.map(i=>i.id===it.id?{...i,available:v}:i)); };
   const uploadBlob = async (blob, ext) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -12771,19 +12776,29 @@ function MenuBuilderPage() {
 
       <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
         {shown.length===0 && <div style={{ ...card, padding:"40px 20px", textAlign:"center", color:th.text2, fontSize:12.5 }}>{L("No items yet — add your first.","لا توجد أصناف بعد — أضف أول صنف.")}</div>}
-        {shown.map(it=>(
-          <div key={it.id} style={{ ...card, padding:11, display:"flex", alignItems:"center", gap:12, opacity: it.available!==false?1:0.55 }}>
+        {shown.map(it=>{
+          const stt = itemStatus(it);
+          return (
+          <div key={it.id} style={{ ...card, padding:11, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", opacity: stt==="available"?1:0.6 }}>
             <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, background: it.photo_url?`center/cover url(${it.photo_url})`:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{!it.photo_url && <Image size={16} color={th.text3}/>}</div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}{it.available===false && <span style={{ fontSize:9, color:th.warning, border:`1px solid ${th.warning}55`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("sold out","نفد")}</span>}</div>
+            <div style={{ flex:1, minWidth:120 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}
+                {stt==="sold_out" && <span style={{ fontSize:9, color:th.warning, border:`1px solid ${th.warning}55`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("sold out","نفد")}</span>}
+                {stt==="hidden" && <span style={{ fontSize:9, color:th.text3, border:`1px solid ${th.border}`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("hidden","مخفي")}</span>}
+              </div>
               {it.name_ar && <div style={{ fontSize:11.5, color:th.text2, direction:"rtl", fontFamily:"'Cairo',sans-serif" }}>{it.name_ar}</div>}
             </div>
             <span className="tw-num" style={{ fontSize:13, fontWeight:600, color:th.accent }}>{(menu&&menu.hide_prices)||it.show_price===false ? <span style={{ fontSize:9.5, color:th.text3, fontWeight:400, fontStyle:"italic" }}>{L("price hidden","مخفي")}</span> : (it.price!=null ? fmtMoney(it.price,(menu&&menu.currency)||"BHD") : "—")}</span>
-            <button onClick={()=>toggleAvail(it)} title={L("Toggle availability","تبديل التوفر")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}>{it.available!==false?<Eye size={15}/>:<XCircle size={15}/>}</button>
-            <button onClick={()=>setEditing({ ...it })} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><Edit3 size={14}/></button>
-            <button onClick={()=>delItem(it.id)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
+            <select value={stt} onChange={e=>setItemStatus(it, e.target.value)} title={L("Status","الحالة")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"6px 8px", color:th.text2, fontSize:11.5, outline:"none", cursor:"pointer" }}>
+              <option value="available">{L("Available","متاح")}</option>
+              <option value="sold_out">{L("Sold out","نفد")}</option>
+              <option value="hidden">{L("Hidden","مخفي")}</option>
+            </select>
+            <button onClick={()=>setEditing({ ...it })} title={L("Edit","تعديل")} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><Edit3 size={14}/></button>
+            <button onClick={()=>delItem(it.id)} title={L("Delete","حذف")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
           </div>
-        ))}
+          );
+        })}
         <button onClick={()=>setEditing(blankItem())} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Plus size={15}/>{L("Add item","إضافة صنف")}</button>
       </div>
 
@@ -12818,10 +12833,16 @@ function MenuBuilderPage() {
             <textarea value={editing.description_ar||""} onChange={e=>setEditing({...editing, description_ar:e.target.value})} dir={rtl2?"rtl":"ltr"} rows={2} style={{ ...inp, marginBottom:10, resize:"vertical", fontFamily:rtl2?"'Cairo',sans-serif":undefined }}/>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Price","السعر")} ({(menu&&menu.currency)||"BHD"})</div>
             <input value={editing.price} onChange={e=>setEditing({...editing, price:e.target.value})} type="number" step="0.001" style={{ ...inp, marginBottom:10 }}/>
-            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:8, cursor:"pointer" }}>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
               <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
             </label>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Status","الحالة")}</div>
+            <select value={editing.hidden ? "hidden" : (editing.available===false ? "sold_out" : "available")} onChange={e=>{ const v=e.target.value; setEditing({...editing, hidden:v==="hidden", available:v!=="sold_out"}); }} style={{ ...inp, marginBottom:4, cursor:"pointer" }}>
+              <option value="available">{L("Available — shown on the menu","متاح — يظهر في القائمة")}</option>
+              <option value="sold_out">{L("Sold out — shown, marked unavailable","نفد — يظهر معلّمًا غير متاح")}</option>
+              <option value="hidden">{L("Hidden — not shown on the menu","مخفي — لا يظهر في القائمة")}</option>
+            </select>
             </div>
             <div style={{ display:"flex", gap:9 }}>
               <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
@@ -12850,7 +12871,7 @@ function ConciergeWidget({ clientId, name, currency }) {
     let live = true;
     (async () => {
       let menu = [], settings = {}, cur = currency || 'BHD';
-      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,show_price').eq('menu_id', m.id).limit(80); menu = (it||[]).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      try { const { data: mn } = await supabase.from('menus').select('id,currency,hide_prices').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
       if (live) setCtx({ menu, settings, currency: cur });
     })();
@@ -12935,8 +12956,8 @@ function MenuPublicPage({ slug }) {
       if (error || !m) { setData(null); return; }
       let name = m.title, logo = null;
       try { const { data: c } = await supabase.from('clients').select('name,logo_url').eq('id', m.client_id).limit(1); if (c && c[0]) { name = m.title || c[0].name; logo = c[0].logo_url || null; } } catch(e){}
-      const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).eq('available', true).order('sort',{ascending:true}).order('created_at',{ascending:true});
-      if (live) { setData({ ...m, name, logo }); setItems(it || []); }
+      const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true}).order('created_at',{ascending:true});
+      if (live) { setData({ ...m, name, logo }); setItems((it||[]).filter(x=>!x.hidden)); }
     }, () => { if (live) setData(null); });
     return () => { live = false; };
   }, [slug]);
@@ -13004,15 +13025,16 @@ function MenuPublicPage({ slug }) {
               <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
                 {items.filter(i=>(i.category||'General')===sec).map(it=>{
                   const ph = itemPhotos(it);
+                  const soldOut = it.available===false;
                   return (
-                    <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11, cursor:"pointer" }}>
-                      {ph[0] && <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background:`center/cover url(${ph[0]})`, position:"relative" }}>{ph.length>1 && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}</div>}
+                    <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:12, background:"#141923", border:"1px solid #20242b", borderRadius:12, padding:11, cursor:"pointer", opacity:soldOut?0.62:1 }}>
+                      {ph[0] && <div style={{ width:58, height:58, borderRadius:9, flexShrink:0, background:`center/cover url(${ph[0]})`, position:"relative", filter:soldOut?"grayscale(0.7)":undefined }}>{ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:3, insetInlineEnd:3, fontSize:8.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:5, padding:"1px 5px" }}>{ph.length}</span>}</div>}
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:14, fontWeight:600, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{it.name_en}</div>
+                        <div style={{ fontSize:14, fontWeight:600, direction:rtl1?"rtl":"ltr", fontFamily:rtl1?"'Cairo',sans-serif":undefined }}>{it.name_en}{soldOut && <span style={{ fontSize:9, fontWeight:700, color:"#D98A6A", border:"1px solid rgba(217,138,106,0.4)", borderRadius:5, padding:"1px 6px", marginInlineStart:7, verticalAlign:"middle" }}>SOLD OUT</span>}</div>
                         {it.name_ar && <div style={{ fontSize:12, color:"#9aa6b3", direction:rtl2?"rtl":"ltr", fontFamily:rtl2?"'Cairo',sans-serif":undefined, marginTop:1 }}>{it.name_ar}</div>}
                         {(it.description||it.description_ar) && <div style={{ fontSize:11, color:"#6b7785", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{it.description||it.description_ar}</div>}
                       </div>
-                      <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{priceOf(it)}</span>
+                      <span style={{ fontSize:14, fontWeight:700, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", flexShrink:0, textDecoration:soldOut?"line-through":undefined }}>{priceOf(it)}</span>
                     </div>
                   );
                 })}
@@ -13369,7 +13391,11 @@ function HostStandPage({ slug }) {
   const [selTable, setSelTable] = useState(null);
   const [walkOpen, setWalkOpen] = useState(false);
   const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2);
+  const [hmode, setHmode] = useState("host");   // host | edit
+  const [editTable, setEditTable] = useState(null);
   const [, setTick] = useState(0);
+  const canvasRef = useRef(null);
+  const dragRef = useRef(null);
 
   useEffect(() => { const t = setInterval(() => setTick(x => x + 1), 30000); return () => clearInterval(t); }, []);
 
@@ -13422,6 +13448,15 @@ function HostStandPage({ slug }) {
   const elapsed = (iso) => { if (!iso) return ''; const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); if (m < 1) return 'now'; if (m < 60) return m + 'm'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
   const fmtT = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+  // ── Edit-layout (host can build/adjust the floor right from the iPad) ──
+  const addTable = async () => { const n = roomTables.length + 1; const ins = await supabase.from('dining_tables').insert([{ client_id: info.client_id, room_id: roomId, name: 'T' + n, seats: 2, shape: 'square', pos_x: 24 + ((n-1)%6)*78, pos_y: 24 + Math.floor((n-1)/6)*78 }]).select(); if (ins.data) setTables(ts => [...ts, ins.data[0]]); };
+  const updTable = async (id, patch) => { setTables(ts => ts.map(t => t.id === id ? { ...t, ...patch } : t)); setEditTable(e => e && e.id === id ? { ...e, ...patch } : e); await supabase.from('dining_tables').update(patch).eq('id', id); };
+  const delTable = async (id) => { setTables(ts => ts.filter(t => t.id !== id)); setEditTable(null); await supabase.from('dining_tables').delete().eq('id', id); };
+  const addRoom = async () => { const ins = await supabase.from('dining_rooms').insert([{ client_id: info.client_id, name: 'Room ' + (rooms.length + 1), sort: rooms.length }]).select(); if (ins.data) { setRooms(r => [...r, ins.data[0]]); setRoomId(ins.data[0].id); } };
+  const onDown = (e, t) => { if (hmode !== 'edit') return; const rect = canvasRef.current.getBoundingClientRect(); dragRef.current = { id: t.id, dx: e.clientX - rect.left - t.pos_x, dy: e.clientY - rect.top - t.pos_y, moved: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} };
+  const onCanvasMove = (e) => { const d = dragRef.current; if (!d || hmode !== 'edit') return; const rect = canvasRef.current.getBoundingClientRect(); const nx = Math.max(0, Math.min(rect.width - 58, e.clientX - rect.left - d.dx)); const ny = Math.max(0, Math.min(rect.height - 58, e.clientY - rect.top - d.dy)); d.moved = true; setTables(ts => ts.map(t => t.id === d.id ? { ...t, pos_x: Math.round(nx), pos_y: Math.round(ny) } : t)); };
+  const onCanvasUp = async () => { const d = dragRef.current; if (!d) return; dragRef.current = null; if (d.moved) { const t = tables.find(x => x.id === d.id); if (t) await supabase.from('dining_tables').update({ pos_x: t.pos_x, pos_y: t.pos_y }).eq('id', d.id); } else { const t = tables.find(x => x.id === d.id); if (t) setEditTable(t); } };
+
   const wrap = { minHeight: "100vh", background: "#0A0D11", color: "#F2F5F9", fontFamily: "'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", boxSizing: "border-box" };
   if (info === undefined) return <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ fontSize: 13, color: "#7E8794" }}>Loading…</div></div>;
   if (info === null) return <div style={{ ...wrap, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 600 }}>Host stand not available</div><div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 12.5, color: "#7E8794", marginTop: 6 }}><img src="/logo-transparent.png" alt="" style={{ width: 14, height: 14, objectFit: "contain" }} />Powered by Tawaslo</div></div></div>;
@@ -13449,30 +13484,36 @@ function HostStandPage({ slug }) {
 
   const selT = roomTables.find(t => t.id === selTable);
   const seatedCount = roomTables.filter(t => seatedFor(t.id)).length;
-  const freeCount = roomTables.filter(t => !bookingFor(t.id)).length;
+  const freeCount = roomTables.filter(t => !bookingFor(t.id) && !t.out_of_service).length;
+  const editMode = hmode === 'edit';
   return (
     <div style={{ ...wrap, display: "flex", flexDirection: "column", height: "100vh" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 18px", borderBottom: "1px solid #232B38", flexWrap: "wrap" }}>
         <img src="/logo-transparent.png" alt="" style={{ width: 24, height: 24, objectFit: "contain" }} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{info.name}</div><div style={{ fontSize: 10.5, color: "#5e6b78" }}>{new Date().toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}</div></div>
-        <span style={{ fontSize: 12, color: "#10B981", fontWeight: 700 }}>{seatedCount} seated</span><span style={{ fontSize: 12, color: "#5e6b78" }}>·</span><span style={{ fontSize: 12, color: "#8794A8", fontWeight: 700 }}>{freeCount} free</span>
-        <button onClick={() => setWalkOpen(true)} style={{ marginInlineStart: 6, padding: "8px 14px", borderRadius: 9, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Walk-in</button>
+        <div style={{ display: "flex", gap: 3, background: "#141923", border: "1px solid #232B38", borderRadius: 9, padding: 3 }}>
+          {[["host","Host"],["edit","Edit layout"]].map(([k,lbl]) => <button key={k} onClick={() => { setHmode(k); setArmed(null); setSelTable(null); setEditTable(null); }} style={{ padding: "6px 12px", borderRadius: 7, border: "none", fontSize: 11.5, fontWeight: 700, cursor: "pointer", background: hmode===k ? "rgba(110,140,171,.18)" : "transparent", color: hmode===k ? "#cdd9e8" : "#8794A8" }}>{lbl}</button>)}
+        </div>
+        {!editMode && <><span style={{ fontSize: 12, color: "#10B981", fontWeight: 700 }}>{seatedCount} seated</span><span style={{ fontSize: 12, color: "#5e6b78" }}>·</span><span style={{ fontSize: 12, color: "#8794A8", fontWeight: 700 }}>{freeCount} free</span></>}
+        {editMode ? <button onClick={addTable} style={{ marginInlineStart: 6, padding: "8px 14px", borderRadius: 9, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Table</button>
+          : <button onClick={() => setWalkOpen(true)} style={{ marginInlineStart: 6, padding: "8px 14px", borderRadius: 9, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Walk-in</button>}
       </div>
-      {rooms.length > 1 && <div style={{ display: "flex", gap: 7, padding: "10px 18px 0", flexWrap: "wrap" }}>{rooms.map(r => <button key={r.id} onClick={() => { setRoomId(r.id); setSelTable(null); }} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${roomId === r.id ? "#6E8CAB" : "#232B38"}`, background: roomId === r.id ? "rgba(110,140,171,.14)" : "#141923", color: roomId === r.id ? "#cdd9e8" : "#8794A8" }}>{r.name}</button>)}</div>}
+      {(rooms.length > 1 || editMode) && <div style={{ display: "flex", gap: 7, padding: "10px 18px 0", flexWrap: "wrap", alignItems: "center" }}>{rooms.map(r => <button key={r.id} onClick={() => { setRoomId(r.id); setSelTable(null); setEditTable(null); }} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${roomId === r.id ? "#6E8CAB" : "#232B38"}`, background: roomId === r.id ? "rgba(110,140,171,.14)" : "#141923", color: roomId === r.id ? "#cdd9e8" : "#8794A8" }}>{r.name}</button>)}{editMode && <button onClick={addRoom} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px dashed #232B38", background: "transparent", color: "#5e6b78" }}>+ Section</button>}</div>}
       {armed && <div style={{ margin: "10px 18px 0", padding: "9px 13px", background: "rgba(110,140,171,.12)", border: "1px solid #6E8CAB", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "center", gap: 10 }}><span>Tap a table to seat <b>{(arriving.concat(waitlist).find(b => b.id === armed) || {}).customer_name}</b></span><div style={{ flex: 1 }} /><button onClick={() => setArmed(null)} style={{ background: "none", border: "none", color: "#8794A8", cursor: "pointer", fontSize: 12 }}>Cancel</button></div>}
       <div style={{ flex: 1, display: "flex", gap: 14, padding: 16, overflow: "hidden", flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 420px", minWidth: 280, position: "relative", borderRadius: 14, border: "1px solid #232B38", background: "#0E1216", backgroundImage: "radial-gradient(#232B38 1px, transparent 1px)", backgroundSize: "24px 24px", overflow: "auto" }}>
-          {roomTables.length === 0 && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#5e6b78", fontSize: 12.5, textAlign: "center", padding: 20 }}>No tables set up yet.</div>}
+        <div ref={canvasRef} onPointerMove={onCanvasMove} onPointerUp={onCanvasUp} onPointerLeave={onCanvasUp} style={{ flex: "1 1 420px", minWidth: 280, position: "relative", borderRadius: 14, border: "1px solid #232B38", background: "#0E1216", backgroundImage: "radial-gradient(#232B38 1px, transparent 1px)", backgroundSize: "24px 24px", overflow: "auto", touchAction: editMode ? "none" : "auto" }}>
+          {roomTables.length === 0 && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#5e6b78", fontSize: 12.5, textAlign: "center", padding: 20 }}>{editMode ? "Tap + Table, then drag tables into place." : "No tables set up yet — switch to Edit layout."}</div>}
           {roomTables.map(t => {
             const seated = seatedFor(t.id); const resv = bookingFor(t.id);
-            const occupied = !!seated; const reserved = !occupied && !!resv;
-            const bg = occupied ? 'rgba(16,185,129,0.16)' : reserved ? 'rgba(110,140,171,0.16)' : '#141923';
-            const bd = occupied ? '#10B981' : reserved ? '#6E8CAB' : '#232B38';
+            const oos = !!t.out_of_service;
+            const occupied = !oos && !!seated; const reserved = !oos && !occupied && !!resv;
+            const bg = oos ? 'rgba(120,135,168,0.08)' : occupied ? 'rgba(16,185,129,0.16)' : reserved ? 'rgba(110,140,171,0.16)' : '#141923';
+            const bd = oos ? '#3a4150' : occupied ? '#10B981' : reserved ? '#6E8CAB' : '#232B38';
             const round = t.shape === 'round'; const wide = t.shape === 'rect';
             return (
-              <div key={t.id} onClick={() => { armed ? seatArmed(t) : setSelTable(t.id); }} style={{ position: "absolute", left: t.pos_x, top: t.pos_y, width: wide ? 86 : 58, height: 58, borderRadius: round ? "50%" : 12, border: `1.5px solid ${bd}`, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", userSelect: "none", boxShadow: selTable === t.id ? "0 0 0 2px #6E8CAB66" : "none" }}>
-                <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
-                {occupied ? <div style={{ fontSize: 8, color: "#10B981", fontWeight: 600 }}>{elapsed(seated.seated_at)}</div> : reserved ? <div style={{ fontSize: 8, color: "#6E8CAB", fontWeight: 600 }}>{fmtT(resv.starts_at)}</div> : <div style={{ fontSize: 8, color: "#5e6b78" }}>{t.seats}p</div>}
+              <div key={t.id} onPointerDown={(e) => onDown(e, t)} onClick={() => { if (editMode) { setEditTable(t); return; } if (oos) return; armed ? seatArmed(t) : setSelTable(t.id); }} style={{ position: "absolute", left: t.pos_x, top: t.pos_y, width: wide ? 86 : 58, height: 58, borderRadius: round ? "50%" : 12, border: `1.5px ${oos ? 'dashed' : 'solid'} ${bd}`, background: bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: editMode ? "grab" : (oos ? "not-allowed" : "pointer"), userSelect: "none", opacity: oos ? 0.6 : 1, boxShadow: (selTable === t.id || (editTable && editTable.id === t.id)) ? "0 0 0 2px #6E8CAB66" : "none", touchAction: "none" }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: oos ? "#8794A8" : "#F2F5F9" }}>{t.name}</div>
+                {oos ? <div style={{ fontSize: 7.5, color: "#8794A8", fontWeight: 700, letterSpacing: ".04em" }}>OUT</div> : occupied ? <div style={{ fontSize: 8, color: "#10B981", fontWeight: 600 }}>{elapsed(seated.seated_at)}</div> : reserved ? <div style={{ fontSize: 8, color: "#6E8CAB", fontWeight: 600 }}>{fmtT(resv.starts_at)}</div> : <div style={{ fontSize: 8, color: "#5e6b78" }}>{t.seats}p</div>}
               </div>
             );
           })}
@@ -13523,6 +13564,29 @@ function HostStandPage({ slug }) {
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => addWalkin(true)} style={{ flex: 1, padding: 11, borderRadius: 11, background: "transparent", border: "1px solid #232B38", color: "#8794A8", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>To waitlist</button>
               <button onClick={() => addWalkin(false)} style={{ flex: 1.4, padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Add → seat</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {editTable && createPortal((
+        <div onClick={() => setEditTable(null)} style={{ position: "fixed", inset: 0, background: "rgba(4,6,12,0.6)", backdropFilter: "blur(3px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: "#141923", border: "1px solid #232B38", borderRadius: 16, padding: 18 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Edit table</div>
+            <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 5 }}>Name</div>
+            <input value={editTable.name || ""} onChange={e => updTable(editTable.id, { name: e.target.value })} style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: "10px 11px", color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 12 }} />
+            <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 5 }}>Seats</div>
+            <input type="number" min="1" value={editTable.seats || 1} onChange={e => updTable(editTable.id, { seats: Number(e.target.value) || 1 })} style={{ width: 100, boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: "10px 11px", color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 12 }} />
+            <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 5 }}>Shape</div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+              {[["square","Square"],["round","Round"],["rect","Long"]].map(([sh,lbl]) => <button key={sh} onClick={() => updTable(editTable.id, { shape: sh })} style={{ padding: "7px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${editTable.shape===sh ? "#6E8CAB" : "#232B38"}`, background: editTable.shape===sh ? "rgba(110,140,171,.16)" : "#0E1216", color: editTable.shape===sh ? "#cdd9e8" : "#8794A8" }}>{lbl}</button>)}
+            </div>
+            <button onClick={() => updTable(editTable.id, { out_of_service: !editTable.out_of_service })} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 13px", borderRadius: 10, border: `1px solid ${editTable.out_of_service ? "#C7942B" : "#232B38"}`, background: editTable.out_of_service ? "rgba(199,148,43,.12)" : "#0E1216", color: editTable.out_of_service ? "#E0B85C" : "#F2F5F9", fontSize: 12.5, fontWeight: 600, cursor: "pointer", marginBottom: 14 }}>
+              <span>Out of service</span><span style={{ fontSize: 11, fontWeight: 700 }}>{editTable.out_of_service ? "ON" : "OFF"}</span>
+            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => delTable(editTable.id)} style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: 11, borderRadius: 11, background: "transparent", border: "1px solid #232B38", color: "#D98A6A", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Trash2 size={13} />Delete</button>
+              <button onClick={() => setEditTable(null)} style={{ flex: 1.3, padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Done</button>
             </div>
           </div>
         </div>
@@ -13608,7 +13672,7 @@ function FloorView({ cid }) {
   const fmtT=(iso)=>new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 
   const seatedCount = roomTables.filter(t=>seatedFor(t.id)).length;
-  const freeCount = roomTables.filter(t=>!bookingFor(t.id)).length;
+  const freeCount = roomTables.filter(t=>!bookingFor(t.id)&&!t.out_of_service).length;
   const reservedCount = roomTables.filter(t=>!seatedFor(t.id)&&bookingFor(t.id)).length;
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
@@ -13658,15 +13722,17 @@ function FloorView({ cid }) {
           {roomTables.length===0 && <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", color:th.text3, fontSize:12.5, textAlign:"center", padding:20 }}>{mode==='edit'?L("Add tables, then drag them into your layout.","أضف الطاولات ثم اسحبها إلى مكانها."):L("No tables yet — switch to Edit layout to add them.","لا طاولات بعد — انتقل إلى تعديل المخطط لإضافتها.")}</div>}
           {roomTables.map(t=>{
             const seated=seatedFor(t.id); const resv=bookingFor(t.id);
-            const occupied=!!seated; const reserved=!occupied&&!!resv;
-            const bg=occupied?'rgba(16,185,129,0.16)':reserved?'rgba(110,140,171,0.16)':th.card2;
-            const bd=occupied?th.success:reserved?th.accent:th.border;
+            const oos=!!t.out_of_service;
+            const occupied=!oos&&!!seated; const reserved=!oos&&!occupied&&!!resv;
+            const bg=oos?th.card2:occupied?'rgba(16,185,129,0.16)':reserved?'rgba(110,140,171,0.16)':th.card2;
+            const bd=oos?th.border:occupied?th.success:reserved?th.accent:th.border;
             const round=t.shape==='round'; const wide=t.shape==='rect';
             return (
-              <div key={t.id} onPointerDown={(e)=>onDown(e,t)} onClick={()=>{ if(mode==='host'){ armed?seatArmed(t):setSelTable(t.id); } }}
-                style={{ position:"absolute", left:t.pos_x, top:t.pos_y, width:wide?86:56, height:56, borderRadius:round?"50%":12, border:`1.5px solid ${bd}`, background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:mode==='edit'?'grab':'pointer', userSelect:"none", boxShadow:selTable===t.id?`0 0 0 2px ${th.accent}66`:"none", touchAction:"none" }}>
-                <div style={{ fontSize:12, fontWeight:700, color:th.text }}>{t.name}</div>
-                {occupied ? <div style={{ fontSize:8, color:th.success, fontWeight:600 }}>{elapsed(seated.seated_at)}</div>
+              <div key={t.id} onPointerDown={(e)=>onDown(e,t)} onClick={()=>{ if(mode==='host'){ if(oos) return; armed?seatArmed(t):setSelTable(t.id); } }}
+                style={{ position:"absolute", left:t.pos_x, top:t.pos_y, width:wide?86:56, height:56, borderRadius:round?"50%":12, border:`1.5px ${oos?'dashed':'solid'} ${bd}`, background:bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", cursor:mode==='edit'?'grab':(oos?'not-allowed':'pointer'), userSelect:"none", opacity:oos?0.6:1, boxShadow:selTable===t.id?`0 0 0 2px ${th.accent}66`:"none", touchAction:"none" }}>
+                <div style={{ fontSize:12, fontWeight:700, color:oos?th.text3:th.text }}>{t.name}</div>
+                {oos ? <div style={{ fontSize:7.5, color:th.text3, fontWeight:700, letterSpacing:".04em" }}>{L("OUT","خارج")}</div>
+                  : occupied ? <div style={{ fontSize:8, color:th.success, fontWeight:600 }}>{elapsed(seated.seated_at)}</div>
                   : reserved ? <div style={{ fontSize:8, color:th.accent, fontWeight:600 }}>{fmtT(resv.starts_at)}</div>
                   : <div style={{ fontSize:8, color:th.text3 }}>{t.seats}p</div>}
               </div>
@@ -13719,8 +13785,9 @@ function FloorView({ cid }) {
                     <button key={sh} onClick={()=>updTable(selT.id,{ shape:sh })} style={tbtn(selT.shape===sh)}>{lbl}</button>
                   ))}
                 </div>
+                <button onClick={()=>updTable(selT.id,{ out_of_service: !selT.out_of_service })} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 12px", borderRadius:9, marginBottom:11, background: selT.out_of_service?"rgba(199,148,43,.12)":th.card2, border:`1px solid ${selT.out_of_service?'#C7942B':th.border}`, color: selT.out_of_service?'#C7942B':th.text, fontSize:12, fontWeight:600, cursor:"pointer" }}><span>{L("Out of service","خارج الخدمة")}</span><span style={{ fontSize:11, fontWeight:700 }}>{selT.out_of_service?L("ON","مفعّل"):L("OFF","معطّل")}</span></button>
                 <button onClick={()=>delTable(selT.id)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:'#D98A6A', fontSize:12, fontWeight:600, cursor:"pointer" }}><Trash2 size={13}/>{L("Delete","حذف")}</button>
-              </>) : <div style={{ fontSize:12, color:th.text3, lineHeight:1.6 }}>{L("Tap + Add table, then drag tables to arrange your floor. Tap a table to rename, set seats & shape, or delete.","اضغط إضافة طاولة ثم اسحب الطاولات لترتيب مخططك. اضغط على طاولة لإعادة التسمية وضبط المقاعد والشكل أو الحذف.")}</div>}
+              </>) : <div style={{ fontSize:12, color:th.text3, lineHeight:1.6 }}>{L("Tap + Add table, then drag tables to arrange your floor. Tap a table to rename, set seats & shape, mark out of service, or delete.","اضغط إضافة طاولة ثم اسحب الطاولات لترتيب مخططك. اضغط على طاولة لإعادة التسمية وضبط المقاعد والشكل أو وضعها خارج الخدمة أو الحذف.")}</div>}
             </div>
           )}
         </div>
@@ -14547,4 +14614,551 @@ function ClientApprovalPage({ token }) {
 
   const DEMO = { agency:{ name:"Octo Fusion", logo:null }, client:{ name:"Tawaslo Beach Resort" }, month:"June 2026", expires:7, firstDow:1, days:30,
     posts:[
-      { id:"d2", day:"Tue", date:2, time:"6:00 PM", pl
+      { id:"d2", day:"Tue", date:2, time:"6:00 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#7FC9A8)"], caption:"Golden hour hits different by the water. Book your June staycation and watch the sun melt into the Gulf.", tags:"#TawasloBeach #SunsetVibes", status:"pending" },
+      { id:"d4", day:"Thu", date:4, time:"1:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#5A3B2C,#B5824E)"], caption:"Bottomless weekend brunch is back. Fresh seafood, live grill and a sea view that does the talking.", tags:"#BrunchBH #Manama", status:"pending" },
+      { id:"d6", day:"Sat", date:6, time:"5:00 PM", platform:"ig", type:"Carousel", media:["linear-gradient(135deg,#2C3E4F,#5B7BA8)","linear-gradient(135deg,#3A2C4F,#7B5BA8)","linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Three reasons to spend Saturday poolside. Swipe for the cabana, the cocktails and the calm.", tags:"#PoolDay #SummerBH", status:"pending" },
+      { id:"d11", day:"Thu", date:11, time:"12:00 PM", platform:"fb", type:"Single", media:["linear-gradient(135deg,#2C4F3A,#5BA882)"], caption:"Celebrate Eid by the sea. Two nights, breakfast for two and late checkout.", tags:"#EidBH", status:"pending" },
+      { id:"d13", day:"Sat", date:13, time:"6:00 PM", platform:"ig", type:"Single", media:["linear-gradient(135deg,#4F2C3A,#A85B74)"], caption:"Switch off this weekend. Our signature 60 minute ritual is 20 percent off through June.", tags:"#SpaDay #SelfCare", status:"pending" },
+      { id:"d20", day:"Sat", date:20, time:"5:30 PM", platform:"ig", type:"Reel", media:["linear-gradient(135deg,#2C4A63,#4F9EC9)"], caption:"From above, the blue goes on forever. Your summer starts here.", tags:"#SeaView #DroneBH", status:"pending" },
+    ] };
+
+  const [data, setData] = useState(null);
+  const [view, setView] = useState("cal");
+  const [cur, setCur] = useState(null);
+  const [slide, setSlide] = useState(0);
+  const [commenting, setCommenting] = useState(false);
+  const [comment, setComment] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
+  const touch = useRef(null);
+
+  useEffect(() => { let live = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"load", token }) });
+        const d = await r.json();
+        if (live) {
+          if (d && Array.isArray(d.posts) && d.posts.length) setData(d);
+          else if (token === "preview" || token === "demo") setData(DEMO);   // explicit demo link only
+          else setData({ ...(d || {}), posts: [], empty: true });            // real link, nothing queued yet
+        }
+      } catch (e) { if (live) setData(token === "preview" || token === "demo" ? DEMO : { posts: [], empty: true, error: true }); }
+    })();
+    return () => { live = false; };
+  }, [token]); // eslint-disable-line
+
+  const PC = { ig:"#C13584", fb:"#1877F2" }, PN = { ig:"Instagram", fb:"Facebook" };
+  const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E" };
+  const isVid = (m) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(m || "");
+  const mediaBg = (m) => (isVid(m) ? "#0C1420" : (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A")));
+  // Renders a video frame (so reels/clips show a real cover) or an image background.
+  const VidCover = ({ m }) => isVid(m) ? <video src={m} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/> : null;
+
+  if (!data) return <div style={{ minHeight:"100vh", background:"#0A0F18", display:"flex", alignItems:"center", justifyContent:"center", color:"#9CB3C9", fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
+
+  const posts = data.posts || [];
+  const byDate = {}; posts.forEach(p => { byDate[p.date] = p; });
+  const pendingN = posts.filter(p => p.status === "pending" || p.status === "revised").length;
+  const approvedN = posts.filter(p => p.status === "approved").length;
+
+  const respond = (id, decision, note) => {
+    setData(prev => ({ ...prev, posts: prev.posts.map(p => p.id === id ? { ...p, status:decision, comment:note || p.comment } : p) }));
+    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respond", token, postId:id, decision, comment:note || "" }) }); } catch (e) { /* ignore */ }
+  };
+  const respondAll = (decision, note) => {
+    setData(prev => ({ ...prev, posts: prev.posts.map(p => (p.status === "pending" || p.status === "revised") ? { ...p, status:decision, comment: note || p.comment } : p) }));
+    try { fetch("/api/cron", { method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify({ action:"respondAll", token, decision, comment: note || "" }) }); } catch (e) { /* ignore */ }
+  };
+
+  const openPost = (id) => { setCur(id); setSlide(0); setCommenting(false); setComment(""); setView("post"); window.scrollTo(0, 0); };
+  const P = posts.find(x => x.id === cur);
+
+  const wrap = { minHeight:"100vh", background:"#0A0F18", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
+  const inner = { maxWidth: 700, margin:"0 auto" };
+  const ag = data.agency || {}, cl = data.client || {};
+
+  const header = (
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: phone ? 14 : 18 }}>
+      {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:"#4F6B8C", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
+      <span style={{ fontSize:14, fontWeight:600 }}>{ag.name || "Your agency"}</span>
+      <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:"#8FB0C9", background:"rgba(79,107,140,0.16)", padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
+    </div>
+  );
+
+  const statDot = (st) => <span style={{ width:7, height:7, borderRadius:"50%", background:SC[st]||"#E0B973", flexShrink:0 }}/>;
+
+  if (data.empty) return (
+    <div style={wrap}><div style={inner}>{header}
+      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, padding:"46px 24px", textAlign:"center" }}>
+        <Clock size={26} color="#5C7082" style={{ marginBottom:12 }}/>
+        <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
+        <div style={{ fontSize:12.5, color:"#9CB3C9", lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#7E94A8", marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
+      </div>
+    </div></div>
+  );
+
+  if (view === "post" && P) {
+    const multi = (P.media || []).length > 1;
+    const story = P.type === "Story";
+    const done = P.status === "approved" || P.status === "changes";
+    return (
+      <div style={wrap}><div style={{ maxWidth:440, margin:"0 auto" }}>
+        <div onClick={()=>setView("cal")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:"#9CB3C9", fontSize:12.5, cursor:"pointer" }}><ArrowLeft size={16}/>Back to {data.month || "calendar"}<span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5 }}><Clock size={13}/>{P.day} {P.date} &middot; {P.time}</span></div>
+        {P.status === "revised" && <div style={{ background:"rgba(201,162,78,0.1)", border:"0.5px solid rgba(201,162,78,0.34)", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:11.5, color:"#E6D6AE" }}><Sparkles size={13} style={{ verticalAlign:-2 }}/> Updated since you last saw it. Please take another look.</div>}
+        <div style={{ background:"#fff", borderRadius:14, overflow:"hidden", border: P.status==="revised" ? "1.5px solid #C9A24E" : "0.5px solid rgba(0,0,0,0.1)" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
+            <span style={{ width:32, height:32, borderRadius:"50%", padding:2, background:"linear-gradient(45deg,#F58529,#DD2A7B,#8134AF)" }}><span style={{ display:"block", width:"100%", height:"100%", borderRadius:"50%", background:"#4F6B8C", color:"#fff", fontSize:12, display:"flex", alignItems:"center", justifyContent:"center" }}>{(cl.name||"C")[0]}</span></span>
+            <span style={{ lineHeight:1.2 }}><span style={{ display:"block", fontSize:13, fontWeight:600, color:"#111" }}>{(cl.handle)||(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span><span style={{ display:"block", fontSize:11, color:"#888" }}>{PN[P.platform]}</span></span>
+            <span style={{ marginLeft:"auto", fontSize:18, color:"#222" }}>&middot;&middot;&middot;</span>
+          </div>
+          <div
+            onTouchStart={(e)=>{ touch.current = e.touches[0].clientX; }}
+            onTouchEnd={(e)=>{ if (touch.current == null) return; const dx = e.changedTouches[0].clientX - touch.current; if (dx < -40 && slide < P.media.length-1) setSlide(slide+1); else if (dx > 40 && slide > 0) setSlide(slide-1); touch.current = null; }}
+            style={{ aspectRatio: story ? "9 / 16" : "1 / 1", maxHeight: phone ? "66vh" : 430, background: mediaBg(P.media[slide]), position:"relative", display:"flex", alignItems:"flex-end", justifyContent:"center", overflow:"hidden", touchAction:"pan-y" }}>
+            <VidCover m={P.media[slide]}/>
+            <span style={{ position:"absolute", top:12, right:12, background:"rgba(0,0,0,0.4)", color:"#fff", fontSize:10.5, padding:"3px 10px", borderRadius:20 }}>{multi ? (slide+1)+"/"+P.media.length : P.type}</span>
+            {multi && slide>0 && <span onClick={()=>setSlide(slide-1)} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronLeft size={18}/></span>}
+            {multi && slide<P.media.length-1 && <span onClick={()=>setSlide(slide+1)} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", width:30, height:30, borderRadius:"50%", background:"rgba(255,255,255,0.85)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", color:"#222" }}><ChevronRight size={18}/></span>}
+            {multi && <span style={{ position:"absolute", bottom:12, left:0, right:0, display:"flex", justifyContent:"center", gap:5 }}>{P.media.map((_,k)=><span key={k} style={{ width:k===slide?16:6, height:6, borderRadius:6, background:k===slide?"#4F6B8C":"rgba(255,255,255,0.6)", transition:"width .2s" }}/>)}</span>}
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:15, padding:"10px 13px 4px", color:"#222", fontSize:20 }}><Heart size={20}/><MessageCircle size={20}/><Send size={20}/><Bookmark size={20} style={{ marginLeft:"auto" }}/></div>
+          <div style={{ padding:"2px 13px 14px", fontSize:13, color:"#111", lineHeight:1.5 }}><span style={{ fontWeight:600 }}>{(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span> {P.caption} <span style={{ color:"#385185" }}>{P.tags}</span></div>
+        </div>
+        <div style={{ marginTop:14 }}>
+          {done ? (
+            <div style={{ textAlign:"center", padding:12, borderRadius:11, background: P.status==="approved"?"rgba(95,191,146,0.12)":"rgba(217,138,106,0.12)", border:`0.5px solid ${P.status==="approved"?"rgba(95,191,146,0.4)":"rgba(217,138,106,0.4)"}`, color:P.status==="approved"?"#7FCFA6":"#D98A6A", fontSize:13, fontWeight:600 }}>{P.status==="approved" ? "Approved — thank you" : "Changes requested"}</div>
+          ) : commenting ? (
+            <div>
+              <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="What would you like changed?" style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                <button onClick={()=>setCommenting(false)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>{ respond(P.id, "changes", comment.trim()); }} style={{ flex:1, padding:"12px", borderRadius:11, background:"#4F6B8C", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>Send request</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setCommenting(true)} style={{ flex:1, background:"transparent", border:"0.5px solid rgba(150,175,205,0.32)", color:"#CFE0F0", fontSize:13, padding:12, borderRadius:11, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>respond(P.id, "approved")} style={{ flex:1, background:"#2F6E54", border:"none", color:"#fff", fontSize:13, fontWeight:600, padding:12, borderRadius:11, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><CheckCircle size={15}/>Approve this post</button>
+            </div>
+          )}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:"#7E94A8", marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+      </div></div>
+    );
+  }
+
+  const agendaRow = (p) => (
+    <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:"0.5px solid rgba(150,175,205,0.1)", cursor:"pointer" }}>
+      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}>{isVid(p.media[0]) && <span style={{ position:"absolute", inset:0, borderRadius:11, overflow:"hidden" }}><VidCover m={p.media[0]}/></span>}<span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
+      <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:"#7E94A8", marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
+      {p.status==="approved" ? <CheckCircle size={17} color="#5FBF92"/> : p.status==="revised" ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#C9A24E", background:"rgba(201,162,78,0.16)", padding:"3px 8px", borderRadius:20 }}><Sparkles size={11}/>New</span> : statDot(p.status)}
+      <ChevronRight size={16} color="#5C7082"/>
+    </div>
+  );
+
+  const calGrid = () => {
+    const dows = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
+    const cells = [];
+    for (let i=0;i<(data.firstDow||1);i++) cells.push(<div key={"b"+i}/>);
+    for (let d=1; d<=(data.days||30); d++) {
+      const p = byDate[d];
+      if (p) {
+        const c = SC[p.status]||"#E0B973", rev = p.status==="revised";
+        cells.push(<div key={d} onClick={()=>openPost(p.id)} style={{ minHeight:62, border: rev?"1px solid #C9A24E":`0.5px solid ${c}55`, borderRadius:9, padding:"5px 6px", background:c+(rev?"14":"10"), cursor:"pointer", position:"relative" }}>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#CFE0F0", marginBottom:3 }}>{d}</div>
+          <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]), position:"relative", overflow:"hidden" }}><VidCover m={p.media[0]}/></div>
+          {rev ? <span style={{ position:"absolute", top:4, right:4, display:"inline-flex", alignItems:"center", gap:2, fontSize:8, color:"#C9A24E", background:"rgba(201,162,78,0.22)", padding:"2px 5px", borderRadius:9 }}><Sparkles size={9}/>New</span>
+            : p.status==="approved" ? <span style={{ position:"absolute", top:5, right:5 }}><CheckCircle size={13} color="#5FBF92"/></span>
+            : <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:c }}/>}
+        </div>);
+      } else cells.push(<div key={d} style={{ minHeight:62, border:"0.5px solid rgba(150,175,205,0.08)", borderRadius:9, padding:"5px 6px" }}><div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#5C7388" }}>{d}</div></div>);
+    }
+    return (<div style={{ padding:"14px 16px 6px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, marginBottom:5 }}>{dows.map(d=><div key={d} style={{ textAlign:"center", fontSize:10, color:"#6E869C" }}>{d}</div>)}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, paddingBottom:12 }}>{cells}</div>
+    </div>);
+  };
+
+  return (
+    <div style={wrap}><div style={inner}>
+      {header}
+      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, overflow:"hidden" }}>
+        <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:"0.5px solid rgba(150,175,205,0.12)" }}>
+          <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+            <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:"#9CB3C9", marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
+            {pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
+              <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
+            </div>}
+          </div>
+          {pendingN>0 && bulkOpen && (
+            <div style={{ marginTop:13 }}>
+              <div style={{ fontSize:12, color:"#9CB3C9", marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
+              <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <div style={{ display:"flex", gap:10, marginTop:10 }}>
+                <button onClick={()=>{ setBulkOpen(false); setBulkNote(""); }} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>{ respondAll("changes", bulkNote.trim()); setBulkOpen(false); setBulkNote(""); }} disabled={!bulkNote.trim()} style={{ flex:1, padding:"12px", borderRadius:11, background: bulkNote.trim()?"#4F6B8C":"#243140", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor: bulkNote.trim()?"pointer":"not-allowed", opacity: bulkNote.trim()?1:0.6 }}>Send request</button>
+              </div>
+            </div>
+          )}
+        </div>
+        {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
+        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+      </div>
+    </div></div>
+  );
+}
+
+export default function TawasloApp() {
+  const [dark,      setDark]      = useState(() => { try { return localStorage.getItem('tw_theme') !== 'light'; } catch(e){ return true; } });
+  useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
+  const [lang,      setLang]      = useState("en");
+  const [showLanding, setShowLanding] = useState(() => { try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
+  const [mobileNav, setMobileNav] = useState(false);
+  const [isAuthed,  setIsAuthed]  = useState(false);
+  const [authPage,  setAuthPage]  = useState("login");
+  const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
+  const [mode,      setMode]      = useState("agency");
+  const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
+  const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
+  const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
+  const [userEmail, setUserEmail] = useState(null);
+  const [userName,  setUserName]  = useState("");
+  const [userPlan,  setUserPlan]  = useState("");
+  const [userCompany, setUserCompany] = useState("");
+  const [clients,   setClients]   = useState([]);
+  const [accountType, setAccountType] = useState("agency");
+  const [selPlatform, setSelPlatform] = useState("all"); // shared client/platform context-bar filter
+  const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
+  const isAdminUser = userEmail === ADMIN_EMAIL;
+
+  // Load the signed-in user's real brands + decide which app (client vs admin) to show
+  const loadWorkspace = async (user, fresh) => {
+    setUserEmail(user.email || null);
+    const { data: prof } = await getProfile(user.id);
+    setAccountType(prof?.account_type || "agency");
+    setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
+    setUserPlan(prof?.plan || "");
+    setUserCompany(prof?.company || prof?.company_name || prof?.agency_name || "");
+    // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
+    if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
+    const { data: rows } = await getClients(user.id);
+    // Count the real connected accounts per brand so the sidebar shows a true number, not 0.
+    const ids = (rows || []).map(c => c.id).filter(Boolean);
+    let countByClient = {};
+    if (ids.length) {
+      try {
+        const { data: accs } = await supabase.from('social_accounts').select('client_id').in('client_id', ids).neq('is_active', false);
+        (accs || []).forEach(a => { countByClient[a.client_id] = (countByClient[a.client_id] || 0) + 1; });
+      } catch (e) { /* ignore */ }
+    }
+    const norm = (rows || []).map(c => ({
+      ...c,
+      free: c.is_free ?? false,
+      accounts: countByClient[c.id] ?? (c.accounts ?? 0),
+      posts: c.posts ?? 0,
+      reach: c.reach ?? "—",
+      health: c.health ?? 100,
+      spend: c.spend ?? 0,
+    }));
+    setClients(norm);
+    // Preserve the user's current brand selection across reloads/auth refreshes —
+    // only fall back to the first brand on the very first load (no real selection yet).
+    if (norm.length) setSelClient(prev => {
+      const keep = prev && prev.id && norm.find(c => c.id === prev.id);
+      if (keep) return keep;
+      // On a fresh reload prev has no real id — restore the last-selected brand from storage.
+      let storedId = null; try { storedId = localStorage.getItem('tw_selclient'); } catch (e) {}
+      const stored = storedId && norm.find(c => String(c.id) === String(storedId));
+      return stored || norm[0];
+    });
+    const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
+    const owner = onAdminHost && user.email === ADMIN_EMAIL;
+    setMode(owner ? "owner" : "agency");
+    // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
+    // A page reload also fires a SIGNED_IN event, which would otherwise yank the user to the
+    // home page. Keep their last page when one is saved (reload); only land on home for a
+    // genuine fresh login — logout clears tw_page, so `saved` is null in that case.
+    if (fresh) {
+      const home = owner ? "overview" : "dashboard";
+      let saved = null; try { saved = sessionStorage.getItem('tw_page'); } catch (e) {}
+      const target = saved || home;
+      try { sessionStorage.setItem('tw_page', target); } catch (e) {}
+      setPage(target);
+    }
+  };
+
+  // Restore session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setIsAuthed(true);
+        loadWorkspace(session.user);
+      }
+      setAuthReady(true);
+    });
+    // Listen for auth changes (e.g. email confirmation callback)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { setRecovery(true); setAuthPage('recovery'); setAuthReady(true); return; }
+      setIsAuthed(!!session?.user);
+      if (session?.user) loadWorkspace(session.user, event === 'SIGNED_IN');
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Remember the selected brand across reloads so a refresh keeps you on the same client.
+  useEffect(() => { try { if (selClient && selClient.id) localStorage.setItem('tw_selclient', String(selClient.id)); } catch (e) {} }, [selClient]);
+
+  // Auto sign-out after inactivity — keeps the workspace secure if the laptop is
+  // left open, closed, or goes to sleep. Resets on any activity; also checks on
+  // wake (visibility change) in case timers were paused while asleep.
+  useEffect(() => {
+    if (!isAuthed) return;
+    // "Remember me" keeps the user signed in — skip the idle auto sign-out. When it's off, the
+    // workspace still locks after 30 minutes of inactivity for security.
+    let remembered = true; try { remembered = localStorage.getItem('tw_remember') !== '0'; } catch (e) {}
+    if (remembered) return;
+    const IDLE_MS = 30 * 60 * 1000;
+    let timer, last = Date.now();
+    const doLogout = async () => { try { sessionStorage.removeItem('tw_page'); } catch (e) {} try { await signOut(); } catch (e) {} setIsAuthed(false); };
+    const reset = () => { last = Date.now(); clearTimeout(timer); timer = setTimeout(doLogout, IDLE_MS); };
+    const onVis = () => { if (document.visibilityState === 'visible' && Date.now() - last > IDLE_MS) doLogout(); else reset(); };
+    const evts = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    evts.forEach(e => window.addEventListener(e, reset, { passive: true }));
+    document.addEventListener('visibilitychange', onVis);
+    reset();
+    return () => { clearTimeout(timer); evts.forEach(e => window.removeEventListener(e, reset)); document.removeEventListener('visibilitychange', onVis); };
+  }, [isAuthed]);
+
+  // Remember that the user is inside the app, so a refresh keeps them here instead of bouncing to the landing page.
+  useEffect(() => {
+    try {
+      if (isAuthed && !showLanding) sessionStorage.setItem('tw_in_app', '1');
+      else if (!isAuthed) sessionStorage.removeItem('tw_in_app');
+    } catch (e) { /* ignore */ }
+  }, [isAuthed, showLanding]);
+
+  useEffect(() => { if (recovery) setAuthPage('recovery'); }, [recovery]);
+
+  useEffect(() => {
+    try {
+      const u = new URL(window.location.href);
+      if (u.searchParams.get('tap_return') || u.searchParams.get('tap_id')) {
+        if (sessionStorage.getItem('tw_pending_topup')) {
+          // One-time image top-up — add the credits and return to AI Studio.
+          applyPendingTopup();
+          setPage('aistudio');
+        } else {
+          sessionStorage.setItem('tw_pay', 'success');
+          try { localStorage.setItem('tw_sub_active', '1'); } catch (e) { /* ignore */ }
+          setPage('billing');
+        }
+        ['tap_return','tap_id','tap_status'].forEach(k => u.searchParams.delete(k));
+        window.history.replaceState({}, '', u.pathname);
+      }
+    } catch (e) { /* ignore */ }
+  }, []);
+
+  const th = dark ? DARK : LIGHT;
+  const isMobile = useIsMobile();
+
+  const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
+  const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
+
+  const ctx = {
+    dark, setDark, lang, setLang,
+    t: (k, fb) => (TR[lang] && TR[lang][k]) || TR.en[k] || fb || k,
+    isAuthed, setIsAuthed,
+    recovery, setRecovery,
+    authPage, setAuthPage,
+    mode, setMode: saveMode,
+    page, setPage: savePage,
+    selClient, setSelClient,
+    clients, setClients,
+    accountType, userEmail,
+    userName, setUserName,
+    userPlan, userCompany,
+    selPlatform, setSelPlatform,
+    setShowLanding,
+    mobileNav, setMobileNav,
+  };
+
+  const renderPage = () => {
+    if (mode==="owner") {
+      if (page==="overview") return <OwnerDashboard/>;
+      if (page==="clients")  return <OwnerClientsPage/>;
+      if (page==="promos")   return <OwnerPromosPage/>;
+      if (page==="gifts")    return <OwnerGiftsPage/>;
+      if (page==="support")  return <OwnerSupportPage/>;
+      if (page==="revenue")  return <OwnerRevenuePage/>;
+      if (page==="apiusage") return <OwnerApiUsagePage/>;
+      if (page==="team")     return <OwnerTeamPage/>;
+      if (page==="settings") return <SettingsPage/>;
+      return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
+    }
+    if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
+    if (page==="clients") return <ClientsPage/>;
+    if (page==="social") return <SocialAccountsPage/>;
+    if (page==="business") return <BusinessProfilePage/>;
+    if (page==="linkbio") return <LinkInBioBuilderPage/>;
+    if (page==="menu") return <MenuBuilderPage/>;
+    if (page==="reservations") return <ReservationsPage/>;
+    if (page==="shortlinks") return <ShortLinksPage/>;
+    if (page==="suggested") return <SuggestedPage/>;
+    if (page==="whatsapp") return <WhatsAppPage/>;
+    if (page==="reelstudio") return <ReelStudioPage/>;
+    if (page==="competitor") return <CompetitorSpyPage/>;
+    if (page==="publisher") return <PublisherPage/>;
+    if (page==="planner") return <CalendarPage/>;
+    if (page==="approvals") return <ApprovalsPage/>;
+    if (page==="calendar") return <CalendarRoomPage/>;
+    if (page==="aistudio") return <AIStudioPage/>;
+    if (page==="campaigns") return <CampaignsPage/>;
+    if (page==="streams") return <StreamsPage/>;
+    if (page==="media") return <MediaPage/>;
+    if (page==="analytics") return <AnalyticsPage/>;
+    if (page==="ads") return <AdsPage/>;
+    if (page==="reports") return <ReportsPage/>;
+    if (page==="inbox") return <InboxPage/>;
+    if (page==="listening") return <TrendingPage/>;
+    if (page==="agencyteam") return <TeamPage/>;
+    if (page==="billing") return <BillingPage/>;
+    if (page==="agencysets") return <SettingsPage/>;
+    const SOON = {
+      streams: { Icon:Radio, title:"Streams", desc:"Monitor mentions, hashtags and keywords across your connected networks in live, side-by-side columns \u2014 a real-time pulse of every conversation about your brand.", features:["Custom keyword & hashtag columns","Brand mention monitoring","Side-by-side multi-network view"], ctaLabel:"Open Listening", ctaPage:"listening" },
+      campaigns: { Icon:Megaphone, title:"Campaigns", desc:"Group posts into campaigns, track them together, and measure performance against a goal \u2014 perfect for launches, seasonal pushes and client retainers.", features:["Bundle posts into one campaign","Campaign-level analytics","Goal & budget tracking"], ctaLabel:"Plan a post", ctaPage:"planner" },
+      aistudio: { Icon:Wand2, title:"AI Studio", desc:"A dedicated home for AI content \u2014 generate captions, hashtags, image ideas and full content calendars in Arabic & English, tuned to each brand's voice.", features:["Bulk AI caption generation","Bilingual content ideas (AR / EN)","AI image prompt suggestions"], ctaLabel:"Try the AI writer", ctaPage:"publisher" },
+    };
+    const cfg = SOON[page] || { Icon:Settings, title:page.charAt(0).toUpperCase()+page.slice(1), desc:"This feature is on the way." };
+    return <Placeholder icon={cfg.Icon} badge="Coming soon" title={cfg.title} description={cfg.desc} features={cfg.features} ctaLabel={cfg.ctaLabel} ctaPage={cfg.ctaPage}/>;
+  };
+
+  // Public client approval link (tawaslo.com/a/<token>) — no login, renders
+  // before the auth gate so clients open it straight away.
+  const apprMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/a\/([A-Za-z0-9_-]+)/);
+  if (apprMatch) return <ClientApprovalPage token={apprMatch[1]} dark={dark}/>;
+
+  // Public shareable engagement report (tawaslo.com/r/<token>) — no login.
+  const repMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
+  if (repMatch) return <ClientReportPage token={repMatch[1]}/>;
+
+  // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
+  const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
+  if (bioMatch) return <LinkInBioPage slug={bioMatch[1]}/>;
+
+  // Public digital menu (tawaslo.com/menu/<slug>) — no login.
+  const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
+  if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
+
+  // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
+  const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
+  if (resMatch) return <ReservePublicPage slug={resMatch[1]}/>;
+
+  // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
+  const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
+  if (hostMatch) return <HostStandPage slug={hostMatch[1]}/>;
+
+  // Public branded client portal (tawaslo.com/portal/<token>) — no login.
+  const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);
+  if (portalMatch) return <ClientPortalPage token={portalMatch[1]}/>;
+
+  // Public self-serve bio creator (tawaslo.com/create) — no login.
+  const createMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/create\/?$/);
+  if (createMatch) return <CreateBioPage/>;
+
+  // Branded short link (tawaslo.com/s/<code>) — count the click and forward.
+  const shortMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)/);
+  if (shortMatch) return <ShortLinkRedirect code={shortMatch[1]}/>;
+
+  // Free public AI caption generator (tawaslo.com/free-caption-generator) — no login, SEO lead magnet.
+  const capToolMatch = typeof window !== "undefined" && /^\/free-caption-generator\/?$/.test(window.location.pathname);
+  if (capToolMatch) return <FreeCaptionTool/>;
+
+  // Public info pages (no login) — pricing + legal pages required for Paddle verification.
+  if (typeof window !== "undefined") {
+    const pth = window.location.pathname;
+    if (/^\/pricing\/?$/.test(pth)) return <PublicInfoPage kind="pricing"/>;
+    if (/^\/terms\/?$/.test(pth)) return <PublicInfoPage kind="terms"/>;
+    if (/^\/privacy\/?$/.test(pth)) return <PublicInfoPage kind="privacy"/>;
+    if (/^\/refund\/?$/.test(pth)) return <PublicInfoPage kind="refund"/>;
+  }
+
+  // Don't render anything until we've checked the session
+  if (!authReady) return null;
+
+  // Password reset link → show the set-new-password screen
+  if (recovery) {
+    return (<AppCtx.Provider value={ctx}><AuthPage/></AppCtx.Provider>);
+  }
+
+  // admin.tawaslo.com is the private Super Admin console — only the admin email may enter
+  if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:900,marginBottom:8}}>Restricted area</div>
+            <div style={{fontSize:13,color:th.text2,marginBottom:18}}>This is the Tawaslo admin console. Your account doesn't have access.</div>
+            <a href="https://www.tawaslo.com" style={{color:th.accent,fontSize:13,fontWeight:700,textDecoration:"none"}}>Go to your dashboard →</a>
+          </div>
+        </div>
+      </AppCtx.Provider>
+    );
+  }
+
+  // The public site is always the entry point — even with a saved session, visitors
+  // land on the marketing page and choose to enter (never auto-dropped into an account).
+  // Admin console subdomain skips it and goes straight to its own login.
+  if (showLanding && !isAdminHost) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <LandingPage
+          onGetStarted={async ()=>{ if(isAuthed){ try{ await signOut(); }catch(e){} setIsAuthed(false); } setAuthPage('register'); setShowLanding(false); }}
+          onLogin={async ()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); setAuthPage('login'); setShowLanding(false); }}
+        />
+      </AppCtx.Provider>
+    );
+  }
+
+  // Admin subdomain → dedicated centered HQ login (not the user-facing auth screen)
+  if (isAdminHost && !isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <AdminLogin/>
+      </AppCtx.Provider>
+    );
+  }
+
+  if (!isAuthed) {
+    return (
+      <AppCtx.Provider value={ctx}>
+        <AuthPage/>
+      </AppCtx.Provider>
+    );
+  }
+
+  return (
+    <AppCtx.Provider value={ctx}>
+      <div style={{
+        display:"flex", height:"100vh",
+        background:th.bg, color:th.text,
+        fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",
+        direction:lang==="ar"?"rtl":"ltr",
+        transition:"all 0.3s", overflow:"hidden",
+      }}>
+        <Sidebar/>
+        <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <Topbar/>
+          {mode==="agency" && <TrialLifecycle/>}
+          {mode==="agency" && <TrialBanner/>}
+          {mode==="agency" && !["social","agencyteam","billing","agencysets","settings","clients"].includes(page) && <ContextBar/>}
+          <div className="tw-scroll-area" style={{flex:1,overflowY:"auto",padding:22}}>
+            <div key={mode+page} className="tw-page-in">{renderPage()}</div>
+          </div>
+        </div>
+      </div>
+    </AppCtx.Provider>
+  );
+}
+// build integrity check
