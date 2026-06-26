@@ -755,6 +755,8 @@ function Sidebar() {
       {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
       {key:"loyalty",   Icon:Gift,            label:"Loyalty", badge:null},
       {key:"reviews",   Icon:Star,            label:"Reviews", badge:null},
+      {key:"guests",    Icon:Users,           label:"Guests", badge:null},
+      {key:"filltables",Icon:Sparkles,        label:"Fill My Tables", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
@@ -12706,7 +12708,7 @@ function MenuBuilderPage() {
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
     const variants = (Array.isArray(editing.variants)?editing.variants:[]).map(v=>({ name:(v.name||"").trim(), price: v.price===""||v.price==null?null:Number(v.price) })).filter(v=>v.name);
     const addons = (Array.isArray(editing.addons)?editing.addons:[]).map(a=>({ name:(a.name||"").trim(), price: a.price===""||a.price==null?null:Number(a.price) })).filter(a=>a.name);
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, sort: editing.sort!=null?editing.sort:items.length };
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, margin_priority: editing.margin_priority||0, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -12801,6 +12803,15 @@ function MenuBuilderPage() {
             </label>
             {(menu&&menu.cover_url) && <button onClick={()=>updateMenu({ cover_url:null })} style={{ fontSize:12, color:th.text3, background:"transparent", border:"none", cursor:"pointer", textDecoration:"underline" }}>{L("Remove","إزالة")}</button>}
           </div>
+          <div style={{ flexBasis:"100%", height:0 }}/>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+            <input type="checkbox" checked={!!(menu&&menu.living_on)} onChange={e=>updateMenu({ living_on:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
+            <span style={{ fontSize:12, color:th.text2 }}>✨ {L("Living Menu — auto-tune by weather, popularity & margin","قائمة حيّة — ترتيب تلقائي حسب الطقس والرواج")}</span>
+          </label>
+          {(menu&&menu.living_on) && <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("City","المدينة")}</span>
+            <input value={(menu&&menu.city)||""} onChange={e=>updateMenu({ city:e.target.value })} placeholder={L("e.g. Manama — for live weather","مثلاً المنامة — لطقس مباشر")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none", width:200 }}/>
+          </div>}
         </div>
       )}
 
@@ -12959,6 +12970,10 @@ function MenuBuilderPage() {
               <option value="sold_out">{L("Sold out — shown, marked unavailable","نفد — يظهر معلّمًا غير متاح")}</option>
               <option value="hidden">{L("Hidden — not shown on the menu","مخفي — لا يظهر في القائمة")}</option>
             </select>
+            <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", marginTop:10 }}>
+              <input type="checkbox" checked={(editing.margin_priority||0)>0} onChange={e=>setEditing(ed=>({ ...ed, margin_priority: e.target.checked?10:0 }))} style={{ width:15, height:15, accentColor:th.accent, flexShrink:0 }}/>
+              <span style={{ fontSize:11.5, color:th.text2 }}>⭐ {L("Feature this dish — push it higher when Living Menu is on","ميّز هذا الطبق — يظهر أعلى عند تفعيل القائمة الحيّة")}</span>
+            </label>
             <div style={{ fontSize:10.5, color:th.text2, margin:"12px 0 6px" }}>{L("Dietary tags","وسوم غذائية")}</div>
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
               {DIET_TAGS.map(tg=>{ const on=(editing.tags||[]).includes(tg.k); return (
@@ -13072,6 +13087,26 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
   );
 }
 
+// Living Menu — free weather signal (open-meteo, no key) cached per city.
+async function twFetchWeather(city) {
+  if (!city) return null;
+  try {
+    const key = 'twwx_' + String(city).toLowerCase();
+    if (typeof window!=='undefined') { const c = window.localStorage.getItem(key); if (c) { const o = JSON.parse(c); if (Date.now()-o.t < 3*3600*1000) return o.w; } }
+    const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`).then(r=>r.json());
+    const loc = g && g.results && g.results[0]; if (!loc) return null;
+    const wx = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m`).then(r=>r.json());
+    const t = wx && wx.current && wx.current.temperature_2m; if (t==null) return null;
+    const w = { tempC: Math.round(t), hot: t>=30, cold: t<=16 };
+    if (typeof window!=='undefined') window.localStorage.setItem(key, JSON.stringify({ t: Date.now(), w }));
+    return w;
+  } catch(e) { return null; }
+}
+// Rough "thermal" read of a dish from its words — cooling vs warming.
+const TW_COOL_WORDS = ['iced','ice ','cold','chilled','salad','smoothie','juice','lemonade','frapp','gelato','sorbet','watermelon','yogurt','mojito','slush'];
+const TW_WARM_WORDS = ['soup','hot ','grill','stew','roast','curry','ramen','broth','baked','karak','coffee','latte','tea','fondue','hotpot'];
+const itemThermal = (it) => { const s = ((it.name_en||'')+' '+(it.name_ar||'')+' '+(it.description||'')).toLowerCase(); let h=0,w=0; TW_COOL_WORDS.forEach(k=>{ if(s.includes(k)) h++; }); TW_WARM_WORDS.forEach(k=>{ if(s.includes(k)) w++; }); return h>w?'cool':w>h?'warm':'neutral'; };
+
 // Per-restaurant menu palette — owner picks dark or light in the builder.
 const menuPalette = (t) => t==='light' ? {
   bg:"#F4F1EA", rail:"#EFEBE2", railBorder:"#E4DECF", card:"#FFFFFF", border:"#E7E1D3",
@@ -13099,6 +13134,8 @@ function MenuPublicPage({ slug }) {
   const [isDesktop, setIsDesktop] = useState(typeof window!=="undefined" && window.innerWidth>=768);
   const [chatOpen, setChatOpen] = useState(false);
   const [entered, setEntered] = useState(false);
+  const [weather, setWeather] = useState(null);
+  const [pop, setPop] = useState({});
   useEffect(() => { if (typeof window==="undefined") return; const onR=()=>setIsDesktop(window.innerWidth>=768); window.addEventListener('resize', onR); return ()=>window.removeEventListener('resize', onR); }, []);
   const sectionRefs = useRef({});
   useEffect(() => { if (typeof window==="undefined") return; try { const s = window.localStorage.getItem('twmenu_lang_'+slug); if (s) setDispLang(s); } catch(e){} }, [slug]);
@@ -13107,7 +13144,7 @@ function MenuPublicPage({ slug }) {
   const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -13118,6 +13155,17 @@ function MenuPublicPage({ slug }) {
     }, () => { if (live) setData(null); });
     return () => { live = false; };
   }, [slug]);
+
+  // Living Menu — pull the live weather + recent popularity once the menu loads.
+  useEffect(() => {
+    if (!data || !data.living_on) return;
+    let live = true;
+    (async () => {
+      const w = await twFetchWeather(data.city); if (live && w) setWeather(w);
+      try { const since = new Date(Date.now()-48*3600*1000).toISOString(); const { data: vs } = await supabase.from('menu_item_views').select('item_id').eq('menu_id', data.id).gte('created_at', since); if (live && vs) { const m={}; vs.forEach(r=>{ m[r.item_id]=(m[r.item_id]||0)+1; }); setPop(m); } } catch(e){}
+    })();
+    return () => { live = false; };
+  }, [data]); // eslint-disable-line
 
   const lang1 = (data&&data.lang1) || "en";
   const lang2 = (data&&data.lang2) || "ar";
@@ -13135,11 +13183,15 @@ function MenuPublicPage({ slug }) {
   const catDp = (data && data.cat_dayparts) || {};
   const sectionInTime = (c) => { const dp = catDp[c] || "all"; return dp==="all" || showAllDay || dp===nowDp; };
   const passFilter = (it) => filters.every(f => itemTags(it).includes(f));
-  const secItems = (sec) => items.filter(i => (i.category||'General')===sec && passFilter(i));
+  const living = !!(data && data.living_on);
+  const itemScore = (it) => { let s=0; s+=(it.margin_priority||0)*5; s+=(pop[it.id]||0)*3; if(weather){ const tm=itemThermal(it); if(weather.hot&&tm==='cool') s+=4; else if(weather.cold&&tm==='warm') s+=4; else if(weather.hot&&tm==='warm') s-=2; else if(weather.cold&&tm==='cool') s-=2; } return s; };
+  const secItems = (sec) => { const arr = items.filter(i => (i.category||'General')===sec && passFilter(i)); return living ? arr.slice().sort((a,b)=>itemScore(b)-itemScore(a)) : arr; };
   const sections = allSections.filter(c => sectionInTime(c) && secItems(c).length>0);
   const hiddenByTime = allSections.filter(c => !sectionInTime(c)).length;
   const presentTagKeys = Array.from(new Set(items.flatMap(itemTags)));
   const tagsPresent = [...DIET_TAGS.filter(t => presentTagKeys.includes(t.k)), ...presentTagKeys.filter(k => !dietTag(k)).map(resolveTag)];
+  const trendingItem = (living && Object.keys(pop).length) ? items.filter(i=>pop[i.id]).slice().sort((a,b)=>(pop[b.id]||0)-(pop[a.id]||0))[0] : null;
+  const livingBlurb = (it) => { if(!living||!weather) return null; const tm=itemThermal(it); if(weather.hot&&tm==='cool') return secondary?"منعش — مثالي لهذا الحر":"Light & cooling — made for this heat"; if(weather.cold&&tm==='warm') return secondary?"دافئ ومريح — مثالي الآن":"Warm & comforting — perfect right now"; return null; };
 
   useEffect(() => {
     if (!sections.length) return;
@@ -13159,7 +13211,7 @@ function MenuPublicPage({ slug }) {
     if (el) el.scrollIntoView({ behavior:"smooth", block:"start" });
     setTimeout(()=>{ clicking.current = false; }, 650);
   };
-  const openDetail = (it) => { setDetail(it); setPIdx(0); };
+  const openDetail = (it) => { setDetail(it); setPIdx(0); if (living && it && it.id) { setPop(p=>({ ...p, [it.id]:(p[it.id]||0)+1 })); try { supabase.from('menu_item_views').insert({ client_id:data.client_id, menu_id:data.id, item_id:it.id }); } catch(e){} } };
 
   const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", boxSizing:"border-box" };
   if (data === undefined) return <div style={{ ...wrap, padding:"30px 16px 60px", display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ fontSize:13, color:"#7E8794" }}>Loading…</div></div>;
@@ -13171,6 +13223,12 @@ function MenuPublicPage({ slug }) {
   const T = menuPalette(data.theme);
   const coverUrl = data.cover_url || null;
   const dpToggle = { display:"inline-flex", alignItems:"center", gap:5, border:`1px solid ${T.border}`, background:"transparent", color:T.text2, cursor:"pointer", fontSize:12, fontWeight:600, padding:"6px 11px", borderRadius:14, fontFamily: isRTLLang(altLang)?"'Cairo',sans-serif":undefined };
+  const livingStrip = (P) => (living && (weather || trendingItem)) ? (
+    <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", marginBottom:14 }}>
+      {weather && <span style={{ fontSize:11.5, color:P.text2, display:"inline-flex", alignItems:"center", gap:5, background:P.chipBg, border:`1px solid ${P.border}`, borderRadius:14, padding:"5px 11px" }}>{weather.hot?"☀️":weather.cold?"❄️":"⛅"} {weather.tempC}°C</span>}
+      {trendingItem && <span style={{ fontSize:11.5, color:"#3FB983", display:"inline-flex", alignItems:"center", gap:4 }}>↑ {secondary?"الأكثر طلباً":"Trending now"}: <b style={{ color:P.text, fontWeight:600 }}>{pickLang(trendingItem.name_en,trendingItem.name_ar)}</b></span>}
+    </div>
+  ) : null;
 
   return (
     <div style={wrap}>
@@ -13189,6 +13247,8 @@ function MenuPublicPage({ slug }) {
             <div style={{ minWidth:0 }}><div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#C7942B", fontWeight:700 }}>Today's special</div><div style={{ fontSize:13, color:"#ECEAE1", marginTop:1 }}>{data.special}</div></div>
           </div>
         )}
+
+        {livingStrip(menuPalette("dark"))}
 
         {(hiddenByTime>0 || tagsPresent.length>0) && (
           <div style={{ marginBottom:6 }}>
@@ -13306,6 +13366,7 @@ function MenuPublicPage({ slug }) {
                 <div style={{ minWidth:0 }}><div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#C7942B", fontWeight:700 }}>Today's special</div><div style={{ fontSize:13.5, color:T.text, marginTop:1 }}>{data.special}</div></div>
               </div>
             )}
+            {livingStrip(T)}
             {(hiddenByTime>0 || showAllDay || tagsPresent.length>0) && (
               <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", marginBottom:22 }}>
                 {nowDp && !showAllDay && <span style={{ fontSize:12, color:T.text2, display:"inline-flex", alignItems:"center", gap:6, marginInlineEnd:4 }}><Clock size={13}/>Now serving · <b style={{ color:T.text }}>{daypartName(nowDp)}</b></span>}
@@ -13827,6 +13888,291 @@ function LoyaltyPublicPage({ slug }) {
   );
 }
 
+// ── Fill My Tables (owner) — quiet-hour yield engine. Reads the next 2h of
+// occupancy and lets the owner offer a time-boxed perk to opted-in regulars. ──
+function FillTablesPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [venue, setVenue] = useState("");
+  const [tables, setTables] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [targets, setTargets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [offer, setOffer] = useState(L("dessert's on us","الحلوى علينا"));
+  const [sentIds, setSentIds] = useState({});
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id,name').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id; if (!active) return;
+      setCid(id || null); setVenue((data && data[0] && data[0].name) || selClient.name);
+      if (!id) { setLoading(false); return; }
+      const { data: tb } = await supabase.from('dining_tables').select('seats,out_of_service').eq('client_id', id);
+      const t0=new Date(); t0.setHours(0,0,0,0); const t1=new Date(); t1.setHours(23,59,59,999);
+      const { data: bk } = await supabase.from('bookings').select('party_size,status,starts_at').eq('client_id', id).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString());
+      let gs = [];
+      try { const r = await supabase.from('guests').select('id,name,phone,marketing_optin,visits,last_visit').eq('client_id', id).eq('marketing_optin', true); gs = r.data || []; } catch(e){}
+      if (active) { setTables(tb||[]); setBookings(bk||[]); setTargets((gs||[]).filter(g=>g.phone)); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const cap = tables.filter(t=>!t.out_of_service).reduce((s,t)=>s+(t.seats||0),0);
+  const now = Date.now(); const horizon = now + 2*3600*1000;
+  const busySeats = (bookings||[]).filter(b=>{ if(b.status==='seated') return true; if(b.status==='confirmed'||b.status==='waitlist'){ const t=new Date(b.starts_at).getTime(); return t>=now-3600*1000 && t<=horizon; } return false; }).reduce((s,b)=>s+(b.party_size||1),0);
+  const occ = cap ? Math.min(100, Math.round(busySeats/cap*100)) : 0;
+  const free = Math.max(0, cap - busySeats);
+  const band = occ>=72 ? 'full' : occ>=50 ? 'steady' : 'quiet';
+  const recover = Math.max(1, Math.round(free*0.45));
+  const bandC = band==='full' ? '#3FB983' : band==='steady' ? '#E0B85C' : '#E08A6A';
+
+  const msgFor = (g) => { const name=(g.name||'').trim().split(' ')[0] || L('there','صديقنا'); return L(`Hi ${name}! It's a little quiet at ${venue} tonight — pop in before we close and ${offer}. Reply and we'll hold a table for you. 🌿`, `مرحباً ${name}! المكان هادئ الليلة في ${venue} — تفضّل قبل الإغلاق و${offer}. ردّ وسنحجز لك طاولة. 🌿`); };
+  const sendOne = (g) => { const ph=String(g.phone||'').replace(/[^\d]/g,''); if(!ph) return; if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msgFor(g))}`,'_blank'); setSentIds(s=>({ ...s, [g.id]:true })); };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Reading the floor…","قراءة المخطط…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text3, fontSize:13 }}>{L("Select a restaurant to run the table engine.","اختر مطعماً لتشغيل محرّك الطاولات.")}</div>;
+
+  return (
+    <div style={{ maxWidth:760, margin:"0 auto" }} className="tw-page-in">
+      <div style={{ marginBottom:16 }}>
+        <div style={{ fontSize:18, fontWeight:800, color:th.text }}>{L("Fill My Tables","املأ طاولاتي")}</div>
+        <div style={{ fontSize:12, color:th.text2, marginTop:2 }}>{L("Turn quiet hours into covers — like airlines fill empty seats.","حوّل ساعات الهدوء إلى زبائن — كما تملأ الطائرات مقاعدها.")}</div>
+      </div>
+
+      <div style={{ ...card, padding:18, marginBottom:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
+          <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+            <span className="tw-num" style={{ fontSize:40, fontWeight:800, color:bandC, lineHeight:1 }}>{occ}%</span>
+            <span style={{ fontSize:12, color:th.text2 }}>{L("full · next 2 hours","ممتلئ · خلال ساعتين")}</span>
+          </div>
+          <div style={{ flex:1, minWidth:160 }}>
+            <div style={{ height:9, borderRadius:6, background:th.card2, overflow:"hidden" }}><div style={{ width:occ+"%", height:"100%", background:bandC }}/></div>
+            <div style={{ fontSize:11.5, color:th.text3, marginTop:7 }}>{busySeats} {L("of","من")} {cap} {L("seats booked","مقعد محجوز")} · <b style={{ color:th.text2 }}>{free} {L("still open","متاح")}</b></div>
+          </div>
+          <span style={{ fontSize:11, fontWeight:700, padding:"5px 11px", borderRadius:13, color:bandC, background:bandC+"22", textTransform:"uppercase", letterSpacing:".05em" }}>{band==='full'?L("Busy","مزدحم"):band==='steady'?L("Steady","معتدل"):L("Quiet","هادئ")}</span>
+        </div>
+      </div>
+
+      {band==='full' ? (
+        <div style={{ ...card, padding:22, textAlign:"center" }}>
+          <div style={{ fontSize:30, marginBottom:8 }}>🎉</div>
+          <div style={{ fontSize:14, fontWeight:700, color:th.text }}>{L("You're filling up nicely tonight.","ليلتك تمتلئ بشكل جيد.")}</div>
+          <div style={{ fontSize:12, color:th.text3, marginTop:6, lineHeight:1.6 }}>{L("The engine stays quiet when seats aren't at risk — so your regulars only hear from you when it counts.","يبقى المحرّك هادئاً عندما لا تكون المقاعد مهددة — فلا يصل ضيوفك إلا عند الحاجة.")}</div>
+        </div>
+      ) : (
+        <>
+          <div style={{ ...card, padding:18, marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:4 }}>{L("Tonight's offer","عرض الليلة")}</div>
+            <div style={{ fontSize:11.5, color:th.text3, marginBottom:11 }}>{L("Keep it small and warm — a perk, not a fire-sale discount.","اجعله بسيطاً ولطيفاً — ميزة لا تخفيضاً كبيراً.")}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <span style={{ fontSize:12.5, color:th.text2 }}>{L("Pop in tonight and","تفضّل الليلة و")}</span>
+              <input value={offer} onChange={e=>setOffer(e.target.value)} style={{ flex:1, minWidth:160, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:15, outline:"none" }}/>
+            </div>
+            <div style={{ marginTop:13, padding:"11px 13px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, fontSize:12, color:th.text2, lineHeight:1.6 }}>{msgFor({ name: L('Ahmed','أحمد') })}</div>
+            <div style={{ fontSize:11.5, color:"#3FB983", marginTop:10 }}>↑ {L("Potential","إمكانية")}: ~{recover} {L("covers recovered","زبون مُستعاد")} {L("from","من")} {targets.length} {L("opted-in regulars","ضيف موافق")}.</div>
+          </div>
+
+          <div style={{ ...card, padding:0, overflow:"hidden" }}>
+            <div style={{ padding:"12px 16px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Send to opted-in regulars","أرسل للضيوف الموافقين")} · {targets.length}</div>
+            {targets.length===0 ? (
+              <div style={{ padding:"26px 16px", textAlign:"center", color:th.text3, fontSize:12.5, lineHeight:1.6 }}>{L("No opted-in guests yet. In Guests, tick \"Happy to receive offers\" on your regulars — then they'll appear here.","لا ضيوف موافقون بعد. في صفحة الضيوف فعّل \"يقبل العروض\" لزبائنك المعتادين ليظهروا هنا.")}</div>
+            ) : targets.map(g=>(
+              <div key={g.id} style={{ padding:"11px 16px", borderBottom:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:11 }}>
+                <div style={{ width:32, height:32, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12.5, fontWeight:700, color:th.accent, flexShrink:0 }}>{(g.name||'?')[0].toUpperCase()}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{g.name||L("Guest","ضيف")}</div>
+                  <div style={{ fontSize:10.5, color:th.text3 }}>{(g.visits||0)} {L("visits","زيارة")}</div>
+                </div>
+                <button onClick={()=>sendOne(g)} style={{ padding:"8px 14px", borderRadius:9, border:"none", background:sentIds[g.id]?"rgba(37,211,102,0.16)":"#25D366", color:sentIds[g.id]?"#25D366":"#06301a", fontSize:12, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6, flexShrink:0 }}>{sentIds[g.id]?<><Check size={13}/>{L("Sent","أُرسل")}</>:<><FaWhatsapp/>{L("Send","إرسال")}</>}</button>
+              </div>
+            ))}
+            <div style={{ padding:"12px 16px", fontSize:10.5, color:th.text3, lineHeight:1.6 }}>{L("Each tap opens WhatsApp with the message ready — host-sent, no cost. Coming next: one-tap auto-send to everyone at once via an approved template.","كل نقرة تفتح واتساب بالرسالة جاهزة — يرسلها المضيف بلا تكلفة. قريباً: إرسال تلقائي للجميع عبر قالب معتمد.")}</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Guests (owner) — the guest book CRM + Birthday Club. One list powers
+// Guest Memory at the stand, the birthday radar, and Fill My Tables targeting. ──
+function GuestsPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [venue, setVenue] = useState("");
+  const [guests, setGuests] = useState([]);
+  const [reviewUrl, setReviewUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [tab, setTab] = useState("birthdays");
+  const [editing, setEditing] = useState(null);
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id,name').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id; if (!active) return;
+      setCid(id || null); setVenue((data && data[0] && data[0].name) || selClient.name);
+      if (!id) { setLoading(false); return; }
+      const { data: gs } = await supabase.from('guests').select('*').eq('client_id', id).order('updated_at', { ascending:false });
+      const { data: bsent } = await supabase.from('birthday_sends').select('guest_id,year,channel').eq('client_id', id);
+      try { const { data: rc } = await supabase.from('review_settings').select('google_url').eq('client_id', id).limit(1); if (active && rc && rc[0]) setReviewUrl(rc[0].google_url || null); } catch(e){}
+      if (active) { setGuests((gs||[]).map(g=>({ ...g, _sent:(bsent||[]).filter(x=>x.guest_id===g.id) }))); setLoading(false); }
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const today = new Date();
+  const daysToBday = (b) => { if(!b) return null; const d=new Date(b); const t0=new Date(); t0.setHours(0,0,0,0); let n=new Date(today.getFullYear(), d.getMonth(), d.getDate()); n.setHours(0,0,0,0); let diff=Math.round((n-t0)/86400000); if(diff<0){ n=new Date(today.getFullYear()+1, d.getMonth(), d.getDate()); diff=Math.round((n-t0)/86400000); } return diff; };
+  const ageTurning = (b) => { if(!b) return null; const d=new Date(b); const dd=daysToBday(b); const yr=(dd!=null && dd>0 && new Date(d.getMonth()>today.getMonth()||(d.getMonth()===today.getMonth()&&d.getDate()<today.getDate())))? today.getFullYear()+1 : today.getFullYear(); let a=yr-d.getFullYear(); return a>0&&a<130?a:null; };
+  const upcoming = guests.filter(g=>g.birthday).map(g=>({ ...g, _d: daysToBday(g.birthday) })).filter(g=>g._d!=null && g._d<=14).sort((a,b)=>a._d-b._d);
+  const sentThisYear = (g, ch) => (g._sent||[]).some(s=>s.year===today.getFullYear() && (!ch||s.channel===ch));
+  const whenLabel = (d) => d===0?L("today","اليوم"):d===1?L("tomorrow","غداً"):L(`in ${d} days`,`خلال ${d} يوم`);
+
+  const wishText = (g) => { const name=(g.name||'').trim().split(' ')[0] || L('there','صديقنا'); return L(`Happy birthday, ${name}! 🎉 Everyone at ${venue} is wishing you a wonderful year. Come celebrate with us this week — dessert's on us. 🎂`, `عيد ميلاد سعيد يا ${name}! 🎉 كل فريق ${venue} يتمنى لك عاماً رائعاً. احتفل معنا هذا الأسبوع والحلوى علينا. 🎂`); };
+  const markSent = async (g, channel) => { const year=today.getFullYear(); try { await supabase.from('birthday_sends').upsert({ client_id:cid, guest_id:g.id, channel, year }, { onConflict:'guest_id,year,channel' }); } catch(e){} setGuests(gs=>gs.map(x=>x.id===g.id?{ ...x, _sent:[...(x._sent||[]),{ guest_id:g.id, year, channel }] }:x)); };
+  const sendWhatsApp = async (g) => { const ph=String(g.phone||'').replace(/[^\d]/g,''); if(!ph) return; if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${encodeURIComponent(wishText(g))}`,'_blank'); await markSent(g,'whatsapp'); };
+  const sendEmail = async (g) => { if(!g.email) return; const subj=encodeURIComponent(L(`Happy birthday from ${venue}! 🎂`,`عيد ميلاد سعيد من ${venue}! 🎂`)); if(typeof window!=='undefined') window.open(`mailto:${g.email}?subject=${subj}&body=${encodeURIComponent(wishText(g))}`,'_blank'); await markSent(g,'email'); };
+
+  const blankGuest = { name:"", phone:"", email:"", birthday:"", allergies:"", fav_item:"", notes:"", vip:false, email_optin:true, wa_optin:false, marketing_optin:false };
+  const saveGuest = async () => {
+    if (!editing || !cid) return; const e=editing;
+    const row = { client_id:cid, name:(e.name||'').trim()||null, phone:(e.phone||'').trim()||null, email:(e.email||'').trim()||null, birthday:e.birthday||null, allergies:(e.allergies||'').trim()||null, fav_item:(e.fav_item||'').trim()||null, notes:(e.notes||'').trim()||null, vip:!!e.vip, email_optin:e.email_optin!==false, wa_optin:!!e.wa_optin, marketing_optin:!!e.marketing_optin, source:e.source||'host' };
+    if (e.id) { await supabase.from('guests').update(row).eq('id', e.id); setGuests(gs=>gs.map(x=>x.id===e.id?{ ...x, ...row }:x)); }
+    else { const ins=await supabase.from('guests').insert([row]).select(); const ng=ins.data&&ins.data[0]; if(ng) setGuests(gs=>[{ ...ng, _sent:[] }, ...gs]); }
+    setEditing(null);
+  };
+  const delGuest = async (g) => { if(!window.confirm(L('Remove this guest from your book?','حذف هذا الضيف من الدفتر؟'))) return; await supabase.from('guests').delete().eq('id', g.id); setGuests(gs=>gs.filter(x=>x.id!==g.id)); setEditing(null); };
+
+  const filtered = guests.filter(g=>{ if(!q.trim()) return true; const s=((g.name||'')+' '+(g.phone||'')+' '+(g.email||'')).toLowerCase(); return s.includes(q.toLowerCase()); });
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 11px", color:th.text, fontSize:16, outline:"none" };
+  const lbl = { fontSize:10.5, color:th.text2, margin:"11px 0 5px" };
+
+  if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading guests…","تحميل الضيوف…")}</div>;
+  if (!cid) return <div style={{ padding:24, color:th.text3, fontSize:13 }}>{L("Select a restaurant to open its guest book.","اختر مطعماً لفتح دفتر ضيوفه.")}</div>;
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }} className="tw-page-in">
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
+        <div style={{ flex:1, minWidth:200 }}>
+          <div style={{ fontSize:18, fontWeight:800, color:th.text }}>{L("Guests","الضيوف")}</div>
+          <div style={{ fontSize:12, color:th.text2, marginTop:2 }}>{L("Your guest book — birthdays, allergies, the usuals.","دفتر ضيوفك — أعياد الميلاد والحساسية والمعتاد.")}</div>
+        </div>
+        <button onClick={()=>setEditing({ ...blankGuest })} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 15px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("Add guest","إضافة ضيف")}</button>
+      </div>
+
+      <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+        {[["birthdays","🎂 "+L("Birthday Club","نادي أعياد الميلاد")],["all",L("All guests","كل الضيوف")+" · "+guests.length]].map(([k,lab])=>(
+          <button key={k} onClick={()=>setTab(k)} style={{ padding:"8px 14px", borderRadius:10, fontSize:12.5, fontWeight:600, cursor:"pointer", border:`1px solid ${tab===k?th.accent:th.border}`, background:tab===k?th.accentSoft:th.card2, color:tab===k?th.accent:th.text2 }}>{lab}</button>
+        ))}
+      </div>
+
+      {tab==="birthdays" ? (
+        <div style={{ ...card, padding:0, overflow:"hidden" }}>
+          <div style={{ padding:"12px 16px", borderBottom:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Next 14 days","خلال 14 يوماً")} · {upcoming.length}</span>
+          </div>
+          {upcoming.length===0 ? (
+            <div style={{ padding:"34px 16px", textAlign:"center", color:th.text3, fontSize:13 }}>
+              {L("No birthdays coming up. Capture guests' birthdays at the host stand and they'll appear here automatically.","لا أعياد ميلاد قادمة. سجّل أعياد ميلاد الضيوف عند المضيف وستظهر هنا تلقائياً.")}
+            </div>
+          ) : upcoming.map(g=>{
+            const done = sentThisYear(g);
+            const age = ageTurning(g.birthday);
+            return (
+              <div key={g.id} style={{ padding:"13px 16px", borderBottom:`1px solid ${th.border}`, opacity:done?0.6:1 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:11 }}>
+                  <div style={{ width:36, height:36, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:th.accent, flexShrink:0 }}>{(g.name||'?')[0].toUpperCase()}</div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:th.text }}>{g.name||L("Guest","ضيف")}{g.vip&&<Star size={11} color="#C7942B" style={{ marginInlineStart:6, verticalAlign:"middle" }}/>}{age?<span style={{ fontSize:11.5, fontWeight:500, color:th.text3 }}> · {L("turns","يُتمّ")} {age}</span>:null}</div>
+                    <div style={{ fontSize:11, color:g._d===0?"#3FB983":th.text3, marginTop:1 }}>🎂 {whenLabel(g._d)}{g.phone?" · 💬":""}{g.email?" · 📧":""}</div>
+                  </div>
+                  {done && <span style={{ fontSize:11, fontWeight:700, color:"#3FB983", display:"inline-flex", alignItems:"center", gap:4 }}><Check size={13}/>{L("Sent","أُرسلت")}</span>}
+                </div>
+                {!done && <>
+                  <div style={{ marginTop:9, padding:"10px 12px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, fontSize:12, color:th.text2, lineHeight:1.6 }}>{wishText(g)}</div>
+                  <div style={{ display:"flex", gap:8, marginTop:9 }}>
+                    {g.email && <button onClick={()=>sendEmail(g)} style={{ flex:1, padding:"9px 0", borderRadius:9, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer" }}>📧 {L("Send by email","إرسال بالبريد")}</button>}
+                    {g.phone && <button onClick={()=>sendWhatsApp(g)} style={{ flex:1, padding:"9px 0", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><FaWhatsapp/>{L("WhatsApp","واتساب")}</button>}
+                    <button onClick={()=>markSent(g,'manual')} title={L("Mark as handled","تحديد كمُنجز")} style={{ padding:"9px 12px", borderRadius:9, background:"transparent", border:`1px solid ${th.border}`, color:th.text3, fontSize:12, cursor:"pointer" }}>{L("Done","تم")}</button>
+                  </div>
+                </>}
+              </div>
+            );
+          })}
+          <div style={{ padding:"11px 16px", fontSize:10.5, color:th.text3, lineHeight:1.5 }}>{L("Email & WhatsApp open ready-to-send — your message, one tap. Once tawaslo.com email is live, these can send automatically each morning.","يفتح البريد وواتساب الرسالة جاهزة بنقرة واحدة. وعند تفعيل بريد tawaslo.com يمكن إرسالها تلقائياً كل صباح.")}</div>
+        </div>
+      ) : (
+        <div style={{ ...card, padding:0, overflow:"hidden" }}>
+          <div style={{ padding:"10px 14px", borderBottom:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:9 }}>
+            <Search size={15} color={th.text3}/>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder={L("Search name, phone, email…","ابحث بالاسم أو الرقم أو البريد…")} style={{ flex:1, background:"transparent", border:"none", color:th.text, fontSize:14, outline:"none" }}/>
+          </div>
+          {filtered.length===0 ? <div style={{ padding:"34px 16px", textAlign:"center", color:th.text3, fontSize:13 }}>{q?L("No matches.","لا نتائج."):L("No guests yet. They build up as you capture them at the stand, or add one above.","لا ضيوف بعد. يتراكمون مع تسجيلهم عند المضيف، أو أضف واحداً بالأعلى.")}</div> :
+            filtered.map(g=>(
+              <div key={g.id} onClick={()=>setEditing({ ...g })} style={{ padding:"12px 16px", borderBottom:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:11, cursor:"pointer" }}>
+                <div style={{ width:34, height:34, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:700, color:th.accent, flexShrink:0 }}>{(g.name||'?')[0].toUpperCase()}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{g.name||L("Guest","ضيف")}{g.vip&&<Star size={10} color="#C7942B" style={{ marginInlineStart:5, verticalAlign:"middle" }}/>}</div>
+                  <div style={{ fontSize:11, color:th.text3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{[g.phone, g.email, g.birthday?("🎂 "+new Date(g.birthday).toLocaleDateString([], {month:'short',day:'numeric'})):null].filter(Boolean).join(" · ")||L("No contact yet","لا تواصل بعد")}</div>
+                </div>
+                {g.allergies && <span title={g.allergies} style={{ fontSize:14 }}>⚠️</span>}
+                {(g.visits||0)>0 && <span style={{ fontSize:11, color:th.text3 }}>{g.visits} {L("visits","زيارة")}</span>}
+              </div>
+            ))}
+        </div>
+      )}
+
+      {editing && createPortal((
+        <div onClick={()=>setEditing(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.6)", backdropFilter:"blur(3px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20, overflowY:"auto" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:400, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18, maxHeight:"90vh", overflowY:"auto" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{editing.id?L("Edit guest","تعديل الضيف"):L("Add guest","إضافة ضيف")}</div>
+              <button onClick={()=>setEditing(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer" }}><X size={18}/></button>
+            </div>
+            <div style={lbl}>{L("Name","الاسم")}</div>
+            <input value={editing.name||""} onChange={e=>setEditing(s=>({ ...s, name:e.target.value }))} style={inp}/>
+            <div style={lbl}>{L("WhatsApp number","رقم واتساب")}</div>
+            <input value={editing.phone||""} onChange={e=>setEditing(s=>({ ...s, phone:e.target.value }))} type="tel" inputMode="tel" style={inp}/>
+            <div style={lbl}>{L("Email","البريد الإلكتروني")}</div>
+            <input value={editing.email||""} onChange={e=>setEditing(s=>({ ...s, email:e.target.value }))} type="email" style={inp}/>
+            <div style={lbl}>🎂 {L("Birthday","عيد الميلاد")}</div>
+            <input value={editing.birthday||""} onChange={e=>setEditing(s=>({ ...s, birthday:e.target.value }))} type="date" style={inp}/>
+            <div style={lbl}>{L("Usual order","الطلب المعتاد")}</div>
+            <input value={editing.fav_item||""} onChange={e=>setEditing(s=>({ ...s, fav_item:e.target.value }))} placeholder={L("e.g. Lamb ouzi + mint lemonade","مثلاً أوزي لحم + ليمون نعناع")} style={inp}/>
+            <div style={lbl}>⚠️ {L("Allergies","الحساسية")}</div>
+            <input value={editing.allergies||""} onChange={e=>setEditing(s=>({ ...s, allergies:e.target.value }))} placeholder={L("e.g. nuts, shellfish","مثلاً مكسرات، محار")} style={inp}/>
+            <div style={lbl}>{L("Host notes","ملاحظات المضيف")}</div>
+            <input value={editing.notes||""} onChange={e=>setEditing(s=>({ ...s, notes:e.target.value }))} placeholder={L("e.g. anniversary regular, likes window seats","مثلاً زبون مناسبات، يفضّل طاولات النافذة")} style={inp}/>
+            <label style={{ display:"flex", alignItems:"center", gap:9, cursor:"pointer", marginTop:13 }}>
+              <input type="checkbox" checked={!!editing.vip} onChange={e=>setEditing(s=>({ ...s, vip:e.target.checked }))} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12.5, color:th.text }}>⭐ {L("VIP guest","ضيف مميّز")}</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:9, cursor:"pointer", marginTop:9 }}>
+              <input type="checkbox" checked={!!editing.marketing_optin} onChange={e=>setEditing(s=>({ ...s, marketing_optin:e.target.checked }))} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12.5, color:th.text }}>{L("Happy to receive offers (Fill My Tables)","يقبل استلام العروض")}</span>
+            </label>
+            <div style={{ display:"flex", gap:8, marginTop:18 }}>
+              {editing.id && <button onClick={()=>delGuest(editing)} style={{ padding:"11px 13px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:'#D98A6A', fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><Trash2 size={14}/></button>}
+              <button onClick={()=>setEditing(null)} style={{ flex:1, padding:"12px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+              <button onClick={saveGuest} style={{ flex:1.6, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Save","حفظ")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
 // ── Reviews (owner) — funnel settings, star stats, private feedback. ──
 function ReviewsPage() {
   const { selClient, dark, lang } = useApp();
@@ -13926,6 +14272,13 @@ function ReviewsPage() {
         <div style={lbl}>{L("Prompt headline","عنوان السؤال")}</div>
         <input value={p.headline||""} onChange={e=>update({ headline:e.target.value })} placeholder={L("How was your visit?","كيف كانت زيارتك؟")} style={inp}/>
         <div style={{ fontSize:11, color:th.text3, marginTop:11, lineHeight:1.5 }}>{L("Ratings below the threshold open a private form — that feedback stays here and is never posted publicly.","التقييمات الأقل تفتح نموذجاً خاصاً — تبقى هنا ولا تُنشر علناً.")}</div>
+        <div style={{ marginTop:16, padding:"13px 14px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:11 }}>
+          <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer" }}>
+            <input type="checkbox" checked={!!p.goodbye_on} onChange={e=>update({ goodbye_on:e.target.checked })} style={{ width:17, height:17, accentColor:th.accent, flexShrink:0 }}/>
+            <span style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("Goodbye message on table clear","رسالة وداع عند إخلاء الطاولة")}</span>
+          </label>
+          <div style={{ fontSize:11, color:th.text3, marginTop:7, lineHeight:1.5 }}>{L("When the host clears a seated table, a 'Clear & thank' button appears — one tap sends the guest a warm thank-you on WhatsApp with your Google review link. Needs the guest's number on file.","عند إخلاء طاولة، يظهر زر 'إخلاء وشكر' — بنقرة واحدة يُرسل للضيف رسالة شكر عبر واتساب مع رابط تقييم جوجل. يتطلب رقم الضيف.")}</div>
+        </div>
       </div>
 
       {slug && (
@@ -14581,8 +14934,9 @@ function FloorView({ cid }) {
   const [armed, setArmed] = useState(null);
   const [selTable, setSelTable] = useState(null);
   const [walkOpen, setWalkOpen] = useState(false);
-  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState("");
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState(""); const [wEmail, setWEmail] = useState(""); const [wBday, setWBday] = useState("");
   const [notified, setNotified] = useState({});
+  const [reviewCfg, setReviewCfg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
   const canvasRef = useRef(null);
@@ -14602,8 +14956,10 @@ function FloorView({ cid }) {
       const t0=new Date(); t0.setHours(0,0,0,0); const t1=new Date(); t1.setHours(23,59,59,999);
       const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', cid).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString()).order('starts_at',{ascending:true});
       if (active) setBookings(bk||[]);
-      const { data: gs } = await supabase.from('guests').select('phone,vip').eq('client_id', cid);
-      if (active) { setGuests(gs||[]); setLoading(false); }
+      const { data: gs } = await supabase.from('guests').select('phone,name,vip,email,birthday,allergies,fav_item,preferences,notes,visits,last_visit').eq('client_id', cid);
+      if (active) setGuests(gs||[]);
+      try { const { data: rc } = await supabase.from('review_settings').select('google_url,goodbye_on,enabled').eq('client_id', cid).limit(1); if (active) setReviewCfg((rc&&rc[0])||null); } catch(e){}
+      if (active) setLoading(false);
     })();
     return () => { active = false; };
   }, [cid]);
@@ -14624,7 +14980,12 @@ function FloorView({ cid }) {
   const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id:t.id, status:'seated', seated_at:new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
   const clearTable = async (t) => { const b=bookingFor(t.id); if(b){ await supabase.from('bookings').update({ table_id:null }).eq('id', b.id); } setSelTable(null); await reload(); };
   const seatNow = async (b) => { const t=roomTables.find(x=>x.id===selTable); await supabase.from('bookings').update({ status:'seated', seated_at:new Date().toISOString() }).eq('id', b.id); await reload(); };
-  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id:cid, customer_name:wName.trim()||'Walk-in', customer_phone:wPhone.trim()||null, party_size:Number(wParty)||2, starts_at:new Date().toISOString(), source:'manual', status: toWait?'waitlist':'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); await reload(); };
+  const addWalkin = async (toWait) => {
+    const phone = wPhone.trim()||null;
+    await supabase.from('bookings').insert([{ client_id:cid, customer_name:wName.trim()||'Walk-in', customer_phone:phone, party_size:Number(wParty)||2, starts_at:new Date().toISOString(), source:'manual', status: toWait?'waitlist':'confirmed' }]);
+    if (phone) { try { const gp={ client_id:cid, phone, source:'host', wa_optin:true }; if(wName.trim()) gp.name=wName.trim(); if(wEmail.trim()){ gp.email=wEmail.trim(); gp.email_optin=true; } if(wBday) gp.birthday=wBday; const { data:up } = await supabase.from('guests').upsert(gp, { onConflict:'client_id,phone' }).select('phone,name,vip,email,birthday,allergies,fav_item,preferences,notes,visits,last_visit'); if(up&&up[0]) setGuests(gs=>{ const o=gs.filter(x=>x.phone!==phone); return [...o, up[0]]; }); } catch(e){} }
+    setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); setWEmail(""); setWBday(""); await reload();
+  };
   const notifyReady = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if (!ph) return; const venue = (selClient && selClient.name) || 'us'; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, your table at ${venue} is ready — please come to the host stand. See you in a moment!`); if (typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); setNotified(n => ({ ...n, [b.id]: true })); };
 
   const addTable = async () => { const n=roomTables.length+1; const ins=await supabase.from('dining_tables').insert([{ client_id:cid, room_id:roomId, name:'T'+n, seats:2, shape:'square', pos_x:24+((n-1)%6)*78, pos_y:24+Math.floor((n-1)/6)*78 }]).select(); if(ins.data) setTables(ts=>[...ts, ins.data[0]]); };
@@ -14644,6 +15005,51 @@ function FloorView({ cid }) {
 
   const elapsed = (iso) => { if(!iso) return ''; const m=Math.floor((Date.now()-new Date(iso).getTime())/60000); if(m<1) return L('just now','الآن'); if(m<60) return m+'m'; return Math.floor(m/60)+'h '+(m%60)+'m'; };
   const fmtT=(iso)=>new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  const ago = (iso) => { if(!iso) return ''; const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000); if(d<=0) return L('today','اليوم'); if(d===1) return L('yesterday','أمس'); if(d<14) return d+L('d ago',' يوم'); if(d<60) return Math.round(d/7)+L('w ago',' أسبوع'); return Math.round(d/30)+L('mo ago',' شهر'); };
+
+  // Guest Memory — a rule-based arrival brief, no AI cost. Reads the CRM row
+  // matched by phone and tells the host who's in front of them.
+  const guestFor = (phone) => phone ? guests.find(x=>x.phone && x.phone===phone) : null;
+  const guestBrief = (b) => {
+    if (!b) return null;
+    const g = guestFor(b.customer_phone);
+    const fav = g && (g.fav_item || g.preferences);
+    const allerg = g && g.allergies;
+    const note = (g && g.notes) || b.note;
+    const visits = (g && g.visits) || 0;
+    const vip = g && g.vip;
+    const last = g && g.last_visit;
+    const firstTime = !g || (!visits && !last);
+    const tip = firstTime ? L("First time here — give them a warm welcome.","أول زيارة — رحّب بهم بحرارة.")
+      : allerg ? L("Heads up — allergic to ","تنبيه — حساسية من ")+allerg+"."
+      : fav ? L("Welcome back — suggest the ","مرحباً بعودتهم — اقترح ")+fav+"."
+      : vip ? L("VIP — roll out the warm welcome.","ضيف مميّز — رحّب بحرارة.")
+      : L("Welcome back — a returning guest.","مرحباً بعودتهم — ضيف عائد.");
+    return (
+      <div style={{ marginTop:12, padding:"11px 13px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:11 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:(fav||allerg||note)?8:0 }}>
+          <span style={{ fontSize:9.5, letterSpacing:".09em", textTransform:"uppercase", color:th.text3, fontWeight:700 }}>{L("Guest memory","ذاكرة الضيف")}</span>
+          {vip && <span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:9.5, fontWeight:700, color:"#C7942B", background:"rgba(199,148,43,.14)", borderRadius:6, padding:"1px 6px" }}><Star size={9}/>VIP</span>}
+          {!firstTime && (visits||last) ? <span style={{ fontSize:10, color:th.text3, marginInlineStart:"auto" }}>{visits?`${visits} ${L("visits","زيارة")}`:""}{last?`${visits?" · ":""}${ago(last)}`:""}</span> : null}
+        </div>
+        {(fav||allerg||note) ? <div style={{ display:"flex", flexDirection:"column", gap:4, fontSize:12, color:th.text }}>
+          {fav && <div>🍽 {L("Usually","عادةً")}: <b style={{ fontWeight:600 }}>{fav}</b></div>}
+          {allerg && <div style={{ color:"#D98A6A" }}>⚠ {L("Allergic to","حساسية من")}: {allerg}</div>}
+          {note && <div style={{ color:th.text2 }}>📝 {note}</div>}
+        </div> : null}
+        <div style={{ marginTop:9, padding:"7px 10px", background:th.card, border:`1px solid ${th.border}`, borderRadius:8, fontSize:11.5, color:th.accent }}>💡 {tip}</div>
+      </div>
+    );
+  };
+  const goodbyeThank = (b) => {
+    const ph = String((b&&b.customer_phone)||'').replace(/[^\d]/g,''); if(!ph) return;
+    const venue = (selClient && selClient.name) || 'us';
+    const link = reviewCfg && reviewCfg.google_url;
+    const base = L(`Thank you for visiting ${venue}! It was a pleasure having you. `, `شكراً لزيارتكم ${venue}! سعدنا باستضافتكم. `);
+    const ask = link ? L(`If you enjoyed it, a quick Google review would mean the world: ${link}`, `إن سعدتم بزيارتكم، يسعدنا تقييمكم السريع على غوغل: ${link}`) : "";
+    const msg = encodeURIComponent(base+ask);
+    if (typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank');
+  };
 
   const seatedCount = roomTables.filter(t=>seatedFor(t.id)).length;
   const freeCount = roomTables.filter(t=>!bookingFor(t.id)&&!t.out_of_service).length;
@@ -14685,11 +15091,16 @@ function FloorView({ cid }) {
         ))}
       </div>}
 
-      {armed && <div style={{ ...card, padding:"10px 14px", marginBottom:12, display:"flex", alignItems:"center", gap:10, borderColor:th.accent }}>
-        <span style={{ fontSize:12.5, color:th.text }}>{L("Tap a table to seat","انقر على طاولة للإجلاس")} <b>{(arriving.concat(waitlist).find(b=>b.id===armed)||{}).customer_name}</b></span>
-        <div style={{ flex:1 }}/>
-        <button onClick={()=>setArmed(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", fontSize:12 }}>{L("Cancel","إلغاء")}</button>
-      </div>}
+      {armed && (()=>{ const ab=arriving.concat(waitlist).find(b=>b.id===armed); return (
+        <div style={{ ...card, padding:"12px 14px", marginBottom:12, borderColor:th.accent }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:12.5, color:th.text }}>{L("Tap a table to seat","انقر على طاولة للإجلاس")} <b>{(ab||{}).customer_name||L("guest","ضيف")}</b></span>
+            <div style={{ flex:1 }}/>
+            <button onClick={()=>setArmed(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", fontSize:12 }}>{L("Cancel","إلغاء")}</button>
+          </div>
+          {guestBrief(ab)}
+        </div>
+      ); })()}
 
       {mode==='host' && !armed && nextReady && <div style={{ padding:"11px 14px", marginBottom:12, borderRadius:14, background:"rgba(37,211,102,0.10)", border:"1px solid rgba(37,211,102,0.5)", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
         <div style={{ width:30, height:30, borderRadius:8, background:"rgba(37,211,102,0.2)", display:"flex", alignItems:"center", justifyContent:"center", color:"#25D366", flexShrink:0 }}><FaWhatsapp/></div>
@@ -14784,15 +15195,19 @@ function FloorView({ cid }) {
         <div onClick={()=>setSelTable(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.6)", backdropFilter:"blur(3px)", zIndex:9998, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:360, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
             {(()=>{ const seated=seatedFor(selT.id); const resv=bookingFor(selT.id);
-              if (seated) return (<>
+              if (seated) { const canThank = reviewCfg && reviewCfg.goodbye_on && seated.customer_phone; return (<>
                 <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{selT.name} · {L("Seated","جالس")}</div>
                 <div style={{ fontSize:13, color:th.text2, marginTop:8 }}>{seated.customer_name||L("Guest","ضيف")} · {seated.party_size||1} {L("pax","ضيف")} · {elapsed(seated.seated_at)}</div>
-                {seated.note && <div style={{ fontSize:11.5, color:'#C7942B', marginTop:6 }}>{seated.note}</div>}
-                <button onClick={()=>clearTable(selT)} style={{ marginTop:16, width:"100%", padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Clear table","إخلاء الطاولة")}</button>
-              </>);
+                {guestBrief(seated)}
+                <div style={{ display:"flex", gap:8, marginTop:16 }}>
+                  <button onClick={()=>clearTable(selT)} style={{ flex:1, padding:"12px", borderRadius:11, background: canThank?"transparent":th.gradient, border: canThank?`1px solid ${th.border}`:"none", color: canThank?th.text2:"#fff", fontSize:13, fontWeight:canThank?600:700, cursor:"pointer" }}>{L("Clear table","إخلاء الطاولة")}</button>
+                  {canThank && <button onClick={()=>{ goodbyeThank(seated); clearTable(selT); }} style={{ flex:1.4, padding:"12px", borderRadius:11, background:"#25D366", border:"none", color:"#06301a", fontSize:12.5, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7 }}><FaWhatsapp/>{L("Clear & thank","إخلاء وشكر")}</button>}
+                </div>
+              </>); }
               if (resv) return (<>
                 <div style={{ fontSize:15, fontWeight:700, color:th.text }}>{selT.name} · {L("Reserved","محجوزة")}</div>
                 <div style={{ fontSize:13, color:th.text2, marginTop:8 }}>{resv.customer_name||L("Guest","ضيف")} · {resv.party_size||1} {L("pax","ضيف")} · {fmtT(resv.starts_at)}</div>
+                {guestBrief(resv)}
                 <div style={{ display:"flex", gap:8, marginTop:16 }}>
                   <button onClick={()=>{ supabase.from('bookings').update({ table_id:null }).eq('id', resv.id).then(reload); setSelTable(null); }} style={{ flex:1, padding:"11px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{L("Unassign","إلغاء التعيين")}</button>
                   <button onClick={()=>seatNow(resv)} style={{ flex:2, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}>{L("Seat now","إجلاس الآن")}</button>
@@ -14821,6 +15236,12 @@ function FloorView({ cid }) {
             <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:14 }}>{L("Walk-in","زائر")}</div>
             <input value={wName} onChange={e=>setWName(e.target.value)} placeholder={L("Name (optional)","الاسم (اختياري)")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
             <input value={wPhone} onChange={e=>setWPhone(e.target.value)} type="tel" inputMode="tel" placeholder={L("WhatsApp number — for 'table ready'","رقم واتساب — لتنبيه 'الطاولة جاهزة'")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
+            <input value={wEmail} onChange={e=>setWEmail(e.target.value)} type="email" inputMode="email" placeholder={L("Email (optional) — for the Birthday Club","البريد (اختياري) — لنادي أعياد الميلاد")} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:10 }}/>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+              <span style={{ fontSize:11.5, color:th.text2, whiteSpace:"nowrap" }}>🎂 {L("Birthday","عيد الميلاد")}</span>
+              <input value={wBday} onChange={e=>setWBday(e.target.value)} type="date" style={{ flex:1, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 11px", color:th.text, fontSize:15, outline:"none" }}/>
+            </div>
+            {(wPhone.trim()) && <div style={{ fontSize:10.5, color:th.text3, marginBottom:12, lineHeight:1.5 }}>{L("We'll save them to your guest book so the host stand remembers them next time.","سنحفظهم في دفتر ضيوفك ليتذكّرهم المضيف في المرة القادمة.")}</div>}
             <div style={{ fontSize:10.5, color:th.text2, marginBottom:6 }}>{L("Party size","عدد الأشخاص")}</div>
             <input type="number" min="1" value={wParty} onChange={e=>setWParty(e.target.value)} style={{ width:100, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"11px", color:th.text, fontSize:16, outline:"none", marginBottom:16 }}/>
             <div style={{ display:"flex", gap:8 }}>
@@ -15993,6 +16414,8 @@ export default function TawasloApp() {
     if (page==="reservations") return <ReservationsPage/>;
     if (page==="loyalty") return <LoyaltyPage/>;
     if (page==="reviews") return <ReviewsPage/>;
+    if (page==="guests") return <GuestsPage/>;
+    if (page==="filltables") return <FillTablesPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
