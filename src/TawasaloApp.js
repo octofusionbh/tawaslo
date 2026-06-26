@@ -754,6 +754,7 @@ function Sidebar() {
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
+      {key:"autopilot", Icon:Wand2,           label:"Campaign Autopilot", badge:null},
       {key:"approvals", Icon:Shield,          label:"Approvals", badge:null},
       {key:"calendar",  Icon:CalendarCheck,   label:"Calendar",  badge:null},
       {key:"streams",   Icon:Radio,           label:"Streams",   badge:null},
@@ -13907,6 +13908,132 @@ function LoyaltyPublicPage({ slug }) {
   );
 }
 
+// ── Campaign Autopilot — a trend or topic becomes a 5 post mini campaign,
+// drafted on brand and dropped onto the calendar in one click. ──
+function CampaignAutopilotPage() {
+  const { dark, lang, selClient } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [voice, setVoice] = useState(null);
+  const [topic, setTopic] = useState("");
+  const [count, setCount] = useState(5);
+  const [posts, setPosts] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => { try { const s = sessionStorage.getItem('tw_autopilot_topic'); if (s) { setTopic(s); sessionStorage.removeItem('tw_autopilot_topic'); } } catch (e) {} }, []);
+  useEffect(() => { let live = true; (async () => { if (!selClient?.name) return; try { const { data } = await supabase.from('clients').select('id,brand_voice').eq('name', selClient.name).limit(1); const c = data && data[0]; if (live && c) { setCid(c.id); setVoice(c.brand_voice || null); } } catch (e) {} })(); return () => { live = false; }; }, [selClient]);
+
+  const FMT = { reel: { label: L("Reel", "ريل"), c: "#7F77DD" }, carousel: { label: L("Carousel", "ألبوم"), c: "#378ADD" }, story: { label: L("Story", "ستوري"), c: "#BA7517", manual: true }, quote: { label: L("Quote", "اقتباس"), c: "#1D9E75" }, repost: { label: L("Repost", "إعادة نشر"), c: "#D85A30" }, tip: { label: L("Tip", "نصيحة"), c: "#534AB7" }, bts: { label: L("Behind", "كواليس"), c: "#993C1D" } };
+  const fmtKey = (f) => { const s = String(f || "").toLowerCase(); if (s.includes("reel")) return "reel"; if (s.includes("carousel")) return "carousel"; if (s.includes("story") || s.includes("poll")) return "story"; if (s.includes("quote")) return "quote"; if (s.includes("repost") || s.includes("ugc")) return "repost"; if (s.includes("tip")) return "tip"; if (s.includes("behind") || s.includes("bts")) return "bts"; return "quote"; };
+  const nameToCode = (n) => { const s = String(n || "").toLowerCase(); if (s.includes("insta")) return "ig"; if (s.includes("face")) return "fb"; if (s.includes("tiktok") || s === "tt") return "tt"; if (s.includes("linked")) return "li"; if (s.includes("youtube")) return "yt"; if (s.includes("twitter") || s === "x") return "tw"; return "ig"; };
+
+  const callApi = async (n) => {
+    const r = await fetch('/api/generate-caption', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'campaign', topic: topic.trim(), count: n, platforms: ['Instagram', 'Facebook'], brand: (selClient && selClient.name) || '', voice, lang: isAR ? 'ar' : 'en' }) });
+    const j = await r.json(); return (j && j.posts) || null;
+  };
+  const generate = async (n) => {
+    const use = n || count;
+    if (!topic.trim()) { setErr(L("Type a trend or topic first.", "اكتب موضوعاً أولاً.")); return; }
+    setBusy(true); setErr(""); setDone(false);
+    try { const ps = await callApi(use); if (ps) setPosts(ps.map((p, i) => ({ ...p, _id: Date.now() + "_" + i, _kept: false }))); else setErr(L("Could not generate. Try again.", "تعذّر الإنشاء، حاول مجدداً.")); }
+    catch (e) { setErr(L("Something went wrong.", "حدث خطأ.")); }
+    setBusy(false);
+  };
+  const pickCount = (n) => { setCount(n); if (posts) generate(n); };
+  const regen = async (ids) => {
+    if (!posts || !ids.length) return; setBusy(true); setErr("");
+    try { const fresh = await callApi(Math.max(3, ids.length)); if (fresh && fresh.length) { const caps = fresh.map(p => p.caption); let k = 0; setPosts(ps => ps.map(p => { if (ids.indexOf(p._id) >= 0) { const c = caps[k++]; return c ? { ...p, caption: c } : p; } return p; })); } }
+    catch (e) {}
+    setBusy(false);
+  };
+  const keep = (id) => setPosts(ps => ps.map(p => p._id === id ? { ...p, _kept: !p._kept } : p));
+  const drop = (id) => setPosts(ps => ps.filter(p => p._id !== id));
+  const scheduleAll = async () => {
+    if (!posts || !cid || !posts.length) return; setBusy(true); setErr("");
+    const rows = posts.map(p => { const d = new Date(); d.setDate(d.getDate() + (Number(p.dayOffset) || 0)); const tt = String(p.time || "12:00").split(":"); d.setHours(Number(tt[0]) || 12, Number(tt[1]) || 0, 0, 0); return { client_id: cid, caption: p.caption, platform: nameToCode(p.platform), scheduled_at: d.toISOString(), status: 'scheduled', appr_status: 'pending' }; });
+    try { await supabase.from('posts').insert(rows); setDone(true); } catch (e) { setErr(L("Could not schedule. Check the calendar table.", "تعذّر الجدولة.")); }
+    setBusy(false);
+  };
+
+  const DOW = isAR ? ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weekCols = Array.from({ length: 7 }).map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return { label: DOW[d.getDay()], date: d.getDate(), offset: i }; });
+  const postsForOffset = (o) => (posts || []).filter(p => Math.min(6, Number(p.dayOffset) || 0) === o);
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 14 };
+  const inp = { width: "100%", boxSizing: "border-box", background: th.card2, border: `1px solid ${th.border}`, borderRadius: 9, padding: "11px 12px", color: th.text, fontSize: 16, outline: "none" };
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto" }} className="tw-page-in">
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{L("Campaign Autopilot", "الطيار الآلي للحملات")}</div>
+        <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>{L("A trend becomes a ready mini campaign, on brand, on the calendar.", "حوّل أي رائج إلى حملة جاهزة على هوية العميل وعلى التقويم.")}{selClient && selClient.name ? ` · ${selClient.name}` : ""}</div>
+      </div>
+
+      {!selClient || !selClient.name ? <div style={{ ...card, padding: "40px 20px", textAlign: "center", color: th.text3, fontSize: 13 }}>{L("Pick a client first, then generate their campaign.", "اختر عميلاً أولاً ثم أنشئ حملته.")}</div> : <>
+        <div style={{ ...card, padding: 16, marginBottom: 14 }}>
+          <div style={{ fontSize: 10.5, color: th.text2, marginBottom: 6 }}>{L("Trend or topic", "الرائج أو الموضوع")}</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input value={topic} onChange={e => setTopic(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') generate(); }} placeholder={L("e.g. cozy autumn menu", "مثلاً قائمة الخريف الدافئة")} style={{ ...inp, flex: "1 1 200px", width: "auto" }} />
+            <div style={{ display: "inline-flex", border: `1px solid ${th.border}`, borderRadius: 10, overflow: "hidden", alignSelf: "stretch" }}>
+              {[3, 5, 7].map(n => <button key={n} onClick={() => pickCount(n)} title={L("posts", "منشورات")} style={{ border: "none", padding: "0 13px", fontSize: 13, fontWeight: 600, cursor: "pointer", background: count === n ? th.accent : "transparent", color: count === n ? "#fff" : th.text2 }}>{n}</button>)}
+            </div>
+            <button onClick={() => generate()} disabled={busy} style={{ padding: "11px 18px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: busy ? "wait" : "pointer", whiteSpace: "nowrap", opacity: busy ? 0.7 : 1, display: "inline-flex", alignItems: "center", gap: 7 }}><Wand2 size={15} />{busy && !posts ? L("Writing…", "نكتب…") : L("Generate", "أنشئ")}</button>
+          </div>
+          {voice && <div style={{ fontSize: 10.5, color: "#3FB983", marginTop: 8 }}>✓ {L("Using this client's brand voice", "باستخدام صوت علامة العميل")}</div>}
+          {err && <div style={{ fontSize: 11.5, color: "#D98A6A", marginTop: 8 }}>{err}</div>}
+        </div>
+
+        {done ? (
+          <div style={{ ...card, padding: "34px 20px", textAlign: "center" }}>
+            <div style={{ fontSize: 34, marginBottom: 10 }}>📅</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: th.text }}>{posts ? posts.length : 0} {L("posts scheduled", "منشورات مجدولة")}</div>
+            <div style={{ fontSize: 12.5, color: th.text2, marginTop: 6, lineHeight: 1.6 }}>{L("They are on the calendar as drafts awaiting approval. Open Calendar or Approvals to review.", "هي الآن على التقويم كمسودات بانتظار الموافقة. افتح التقويم أو الموافقات للمراجعة.")}</div>
+            <button onClick={() => { setDone(false); setPosts(null); setTopic(""); }} style={{ marginTop: 16, padding: "10px 18px", borderRadius: 10, background: "transparent", border: `1px solid ${th.border}`, color: th.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>{L("New campaign", "حملة جديدة")}</button>
+          </div>
+        ) : posts && posts.length > 0 && <>
+          <div style={{ ...card, padding: "12px 10px", marginBottom: 14, display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
+            {weekCols.map(col => { const ps = postsForOffset(col.offset); return (
+              <div key={col.offset} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 9.5, color: th.text3, fontWeight: 600 }}>{col.label}</div>
+                <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 3 }}>
+                  {ps.length ? ps.map((p, k) => <span key={k} style={{ height: 6, borderRadius: 3, background: (FMT[fmtKey(p.format)] || FMT.quote).c }} />) : <span style={{ height: 6, borderRadius: 3, background: th.border, opacity: 0.5 }} />}
+                </div>
+              </div>
+            ); })}
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 14 }}>
+            {posts.map((p, i) => { const f = FMT[fmtKey(p.format)] || FMT.quote; const kept = p._kept; return (
+              <div key={p._id} style={{ ...card, padding: 13, borderColor: kept ? "#D4537E" : th.border }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 9 }}>
+                  <span style={{ fontSize: 9.5, fontWeight: 700, color: "#fff", background: f.c, borderRadius: 6, padding: "3px 8px", flexShrink: 0 }}>{f.label}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: th.text3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.platform} · {L("in", "خلال")} {p.dayOffset || 0}{L("d", "ي")} · {p.time}{f.manual ? `  ·  ${L("post by hand", "نشر يدوي")}` : ""}{kept ? `  ·  ${L("kept", "محفوظ")}` : ""}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+                    <Heart size={17} onClick={() => keep(p._id)} title={L("Keep this one", "احفظ هذا")} style={{ cursor: "pointer", color: kept ? "#D4537E" : th.text3, fill: kept ? "#D4537E" : "none" }} />
+                    <RefreshCw size={16} onClick={() => !busy && regen([p._id])} title={L("Redo just this one", "أعد هذا فقط")} style={{ cursor: busy ? "wait" : "pointer", color: th.text2 }} />
+                    <X size={17} onClick={() => drop(p._id)} title={L("Drop", "إزالة")} style={{ cursor: "pointer", color: th.text3 }} />
+                  </div>
+                </div>
+                <textarea value={p.caption} onChange={e => setPosts(ps => ps.map(x => x._id === p._id ? { ...x, caption: e.target.value } : x))} rows={2} style={{ ...inp, fontSize: 13, lineHeight: 1.5, resize: "vertical", direction: isAR ? "rtl" : "ltr" }} />
+              </div>
+            ); })}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <button onClick={() => regen(posts.filter(p => !p._kept).map(p => p._id))} disabled={busy} style={{ padding: "10px 15px", borderRadius: 10, background: "transparent", border: `1px solid ${th.border}`, color: th.text, fontSize: 12.5, fontWeight: 600, cursor: busy ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}><RefreshCw size={14} />{busy ? L("Working…", "جارٍ…") : L("Regenerate the rest", "أعد إنشاء البقية")}</button>
+            <div style={{ flex: 1 }} />
+            <button onClick={scheduleAll} disabled={busy || posts.length === 0} style={{ padding: "11px 18px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: busy || posts.length === 0 ? "not-allowed" : "pointer", opacity: busy || posts.length === 0 ? 0.6 : 1 }}>{busy ? L("Scheduling…", "نجدول…") : `${L("Add all to calendar", "أضف الكل للتقويم")} ${posts.length} →`}</button>
+          </div>
+          <div style={{ fontSize: 10.5, color: th.text3, marginTop: 9 }}>💗 {L("keep", "احفظ")} · ↻ {L("redo one", "أعد واحداً")} · ✕ {L("drop", "أزل")} · {L("nothing publishes without your approval", "لا شيء يُنشر دون موافقتك")}</div>
+        </>}
+      </>}
+    </div>
+  );
+}
+
 // ── Command Center — the agency home wall. Every client at a glance, the ones
 // that need you pulled to the top, fully theme aware. ──
 function CommandCenterPage() {
@@ -16798,6 +16925,7 @@ export default function TawasloApp() {
     }
     if (typeof window !== "undefined" && window.innerWidth < 820 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
     if (page==="command") return <CommandCenterPage/>;
+    if (page==="autopilot") return <CampaignAutopilotPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;

@@ -1,3 +1,19 @@
+// Templated campaign — used if the AI call is unavailable. Returns up to `count`.
+function campaignFallback(topic, plats, count) {
+  const t = topic || 'our seasonal special';
+  const p0 = plats[0] || 'Instagram'; const p1 = plats[1] || p0;
+  const all = [
+    { format: 'reel', caption: `A quick look at ${t}. Fifteen seconds of the good stuff 🎬`, platform: p0, dayOffset: 0, time: '18:00' },
+    { format: 'carousel', caption: `Swipe through everything you need to know about ${t}.`, platform: p0, dayOffset: 1, time: '13:00' },
+    { format: 'story_poll', caption: `Quick one for you. Are you into ${t}? Tap to vote 🗳️`, platform: p0, dayOffset: 2, time: '11:00' },
+    { format: 'quote', caption: `Good things are worth sharing. ${t}, made with love.`, platform: p1, dayOffset: 3, time: '17:00' },
+    { format: 'tip', caption: `A little tip from us on getting the most out of ${t}.`, platform: p0, dayOffset: 4, time: '10:00' },
+    { format: 'ugc_repost', caption: `Reshare a happy customer moment with a warm thank you 💛`, platform: p0, dayOffset: 5, time: '12:00' },
+    { format: 'behind_scenes', caption: `A peek behind the scenes as we get ${t} just right ✨`, platform: p0, dayOffset: 6, time: '14:00' },
+  ];
+  return all.slice(0, Math.min(7, Math.max(3, count || 5)));
+}
+
 export default async function handler(req, res) {
   // ── WhatsApp Cloud API webhook (folded in here to stay under Vercel's function cap) ──
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
@@ -35,6 +51,36 @@ export default async function handler(req, res) {
   const toneText = tone || 'engaging and professional';
   const language = (lang || 'both').toLowerCase(); // 'en' | 'ar' | 'both'
   const theMode = (mode || 'caption').toLowerCase(); // 'caption' | 'ideas' | 'hashtags' | 'vision' | 'alt' | 'image' | 'image-edit'
+
+  // ── Campaign Autopilot: a trend/topic in, five on-brand posts out (one AI call). ──
+  if (theMode === 'campaign') {
+    const plats = (Array.isArray(req.body.platforms) && req.body.platforms.length) ? req.body.platforms : ['Instagram', 'Facebook'];
+    const cCount = Math.min(7, Math.max(3, Number(req.body.count) || 5));
+    const cTopic = req.body.topic || topic || 'our seasonal special';
+    const cv = req.body.voice || null;
+    let voiceBlock = '';
+    if (cv) {
+      const emojiRule = cv.emoji === 'none' ? 'Use no emojis.' : cv.emoji === 'lots' ? 'Use emojis freely where natural.' : 'Use a few tasteful emojis.';
+      const lines = [
+        (cv.tones && cv.tones.length) ? `Brand personality: ${cv.tones.join(', ')}.` : '',
+        emojiRule,
+        (cv.dos && cv.dos.length) ? `Always: ${cv.dos.join('; ')}.` : '',
+        (cv.donts && cv.donts.length) ? `Never: ${cv.donts.join('; ')}.` : '',
+        (cv.examples && cv.examples.length) ? `Match the style of these examples:\n- ${cv.examples.slice(0, 6).join('\n- ')}` : '',
+      ].filter(Boolean).join('\n');
+      if (lines) voiceBlock = `\nWrite in this brand's voice:\n${lines}\n`;
+    }
+    const langLine = language === 'ar' ? 'Write captions in Arabic.' : language === 'en' ? 'Write captions in English.' : 'Write captions in English.';
+    const sys = `You are a senior social media strategist. From a trend or topic, design a tight ${cCount} post mini campaign for ONE brand. Use a varied mix of these formats (do not repeat one until the others are used): reel, carousel, story_poll, quote, tip, ugc_repost, behind_scenes. Each post needs a ready to publish caption with tasteful emojis and a few relevant hashtags, the best platform chosen from [${plats.join(', ')}], a dayOffset integer from 0 to 6, and a time in HH:MM. ${langLine} Do not use hyphens or dashes anywhere in the captions. Return ONLY a JSON object, no markdown.`;
+    const userMsg = `Trend or topic: ${cTopic}\nBrand: ${req.body.brand || ''}${voiceBlock}\nReturn JSON exactly: { "posts": [ { "format": "reel", "caption": "", "platform": "", "dayOffset": 0, "time": "18:00" } ] } with exactly ${cCount} posts, spread across different days.`;
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1200, system: sys, messages: [{ role: 'user', content: userMsg }] }) });
+        if (r.ok) { const d = await r.json(); const txt = (d.content && d.content[0] && d.content[0].text) || ''; const mt = txt.match(/\{[\s\S]*\}/); if (mt) { const parsed = JSON.parse(mt[0]); if (parsed && Array.isArray(parsed.posts) && parsed.posts.length) return res.status(200).json({ ok: true, posts: parsed.posts.slice(0, cCount) }); } }
+      }
+    } catch (e) { /* fall through to templated */ }
+    return res.status(200).json({ ok: true, demo: true, posts: campaignFallback(cTopic, plats, cCount) });
+  }
 
   // ── AI image generation & editing (Google Gemini "Nano Banana") ────────
   // Folded into this endpoint to stay under Vercel's function limit. Needs a
