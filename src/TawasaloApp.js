@@ -9736,8 +9736,9 @@ function InboxPage() {
     logEngagement(realClientId, { kind: 'reply', platform: selected && selected.platform, type: selected && selected.type, ai, rt });
   };
 
-  const sendReply = async () => {
-    if (!reply.trim() || !selected || selected.type === 'dm') return;
+  const sendReply = async (overrideText) => {
+    const text = (typeof overrideText === 'string' ? overrideText : reply);
+    if (!text.trim() || !selected || selected.type === 'dm') return;
     if (selected.sample) { logReply(); setReply(''); setReplySuccess(true); setTimeout(()=>setReplySuccess(false),3000); return; }
     const acc = accounts.find(a => a.platform === 'ig');
     if (!acc) return;
@@ -9746,7 +9747,7 @@ function InboxPage() {
       const res = await fetch('/api/instagram-inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'reply', commentId: selected.id, message: reply, accessToken: acc.access_token }),
+        body: JSON.stringify({ type: 'reply', commentId: selected.id, message: text, accessToken: acc.access_token }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -10016,7 +10017,8 @@ function InboxPage() {
                           <div key={i} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"10px 11px" }}>
                             <div style={{ fontSize:12, color:th.text, lineHeight:1.55, whiteSpace:"pre-wrap", direction:ar?"rtl":"ltr", textAlign:ar?"right":"left", marginBottom:8 }}>{r}</div>
                             <div style={{ display:"flex", gap:7, justifyContent:"flex-end" }}>
-                              <button onClick={()=>{ setReply(r); setReplyError(''); }} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"5px 12px", cursor:"pointer" }}><Check size={12}/>{L("Use","استخدم")}</button>
+                              <button onClick={()=>{ setReply(r); setReplyError(''); }} title={L("Load into the box to tweak","حمّله في الصندوق للتعديل")} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:th.text, background:"transparent", border:`1px solid ${th.border}`, borderRadius:7, padding:"5px 12px", cursor:"pointer" }}><Edit3 size={11}/>{L("Edit","تعديل")}</button>
+                              <button onClick={()=>{ setReplyError(''); sendReply(r); }} disabled={replying} title={L("Send this reply now","أرسل هذا الرد الآن")} style={{ display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"5px 12px", cursor:replying?"wait":"pointer", opacity:replying?0.6:1 }}><Check size={12}/>{L("Use","استخدم")}</button>
                             </div>
                           </div>
                         ); })}
