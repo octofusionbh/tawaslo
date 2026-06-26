@@ -12784,6 +12784,23 @@ function MenuBuilderPage() {
             <input type="checkbox" checked={!!(menu&&menu.hide_prices)} onChange={e=>updateMenu({ hide_prices:e.target.checked })} style={{ width:16, height:16, accentColor:th.accent }}/>
             <span style={{ fontSize:12, color:th.text2 }}>{L("Hide all prices on this menu","إخفاء كل الأسعار في هذه القائمة")}</span>
           </label>
+          <div style={{ flexBasis:"100%", height:0 }}/>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("Desktop / tablet theme","سمة سطح المكتب واللوحي")}</span>
+            <select value={(menu&&menu.theme)||"dark"} onChange={e=>updateMenu({ theme:e.target.value })} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none", cursor:"pointer" }}>
+              <option value="dark">{L("Dark","داكن")}</option>
+              <option value="light">{L("Light","فاتح")}</option>
+            </select>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:11.5, color:th.text2 }}>{L("Cover banner","لافتة الغلاف")} <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></span>
+            {(menu&&menu.cover_url) && <img src={menu.cover_url} alt="" style={{ width:46, height:30, borderRadius:6, objectFit:"cover", border:`1px solid ${th.border}` }}/>}
+            <label style={{ fontSize:12, fontWeight:600, color:th.accent, border:`1px dashed ${th.border}`, borderRadius:8, padding:"7px 12px", cursor:"pointer" }}>
+              {uploading ? L("Uploading…","جارٍ الرفع…") : ((menu&&menu.cover_url) ? L("Change","تغيير") : L("Upload image","رفع صورة"))}
+              <input type="file" accept="image/*" style={{ display:"none" }} onChange={async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; setUploading(true); const url=await uploadBlob(f, (f.name.split('.').pop()||'jpg').toLowerCase()); if(url) updateMenu({ cover_url:url }); setUploading(false); e.target.value=""; }}/>
+            </label>
+            {(menu&&menu.cover_url) && <button onClick={()=>updateMenu({ cover_url:null })} style={{ fontSize:12, color:th.text3, background:"transparent", border:"none", cursor:"pointer", textDecoration:"underline" }}>{L("Remove","إزالة")}</button>}
+          </div>
         </div>
       )}
 
@@ -12972,8 +12989,10 @@ function MenuBuilderPage() {
 
 // ── Concierge — AI front desk on public pages. Reads menu + availability,
 // answers questions, and books a table straight into the bookings engine. ──
-function ConciergeWidget({ clientId, name, currency }) {
-  const [open, setOpen] = useState(false);
+function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChange, hideButton, dock }) {
+  const [openS, setOpenS] = useState(false);
+  const open = openProp !== undefined ? openProp : openS;
+  const setOpen = (v) => { if (onOpenChange) onOpenChange(v); else setOpenS(v); };
   const [ctx, setCtx] = useState(null);
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
@@ -12993,7 +13012,8 @@ function ConciergeWidget({ clientId, name, currency }) {
   }, [clientId, currency]);
 
   useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, open, busy]);
-  const openChat = () => { setOpen(true); if (msgs.length===0) setMsgs([{ role:'assistant', content:`Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋` }]); };
+  useEffect(() => { if (open && msgs.length===0) setMsgs([{ role:'assistant', content:`Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋` }]); }, [open]); // eslint-disable-line
+  const openChat = () => setOpen(true);
 
   const send = async () => {
     const text = input.trim(); if (!text || busy) return;
@@ -13023,9 +13043,11 @@ function ConciergeWidget({ clientId, name, currency }) {
   if (!clientId) return null;
   return (
     <>
-      {!open && <button onClick={openChat} style={{ position:"fixed", insetInlineEnd:18, bottom:18, zIndex:9990, display:"inline-flex", alignItems:"center", gap:8, padding:"12px 16px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer", boxShadow:"0 8px 26px rgba(0,0,0,0.4)", fontFamily:"'Plus Jakarta Sans',sans-serif" }}><MessageCircle size={17}/>Chat &amp; book</button>}
+      {!open && !hideButton && <button onClick={openChat} style={{ position:"fixed", insetInlineEnd:18, bottom:18, zIndex:9990, display:"inline-flex", alignItems:"center", gap:8, padding:"12px 16px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer", boxShadow:"0 8px 26px rgba(0,0,0,0.4)", fontFamily:"'Plus Jakarta Sans',sans-serif" }}><MessageCircle size={17}/>Chat &amp; book</button>}
       {open && (
-        <div style={{ position:"fixed", insetInlineEnd:14, bottom:14, zIndex:9991, width:"min(380px, calc(100vw - 28px))", height:"min(560px, calc(100vh - 80px))", background:"#0E1013", border:"1px solid #20242b", borderRadius:18, display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 18px 50px rgba(0,0,0,0.55)", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+        <div style={ dock
+          ? { position:"fixed", insetInlineEnd:0, top:0, bottom:0, zIndex:9991, width:"min(400px, 100vw)", background:"#0E1013", borderInlineStart:"1px solid #20242b", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"-18px 0 50px rgba(0,0,0,0.45)", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif", animation:"twPop .22s ease both" }
+          : { position:"fixed", insetInlineEnd:14, bottom:14, zIndex:9991, width:"min(380px, calc(100vw - 28px))", height:"min(560px, calc(100vh - 80px))", background:"#0E1013", border:"1px solid #20242b", borderRadius:18, display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"0 18px 50px rgba(0,0,0,0.55)", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, padding:"13px 15px", borderBottom:"1px solid #20242b" }}>
             <div style={{ width:32, height:32, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={15} color="#fff"/></div>
             <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13.5, fontWeight:700, color:"#ECEAE1" }}>{name}</div><div style={{ fontSize:10.5, color:"#5e6b78" }}>Concierge · usually replies instantly</div></div>
@@ -13050,6 +13072,19 @@ function ConciergeWidget({ clientId, name, currency }) {
   );
 }
 
+// Per-restaurant menu palette — owner picks dark or light in the builder.
+const menuPalette = (t) => t==='light' ? {
+  bg:"#F4F1EA", rail:"#EFEBE2", railBorder:"#E4DECF", card:"#FFFFFF", border:"#E7E1D3",
+  text:"#1C1A16", text2:"#6f685c", text3:"#a39c8c", price:"#9a4a2a", railActive:"#EAE3D4",
+  photo:"#EAE3D5", chipBg:"#EFEBE2", barBg:"rgba(244,241,234,0.92)", barBorder:"#E4DECF",
+  cover:"radial-gradient(120% 80% at 50% 0%, #FBF6EC 0%, #F4F1EA 62%)", placeholderIcon:"#c7bfac"
+} : {
+  bg:"#0E1013", rail:"#0c0f13", railBorder:"#1b1f26", card:"#141923", border:"#20242b",
+  text:"#ECEAE1", text2:"#8a93a0", text3:"#5e6b78", price:"#E7C9A8", railActive:"#161b23",
+  photo:"#161b23", chipBg:"#161b23", barBg:"rgba(14,16,19,0.92)", barBorder:"#1b1f26",
+  cover:"radial-gradient(120% 80% at 50% 0%, #2a2118 0%, #14110d 48%, #0E1013 100%)", placeholderIcon:"#3f4954"
+};
+
 // ── Public digital menu (tawaslo.com/menu/<slug>) — no login. Sectioned, ──
 // ── sticky category bar, tap-to-detail with photo gallery + bilingual text. ──
 function MenuPublicPage({ slug }) {
@@ -13061,6 +13096,10 @@ function MenuPublicPage({ slug }) {
   const [filters, setFilters] = useState([]);
   const [showAllDay, setShowAllDay] = useState(false);
   const [dispLang, setDispLang] = useState(null);
+  const [isDesktop, setIsDesktop] = useState(typeof window!=="undefined" && window.innerWidth>=768);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [entered, setEntered] = useState(false);
+  useEffect(() => { if (typeof window==="undefined") return; const onR=()=>setIsDesktop(window.innerWidth>=768); window.addEventListener('resize', onR); return ()=>window.removeEventListener('resize', onR); }, []);
   const sectionRefs = useRef({});
   useEffect(() => { if (typeof window==="undefined") return; try { const s = window.localStorage.getItem('twmenu_lang_'+slug); if (s) setDispLang(s); } catch(e){} }, [slug]);
   const barRef = useRef(null);
@@ -13068,7 +13107,7 @@ function MenuPublicPage({ slug }) {
   const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -13129,10 +13168,14 @@ function MenuPublicPage({ slug }) {
   const cur = data.currency || "BHD";
   const priceOf = (it) => { if (data.hide_prices || it.show_price===false) return ""; const vs = itemVariants(it); if (vs.length) { const m = itemMinPrice(it); return (m!=null && isFinite(m)) ? "from "+fmtMoney(m, cur) : ""; } return it.price!=null ? fmtMoney(it.price, cur) : ""; };
   const detailPhotos = detail ? itemPhotos(detail) : [];
+  const T = menuPalette(data.theme);
+  const coverUrl = data.cover_url || null;
+  const dpToggle = { display:"inline-flex", alignItems:"center", gap:5, border:`1px solid ${T.border}`, background:"transparent", color:T.text2, cursor:"pointer", fontSize:12, fontWeight:600, padding:"6px 11px", borderRadius:14, fontFamily: isRTLLang(altLang)?"'Cairo',sans-serif":undefined };
 
   return (
     <div style={wrap}>
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"30px 16px 0", position:"relative" }}>
+      {!isDesktop && (<>
+      <div className="tw-menu-col" style={{ padding:"30px 16px 0", position:"relative" }}>
         {hasSecond && <button onClick={toggleLang} aria-label="Switch language" style={{ position:"absolute", top:16, insetInlineEnd:16, display:"inline-flex", alignItems:"center", gap:4, border:"1px solid #2b3340", background:"rgba(20,25,35,0.55)", color:"#9aa6b3", cursor:"pointer", fontSize:11, fontWeight:600, padding:"4px 9px", borderRadius:13, fontFamily: isRTLLang(altLang)?"'Cairo',sans-serif":undefined }}><Globe size={13}/>{langName(altLang)}</button>}
         <div style={{ textAlign:"center", marginBottom:18 }}>
           {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:"#1a2230", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:"#9fb4cf" }}>{(data.name||"M")[0]}</div>}
@@ -13169,7 +13212,7 @@ function MenuPublicPage({ slug }) {
 
       {sections.length>1 && (
         <div ref={barRef} style={{ position:"sticky", top:0, zIndex:50, background:"rgba(14,16,19,0.92)", backdropFilter:"blur(10px)", borderBottom:"1px solid #1b1f26" }}>
-          <div className="tw-scroll-x" style={{ maxWidth:560, margin:"0 auto", display:"flex", gap:8, overflowX:"auto", padding:"11px 16px", WebkitOverflowScrolling:"touch" }}>
+          <div className="tw-scroll-x tw-menu-col" style={{ display:"flex", gap:8, overflowX:"auto", padding:"11px 16px", WebkitOverflowScrolling:"touch" }}>
             {sections.map(c=>(
               <button key={c} ref={el=>{ chipRefs.current[c]=el; }} onClick={()=>jump(c)} style={{ flexShrink:0, fontSize:12.5, fontWeight:active===c?700:500, padding:"7px 13px", borderRadius:20, cursor:"pointer", border:"none", background:active===c?"#9DB6D6":"#161b23", color:active===c?"#0E1013":"#9aa6b3", whiteSpace:"nowrap", transition:"all .15s" }}>{c}</button>
             ))}
@@ -13177,7 +13220,7 @@ function MenuPublicPage({ slug }) {
         </div>
       )}
 
-      <div style={{ maxWidth:560, margin:"0 auto", padding:"18px 16px 60px" }}>
+      <div className="tw-menu-col" style={{ padding:"18px 16px 60px" }}>
         {items.length===0 ? <div style={{ textAlign:"center", color:"#5e6b78", fontSize:13, padding:"40px 0" }}>This menu is being prepared.</div> : sections.length===0 ? (
           <div style={{ textAlign:"center", padding:"36px 0", color:"#7E8794" }}>
             <div style={{ fontSize:13 }}>{filters.length>0 ? "No items match those filters." : "Nothing is being served right now."}</div>
@@ -13190,7 +13233,7 @@ function MenuPublicPage({ slug }) {
           sections.map(sec=>(
             <div key={sec} ref={el=>{ sectionRefs.current[sec]=el; }} data-cat={sec} style={{ scrollMarginTop:72, marginBottom:26 }}>
               <div style={{ fontSize:15, fontWeight:800, letterSpacing:"0.01em", marginBottom:11, paddingBottom:7, borderBottom:"1px solid #20242b", textAlign:rtlDisp?"right":"left", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{sec}</div>
-              <div style={{ display:"flex", flexDirection:"column", gap:9 }}>
+              <div className="tw-menu-items">
                 {secItems(sec).map(it=>{
                   const ph = itemPhotos(it);
                   const soldOut = it.available===false;
@@ -13216,6 +13259,103 @@ function MenuPublicPage({ slug }) {
         )}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:14 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
       </div>
+
+      </>)}
+
+      {isDesktop && (
+        <div dir={rtlDisp?"rtl":"ltr"} style={{ position:"fixed", inset:0, background:T.bg, color:T.text, display:"flex", overflow:"hidden", fontFamily: rtlDisp?"'Cairo',sans-serif":"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif" }}>
+
+          <div className={"twm-cover"+(entered?" twm-out":"")} style={{ background:T.cover }}>
+            {hasSecond && <button onClick={toggleLang} aria-label="Switch language" style={{ position:"absolute", top:26, insetInlineEnd:26, ...dpToggle, background:T.card }}><Globe size={14}/>{langName(altLang)}</button>}
+            <div style={{ maxWidth:600, padding:"0 24px" }}>
+              {coverUrl && <div style={{ width:"min(540px,78vw)", height:206, borderRadius:18, margin:"0 auto 30px", background:`center/cover url(${coverUrl})`, border:`1px solid ${T.border}` }}/>}
+              <div className="twm-logo" style={{ display:"inline-block" }}>
+                {data.logo ? <img src={data.logo} alt="" style={{ width:98, height:98, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:98, height:98, borderRadius:"50%", margin:"0 auto", background:T.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:38, fontWeight:700, color:T.price }}>{(data.name||"M")[0]}</div>}
+              </div>
+              <div style={{ fontSize:34, fontWeight:800, marginTop:20 }}>{data.name}</div>
+              <div style={{ fontSize:11, letterSpacing:".28em", textTransform:"uppercase", color:T.text3, marginTop:9 }}>Menu</div>
+              <button onClick={()=>setEntered(true)} style={{ marginTop:30, padding:"14px 34px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:15, fontWeight:700, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:9, boxShadow:"0 10px 30px rgba(79,107,140,0.35)" }}>{secondary?"عرض القائمة":"View menu"}<ChevronRight size={18}/></button>
+            </div>
+          </div>
+
+          <div style={{ width:230, flexShrink:0, background:T.rail, borderInlineEnd:`1px solid ${T.railBorder}`, display:"flex", flexDirection:"column", padding:"22px 15px" }}>
+            <div style={{ textAlign:"center", paddingBottom:18, borderBottom:`1px solid ${T.railBorder}` }}>
+              {data.logo ? <img src={data.logo} alt="" style={{ width:54, height:54, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:54, height:54, borderRadius:"50%", margin:"0 auto", background:T.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21, fontWeight:700, color:T.price }}>{(data.name||"M")[0]}</div>}
+              <div style={{ fontSize:14, fontWeight:700, marginTop:9, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{data.name}</div>
+              <div style={{ fontSize:9, letterSpacing:".22em", textTransform:"uppercase", color:T.text3, marginTop:4 }}>Menu</div>
+            </div>
+            <div className="tw-noscroll" style={{ marginTop:14, display:"flex", flexDirection:"column", gap:2, flex:1, overflowY:"auto" }}>
+              {sections.map(c=>(
+                <button key={c} onClick={()=>jump(c)} style={{ textAlign:rtlDisp?"right":"left", fontSize:13.5, fontWeight:active===c?700:500, padding:"10px 12px", borderRadius:10, cursor:"pointer", border:"none", background:active===c?T.railActive:"transparent", color:active===c?T.text:T.text2, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>
+                  <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c}</span>
+                  <span style={{ fontSize:11, fontWeight:600, color:T.text3, flexShrink:0 }}>{secItems(c).length}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={()=>setChatOpen(true)} style={{ marginTop:10, display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer" }}><MessageCircle size={16}/>{secondary?"الدردشة والحجز":"Chat & book"}</button>
+            {hasSecond && <div style={{ marginTop:9, display:"flex", border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden" }}>
+              <button onClick={()=>{ if(secondary) toggleLang(); }} style={{ flex:1, padding:"8px 0", fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:!secondary?T.railActive:"transparent", color:!secondary?T.text:T.text2, fontFamily:isRTLLang(lang1)?"'Cairo',sans-serif":undefined }}>{langName(lang1)}</button>
+              <button onClick={()=>{ if(!secondary) toggleLang(); }} style={{ flex:1, padding:"8px 0", fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:secondary?T.railActive:"transparent", color:secondary?T.text:T.text2, fontFamily:isRTLLang(lang2)?"'Cairo',sans-serif":undefined }}>{langName(lang2)}</button>
+            </div>}
+          </div>
+
+          <div className={"twm-body"+(entered?" twm-in":"")} style={{ flex:1, minWidth:0, overflowY:"auto", padding:"28px 34px 64px" }}>
+            {data.special_on && data.special && (
+              <div style={{ display:"flex", alignItems:"center", gap:11, background:"rgba(199,148,43,0.12)", border:"1px solid rgba(199,148,43,0.4)", borderRadius:14, padding:"13px 16px", marginBottom:20, maxWidth:760 }}>
+                <Sparkles size={18} color="#C7942B" style={{ flexShrink:0 }}/>
+                <div style={{ minWidth:0 }}><div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#C7942B", fontWeight:700 }}>Today's special</div><div style={{ fontSize:13.5, color:T.text, marginTop:1 }}>{data.special}</div></div>
+              </div>
+            )}
+            {(hiddenByTime>0 || showAllDay || tagsPresent.length>0) && (
+              <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap", marginBottom:22 }}>
+                {nowDp && !showAllDay && <span style={{ fontSize:12, color:T.text2, display:"inline-flex", alignItems:"center", gap:6, marginInlineEnd:4 }}><Clock size={13}/>Now serving · <b style={{ color:T.text }}>{daypartName(nowDp)}</b></span>}
+                {(hiddenByTime>0 || showAllDay) && <button onClick={()=>setShowAllDay(s=>!s)} style={{ fontSize:12, fontWeight:700, padding:"6px 13px", borderRadius:18, cursor:"pointer", border:`1px solid ${T.border}`, background:showAllDay?"#9DB6D6":"transparent", color:showAllDay?"#0E1013":"#9DB6D6" }}>{showAllDay?"Showing full menu":"Show full menu"}</button>}
+                {tagsPresent.map(tg=>{ const on=filters.includes(tg.k); return (
+                  <button key={tg.k} onClick={()=>setFilters(f=>on?f.filter(x=>x!==tg.k):[...f,tg.k])} style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:12, fontWeight:600, padding:"6px 12px", borderRadius:18, cursor:"pointer", border:`1px solid ${on?tg.color:T.border}`, background:on?tg.color+"22":"transparent", color:on?T.text:T.text2, fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</button>
+                ); })}
+                {filters.length>0 && <button onClick={()=>setFilters([])} style={{ fontSize:12, padding:"6px 11px", borderRadius:18, cursor:"pointer", border:`1px solid ${T.border}`, background:"transparent", color:T.text3 }}>Clear</button>}
+              </div>
+            )}
+
+            {items.length===0 ? <div style={{ textAlign:"center", color:T.text3, fontSize:14, padding:"60px 0" }}>This menu is being prepared.</div> : sections.length===0 ? (
+              <div style={{ textAlign:"center", padding:"60px 0", color:T.text2 }}>
+                <div style={{ fontSize:14 }}>{filters.length>0 ? "No items match those filters." : "Nothing is being served right now."}</div>
+                <div style={{ display:"flex", gap:8, justifyContent:"center", marginTop:14 }}>
+                  {filters.length>0 && <button onClick={()=>setFilters([])} style={{ fontSize:12.5, fontWeight:700, padding:"8px 15px", borderRadius:18, cursor:"pointer", border:`1px solid ${T.border}`, background:"transparent", color:"#9DB6D6" }}>Clear filters</button>}
+                  {!showAllDay && hiddenByTime>0 && <button onClick={()=>setShowAllDay(true)} style={{ fontSize:12.5, fontWeight:700, padding:"8px 15px", borderRadius:18, cursor:"pointer", border:"none", background:"#9DB6D6", color:"#0E1013" }}>Show full menu</button>}
+                </div>
+              </div>
+            ) : sections.map(sec=>(
+              <div key={sec} ref={el=>{ sectionRefs.current[sec]=el; }} data-cat={sec} style={{ scrollMarginTop:18, marginBottom:36 }}>
+                <div style={{ fontSize:19, fontWeight:800, letterSpacing:"0.01em", marginBottom:16, textAlign:rtlDisp?"right":"left", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{sec}</div>
+                <div className="twm-grid">
+                  {secItems(sec).map(it=>{
+                    const ph = itemPhotos(it);
+                    const soldOut = it.available===false;
+                    const tgs = itemTags(it).map(resolveTag);
+                    return (
+                      <div className="twm-dish" key={it.id} onClick={()=>openDetail(it)} style={{ cursor:"pointer", opacity:soldOut?0.6:1, textAlign:rtlDisp?"right":"left" }}>
+                        <div className="twm-dishphoto" style={{ width:"100%", aspectRatio:"1/1", borderRadius:15, overflow:"hidden", position:"relative", background: ph[0]?`center/cover url(${ph[0]})`:T.photo, border:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", filter:soldOut?"grayscale(0.7)":undefined }}>
+                          {!ph[0] && <Image size={26} color={T.placeholderIcon}/>}
+                          {ph[0] && ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:7, insetInlineEnd:7, fontSize:9.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.55)", borderRadius:6, padding:"2px 7px" }}>{ph.length}</span>}
+                          {soldOut && <span style={{ position:"absolute", top:8, insetInlineStart:8, fontSize:9.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:6, padding:"3px 8px", letterSpacing:".05em" }}>SOLD OUT</span>}
+                        </div>
+                        <div style={{ marginTop:10, display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
+                          <div style={{ fontSize:14.5, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.name_en,it.name_ar)}</div>
+                          <div style={{ fontSize:14, fontWeight:700, color:T.price, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", flexShrink:0, textDecoration:soldOut?"line-through":undefined }}>{priceOf(it)}</div>
+                        </div>
+                        {pickLang(it.description,it.description_ar) && <div style={{ fontSize:12, color:T.text2, marginTop:4, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.description,it.description_ar)}</div>}
+                        {tgs.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:7, justifyContent:rtlDisp?"flex-end":"flex-start" }}>{tgs.map(tg=> <span key={tg.k} title={tg.en} style={{ fontSize:9.5, fontWeight:600, padding:"2px 7px", borderRadius:6, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:3, fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</span>)}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11.5, color:T.text3, marginTop:20 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain", opacity:0.7 }}/>Powered by Tawaslo</div>
+          </div>
+        </div>
+      )}
 
       {detail && createPortal((
         <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, display:"flex", alignItems:"flex-end", justifyContent:"center", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
@@ -13270,7 +13410,7 @@ function MenuPublicPage({ slug }) {
         </div>
       ), document.body)}
 
-      <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur}/>
+      <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur} {...(isDesktop ? { open:chatOpen, onOpenChange:setChatOpen, hideButton:true, dock:true } : {})}/>
     </div>
   );
 }

@@ -26,6 +26,27 @@ body {
 .tw-scroll-x { scrollbar-width: none; -ms-overflow-style: none; }
 .tw-scroll-x::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* Public menu — phone-perfect single column, roomy two-column on desktop. */
+.tw-menu-col { max-width: 560px; margin-left: auto; margin-right: auto; }
+.tw-menu-items { display: flex; flex-direction: column; gap: 9px; }
+@media (min-width: 768px) {
+  .tw-menu-col { max-width: 880px; }
+  .tw-menu-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start; }
+}
+
+/* Desktop menu — cover intro that slides away to reveal the menu. */
+.twm-cover { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; text-align: center;
+  transition: transform .8s cubic-bezier(.76,0,.24,1), opacity .55s ease .05s; }
+.twm-cover.twm-out { transform: translateX(-104%); opacity: 0; pointer-events: none; }
+.twm-cover .twm-logo { transition: transform .8s cubic-bezier(.76,0,.24,1); }
+.twm-cover.twm-out .twm-logo { transform: translate(-44px, -34px) scale(0.5); }
+.twm-body { opacity: 0; transform: scale(0.99); transition: opacity .5s ease .2s, transform .5s ease .2s; }
+.twm-body.twm-in { opacity: 1; transform: scale(1); }
+.twm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (min-width: 1100px) { .twm-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.twm-dishphoto { transition: transform .18s ease; }
+.twm-dish:hover .twm-dishphoto { transform: translateY(-4px); }
+
 /* Skeleton loaders — shaped placeholders with a soft shimmer sweep, shown
    while data loads instead of a "Loading…" line. The translucent base adapts
    to both light and dark cards. */
