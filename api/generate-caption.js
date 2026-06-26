@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // WhatsApp Cloud API webhook live (deploy marker v2 — force fresh deploy).
   // ── WhatsApp Cloud API webhook (folded in here to stay under Vercel's function cap) ──
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
     const vt = process.env.WHATSAPP_VERIFY_TOKEN || 'tawaslo_wa_verify';
@@ -581,9 +580,8 @@ async function waSend(phoneId, token, to, bodyText) {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'text', text: { body: String(bodyText || '').slice(0, 3500) } }),
     });
-    if (!r.ok) { const e = await r.text(); console.error('WA_SEND_FAIL status=' + r.status + ' body=' + String(e).slice(0, 400) + ' phoneId=' + phoneId + ' tokenLen=' + String(token || '').length); }
-    else { console.log('WA_SEND_OK to=' + to); }
-  } catch (e) { console.error('WA_SEND_ERR ' + String((e && e.message) || e)); }
+    if (!r.ok) { console.error('WhatsApp send failed (' + r.status + ')'); }
+  } catch (e) { /* network error — skip */ }
 }
 async function handleWhatsApp(body) {
   const token = process.env.WHATSAPP_TOKEN;
