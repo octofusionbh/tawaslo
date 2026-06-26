@@ -8054,7 +8054,8 @@ function TrendingPage() {
                 <div style={{fontSize:12,lineHeight:1.5,height:36,overflow:"hidden",color:th.text}}>{it.caption||L("(no caption)","(بدون نص)")}</div>
                 <div style={{fontSize:10.5,color:th.text2,margin:"6px 0 9px",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.author}</div>
                 <div style={{display:"flex",gap:7}}>
-                  <a href={it.url||"#"} target="_blank" rel="noreferrer" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>{L("View","عرض")}</a>
+                  <a href={it.url||"#"} target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,color:th.text,background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",textDecoration:"none"}}><Eye size={13}/>{L("View","عرض")}</a>
+                  <button onClick={()=>{ try{ sessionStorage.setItem('tw_autopilot_topic', it.caption || ''); }catch(e){} setPage('autopilot'); }} title={L("Turn this into a campaign","حوّله إلى حملة")} style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:11,fontWeight:600,color:"#fff",background:th.gradient,border:"none",borderRadius:9,padding:"8px",cursor:"pointer"}}><Wand2 size={13}/>{L("Campaign","حملة")}</button>
                 </div>
               </div>
             </div>
