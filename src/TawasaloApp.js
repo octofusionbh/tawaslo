@@ -14701,8 +14701,10 @@ function HostStandPage({ slug }) {
   const [armed, setArmed] = useState(null);
   const [selTable, setSelTable] = useState(null);
   const [walkOpen, setWalkOpen] = useState(false);
-  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState("");
+  const [wName, setWName] = useState(""); const [wParty, setWParty] = useState(2); const [wPhone, setWPhone] = useState(""); const [wEmail, setWEmail] = useState(""); const [wBday, setWBday] = useState("");
   const [notified, setNotified] = useState({});
+  const [guests, setGuests] = useState([]);
+  const [reviewCfg, setReviewCfg] = useState(null);
   const [hmode, setHmode] = useState("host");   // host | edit
   const [editTable, setEditTable] = useState(null);
   const [, setTick] = useState(0);
@@ -14742,6 +14744,8 @@ function HostStandPage({ slug }) {
       setRooms(rm || []); setRoomId(p => p || (rm && rm[0] && rm[0].id));
       const { data: tb } = await supabase.from('dining_tables').select('*').eq('client_id', cid);
       if (live) { setTables(tb || []); reload(cid); }
+      try { const { data: gs } = await supabase.from('guests').select('phone,name,vip,email,birthday,allergies,fav_item,preferences,notes,visits,last_visit').eq('client_id', cid); if (live) setGuests(gs || []); } catch(e){}
+      try { const { data: rc } = await supabase.from('review_settings').select('google_url,goodbye_on,enabled').eq('client_id', cid).limit(1); if (live) setReviewCfg((rc&&rc[0])||null); } catch(e){}
     })();
     return () => { live = false; };
   }, [unlocked, info]);
@@ -14756,10 +14760,41 @@ function HostStandPage({ slug }) {
   const waitlist = bookings.filter(b => b.status === 'waitlist');
   const seatArmed = async (t) => { if (!armed) return; await supabase.from('bookings').update({ table_id: t.id, status: 'seated', seated_at: new Date().toISOString() }).eq('id', armed); setArmed(null); setSelTable(null); await reload(); };
   const clearTable = async (t) => { const b = bookingFor(t.id); if (b) await supabase.from('bookings').update({ table_id: null }).eq('id', b.id); setSelTable(null); await reload(); };
-  const addWalkin = async (toWait) => { await supabase.from('bookings').insert([{ client_id: info.client_id, customer_name: wName.trim() || 'Walk-in', customer_phone: wPhone.trim() || null, party_size: Number(wParty) || 2, starts_at: new Date().toISOString(), source: 'manual', status: toWait ? 'waitlist' : 'confirmed' }]); setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); await reload(); };
+  const addWalkin = async (toWait) => {
+    const phone = wPhone.trim() || null;
+    await supabase.from('bookings').insert([{ client_id: info.client_id, customer_name: wName.trim() || 'Walk-in', customer_phone: phone, party_size: Number(wParty) || 2, starts_at: new Date().toISOString(), source: 'manual', status: toWait ? 'waitlist' : 'confirmed' }]);
+    if (phone) { try { const gp={ client_id:info.client_id, phone, source:'host', wa_optin:true }; if(wName.trim()) gp.name=wName.trim(); if(wEmail.trim()){ gp.email=wEmail.trim(); gp.email_optin=true; } if(wBday) gp.birthday=wBday; const { data:up } = await supabase.from('guests').upsert(gp, { onConflict:'client_id,phone' }).select('phone,name,vip,email,birthday,allergies,fav_item,preferences,notes,visits,last_visit'); if(up&&up[0]) setGuests(gs=>[...gs.filter(x=>x.phone!==phone), up[0]]); } catch(e){} }
+    setWalkOpen(false); setWName(""); setWParty(2); setWPhone(""); setWEmail(""); setWBday(""); await reload();
+  };
   const notifyReady = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if (!ph) return; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, your table at ${info.name||'us'} is ready — please come to the host stand. See you in a moment!`); if (typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); setNotified(n => ({ ...n, [b.id]: true })); };
   const elapsed = (iso) => { if (!iso) return ''; const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); if (m < 1) return 'now'; if (m < 60) return m + 'm'; return Math.floor(m / 60) + 'h ' + (m % 60) + 'm'; };
   const fmtT = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const agoH = (iso) => { if(!iso) return ''; const d=Math.floor((Date.now()-new Date(iso).getTime())/86400000); if(d<=0) return 'today'; if(d===1) return 'yesterday'; if(d<14) return d+'d ago'; if(d<60) return Math.round(d/7)+'w ago'; return Math.round(d/30)+'mo ago'; };
+  const guestForH = (phone) => phone ? guests.find(x=>x.phone && x.phone===phone) : null;
+  const guestBriefH = (b) => {
+    if (!b) return null;
+    const g = guestForH(b.customer_phone);
+    const fav = g && (g.fav_item || g.preferences); const allerg = g && g.allergies; const note = (g && g.notes) || b.note;
+    const visits = (g && g.visits) || 0; const vip = g && g.vip; const last = g && g.last_visit;
+    const firstTime = !g || (!visits && !last);
+    const tip = firstTime ? "First time here — give them a warm welcome." : allerg ? ("Heads up — allergic to "+allerg+".") : fav ? ("Welcome back — suggest the "+fav+".") : vip ? "VIP — roll out the warm welcome." : "Welcome back — a returning guest.";
+    return (
+      <div style={{ marginTop:11, padding:"11px 13px", background:"#0E1216", border:"1px solid #232B38", borderRadius:11 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:(fav||allerg||note)?8:0 }}>
+          <span style={{ fontSize:9.5, letterSpacing:".09em", textTransform:"uppercase", color:"#5e6b78", fontWeight:700 }}>Guest memory</span>
+          {vip && <span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:9.5, fontWeight:700, color:"#E0B85C", background:"rgba(199,148,43,.16)", borderRadius:6, padding:"1px 6px" }}><Star size={9}/>VIP</span>}
+          {!firstTime && (visits||last) ? <span style={{ fontSize:10, color:"#5e6b78", marginInlineStart:"auto" }}>{visits?`${visits} visits`:""}{last?`${visits?" · ":""}${agoH(last)}`:""}</span> : null}
+        </div>
+        {(fav||allerg||note) ? <div style={{ display:"flex", flexDirection:"column", gap:4, fontSize:12, color:"#F2F5F9" }}>
+          {fav && <div>🍽 Usually: <b style={{ fontWeight:600 }}>{fav}</b></div>}
+          {allerg && <div style={{ color:"#E08A6A" }}>⚠ Allergic to: {allerg}</div>}
+          {note && <div style={{ color:"#8794A8" }}>📝 {note}</div>}
+        </div> : null}
+        <div style={{ marginTop:9, padding:"7px 10px", background:"#141923", border:"1px solid #232B38", borderRadius:8, fontSize:11.5, color:"#9DB6D6" }}>💡 {tip}</div>
+      </div>
+    );
+  };
+  const goodbyeThankH = (b) => { const ph=String((b&&b.customer_phone)||'').replace(/[^\d]/g,''); if(!ph) return; const link=reviewCfg&&reviewCfg.google_url; const base=`Thank you for visiting ${info.name||'us'}! It was a pleasure having you. `; const ask=link?`If you enjoyed it, a quick Google review would mean the world: ${link}`:""; if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${encodeURIComponent(base+ask)}`,'_blank'); };
 
   // ── Edit-layout (host can build/adjust the floor right from the iPad) ──
   const addTable = async () => { const n = roomTables.length + 1; const ins = await supabase.from('dining_tables').insert([{ client_id: info.client_id, room_id: roomId, name: 'T' + n, seats: 2, shape: 'square', pos_x: 24 + ((n-1)%6)*78, pos_y: 24 + Math.floor((n-1)/6)*78 }]).select(); if (ins.data) setTables(ts => [...ts, ins.data[0]]); };
@@ -14814,7 +14849,12 @@ function HostStandPage({ slug }) {
           : <button onClick={() => setWalkOpen(true)} style={{ marginInlineStart: 6, padding: "8px 14px", borderRadius: 9, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", color: "#fff", border: "none", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>+ Walk-in</button>}
       </div>
       {(rooms.length > 1 || editMode) && <div style={{ display: "flex", gap: 7, padding: "10px 18px 0", flexWrap: "wrap", alignItems: "center" }}>{rooms.map(r => <button key={r.id} onClick={() => { setRoomId(r.id); setSelTable(null); setEditTable(null); }} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: `1px solid ${roomId === r.id ? "#6E8CAB" : "#232B38"}`, background: roomId === r.id ? "rgba(110,140,171,.14)" : "#141923", color: roomId === r.id ? "#cdd9e8" : "#8794A8" }}>{r.name}</button>)}{editMode && <button onClick={addRoom} style={{ padding: "6px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px dashed #232B38", background: "transparent", color: "#5e6b78" }}>+ Section</button>}</div>}
-      {armed && <div style={{ margin: "10px 18px 0", padding: "9px 13px", background: "rgba(110,140,171,.12)", border: "1px solid #6E8CAB", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "center", gap: 10 }}><span>Tap a table to seat <b>{(arriving.concat(waitlist).find(b => b.id === armed) || {}).customer_name}</b></span><div style={{ flex: 1 }} /><button onClick={() => setArmed(null)} style={{ background: "none", border: "none", color: "#8794A8", cursor: "pointer", fontSize: 12 }}>Cancel</button></div>}
+      {armed && (()=>{ const ab=arriving.concat(waitlist).find(b => b.id === armed); return (
+        <div style={{ margin: "10px 18px 0", padding: "11px 13px", background: "rgba(110,140,171,.12)", border: "1px solid #6E8CAB", borderRadius: 10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, fontSize:12.5 }}><span>Tap a table to seat <b>{(ab||{}).customer_name||'guest'}</b></span><div style={{ flex: 1 }} /><button onClick={() => setArmed(null)} style={{ background: "none", border: "none", color: "#8794A8", cursor: "pointer", fontSize: 12 }}>Cancel</button></div>
+          {guestBriefH(ab)}
+        </div>
+      ); })()}
       {!editMode && !armed && nextReady && <div style={{ margin: "10px 18px 0", padding: "11px 14px", background: "rgba(37,211,102,0.12)", border: "1px solid rgba(37,211,102,0.5)", borderRadius: 12, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div style={{ width: 30, height: 30, borderRadius: 8, background: "rgba(37,211,102,0.2)", display: "flex", alignItems: "center", justifyContent: "center", color: "#25D366", flexShrink: 0 }}><FaWhatsapp /></div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -14870,8 +14910,8 @@ function HostStandPage({ slug }) {
         <div onClick={() => setSelTable(null)} style={{ position: "fixed", inset: 0, background: "rgba(4,6,12,0.6)", backdropFilter: "blur(3px)", zIndex: 9998, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: "#141923", border: "1px solid #232B38", borderRadius: 16, padding: 18 }}>
             {(() => { const seated = seatedFor(selT.id); const resv = bookingFor(selT.id);
-              if (seated) return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Seated</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{seated.customer_name || 'Guest'} · {seated.party_size || 1} pax · {elapsed(seated.seated_at)}</div>{seated.note && <div style={{ fontSize: 11.5, color: "#C7942B", marginTop: 6 }}>{seated.note}</div>}<button onClick={() => clearTable(selT)} style={{ marginTop: 16, width: "100%", padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Clear table</button></>);
-              if (resv) return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Reserved</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{resv.customer_name || 'Guest'} · {resv.party_size || 1} pax · {fmtT(resv.starts_at)}</div><button onClick={async () => { await supabase.from('bookings').update({ status: 'seated', seated_at: new Date().toISOString() }).eq('id', resv.id); setSelTable(null); await reload(); }} style={{ marginTop: 16, width: "100%", padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Seat now</button></>);
+              if (seated) { const canThank = reviewCfg && reviewCfg.goodbye_on && seated.customer_phone; return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Seated</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{seated.customer_name || 'Guest'} · {seated.party_size || 1} pax · {elapsed(seated.seated_at)}</div>{guestBriefH(seated)}<div style={{ display:"flex", gap:8, marginTop:16 }}><button onClick={() => clearTable(selT)} style={{ flex:1, padding: 12, borderRadius: 11, background: canThank?"transparent":"linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: canThank?"1px solid #232B38":"none", color: canThank?"#8794A8":"#fff", fontSize: 13, fontWeight: canThank?600:700, cursor: "pointer" }}>Clear table</button>{canThank && <button onClick={() => { goodbyeThankH(seated); clearTable(selT); }} style={{ flex:1.4, padding: 12, borderRadius: 11, background: "#25D366", border: "none", color: "#06301a", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:7 }}><FaWhatsapp/>Clear &amp; thank</button>}</div></>); }
+              if (resv) return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Reserved</div><div style={{ fontSize: 13, color: "#8794A8", marginTop: 8 }}>{resv.customer_name || 'Guest'} · {resv.party_size || 1} pax · {fmtT(resv.starts_at)}</div>{guestBriefH(resv)}<button onClick={async () => { await supabase.from('bookings').update({ status: 'seated', seated_at: new Date().toISOString() }).eq('id', resv.id); setSelTable(null); await reload(); }} style={{ marginTop: 16, width: "100%", padding: 12, borderRadius: 11, background: "linear-gradient(135deg,#6E8CAB,#4F6B8C)", border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Seat now</button></>);
               return (<><div style={{ fontSize: 15, fontWeight: 700 }}>{selT.name} · Free</div><div style={{ fontSize: 12, color: "#5e6b78", marginTop: 6 }}>{selT.seats} seats</div><div style={{ fontSize: 11, color: "#8794A8", marginTop: 14, marginBottom: 7 }}>Seat an arriving guest:</div><div style={{ maxHeight: 200, overflowY: "auto" }}>{arriving.concat(waitlist).length === 0 ? <div style={{ fontSize: 12, color: "#5e6b78" }}>No one waiting. Use Walk-in.</div> : arriving.concat(waitlist).map(b => <button key={b.id} onClick={async () => { await supabase.from('bookings').update({ table_id: selT.id, status: 'seated', seated_at: new Date().toISOString() }).eq('id', b.id); setSelTable(null); await reload(); }} style={{ width: "100%", textAlign: "start", padding: "9px 11px", borderRadius: 9, background: "#0E1216", border: "1px solid #232B38", color: "#F2F5F9", fontSize: 12.5, cursor: "pointer", marginBottom: 6, display: "flex", justifyContent: "space-between" }}><span>{b.customer_name || 'Guest'} · {b.party_size || 1}p</span><span style={{ color: "#6E8CAB", fontWeight: 700 }}>Seat</span></button>)}</div></>);
             })()}
           </div>
@@ -14884,6 +14924,8 @@ function HostStandPage({ slug }) {
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>Walk-in</div>
             <input value={wName} onChange={e => setWName(e.target.value)} placeholder="Name (optional)" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
             <input value={wPhone} onChange={e => setWPhone(e.target.value)} type="tel" inputMode="tel" placeholder="WhatsApp number — for 'table ready'" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
+            <input value={wEmail} onChange={e => setWEmail(e.target.value)} type="email" inputMode="email" placeholder="Email (optional) — for the Birthday Club" style={{ width: "100%", boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 10 }} />
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom: 12 }}><span style={{ fontSize:11.5, color:"#8794A8", whiteSpace:"nowrap" }}>🎂 Birthday</span><input value={wBday} onChange={e => setWBday(e.target.value)} type="date" style={{ flex:1, boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: "10px 11px", color: "#F2F5F9", fontSize: 15, outline: "none" }} /></div>
             <div style={{ fontSize: 10.5, color: "#8794A8", marginBottom: 6 }}>Party size</div>
             <input type="number" min="1" value={wParty} onChange={e => setWParty(e.target.value)} style={{ width: 100, boxSizing: "border-box", background: "#0E1216", border: "1px solid #232B38", borderRadius: 9, padding: 11, color: "#F2F5F9", fontSize: 16, outline: "none", marginBottom: 16 }} />
             <div style={{ display: "flex", gap: 8 }}>
