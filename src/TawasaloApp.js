@@ -3572,6 +3572,7 @@ function CalendarRoomPage() {
   const openWA = () => window.open("https://wa.me/?text=" + encodeURIComponent(shareMsg), "_blank");
   const openMail = () => { window.location.href = "mailto:?subject=" + encodeURIComponent(monthLabel + " " + L("content calendar","تقويم المحتوى")) + "&body=" + encodeURIComponent(shareMsg); };
   const copyLink = () => { try { navigator.clipboard.writeText("https://" + shareLink); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
+  const copyLinkLight = () => { try { navigator.clipboard.writeText("https://" + shareLink + "?t=light"); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
   const downloadPDF = () => {
     const w = window.open('', '_blank', 'width=1040,height=1320'); if (!w) return;
     const esc = (s) => (s || "").replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -3780,6 +3781,7 @@ function CalendarRoomPage() {
               <Link size={13} color={th.text3}/>
               <span style={{ flex:1, fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{shareLink}</span>
               <button onClick={copyLink} style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", color:copied?th.success:th.accent, fontSize:11.5, fontWeight:600 }}>{copied?<><Check size={13}/>{L("Copied","تم النسخ")}</>:<><Copy size={13}/>{L("Copy","نسخ")}</>}</button>
+              <button onClick={copyLinkLight} title={L("Copy a light-mode link to send","انسخ رابط الوضع الفاتح")} style={{ display:"flex", alignItems:"center", gap:4, background:"none", border:`1px solid ${th.border}`, borderRadius:8, padding:"4px 9px", cursor:"pointer", color:th.text3, fontSize:11, fontWeight:600 }}><Sun size={12}/>{L("Light","فاتح")}</button>
             </div>
           </div>
         </div>, document.body)}
@@ -16540,6 +16542,13 @@ function ClientApprovalPage({ token }) {
   const [vw, setVw] = useState(typeof window !== "undefined" ? window.innerWidth : 1024);
   useEffect(() => { const f = () => setVw(window.innerWidth); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
   const phone = vw < 620;
+  // Agency picks the look when sending the link: add ?t=light for the light board.
+  const lightMode = (typeof window !== "undefined") && /[?&](t|theme)=light/.test(window.location.search);
+  const T = lightMode ? {
+    bg:"#F4F1EA", panel:"#FFFFFF", text:"#211d16", mut:"#8a8478", mut2:"#a89f90", line:"rgba(0,0,0,0.10)", line2:"rgba(0,0,0,0.06)", field:"#F4F1EA", badgeBg:"#eef1f6", badgeTx:"#4F6B8C", dayNum:"#6f6a60"
+  } : {
+    bg:"#0A0F18", panel:"#0B1118", text:"#E8EFF8", mut:"#9CB3C9", mut2:"#7E94A8", line:"rgba(150,175,205,0.16)", line2:"rgba(150,175,205,0.1)", field:"#0F1620", badgeBg:"rgba(79,107,140,0.16)", badgeTx:"#8FB0C9", dayNum:"#CFE0F0"
+  };
 
   const DEMO = { agency:{ name:"Octo Fusion", logo:null }, client:{ name:"Tawaslo Beach Resort" }, month:"June 2026", expires:7, firstDow:1, days:30,
     posts:[
@@ -16583,7 +16592,7 @@ function ClientApprovalPage({ token }) {
   // Renders a video frame (so reels/clips show a real cover) or an image background.
   const VidCover = ({ m }) => isVid(m) ? <video src={m} muted playsInline preload="metadata" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }}/> : null;
 
-  if (!data) return <div style={{ minHeight:"100vh", background:"#0A0F18", display:"flex", alignItems:"center", justifyContent:"center", color:"#9CB3C9", fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
+  if (!data) return <div style={{ minHeight:"100vh", background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", color:T.mut, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
 
   const posts = data.posts || [];
   const byDate = {}; posts.forEach(p => { byDate[p.date] = p; });
@@ -16602,7 +16611,7 @@ function ClientApprovalPage({ token }) {
   const openPost = (id) => { setCur(id); setSlide(0); setCommenting(false); setComment(""); setView("post"); window.scrollTo(0, 0); };
   const P = posts.find(x => x.id === cur);
 
-  const wrap = { minHeight:"100vh", background:"#0A0F18", color:"#E8EFF8", fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
+  const wrap = { minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
   const inner = { maxWidth: 700, margin:"0 auto" };
   const ag = data.agency || {}, cl = data.client || {};
 
@@ -16610,7 +16619,7 @@ function ClientApprovalPage({ token }) {
     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: phone ? 14 : 18 }}>
       {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:"#4F6B8C", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
       <span style={{ fontSize:14, fontWeight:600 }}>{ag.name || "Your agency"}</span>
-      <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:"#8FB0C9", background:"rgba(79,107,140,0.16)", padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
+      <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:T.badgeTx, background:T.badgeBg, padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
     </div>
   );
 
@@ -16618,11 +16627,11 @@ function ClientApprovalPage({ token }) {
 
   if (data.empty) return (
     <div style={wrap}><div style={inner}>{header}
-      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, padding:"46px 24px", textAlign:"center" }}>
-        <Clock size={26} color="#5C7082" style={{ marginBottom:12 }}/>
+      <div style={{ background:T.panel, border:`0.5px solid ${T.line}`, borderRadius:16, padding:"46px 24px", textAlign:"center" }}>
+        <Clock size={26} color={T.mut2} style={{ marginBottom:12 }}/>
         <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
-        <div style={{ fontSize:12.5, color:"#9CB3C9", lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#7E94A8", marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
+        <div style={{ fontSize:12.5, color:T.mut, lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:T.mut2, marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
       </div>
     </div></div>
   );
@@ -16633,7 +16642,7 @@ function ClientApprovalPage({ token }) {
     const done = P.status === "approved" || P.status === "changes";
     return (
       <div style={wrap}><div style={{ maxWidth:440, margin:"0 auto" }}>
-        <div onClick={()=>setView("cal")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:"#9CB3C9", fontSize:12.5, cursor:"pointer" }}><ArrowLeft size={16}/>Back to {data.month || "calendar"}<span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5 }}><Clock size={13}/>{P.day} {P.date} &middot; {P.time}</span></div>
+        <div onClick={()=>setView("cal")} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:12, color:T.mut, fontSize:12.5, cursor:"pointer" }}><ArrowLeft size={16}/>Back to {data.month || "calendar"}<span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5 }}><Clock size={13}/>{P.day} {P.date} &middot; {P.time}</span></div>
         {P.status === "revised" && <div style={{ background:"rgba(201,162,78,0.1)", border:"0.5px solid rgba(201,162,78,0.34)", borderRadius:10, padding:"9px 12px", marginBottom:12, fontSize:11.5, color:"#E6D6AE" }}><Sparkles size={13} style={{ verticalAlign:-2 }}/> Updated since you last saw it. Please take another look.</div>}
         <div style={{ background:"#fff", borderRadius:14, overflow:"hidden", border: P.status==="revised" ? "1.5px solid #C9A24E" : "0.5px solid rgba(0,0,0,0.1)" }}>
           <div style={{ display:"flex", alignItems:"center", gap:9, padding:"11px 13px" }}>
@@ -16659,30 +16668,30 @@ function ClientApprovalPage({ token }) {
             <div style={{ textAlign:"center", padding:12, borderRadius:11, background: P.status==="approved"?"rgba(95,191,146,0.12)":"rgba(217,138,106,0.12)", border:`0.5px solid ${P.status==="approved"?"rgba(95,191,146,0.4)":"rgba(217,138,106,0.4)"}`, color:P.status==="approved"?"#7FCFA6":"#D98A6A", fontSize:13, fontWeight:600 }}>{P.status==="approved" ? "Approved — thank you" : "Changes requested"}</div>
           ) : commenting ? (
             <div>
-              <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="What would you like changed?" style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="What would you like changed?" style={{ width:"100%", minHeight:74, background:T.field, border:`0.5px solid ${T.line}`, borderRadius:11, padding:"11px 13px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
               <div style={{ display:"flex", gap:10, marginTop:10 }}>
-                <button onClick={()=>setCommenting(false)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>setCommenting(false)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:`0.5px solid ${T.line}`, color:T.mut, fontSize:13, cursor:"pointer" }}>Cancel</button>
                 <button onClick={()=>{ respond(P.id, "changes", comment.trim()); }} style={{ flex:1, padding:"12px", borderRadius:11, background:"#4F6B8C", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>Send request</button>
               </div>
             </div>
           ) : (
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={()=>setCommenting(true)} style={{ flex:1, background:"transparent", border:"0.5px solid rgba(150,175,205,0.32)", color:"#CFE0F0", fontSize:13, padding:12, borderRadius:11, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>setCommenting(true)} style={{ flex:1, background:"transparent", border:`0.5px solid ${T.line}`, color:T.text, fontSize:13, padding:12, borderRadius:11, cursor:"pointer" }}>Request changes</button>
               <button onClick={()=>respond(P.id, "approved")} style={{ flex:1, background:"#2F6E54", border:"none", color:"#fff", fontSize:13, fontWeight:600, padding:12, borderRadius:11, cursor:"pointer", display:"inline-flex", alignItems:"center", justifyContent:"center", gap:6 }}><CheckCircle size={15}/>Approve this post</button>
             </div>
           )}
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:"#7E94A8", marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:T.mut2, marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
       </div></div>
     );
   }
 
   const agendaRow = (p) => (
-    <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:"0.5px solid rgba(150,175,205,0.1)", cursor:"pointer" }}>
-      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}>{isVid(p.media[0]) && <span style={{ position:"absolute", inset:0, borderRadius:11, overflow:"hidden" }}><VidCover m={p.media[0]}/></span>}<span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:"2px solid #0E141C" }}/></span>
-      <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:"#7E94A8", marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
+    <div key={p.id} onClick={()=>openPost(p.id)} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", borderBottom:`0.5px solid ${T.line2}`, cursor:"pointer" }}>
+      <span style={{ width:46, height:46, borderRadius:11, background: mediaBg(p.media[0]), flexShrink:0, position:"relative" }}>{isVid(p.media[0]) && <span style={{ position:"absolute", inset:0, borderRadius:11, overflow:"hidden" }}><VidCover m={p.media[0]}/></span>}<span style={{ position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:5, background:PC[p.platform], border:`2px solid ${T.panel}` }}/></span>
+      <span style={{ flex:1, minWidth:0 }}><span style={{ display:"block", fontSize:13.5, fontWeight:600, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.caption}</span><span style={{ display:"block", fontSize:11, color:T.mut2, marginTop:2 }}>{PN[p.platform]} &middot; {p.day} {p.date} &middot; {p.time}</span></span>
       {p.status==="approved" ? <CheckCircle size={17} color="#5FBF92"/> : p.status==="revised" ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10, color:"#C9A24E", background:"rgba(201,162,78,0.16)", padding:"3px 8px", borderRadius:20 }}><Sparkles size={11}/>New</span> : statDot(p.status)}
-      <ChevronRight size={16} color="#5C7082"/>
+      <ChevronRight size={16} color={T.mut2}/>
     </div>
   );
 
@@ -16695,16 +16704,16 @@ function ClientApprovalPage({ token }) {
       if (p) {
         const c = SC[p.status]||"#E0B973", rev = p.status==="revised";
         cells.push(<div key={d} onClick={()=>openPost(p.id)} style={{ minHeight:62, border: rev?"1px solid #C9A24E":`0.5px solid ${c}55`, borderRadius:9, padding:"5px 6px", background:c+(rev?"14":"10"), cursor:"pointer", position:"relative" }}>
-          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#CFE0F0", marginBottom:3 }}>{d}</div>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:T.dayNum, marginBottom:3 }}>{d}</div>
           <div style={{ height:20, borderRadius:5, background: mediaBg(p.media[0]), position:"relative", overflow:"hidden" }}><VidCover m={p.media[0]}/></div>
           {rev ? <span style={{ position:"absolute", top:4, right:4, display:"inline-flex", alignItems:"center", gap:2, fontSize:8, color:"#C9A24E", background:"rgba(201,162,78,0.22)", padding:"2px 5px", borderRadius:9 }}><Sparkles size={9}/>New</span>
             : p.status==="approved" ? <span style={{ position:"absolute", top:5, right:5 }}><CheckCircle size={13} color="#5FBF92"/></span>
             : <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:c }}/>}
         </div>);
-      } else cells.push(<div key={d} style={{ minHeight:62, border:"0.5px solid rgba(150,175,205,0.08)", borderRadius:9, padding:"5px 6px" }}><div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:"#5C7388" }}>{d}</div></div>);
+      } else cells.push(<div key={d} style={{ minHeight:62, border:`0.5px solid ${T.line2}`, borderRadius:9, padding:"5px 6px" }}><div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:11, color:T.mut2 }}>{d}</div></div>);
     }
     return (<div style={{ padding:"14px 16px 6px" }}>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, marginBottom:5 }}>{dows.map(d=><div key={d} style={{ textAlign:"center", fontSize:10, color:"#6E869C" }}>{d}</div>)}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, marginBottom:5 }}>{dows.map(d=><div key={d} style={{ textAlign:"center", fontSize:10, color:T.mut2 }}>{d}</div>)}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:5, paddingBottom:12 }}>{cells}</div>
     </div>);
   };
@@ -16712,28 +16721,28 @@ function ClientApprovalPage({ token }) {
   return (
     <div style={wrap}><div style={inner}>
       {header}
-      <div style={{ background:"#0B1118", border:"0.5px solid rgba(150,175,205,0.16)", borderRadius:16, overflow:"hidden" }}>
-        <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:"0.5px solid rgba(150,175,205,0.12)" }}>
+      <div style={{ background:T.panel, border:`0.5px solid ${T.line}`, borderRadius:16, overflow:"hidden" }}>
+        <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:`0.5px solid ${T.line2}` }}>
           <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
-            <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:"#9CB3C9", marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
+            <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:T.mut, marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
             {pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
-              <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#CFE0F0", fontSize:12.5, cursor:"pointer" }}>Request changes</button>
+              <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:`0.5px solid ${T.line}`, color:T.text, fontSize:12.5, cursor:"pointer" }}>Request changes</button>
               <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
             </div>}
           </div>
           {pendingN>0 && bulkOpen && (
             <div style={{ marginTop:13 }}>
-              <div style={{ fontSize:12, color:"#9CB3C9", marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
-              <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:"#0F1620", border:"0.5px solid rgba(150,175,205,0.3)", borderRadius:11, padding:"11px 13px", color:"#E8EFF8", fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
+              <div style={{ fontSize:12, color:T.mut, marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
+              <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:T.field, border:`0.5px solid ${T.line}`, borderRadius:11, padding:"11px 13px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
               <div style={{ display:"flex", gap:10, marginTop:10 }}>
-                <button onClick={()=>{ setBulkOpen(false); setBulkNote(""); }} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:"0.5px solid rgba(150,175,205,0.3)", color:"#B8CBDD", fontSize:13, cursor:"pointer" }}>Cancel</button>
+                <button onClick={()=>{ setBulkOpen(false); setBulkNote(""); }} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:`0.5px solid ${T.line}`, color:T.mut, fontSize:13, cursor:"pointer" }}>Cancel</button>
                 <button onClick={()=>{ respondAll("changes", bulkNote.trim()); setBulkOpen(false); setBulkNote(""); }} disabled={!bulkNote.trim()} style={{ flex:1, padding:"12px", borderRadius:11, background: bulkNote.trim()?"#4F6B8C":"#243140", border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor: bulkNote.trim()?"pointer":"not-allowed", opacity: bulkNote.trim()?1:0.6 }}>Send request</button>
               </div>
             </div>
           )}
         </div>
         {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
-        <div style={{ padding:"11px 18px", borderTop:"0.5px solid rgba(150,175,205,0.12)", fontSize:11, color:"#8298AD", display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+        <div style={{ padding:"11px 18px", borderTop:`0.5px solid ${T.line2}`, fontSize:11, color:T.mut2, display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
       </div>
     </div></div>
   );
