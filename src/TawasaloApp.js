@@ -576,6 +576,23 @@ function useIsMobile(bp = 820) {
   return m;
 }
 
+// Heavy "build & configure" tools — hidden from the phone menu and gated with a
+// friendly note if reached, but fully available on desktop. (Hootsuite's model.)
+const DESKTOP_ONLY = new Set(["publisher", "planner", "calendar", "campaigns", "ads", "aistudio", "reelstudio", "reports"]);
+const DESKTOP_ONLY_LABEL = { publisher: "Publisher", planner: "Planner", calendar: "Calendar", campaigns: "Campaigns", ads: "Ads", aistudio: "AI Studio", reelstudio: "Reel Studio", reports: "Reports" };
+function DesktopOnlyNotice({ pageKey }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  return (
+    <div style={{ maxWidth: 520, margin: "0 auto", padding: "44px 22px", textAlign: "center" }} className="tw-page-in">
+      <div style={{ fontSize: 40, marginBottom: 14 }}>💻</div>
+      <div style={{ fontSize: 17, fontWeight: 800, color: th.text }}>{(DESKTOP_ONLY_LABEL[pageKey] || L("This tool", "هذه الأداة"))} {L("works best on a computer", "تعمل بشكل أفضل على الكمبيوتر")}</div>
+      <div style={{ fontSize: 13, color: th.text2, marginTop: 8, lineHeight: 1.65 }}>{L("It has a lot of moving parts that really need a bigger screen. Open Tawaslo on a laptop to use it. Everything else stays right here on your phone.", "تحتوي على تفاصيل كثيرة تحتاج شاشة أكبر. افتح تواصلو على الكمبيوتر لاستخدامها، أما بقية الأدوات فمتاحة هنا على هاتفك.")}</div>
+    </div>
+  );
+}
+
 function useTheme() {
   const { dark } = useApp();
   return dark ? DARK : LIGHT;
@@ -871,7 +888,7 @@ function Sidebar() {
             <div key={si} style={{marginBottom:16}}>
               {!col&&<div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {sec.items.filter(it=>!(isMobile&&it.key==="publisher")).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
+              {sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key))).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
           ))
         )}
@@ -976,7 +993,7 @@ function Topbar() {
   const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
   const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
-  const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql)).slice(0,7) : [];
+  const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isMobile && DESKTOP_ONLY.has(k))).slice(0,7) : [];
   const clientHits = ql ? (clients||[]).filter(c=>(c.name||"").toLowerCase().includes(ql)).slice(0,5) : [];
   const goPage = (k)=>{ setPage(k); setSq(""); setSOpen(false); };
   const goClient = (c)=>{ setSelClient&&setSelClient(c); setMode&&setMode("agency"); setPage("dashboard"); setSq(""); setSOpen(false); };
@@ -16674,6 +16691,7 @@ export default function TawasloApp() {
       if (page==="settings") return <SettingsPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
+    if (typeof window !== "undefined" && window.innerWidth < 820 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
