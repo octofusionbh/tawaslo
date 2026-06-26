@@ -10,7 +10,7 @@ import {
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
   Heart, Bookmark, TrendingUp, Eye, CheckCircle, Circle,
   Download, ArrowUpRight, ArrowDownRight, Inbox, Star,
-  Target, PieChart, Activity, UserPlus, Building2, FileText,
+  Target, PieChart, Activity, UserPlus, Building2, FileText, AlertTriangle,
   CreditCard, LogOut, ChevronRight, ChevronLeft, ChevronDown,
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
@@ -750,6 +750,7 @@ function Sidebar() {
 
   const AGENCY_NAV = [
     {section:"Manage", items:[
+      {key:"command",   Icon:Activity,         label:"Command Center", badge:null},
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
@@ -13906,6 +13907,110 @@ function LoyaltyPublicPage({ slug }) {
   );
 }
 
+// ── Command Center — the agency home wall. Every client at a glance, the ones
+// that need you pulled to the top, fully theme aware. ──
+function CommandCenterPage() {
+  const { dark, lang, userName, userEmail, setSelClient, setMode, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [clients, setClients] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: cs } = await supabase.from('clients').select('id,name,logo_url').eq('owner_id', user ? user.id : '').order('created_at', { ascending: true });
+        const list = cs || []; if (live) setClients(list);
+        const ids = list.map(c => c.id);
+        if (ids.length) { const { data: ps } = await supabase.from('posts').select('client_id,status,appr_status,scheduled_at').in('client_id', ids); if (live) setPosts(ps || []); }
+      } catch (e) {}
+      if (live) setLoading(false);
+    })();
+    return () => { live = false; };
+  }, []);
+
+  const GREEN = th.success || "#3FB983", AMBER = "#C7942B", RED = "#D98A6A", BLUE = th.accent;
+  const firstName = (userName || "").trim().split(" ")[0] || (userEmail ? userEmail.split("@")[0] : L("there", "صديقي"));
+  const hr = new Date().getHours();
+  const greet = hr < 12 ? L("Good morning", "صباح الخير") : hr < 18 ? L("Good afternoon", "مساء الخير") : L("Good evening", "مساء الخير");
+  const t0 = new Date(); t0.setHours(0, 0, 0, 0); const t1 = new Date(); t1.setHours(23, 59, 59, 999);
+  const w0 = new Date(Date.now() - 6 * 86400000); w0.setHours(0, 0, 0, 0);
+  const stat = (cid) => {
+    const cp = posts.filter(p => p.client_id === cid);
+    const pending = cp.filter(p => p.appr_status === "pending").length;
+    const failed = cp.filter(p => p.status === "failed").length;
+    const todayN = cp.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= t0 && new Date(p.scheduled_at) <= t1).length;
+    const upcoming = cp.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= t0).length;
+    const bars = Array.from({ length: 7 }).map((_, i) => { const d0 = new Date(w0.getTime() + i * 86400000); const d1 = new Date(d0.getTime() + 86400000); return cp.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= d0 && new Date(p.scheduled_at) < d1).length; });
+    const level = failed ? "fail" : pending ? "review" : upcoming === 0 ? "quiet" : todayN >= 4 ? "fire" : "ok";
+    return { pending, failed, todayN, upcoming, bars, level };
+  };
+  const rank = { fail: 0, review: 1, quiet: 2 };
+  const rows = clients.map(c => ({ ...c, s: stat(c.id) }));
+  const needs = rows.filter(r => r.s.level === "fail" || r.s.level === "review" || r.s.level === "quiet").sort((a, b) => rank[a.s.level] - rank[b.s.level]);
+  const rest = rows.filter(r => r.s.level === "ok" || r.s.level === "fire");
+  const totals = { clients: rows.length, need: needs.length, today: rows.reduce((a, r) => a + r.s.todayN, 0), fire: rows.filter(r => r.s.level === "fire").length };
+  const openClient = (c) => { if (setSelClient) setSelClient(c); if (setMode) setMode("agency"); if (setPage) setPage("dashboard"); };
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 14 };
+  const lane = { fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", fontWeight: 700, color: th.text3, margin: "0 0 9px" };
+  const levelMeta = { fail: { c: RED, label: L("Fix it", "أصلح"), icon: AlertTriangle, msg: L("A post failed to publish", "فشل نشر منشور") }, review: { c: AMBER, label: L("Review", "مراجعة"), icon: Clock }, quiet: { c: AMBER, label: L("Plan", "خطّط"), icon: AlertTriangle, msg: L("Nothing scheduled this week", "لا شيء مجدول هذا الأسبوع") } };
+
+  if (loading) return <div style={{ padding: 30, color: th.text2, fontSize: 13, textAlign: "center" }}>{L("Gathering your clients…", "نجمع عملاءك…")}</div>;
+
+  return (
+    <div style={{ maxWidth: 920, margin: "0 auto" }} className="tw-page-in">
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 24, fontWeight: 700, color: th.text }}>{greet}, {firstName} 👋</div>
+        <div style={{ fontSize: 13, color: th.text2, marginTop: 4 }}>{new Date().toLocaleDateString(isAR ? "ar" : [], { weekday: "long", day: "numeric", month: "long" })} · {L("here is your agency today", "هذه وكالتك اليوم")}</div>
+      </div>
+
+      <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginBottom: 22 }}>
+        {[[totals.clients, L("clients", "عملاء"), th.text], [totals.need, L("need you", "يحتاجونك"), AMBER], [totals.today, L("today", "اليوم"), BLUE], [totals.fire, L("on fire", "متوهّجون"), GREEN]].map(([v, k, c], i) => (
+          <div key={i} style={{ ...card, padding: "11px 15px", minWidth: 74, textAlign: "center" }}><div className="tw-num" style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div><div style={{ fontSize: 10, color: th.text2, marginTop: 2 }}>{k}</div></div>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ ...card, padding: "50px 20px", textAlign: "center", color: th.text3 }}><div style={{ fontSize: 34, marginBottom: 10 }}>🗂️</div><div style={{ fontSize: 13.5, fontWeight: 600, color: th.text2 }}>{L("No clients yet", "لا عملاء بعد")}</div><div style={{ fontSize: 12, marginTop: 6 }}>{L("Add a client and they will appear here.", "أضف عميلاً وسيظهر هنا.")}</div></div>
+      ) : <>
+        {needs.length > 0 && <>
+          <div style={lane}>{L("Needs you first", "يحتاجونك أولاً")}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
+            {needs.map(r => { const meta = levelMeta[r.s.level]; const Ic = meta.icon; const msg = r.s.level === "review" ? `${r.s.pending} ${L("posts waiting for approval", "منشورات بانتظار الموافقة")}` : meta.msg; return (
+              <div key={r.id} onClick={() => openClient(r)} style={{ ...card, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer", borderInlineStart: `4px solid ${meta.c}` }}>
+                <Ic size={18} color={meta.c} style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{r.name}</div><div style={{ fontSize: 11.5, color: th.text2 }}>{msg}</div></div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: meta.c, borderRadius: 9, padding: "6px 13px", flexShrink: 0 }}>{meta.label}</span>
+              </div>
+            ); })}
+          </div>
+        </>}
+        {rest.length > 0 && <>
+          <div style={lane}>{L("Everyone else", "البقية")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 9 }}>
+            {rest.map(r => { const fire = r.s.level === "fire"; const mx = Math.max(1, ...r.s.bars); return (
+              <div key={r.id} onClick={() => openClient(r)} style={{ ...card, padding: 13, cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
+                  {r.logo_url ? <img src={r.logo_url} alt="" style={{ width: 30, height: 30, borderRadius: 9, objectFit: "cover" }} /> : <div style={{ width: 30, height: 30, borderRadius: 9, background: th.card2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: BLUE }}>{(r.name || "?").slice(0, 2).toUpperCase()}</div>}
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600, color: th.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div><div style={{ fontSize: 10, color: fire ? GREEN : th.text3 }}>{fire ? L("🔥 thriving", "🔥 متوهّج") : L("on track", "على المسار")}</div></div>
+                </div>
+                <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 22, marginBottom: 8 }}>
+                  {r.s.bars.map((v, i) => <div key={i} style={{ flex: 1, height: Math.max(2, Math.round(v / mx * 22)), borderRadius: 2, background: fire ? GREEN : BLUE, opacity: v ? 1 : 0.25 }} />)}
+                </div>
+                <div style={{ fontSize: 10.5, color: th.text2 }}>{r.s.todayN > 0 ? `${r.s.todayN} ${L("posts today", "منشور اليوم")}` : `${r.s.upcoming} ${L("scheduled", "مجدول")}`}</div>
+              </div>
+            ); })}
+          </div>
+        </>}
+      </>}
+    </div>
+  );
+}
+
 // ── Proposal renderer — the branded, premium document the prospect receives.
 // Shared by the agency builder (ProspectAuditPage) and the public /pitch page. ──
 function ProposalView({ audit, brand, mode }) {
@@ -16692,6 +16797,7 @@ export default function TawasloApp() {
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (typeof window !== "undefined" && window.innerWidth < 820 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
+    if (page==="command") return <CommandCenterPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
     if (page==="social") return <SocialAccountsPage/>;
