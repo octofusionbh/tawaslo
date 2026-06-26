@@ -748,6 +748,7 @@ function Sidebar() {
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
       {key:"reelstudio",Icon:Play,            label:"Reel Studio", badge:null},
       {key:"competitor",Icon:Search,          label:"Competitor Spy", badge:null},
+      {key:"prospect",  Icon:Target,          label:"Win Clients", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
@@ -13888,6 +13889,232 @@ function LoyaltyPublicPage({ slug }) {
   );
 }
 
+// ── Proposal renderer — the branded, premium document the prospect receives.
+// Shared by the agency builder (ProspectAuditPage) and the public /pitch page. ──
+function ProposalView({ audit, brand, mode }) {
+  if (!audit) return null;
+  const m = audit.metrics || {};
+  const ink = "#211D16", cream = "#FBF8F2", muted = "#7d735f", line = "#eadfce", soft = "#a89c87";
+  const accent = (brand && brand.accent) || "#C2603A";
+  const deep = mode === "deep";
+  const showPrice = mode === "price";
+  const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString());
+  const er = m.engRate, bm = m.benchmark || 3.4, tg = m.target || (bm + 1);
+  const scale = Math.max(tg, bm, er || 0) || 5;
+  const serif = "'Fraunces',Georgia,serif";
+  const agencyName = (brand && brand.agencyName) || "Your Agency";
+  const prospect = audit.name || ("@" + (audit.handle || ""));
+  return (
+    <div style={{ background: cream, color: ink, fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif", borderRadius: 16, overflow: "hidden" }}>
+      <div style={{ height: 4, background: accent }} />
+      <div style={{ padding: "26px 28px 6px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 24 }}>
+          {brand && brand.logo ? <img src={brand.logo} alt="" style={{ width: 26, height: 26, borderRadius: 6, objectFit: "cover" }} /> : <div style={{ width: 26, height: 26, borderRadius: 6, background: ink, color: cream, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{agencyName[0]}</div>}
+          <span style={{ fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: soft }}>{agencyName}</span>
+          <span style={{ marginInlineStart: "auto", fontSize: 11, color: "#b0a693" }}>Proposal</span>
+        </div>
+        <div style={{ fontSize: 12, letterSpacing: ".14em", textTransform: "uppercase", color: accent, fontWeight: 700, marginBottom: 10 }}>A 90 day growth plan</div>
+        <div style={{ fontFamily: serif, fontSize: 29, lineHeight: 1.15, fontWeight: 600, letterSpacing: "-0.01em" }}>For {prospect}</div>
+        <div style={{ fontSize: 13, color: muted, marginTop: 8, lineHeight: 1.6 }}>{audit.summary}</div>
+      </div>
+
+      <div style={{ padding: "22px 28px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 1, background: line, border: `1px solid ${line}`, borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ background: cream, padding: "14px 12px" }}><div style={{ fontSize: 10.5, letterSpacing: ".05em", textTransform: "uppercase", color: soft }}>Followers</div><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, marginTop: 4 }}>{fmt(m.followers)}</div></div>
+          <div style={{ background: cream, padding: "14px 12px" }}><div style={{ fontSize: 10.5, letterSpacing: ".05em", textTransform: "uppercase", color: soft }}>Posts / week</div><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, marginTop: 4 }}>{m.postsPerWeek != null ? m.postsPerWeek : "—"}</div></div>
+          <div style={{ background: cream, padding: "14px 12px" }}><div style={{ fontSize: 10.5, letterSpacing: ".05em", textTransform: "uppercase", color: soft }}>Engagement</div><div style={{ fontFamily: serif, fontSize: 22, fontWeight: 600, marginTop: 4, color: accent }}>{er != null ? er + "%" : "—"}</div></div>
+        </div>
+      </div>
+
+      {er != null && <div style={{ padding: "0 28px 22px" }}>
+        <div style={{ fontSize: 12, color: muted, marginBottom: 12 }}>Engagement vs. accounts like theirs</div>
+        {[["Now", er, "#d9a48f"], ["Niche avg", bm, "#c3b69d"], ["Target", tg, "#1D9E75"]].map(([lab, val, col], i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 10 }}>
+            <span style={{ width: 70, fontSize: 11.5, color: i === 2 ? "#0F6E56" : muted }}>{lab}</span>
+            <div style={{ flex: 1, height: 9, background: "#eee4d3", borderRadius: 5, overflow: "hidden" }}><div style={{ width: Math.min(100, Math.round(val / scale * 100)) + "%", height: "100%", background: col }} /></div>
+            <span style={{ width: 34, fontSize: 11.5, fontWeight: 700, textAlign: "right", color: i === 2 ? "#0F6E56" : ink }}>{val}%</span>
+          </div>
+        ))}
+      </div>}
+
+      <div style={{ height: 1, background: line, margin: "0 28px" }} />
+      <div style={{ padding: "22px 28px" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 15 }}>What we would fix first</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+          {(audit.fixes || []).map((f, i) => (
+            <div key={i} style={{ display: "flex", gap: 13 }}>
+              <div style={{ width: 25, height: 25, borderRadius: "50%", background: ink, color: cream, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: serif, fontSize: 13, fontWeight: 600 }}>{i + 1}</div>
+              <div><div style={{ fontSize: 13.5, fontWeight: 600 }}>{f.title}</div><div style={{ fontSize: 12.5, color: muted, lineHeight: 1.55, marginTop: 2 }}>{f.body}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {deep && <>
+        {Array.isArray(audit.competitors) && audit.competitors.length > 0 && <div style={{ padding: "0 28px 20px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>How they compare</div>
+          {audit.competitors.map((c, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: `1px solid ${line}`, fontSize: 12.5 }}>
+              <span style={{ flex: 1, color: ink }}>@{c.handle}</span>
+              <span style={{ color: muted }}>{fmt(c.followers)} followers</span>
+              <span style={{ width: 52, textAlign: "right", color: "#0F6E56", fontWeight: 600 }}>{c.engRate != null ? c.engRate + "%" : "—"}</span>
+            </div>
+          ))}
+        </div>}
+        <div style={{ padding: "0 28px 22px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>The 90 day roadmap</div>
+          {(audit.roadmap || []).map((ph, i) => (
+            <div key={i} style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: accent, marginBottom: 5 }}>{ph.phase}</div>
+              <div style={{ fontSize: 12.5, color: muted, lineHeight: 1.8 }}>{(ph.items || []).map((it, j) => <div key={j}>• {it}</div>)}</div>
+            </div>
+          ))}
+        </div>
+        {Array.isArray(audit.topHashtags) && audit.topHashtags.length > 0 && <div style={{ padding: "0 28px 22px" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 9 }}>Hashtags in play</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{audit.topHashtags.slice(0, 10).map((h, i) => <span key={i} style={{ fontSize: 11.5, color: muted, background: "#f1e9da", borderRadius: 12, padding: "4px 10px" }}>{h}</span>)}</div>
+        </div>}
+      </>}
+
+      <div style={{ padding: "0 28px 24px" }}>
+        <div style={{ background: ink, borderRadius: 14, padding: "20px 22px", color: cream }}>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase", color: accent, fontWeight: 700 }}>{showPrice ? "Recommended" : "Let us show you"}</div>
+              <div style={{ fontFamily: serif, fontSize: 21, fontWeight: 600, marginTop: 4 }}>{(brand && brand.packageName) || "Growth plan"}</div>
+              <div style={{ fontSize: 12, color: "#b6ac9a", marginTop: 3 }}>Reels, replies, Stories and a monthly report</div>
+            </div>
+            {showPrice && <div style={{ textAlign: "right", flexShrink: 0 }}><span style={{ fontFamily: serif, fontSize: 25, fontWeight: 600 }}>{(brand && brand.price) || "120"}</span><div style={{ fontSize: 11, color: "#b6ac9a" }}>{(brand && brand.currency) || "BHD"} / month</div></div>}
+          </div>
+          <div style={{ marginTop: 16, textAlign: "center", padding: 12, borderRadius: 10, background: accent, color: "#fff", fontSize: 14, fontWeight: 700 }}>{(brand && brand.cta) || (showPrice ? "Book a free call" : "Let us talk")}</div>
+        </div>
+        <div style={{ textAlign: "center", fontSize: 10.5, color: "#b0a693", marginTop: 14 }}>Prepared by {agencyName} · powered by Tawaslo{audit.demo ? " · sample data" : ""}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Prospect Audit (agency) — paste a handle, pick a mode, generate the audit,
+// brand it, and export as link / PDF / Word. The agency's client winning tool. ──
+function ProspectAuditPage() {
+  const { dark, lang, selClient } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const [handle, setHandle] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [mode, setMode] = useState("price");
+  const [competitors, setCompetitors] = useState("");
+  const [audit, setAudit] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [link, setLink] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [brand, setBrand] = useState({ agencyName: (selClient && selClient.name) || "Your Agency", logo: "", accent: "#C2603A", packageName: "Growth plan", price: "120", currency: "BHD", cta: "" });
+  const propRef = useRef(null);
+
+  const generate = async () => {
+    const h = handle.replace(/^@/, "").trim(); if (!h) { setErr(L("Enter a handle first.", "أدخل المعرّف أولاً.")); return; }
+    setBusy(true); setErr(""); setLink("");
+    try {
+      const q = `mode=audit&handle=${encodeURIComponent(h)}&platform=${platform}&deep=${mode === "deep" ? 1 : 0}` + (mode === "deep" && competitors.trim() ? `&competitors=${encodeURIComponent(competitors)}` : "");
+      const r = await fetch(`/api/trends?${q}`); const j = await r.json();
+      if (j && j.ok) setAudit(j); else setErr(L("Could not read that profile. Check the handle.", "تعذّر قراءة هذا الحساب."));
+    } catch (e) { setErr(L("Something went wrong. Try again.", "حدث خطأ، حاول مجدداً.")); }
+    setBusy(false);
+  };
+  const saveLink = async () => {
+    if (!audit) return; const h = (audit.handle || handle).replace(/^@/, "").replace(/[^a-z0-9]/gi, "").slice(0, 16);
+    const slug = (h || "pitch") + "-" + Math.random().toString(36).slice(2, 7);
+    try { const { data: { user } } = await supabase.auth.getUser(); await supabase.from('prospect_audits').insert({ owner_id: user ? user.id : null, handle: audit.handle || handle, platform, mode, data: audit, brand, slug }); setLink(`${origin}/pitch/${slug}`); } catch (e) { setErr(L("Could not save the link.", "تعذّر حفظ الرابط.")); }
+  };
+  const copyLink = () => { try { navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} };
+  const printPdf = () => { if (!propRef.current) return; const w = window.open('', '_blank'); if (!w) return; w.document.write(`<html><head><title>${(audit && audit.handle) || 'proposal'}</title><meta charset='utf-8'><link href='https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap' rel='stylesheet'></head><body style='margin:0;padding:18px;background:#fff'>${propRef.current.innerHTML}</body></html>`); w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 500); };
+  const exportWord = () => { if (!propRef.current) return; const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'></head><body>${propRef.current.innerHTML}</body></html>`; const blob = new Blob(['﻿', html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${(audit && audit.handle) || 'prospect'}-proposal.doc`; a.click(); URL.revokeObjectURL(url); };
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 14 };
+  const inp = { width: "100%", boxSizing: "border-box", background: th.card2, border: `1px solid ${th.border}`, borderRadius: 9, padding: "10px 11px", color: th.text, fontSize: 16, outline: "none" };
+  const lbl = { fontSize: 10.5, color: th.text2, margin: "11px 0 5px" };
+  const modes = [["price", L("With price", "مع السعر"), L("Closer, ready to sign", "للإغلاق")], ["noprice", L("Without price", "بدون سعر"), L("Win the meeting first", "احجز الاجتماع")], ["deep", L("Deep research", "بحث معمّق"), L("Full report, sellable", "تقرير كامل")]];
+
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto" }} className="tw-page-in">
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{L("Win a client", "اكسب عميلاً")}</div>
+        <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>{L("Paste a prospect's handle and Tawaslo writes the pitch that lands them.", "ألصق معرّف العميل المحتمل ويكتب تواصلو العرض الذي يكسبه.")}</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(280px,360px) 1fr", gap: 16, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ ...card, padding: 16 }}>
+            <div style={lbl}>{L("Prospect handle", "معرّف العميل")}</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={handle} onChange={e => setHandle(e.target.value)} placeholder="@cafe_bahrain" style={{ ...inp, flex: 1 }} onKeyDown={e => { if (e.key === 'Enter') generate(); }} />
+              <select value={platform} onChange={e => setPlatform(e.target.value)} style={{ ...inp, width: 120, cursor: "pointer" }}>
+                <option value="instagram">Instagram</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+            </div>
+            <div style={lbl}>{L("Mode", "النمط")}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {modes.map(([k, t, sub]) => (
+                <button key={k} onClick={() => setMode(k)} style={{ textAlign: "start", padding: "10px 12px", borderRadius: 10, cursor: "pointer", border: `1px solid ${mode === k ? th.accent : th.border}`, background: mode === k ? th.accentSoft : th.card2, color: th.text }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700 }}>{t}{k === "deep" && <span style={{ fontSize: 9.5, fontWeight: 700, color: th.accent, background: th.accentSoft, borderRadius: 6, padding: "1px 6px", marginInlineStart: 7 }}>{L("PREMIUM", "مميّز")}</span>}</div>
+                  <div style={{ fontSize: 10.5, color: th.text3, marginTop: 1 }}>{sub}</div>
+                </button>
+              ))}
+            </div>
+            {mode === "deep" && <><div style={lbl}>{L("Compare with (optional)", "قارن مع (اختياري)")}</div>
+              <input value={competitors} onChange={e => setCompetitors(e.target.value)} placeholder={L("rival_one, rival_two", "منافس_واحد، منافس_اثنان")} style={inp} /></>}
+            <button onClick={generate} disabled={busy} style={{ width: "100%", marginTop: 14, padding: "12px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}>{busy ? L("Reading their socials…", "نقرأ حساباتهم…") : L("Generate audit", "أنشئ التدقيق")}</button>
+            {err && <div style={{ fontSize: 11.5, color: "#D98A6A", marginTop: 9 }}>{err}</div>}
+          </div>
+
+          {audit && <div style={{ ...card, padding: 16 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: th.text, marginBottom: 11 }}>{L("Your branding", "هويتك")}</div>
+            <div style={lbl}>{L("Agency name", "اسم الوكالة")}</div>
+            <input value={brand.agencyName} onChange={e => setBrand(b => ({ ...b, agencyName: e.target.value }))} style={inp} />
+            <div style={lbl}>{L("Logo URL (optional)", "رابط الشعار (اختياري)")}</div>
+            <input value={brand.logo} onChange={e => setBrand(b => ({ ...b, logo: e.target.value }))} placeholder="https://…" style={inp} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}><div style={lbl}>{L("Accent", "اللون")}</div><input type="color" value={brand.accent} onChange={e => setBrand(b => ({ ...b, accent: e.target.value }))} style={{ width: "100%", height: 38, border: `1px solid ${th.border}`, borderRadius: 9, background: th.card2, cursor: "pointer" }} /></div>
+              {mode === "price" && <><div style={{ flex: 1 }}><div style={lbl}>{L("Price", "السعر")}</div><input value={brand.price} onChange={e => setBrand(b => ({ ...b, price: e.target.value }))} style={inp} /></div>
+                <div style={{ width: 78 }}><div style={lbl}>{L("Cur.", "العملة")}</div><input value={brand.currency} onChange={e => setBrand(b => ({ ...b, currency: e.target.value }))} style={inp} /></div></>}
+            </div>
+            <div style={lbl}>{L("Package name", "اسم الباقة")}</div>
+            <input value={brand.packageName} onChange={e => setBrand(b => ({ ...b, packageName: e.target.value }))} style={inp} />
+            <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+              <button onClick={printPdf} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 10, background: th.card2, border: `1px solid ${th.border}`, color: th.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{L("PDF", "PDF")}</button>
+              <button onClick={exportWord} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 10, background: th.card2, border: `1px solid ${th.border}`, color: th.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{L("Word", "وورد")}</button>
+              <button onClick={link ? copyLink : saveLink} style={{ flex: 1.4, minWidth: 120, padding: "10px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{link ? (copied ? L("Copied", "تم النسخ") : L("Copy link", "نسخ الرابط")) : L("Get link", "أنشئ رابطاً")}</button>
+            </div>
+            {link && <div style={{ fontSize: 11, color: th.text3, marginTop: 9, wordBreak: "break-all" }}>{link}</div>}
+          </div>}
+        </div>
+
+        <div>
+          {audit ? <div ref={propRef}><ProposalView audit={audit} brand={brand} mode={mode} /></div> :
+            <div style={{ ...card, padding: "60px 20px", textAlign: "center", color: th.text3 }}>
+              <div style={{ fontSize: 34, marginBottom: 10 }}>📄</div>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: th.text2 }}>{L("Your proposal previews here", "تظهر معاينة عرضك هنا")}</div>
+              <div style={{ fontSize: 12, marginTop: 6 }}>{L("Paste a handle, pick a mode, and press Generate.", "ألصق معرّفاً، اختر نمطاً، واضغط إنشاء.")}</div>
+            </div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Public proposal (tawaslo.com/pitch/<slug>) — what the prospect opens. ──
+function PitchPublicPage({ slug }) {
+  const [row, setRow] = useState(undefined);
+  useEffect(() => { let live = true; (async () => { try { const { data } = await supabase.from('prospect_audits').select('data,brand,mode,handle').eq('slug', slug).limit(1); if (live) setRow((data && data[0]) || null); } catch (e) { if (live) setRow(null); } })(); return () => { live = false; }; }, [slug]);
+  const wrap = { minHeight: "100vh", background: "#EFEAE0", display: "flex", justifyContent: "center", padding: "24px 14px 60px", boxSizing: "border-box", fontFamily: "'Plus Jakarta Sans',-apple-system,sans-serif" };
+  if (row === undefined) return <div style={{ ...wrap, alignItems: "center" }}><div style={{ color: "#7d735f", fontSize: 13 }}>Loading…</div></div>;
+  if (row === null) return <div style={{ ...wrap, alignItems: "center" }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 600, color: "#211D16" }}>Proposal not found</div><div style={{ fontSize: 12, marginTop: 6, color: "#7d735f" }}>This link may have expired.</div></div></div>;
+  return <div style={wrap}><div style={{ width: "100%", maxWidth: 480 }}><ProposalView audit={row.data} brand={row.brand} mode={row.mode} /></div></div>;
+}
+
 // ── Fill My Tables (owner) — quiet-hour yield engine. Reads the next 2h of
 // occupancy and lets the owner offer a time-boxed perk to opted-in regulars. ──
 function FillTablesPage() {
@@ -16458,6 +16685,7 @@ export default function TawasloApp() {
     if (page==="reviews") return <ReviewsPage/>;
     if (page==="guests") return <GuestsPage/>;
     if (page==="filltables") return <FillTablesPage/>;
+    if (page==="prospect") return <ProspectAuditPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
@@ -16520,6 +16748,10 @@ export default function TawasloApp() {
   // Host stand (tawaslo.com/host/<slug>) — PIN-locked iPad host view, no login.
   const hostMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/host\/([A-Za-z0-9_-]+)/);
   if (hostMatch) return <HostStandPage slug={hostMatch[1]}/>;
+
+  // Prospect proposal (tawaslo.com/pitch/<slug>) — the branded audit, no login.
+  const pitchMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/pitch\/([A-Za-z0-9_-]+)/);
+  if (pitchMatch) return <PitchPublicPage slug={pitchMatch[1]}/>;
 
   // Public branded client portal (tawaslo.com/portal/<token>) — no login.
   const portalMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/portal\/([A-Za-z0-9_-]+)/);

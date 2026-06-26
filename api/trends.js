@@ -197,10 +197,128 @@ function mapStreamPost(p, plat) {
     sentiment: streamSentiment(text) };
 }
 
+// ── Prospect Audit (Pitch in a Click) — scrape one public profile + recent
+// posts and return rich metrics for the audit/proposal generator. ──
+async function twScrapeProfile(handle, plat, APIFY_TOKEN, limit) {
+  if (!APIFY_TOKEN || !handle) return null;
+  try {
+    const isTT = plat === "tiktok" || plat === "tt";
+    const actor = isTT ? (process.env.APIFY_TT_PROFILE_ACTOR || "clockworks~tiktok-profile-scraper")
+                       : (process.env.APIFY_IG_PROFILE_ACTOR || "apify~instagram-profile-scraper");
+    const input = isTT ? { profiles: [handle], resultsPerPage: limit || 12, shouldDownloadVideos: false, shouldDownloadCovers: false }
+                       : { usernames: [handle], resultsLimit: limit || 12 };
+    const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 12000);
+    const r = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?token=${APIFY_TOKEN}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal: ctrl.signal,
+    }).finally(() => clearTimeout(t));
+    const items = await r.json();
+    const arr = Array.isArray(items) ? items : (items && items.items) || [];
+    const prof = arr.find(x => x && (x.followersCount != null || x.followers != null || x.fans != null)) || arr[0] || {};
+    const followers = prof.followersCount || prof.followers || prof.fans || (prof.stats && prof.stats.followerCount) || null;
+    const postCount = prof.postsCount || prof.mediaCount || (prof.stats && prof.stats.videoCount) || null;
+    const posts = (Array.isArray(prof.latestPosts) && prof.latestPosts.length) ? prof.latestPosts
+      : arr.filter(x => x && (x.likesCount != null || x.diggCount != null || x.statistics));
+    const sample = posts.slice(0, 12);
+    let likes = 0, comments = 0, n = 0, videoN = 0; const tagCount = {}; const stamps = []; const scored = [];
+    for (const p of sample) {
+      const lk = p.likesCount || p.diggCount || (p.statistics && (p.statistics.diggCount || p.statistics.digg_count)) || 0;
+      const cm = p.commentsCount || p.commentCount || (p.statistics && p.statistics.comment_count) || 0;
+      likes += lk; comments += cm; n++;
+      const type = String(p.type || p.productType || p.mediaType || "").toLowerCase();
+      if (type.includes("video") || type.includes("reel") || type.includes("clip") || p.videoUrl || p.videoDuration || p.isVideo) videoN++;
+      const cap = p.caption || p.text || "";
+      (String(cap).match(/#[\p{L}0-9_]+/gu) || []).forEach(tag => { tagCount[tag] = (tagCount[tag] || 0) + 1; });
+      (Array.isArray(p.hashtags) ? p.hashtags : []).forEach(h => { const raw = (typeof h === "string" ? h : (h && h.name) || ""); if (raw) { const k = raw[0] === "#" ? raw : "#" + raw; tagCount[k] = (tagCount[k] || 0) + 1; } });
+      const ts = p.timestamp || p.createTimeISO || p.takenAt || p.createTime || null; if (ts) { const ms = new Date(ts).getTime(); if (ms) stamps.push(ms); }
+      scored.push({ eng: lk + cm, likes: lk, comments: cm, url: p.url || (p.shortCode ? `https://www.instagram.com/p/${p.shortCode}/` : ""), caption: String(cap).slice(0, 90) });
+    }
+    const avgEng = n ? Math.round((likes + comments) / n) : null;
+    const engRate = (followers && avgEng) ? +(avgEng / followers * 100).toFixed(2) : null;
+    const videoShare = n ? Math.round(videoN / n * 100) : null;
+    let postsPerWeek = null;
+    if (stamps.length >= 2) { const span = (Math.max(...stamps) - Math.min(...stamps)) / 86400000; if (span > 0) postsPerWeek = +(((stamps.length - 1) / (span / 7))).toFixed(1); }
+    scored.sort((a, b) => b.eng - a.eng);
+    const topHashtags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
+    if (!(followers || postCount || n)) return null;
+    return { followers, postCount, avgEng, engRate, videoShare, postsPerWeek, sampleSize: n, topHashtags, bestPost: scored[0] || null, worstPost: scored[scored.length - 1] || null, name: prof.fullName || prof.name || prof.nickName || handle, avatar: prof.profilePicUrl || prof.avatar || null };
+  } catch (e) { return null; }
+}
+
+function twDemoAudit(handle, benchmark, deep) {
+  const m = { followers: 8420, postCount: 214, postsPerWeek: 2.1, engRate: 1.8, benchmark: benchmark || 3.4, sampleSize: 12, videoShare: 0, target: 4.5 };
+  const findings = [
+    "Posts about 2 times a week, below the 4 to 5 that build momentum.",
+    "None of the recent posts are video, where most new reach now lives.",
+    "Engagement sits at 1.8%, under the roughly 3.4% typical for similar cafes.",
+  ];
+  const fixes = [
+    { title: "Show up on video", body: "Ship 4 short Reels a week, the fastest lever for fresh reach beyond current followers." },
+    { title: "Post more, on a rhythm", body: "Move to 4 or 5 posts a week on a set schedule so the algorithm learns to push you." },
+    { title: "Talk back, fast", body: "Reply to every comment and DM within the hour to turn watchers into regulars." },
+  ];
+  const roadmap = [
+    { phase: "Weeks 1 to 2 · Foundation", items: ["Lock a weekly content calendar", "Refresh bio, highlights and pinned posts", "Set the brand voice and look"] },
+    { phase: "Weeks 3 to 6 · Momentum", items: ["4 Reels a week", "Daily Stories", "Reply within the hour, every day"] },
+    { phase: "Weeks 7 to 12 · Growth", items: ["Double down on the top formats", "Weekly customer reposts and light collabs", "Monthly report and tune"] },
+  ];
+  const out = { name: "Cafe Bahrain", avatar: null, metrics: m, findings, fixes, roadmap, topHashtags: ["#bahrainfood", "#manama", "#coffee"], bestPost: { likes: 540, comments: 31, caption: "Weekend brunch is back" }, worstPost: { likes: 38, comments: 1, caption: "We are open today" }, competitors: [], summary: "Cafe Bahrain has a real audience of 8,420 but is posting too little and barely using video. Closing those two gaps alone should lift engagement toward the benchmark within 90 days." };
+  if (deep) out.competitors = [ { handle: "rival_cafe", followers: 14200, engRate: 3.9, postsPerWeek: 5.2 }, { handle: "corner_roastery", followers: 9800, engRate: 4.4, postsPerWeek: 6.0 } ];
+  return out;
+}
+
 export default async function handler(req, res) {
   const token = process.env.ENSEMBLE_TOKEN;
   const YT_KEY = process.env.YOUTUBE_API_KEY;
   const APIFY_TOKEN = process.env.APIFY_TOKEN;
+
+  // ── Prospect Audit (Pitch in a Click): handle in, full audit out. ──
+  if (req.query && req.query.mode === "audit") {
+    const handle = String(req.query.handle || "").replace(/^@/, "").trim();
+    const plat = String(req.query.platform || "instagram").toLowerCase();
+    const deep = req.query.deep === "1" || req.query.deep === "true";
+    if (!handle) return res.status(200).json({ ok: false, message: "No handle" });
+    const competitorsQ = String(req.query.competitors || "").split(",").map(s => s.replace(/^@/, "").trim()).filter(Boolean).slice(0, 2);
+
+    const me = await twScrapeProfile(handle, plat, APIFY_TOKEN, 12);
+    let benchmark = 3.4; const competitors = [];
+    if (deep && competitorsQ.length) {
+      for (const c of competitorsQ) { const cp = await twScrapeProfile(c, plat, APIFY_TOKEN, 8); if (cp) competitors.push({ handle: c, followers: cp.followers, engRate: cp.engRate, postsPerWeek: cp.postsPerWeek }); }
+      const rates = competitors.map(c => c.engRate).filter(x => x != null); if (rates.length) benchmark = +((rates.reduce((a, b) => a + b, 0) / rates.length)).toFixed(1);
+    }
+
+    if (!me) return res.status(200).json({ ok: true, demo: true, handle, platform: plat, deep, ...twDemoAudit(handle, benchmark, deep) });
+
+    const findings = []; const fixes = [];
+    const er = me.engRate, ppw = me.postsPerWeek, vs = me.videoShare;
+    if (ppw != null && ppw < 3) { findings.push(`Posts about ${ppw} times a week, below the 4 to 5 that build momentum.`); fixes.push({ title: "Post more, on a rhythm", body: "Move to 4 or 5 posts a week on a set schedule so the algorithm learns to push you." }); }
+    if (vs != null && vs < 30) { findings.push(`Only ${vs}% of recent posts are video, where most new reach now lives.`); fixes.push({ title: "Show up on video", body: "Ship 4 short Reels a week, the fastest lever for fresh reach beyond current followers." }); }
+    if (er != null && er < benchmark) { findings.push(`Engagement sits at ${er}%, under the roughly ${benchmark}% typical for similar accounts.`); fixes.push({ title: "Lift engagement", body: "Strong hooks in the first line, a clear reason to comment, and replies within the hour." }); }
+    if ((me.topHashtags || []).length < 3) { findings.push("Few hashtags in use, so discovery is being left on the table."); fixes.push({ title: "Smart hashtags", body: "A tight set of 8 to 12 niche and local tags per post to widen discovery." }); }
+    const fallbackFixes = [ { title: "Daily Stories", body: "A simple daily Story keeps you top of mind between posts." }, { title: "Talk back, fast", body: "Reply to every comment and DM within the hour to build loyalty." }, { title: "Weekly customer repost", body: "Reshare a real customer post each week for free, trusted content." } ];
+    while (fixes.length < 3 && fallbackFixes.length) { const f = fallbackFixes.shift(); if (!fixes.find(x => x.title === f.title)) fixes.push(f); }
+    if (!findings.length) findings.push("Solid base. The gap is consistency and video, and both are quick wins.");
+
+    const roadmap = [
+      { phase: "Weeks 1 to 2 · Foundation", items: ["Lock a weekly content calendar", "Refresh bio, highlights and pinned posts", "Set the brand voice and look"] },
+      { phase: "Weeks 3 to 6 · Momentum", items: ["4 Reels a week", "Daily Stories", "Reply within the hour, every day"] },
+      { phase: "Weeks 7 to 12 · Growth", items: ["Double down on the top formats", "Weekly customer reposts and light collabs", "Monthly report and tune"] },
+    ];
+    const target = +(Math.max((benchmark || 3.4) + 1, (er || benchmark || 3.4) + 2)).toFixed(1);
+    let summary = `${me.name || handle} has a real audience of ${me.followers ? me.followers.toLocaleString() : "a loyal following"} but is posting too little and barely using video. Closing those two gaps alone should lift engagement toward the ${benchmark}% benchmark within 90 days.`;
+    if (deep && process.env.ANTHROPIC_API_KEY) {
+      try {
+        const sys = "You are a sharp social media strategist. Write a concise, confident 3 sentence executive summary for a sales proposal, based only on the JSON metrics provided. No hype, no emojis, and do not use hyphens or dashes.";
+        const cr = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 260, system: sys, messages: [{ role: 'user', content: JSON.stringify({ name: me.name, handle, followers: me.followers, engagementRate: er, benchmark, postsPerWeek: ppw, videoSharePct: vs, topHashtags: me.topHashtags }) }] }) });
+        const j = await cr.json(); const txt = j && j.content && j.content[0] && j.content[0].text; if (txt) summary = txt.trim();
+      } catch (e) { /* keep templated summary */ }
+    }
+
+    res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
+    return res.status(200).json({ ok: true, handle, platform: plat, deep, name: me.name, avatar: me.avatar,
+      metrics: { followers: me.followers, postCount: me.postCount, postsPerWeek: ppw, engRate: er, benchmark, sampleSize: me.sampleSize, videoShare: vs, target },
+      findings, fixes: fixes.slice(0, deep ? 5 : 3), roadmap, topHashtags: me.topHashtags, bestPost: me.bestPost, worstPost: me.worstPost, competitors, summary });
+  }
+
   const APIFY_TT_ACTOR = process.env.APIFY_TT_ACTOR; // e.g. clockworks~tiktok-scraper
   const APIFY_IG_ACTOR = process.env.APIFY_IG_ACTOR; // e.g. apify~instagram-hashtag-scraper
   if (!token && !YT_KEY && !APIFY_TOKEN) {
