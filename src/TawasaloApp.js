@@ -10284,12 +10284,14 @@ function BillingPage() {
       setBusy(""); setNotice(L("Couldn't open the billing portal. Please try again.", "تعذّر فتح بوابة الفوترة. حاول مجدداً."));
     } catch (e) { setBusy(""); setNotice(L("Couldn't open the billing portal.", "تعذّر فتح بوابة الفوترة.")); }
   };
-  // Prices are grossed up to absorb the Merchant-of-Record fee (5% + $0.50) so the
-  // net landing in the ila USD account stays at the ~$49 / $99 / $199 targets.
+  // Displayed prices — these match every other plan table in the app (homepage,
+  // signup, comparison) so a customer never sees two different numbers. Monthly,
+  // and yearly at 20% off (rounded). The yearly figure is the per-month rate;
+  // Polar bills it once a year (×12) at checkout.
   const plans = [
-    { name:"Essential", m:54, y:43, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
-    { name:"Professional", m:109, y:87, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
-    { name:"Enterprise", m:219, y:175, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
+    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
+    { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
+    { name:"Enterprise", m:199, y:159, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
   ];
 
   const applyPromo = async () => {
