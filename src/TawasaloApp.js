@@ -10932,7 +10932,7 @@ function LandingPage({ onGetStarted, onLogin }) {
     window.location.href = `mailto:support@tawaslo.com?subject=${subject}&body=${body}`;
     setContactSent(true);
   };
-  const prices = { monthly:{starter:49,pro:99,agency:199}, yearly:{starter:39,pro:79,agency:159} };
+  const prices = { monthly:{starter:49,pro:99,agency:199,studio:459}, yearly:{starter:39,pro:79,agency:159,studio:367} };
   const p = prices[billing];
 
   const navLink = (id, label) => (
@@ -10992,9 +10992,10 @@ function LandingPage({ onGetStarted, onLogin }) {
   const grad = {background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"};
   const card = {background:"#141923",border:"1px solid #232B38",borderRadius:14,padding:22};
 
-  const PlanCard = ({name,desc,price,features,popular,extra=[],planKey}) => (
-    <div style={{background:"#0D1119",border:`2px solid ${popular?"#6E8CAB":"#1E2838"}`,borderRadius:16,padding:24,position:"relative"}}>
+  const PlanCard = ({name,desc,price,features,popular,best,extra=[],planKey}) => (
+    <div style={{background:"#0D1119",border:`2px solid ${best?"#C7942B":popular?"#6E8CAB":"#1E2838"}`,borderRadius:16,padding:24,position:"relative"}}>
       {popular&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",color:"#fff",fontSize:10,fontWeight:700,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>MOST POPULAR</div>}
+      {best&&<div style={{position:"absolute",top:-12,left:"50%",transform:"translateX(-50%)",background:"linear-gradient(135deg,#E0B85C,#C7942B)",color:"#1A1206",fontSize:10,fontWeight:800,padding:"4px 16px",borderRadius:20,whiteSpace:"nowrap"}}>BEST PICK</div>}
       <div style={{fontSize:15,fontWeight:800,marginBottom:4}}>{name}</div>
       <div style={{fontSize:12,color:"#7A8BA8",marginBottom:16}}>{desc}</div>
       <div style={{marginBottom:approxLabel(lgeo,price)?2:8}}><span className="tw-num" style={{fontSize:34,fontWeight:700,color:popular?"#9DB6D6":"#F2F5F9"}}>${price}</span><span style={{fontSize:13,color:"#7A8BA8"}}> /mo</span></div>
@@ -11636,7 +11637,7 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
   );
 
   const PricingPage = () => (
-    <div style={{padding:"60px 32px",maxWidth:1000,margin:"0 auto"}}>
+    <div style={{padding:"60px 32px",maxWidth:1200,margin:"0 auto"}}>
       <div style={{textAlign:"center",marginBottom:36}}>
         <h1 style={{fontSize:36,fontWeight:900,marginBottom:12}}>Simple, transparent pricing</h1>
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:24}}>No hidden fees. Cancel anytime.</p>
@@ -11648,10 +11649,11 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
           ))}
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:16,marginBottom:48}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(4,1fr)",gap:14,marginBottom:48}}>
         <PlanCard name="Essential" planKey="starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
         <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
+        <PlanCard name="Studio" planKey="studio" desc="For white-label agencies" price={p.studio} best features={["Everything in Enterprise","White-label dashboard","Your logo & brand colors","Branded client pages","Branded reports & exports","Priority onboarding"]}/>
       </div>
 
       <div style={{textAlign:"center",marginBottom:44,display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap"}}>
@@ -11662,13 +11664,37 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
 
       <div style={{background:"#0C1017",border:"1px solid #232B38",borderRadius:16,overflow:"hidden"}}>
         <div style={{padding:"16px 20px",borderBottom:"1px solid #232B38"}}><h3 style={{fontSize:15,fontWeight:800}}>Compare plans</h3></div>
-        <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?460:"auto"}}>
-        {[["","Essential","Professional","Enterprise",true],["Publishing","","","",false,"header"],["Social accounts","3","10","Unlimited",false],["Posts per month","30","100","Unlimited",false],["Post scheduling","✓","✓","✓",false],["AI Features","","","",false,"header"],["AI caption generator","✓","✓","✓",false],["Arabic captions","✓","✓","✓",false],["Custom tone & style","—","✓","✓",false],["AI image generation","Add-on","Add-on","Add-on",false],["Analytics","","","",false,"header"],["Analytics dashboard","✓","✓","✓",false],["Monthly reports","✓","✓","✓",false],["White-label reports","—","—","✓",false],["Team","","","",false,"header"],["Team members","1","5","20",false],["Multi-client workspace","—","✓","✓",false],["Dedicated support","—","—","✓",false]].map(([feat,s,pr,ag,isHead,type],i)=>(
-          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #232B3830",background:isHead?"#141923":type==="header"?"#0C1017":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#4F6EF7":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
+        <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?640:"auto"}}>
+        {[["","Essential","Professional","Enterprise","Studio",true],
+          ["Publishing","","","","",false,"header"],
+          ["Social accounts","3","10","Unlimited","Unlimited",false],
+          ["Posts per month","30","100","Unlimited","Unlimited",false],
+          ["Post scheduling","✓","✓","✓","✓",false],
+          ["AI Features","","","","",false,"header"],
+          ["AI caption generator","✓","✓","✓","✓",false],
+          ["Arabic captions","✓","✓","✓","✓",false],
+          ["Custom tone & style","✗","✓","✓","✓",false],
+          ["AI image generation","Add-on","Add-on","Add-on","Add-on",false],
+          ["Analytics","","","","",false,"header"],
+          ["Analytics dashboard","✓","✓","✓","✓",false],
+          ["Monthly reports","✓","✓","✓","✓",false],
+          ["White-label","","","","",false,"header"],
+          ["Branded dashboard","✗","✗","✗","✓",false],
+          ["Your logo & brand colors","✗","✗","✗","✓",false],
+          ["Branded client pages","✗","✗","✗","✓",false],
+          ["Branded reports & exports","✗","✗","✓","✓",false],
+          ["Team & support","","","","",false,"header"],
+          ["Team members","1","5","20","20",false],
+          ["Multi-client workspace","✗","✓","✓","✓",false],
+          ["Dedicated support","✗","✗","✓","✓",false],
+          ["Priority onboarding","✗","✗","✗","✓",false]].map(([feat,es,pr,ag,st,isHead,type],i)=>{
+          const cell=(v)=>(<div style={{textAlign:"center",color:v==="✓"?"#10B981":v==="✗"?"#3D5068":"#E8EFF8",fontWeight:v==="✓"||v==="✗"?700:400}}>{v}</div>);
+          return (
+          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr 1fr 1fr",padding:type==="header"?"6px 20px":"10px 20px",borderBottom:"1px solid #232B3830",background:isHead?"#141923":type==="header"?"#16202E":"transparent",fontSize:12,alignItems:"center",color:type==="header"?"#9DB6D6":isHead?"#7A8BA8":"#E8EFF8",fontWeight:type==="header"?700:isHead?700:400,textTransform:type==="header"?"uppercase":"none",letterSpacing:type==="header"?"0.5px":"0"}}>
             <div>{feat}</div>
-            <div style={{textAlign:"center",color:s==="✓"?"#10B981":s==="—"?"#3D5068":"#E8EFF8"}}>{s}</div><div style={{textAlign:"center",color:pr==="✓"?"#10B981":pr==="—"?"#3D5068":"#E8EFF8"}}>{pr}</div><div style={{textAlign:"center",color:ag==="✓"?"#10B981":ag==="—"?"#3D5068":"#E8EFF8"}}>{ag}</div>
+            {cell(es)}{cell(pr)}{cell(ag)}{cell(st)}
           </div>
-        ))}
+        );})}
         </div></div>
       </div>
 
@@ -16417,9 +16443,10 @@ function PublicInfoPage({ kind }) {
 
   if (kind === "pricing") {
     const plans = [
-      { n:"Essential", m:54, y:43, tag:"For small businesses", f:["2 brands · 6 social accounts","Publisher, Planner & Calendar","Inbox, Streams & Trends","50 AI images / month"] },
-      { n:"Professional", m:109, y:87, tag:"For growing agencies", pop:true, f:["8 brands · unlimited accounts","Everything in Essential","Competitor Spy + Reports","Client approvals","100 AI images / month"] },
-      { n:"Enterprise", m:219, y:175, tag:"For large teams", f:["Unlimited brands","Everything in Professional","White-label client portal","Team roles + priority support"] },
+      { n:"Essential", m:49, y:39, tag:"For small businesses", f:["3 social accounts","1 team member","30 posts / month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"] },
+      { n:"Professional", m:99, y:79, tag:"For growing brands", pop:true, f:["10 social accounts","5 team members","100 posts / month","AI captions (EN + AR)","Analytics dashboard","Priority support"] },
+      { n:"Enterprise", m:199, y:159, tag:"For agencies", f:["Unlimited accounts","20 team members","Unlimited posts","White-label reports","Dedicated support"] },
+      { n:"Studio", m:459, y:367, tag:"For white-label agencies", f:["Everything in Enterprise","White-label dashboard","Your logo & brand colors","Branded client pages","Priority onboarding"] },
     ];
     return (
       <div style={wrap}>{head}
