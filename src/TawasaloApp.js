@@ -581,6 +581,10 @@ function useIsMobile(bp = 820) {
 const DESKTOP_ONLY = new Set(["publisher", "planner", "calendar", "campaigns", "ads", "aistudio", "reelstudio", "reports"]);
 const DESKTOP_ONLY_LABEL = { publisher: "Publisher", planner: "Planner", calendar: "Calendar", campaigns: "Campaigns", ads: "Ads", aistudio: "AI Studio", reelstudio: "Reel Studio", reports: "Reports" };
 
+// Level 2 white-label (custom domain) stays hidden in the UI until we turn it on.
+const WL_DOMAIN_VISIBLE = false;
+const WL_FONTS = ["Plus Jakarta Sans", "Inter", "Poppins", "Montserrat", "Cairo", "Fraunces", "Georgia"];
+
 // Monthly report reminder preference (per agency). On/off + which day of the month.
 const twReportPref = () => { try { const o = JSON.parse(localStorage.getItem('tw_report_reminder') || '{}'); return { on: o.on !== false, day: Math.min(28, Math.max(1, Number(o.day) || 1)), time: o.time || '09:00' }; } catch (e) { return { on: true, day: 1, time: '09:00' }; } };
 const twSetReportPref = (p) => { try { localStorage.setItem('tw_report_reminder', JSON.stringify(p)); } catch (e) {} };
@@ -10592,6 +10596,8 @@ function SettingsPage() {
   const [website, setWebsite] = useState("");
   const [notif, setNotif] = useState({ email:true, published:true, weekly:true, engagement:true });
   const [reportPref, setReportPref] = useState(twReportPref());
+  const [wl, setWl] = useState(null);
+  const [wlSaved, setWlSaved] = useState(false);
   // Personal profile (your own name + login email)
   const [fullName, setFullName] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
@@ -10646,6 +10652,7 @@ function SettingsPage() {
       setFullName(profile?.name || (user.user_metadata && user.user_metadata.name) || "");
       setLoginEmail(user.email || "");
       setOrigEmail(user.email || "");
+      try { const { data: wlrow } = await supabase.from('agency_branding').select('*').eq('owner_id', user.id).limit(1); if (active) setWl((wlrow && wlrow[0]) || { owner_id: user.id, enabled: false, accent: '#4F6B8C', accent2: '#1D9E75', font: 'Plus Jakarta Sans', hide_tawaslo: true }); } catch (e) { if (active) setWl({ owner_id: user.id, enabled: false, accent: '#4F6B8C', accent2: '#1D9E75', font: 'Plus Jakarta Sans', hide_tawaslo: true }); }
       setLoading(false);
     })();
     return () => { active = false; };
@@ -10688,6 +10695,9 @@ function SettingsPage() {
   };
 
   const toggleNotif = (k) => setNotif(prev => { const next = { ...prev, [k]: !prev[k] }; try { localStorage.setItem('tw_notify', JSON.stringify(next)); } catch (e) { /* ignore */ } return next; });
+  const wLbl = { fontSize:10.5, color:th.text2, marginBottom:5 };
+  const wInp = { width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:14, outline:"none" };
+  const saveWl = async () => { if (!wl || !userId) return; try { await supabase.from('agency_branding').upsert({ ...wl, owner_id: userId, updated_at: new Date().toISOString() }, { onConflict: 'owner_id' }); setWlSaved(true); setTimeout(() => setWlSaved(false), 1500); } catch (e) {} };
 
   const fieldStyle = {width:"100%", padding:"10px 14px", borderRadius:8, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit"};
   const card = {background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, boxShadow:"none"};
@@ -10803,6 +10813,35 @@ function SettingsPage() {
             <Sw on={dark} onClick={()=>setDark(!dark)}/>
           </div>
         </div>
+
+        {wl && (
+        <div style={card}>
+          {secTitle(Sparkles, L("Studio · White-label","استوديو · العلامة البيضاء"))}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom: wl.enabled?16:0}}>
+            <div><div style={{fontSize:12.5}}>{L("Make the client pages yours","اجعل صفحات العملاء بعلامتك")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Your logo, colors, font and name on everything clients see","شعارك وألوانك وخطك واسمك على كل ما يراه العملاء")}</div></div>
+            <Sw on={!!wl.enabled} onClick={()=>setWl(w=>({...w, enabled:!w.enabled}))}/>
+          </div>
+          {wl.enabled && <div style={{display:"flex", flexDirection:"column", gap:12}}>
+            <div><div style={wLbl}>{L("Brand name","اسم العلامة")}</div><input value={wl.brand_name||""} onChange={e=>setWl(w=>({...w, brand_name:e.target.value}))} placeholder="Octo Studio" style={wInp}/></div>
+            <div><div style={wLbl}>{L("Logo URL","رابط الشعار")}</div><input value={wl.logo_url||""} onChange={e=>setWl(w=>({...w, logo_url:e.target.value}))} placeholder="https://…" style={wInp}/></div>
+            <div style={{display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end"}}>
+              <div><div style={wLbl}>{L("Accent","اللون الأساسي")}</div><input type="color" value={wl.accent||"#4F6B8C"} onChange={e=>setWl(w=>({...w, accent:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
+              <div><div style={wLbl}>{L("Secondary","الثانوي")}</div><input type="color" value={wl.accent2||"#1D9E75"} onChange={e=>setWl(w=>({...w, accent2:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
+              <div style={{flex:1, minWidth:150}}><div style={wLbl}>{L("Font","الخط")}</div><select value={wl.font||"Plus Jakarta Sans"} onChange={e=>setWl(w=>({...w, font:e.target.value}))} style={{...wInp, cursor:"pointer"}}>{WL_FONTS.map(f=><option key={f} value={f}>{f}</option>)}</select></div>
+            </div>
+            <div><div style={wLbl}>{L("Footer text (replaces Powered by Tawaslo)","نص التذييل (يستبدل Powered by Tawaslo)")}</div><input value={wl.footer_text||""} onChange={e=>setWl(w=>({...w, footer_text:e.target.value}))} placeholder={L("Powered by Octo Studio","مُشغّل بواسطة استوديو أوكتو")} style={wInp}/></div>
+            <div><div style={wLbl}>{L("Contact shown to clients","جهة اتصال تظهر للعملاء")}</div><input value={wl.contact||""} onChange={e=>setWl(w=>({...w, contact:e.target.value}))} placeholder="hello@octostudio.com" style={wInp}/></div>
+            <label style={{display:"flex", alignItems:"center", gap:9, cursor:"pointer"}}><input type="checkbox" checked={wl.hide_tawaslo!==false} onChange={e=>setWl(w=>({...w, hide_tawaslo:e.target.checked}))} style={{width:16, height:16, accentColor:th.accent}}/><span style={{fontSize:12.5, color:th.text}}>{L("Hide all Tawaslo branding from client pages","إخفاء كل علامات تواصلو عن صفحات العملاء")}</span></label>
+            {WL_DOMAIN_VISIBLE && <div style={{borderTop:`1px solid ${th.border}`, paddingTop:13, marginTop:2}}>
+              <div style={wLbl}>{L("Custom domain","نطاق مخصص")}</div>
+              <input value={wl.domain||""} onChange={e=>setWl(w=>({...w, domain:e.target.value}))} placeholder="links.octostudio.com" style={wInp}/>
+              <div style={{fontSize:10.5, color:th.text3, marginTop:6, lineHeight:1.5}}>{L("Add a CNAME for this subdomain pointing to Tawaslo, then switch it on.","أضف سجل CNAME لهذا النطاق يشير إلى تواصلو ثم فعّله.")}</div>
+              <label style={{display:"flex", alignItems:"center", gap:9, cursor:"pointer", marginTop:9}}><input type="checkbox" checked={!!wl.domain_on} onChange={e=>setWl(w=>({...w, domain_on:e.target.checked}))} style={{width:16, height:16, accentColor:th.accent}}/><span style={{fontSize:12.5, color:th.text}}>{L("Serve client pages on my domain","قدّم صفحات العملاء على نطاقي")}</span></label>
+            </div>}
+            <button onClick={saveWl} style={{alignSelf:"flex-start", marginTop:2, padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer"}}>{wlSaved?L("Saved ✓","تم ✓"):L("Save branding","حفظ الهوية")}</button>
+          </div>}
+        </div>
+        )}
 
         <div style={card}>
           {secTitle(Languages, L("Language","اللغة"))}
