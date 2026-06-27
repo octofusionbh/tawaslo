@@ -17035,10 +17035,14 @@ function ClientApprovalPage({ token }) {
   const wrap = { minHeight:"100vh", background:T.bg, color:T.text, fontFamily:"'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif", padding: phone ? "14px 12px 44px" : "30px 20px 64px", boxSizing:"border-box" };
   const inner = { maxWidth: 700, margin:"0 auto" };
   const ag = data.agency || {}, cl = data.client || {};
+  const brand = data.brand || null;
+  const ACC = (brand && brand.accent) || "#4F6B8C";
+  const wlOn = !!(brand && brand.hide_tawaslo !== false);
+  const poweredBy = wlOn ? (brand.footer_text || ("Powered by " + (brand.brand_name || ag.name || ""))) : "Powered by Tawaslo";
 
   const header = (
     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: phone ? 14 : 18 }}>
-      {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:"#4F6B8C", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
+      {ag.logo ? <img src={ag.logo} alt="" style={{ width:30, height:30, borderRadius:8, objectFit:"contain", background:"#fff" }}/> : <span style={{ width:30, height:30, borderRadius:8, background:ACC, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:700, color:"#fff" }}>{(ag.name||"A")[0]}</span>}
       <span style={{ fontSize:14, fontWeight:600 }}>{ag.name || "Your agency"}</span>
       <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:5, fontSize:11, color:T.badgeTx, background:T.badgeBg, padding:"4px 10px", borderRadius:20 }}><Lock size={12}/>Secure link</span>
     </div>
@@ -17052,7 +17056,7 @@ function ClientApprovalPage({ token }) {
         <Clock size={26} color={T.mut2} style={{ marginBottom:12 }}/>
         <div style={{ fontSize:15.5, fontWeight:600, marginBottom:6 }}>Nothing to review yet</div>
         <div style={{ fontSize:12.5, color:T.mut, lineHeight:1.6, maxWidth:340, margin:"0 auto" }}>Your link is live. Posts your agency sends for approval will show up here automatically.</div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:T.mut2, marginTop:18 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:T.mut2, marginTop:18 }}>{!wlOn && <img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>}No account needed · {poweredBy}</div>
       </div>
     </div></div>
   );
@@ -17102,7 +17106,7 @@ function ClientApprovalPage({ token }) {
             </div>
           )}
         </div>
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:T.mut2, marginTop:12 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap", fontSize:11, color:T.mut2, marginTop:12 }}>{!wlOn && <img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>}No account needed · This link expires in {data.expires || 7} days · {poweredBy}</div>
       </div></div>
     );
   }
@@ -17163,7 +17167,7 @@ function ClientApprovalPage({ token }) {
           )}
         </div>
         {phone ? <div>{posts.slice().sort((a,b)=>a.date-b.date).map(agendaRow)}</div> : calGrid()}
-        <div style={{ padding:"11px 18px", borderTop:`0.5px solid ${T.line2}`, fontSize:11, color:T.mut2, display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>No account needed · This link expires in {data.expires || 7} days · Powered by Tawaslo</div>
+        <div style={{ padding:"11px 18px", borderTop:`0.5px solid ${T.line2}`, fontSize:11, color:T.mut2, display:"flex", alignItems:"center", justifyContent:"center", gap:6, flexWrap:"wrap" }}>{!wlOn && <img src="/logo-transparent.png" alt="Tawaslo" style={{ width:16, height:16, objectFit:"contain" }}/>}No account needed · This link expires in {data.expires || 7} days · {poweredBy}</div>
       </div>
     </div></div>
   );

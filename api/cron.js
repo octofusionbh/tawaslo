@@ -53,8 +53,32 @@ export default async function handler(req, res) {
             time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           };
         });
+        // White-label: resolve the owning agency's brand so the client page can wear it.
+        let agency = null, client = null, brand = null;
+        try {
+          const cid = rows[0] && rows[0].client_id;
+          if (cid) {
+            const cr = await sb(`clients?id=eq.${encodeURIComponent(cid)}&select=name,owner_id,logo_url&limit=1`);
+            const c = (cr.ok ? await cr.json() : [])[0];
+            if (c) {
+              client = { name: c.name };
+              if (c.owner_id) {
+                const pr = await sb(`profiles?id=eq.${encodeURIComponent(c.owner_id)}&select=name,company_name&limit=1`);
+                const prof = (pr.ok ? await pr.json() : [])[0] || {};
+                const br = await sb(`agency_branding?owner_id=eq.${encodeURIComponent(c.owner_id)}&select=*&limit=1`);
+                const b = (br.ok ? await br.json() : [])[0];
+                if (b && b.enabled) {
+                  brand = b;
+                  agency = { name: b.brand_name || prof.company_name || prof.name || 'Your agency', logo: b.logo_url || null };
+                } else {
+                  agency = { name: prof.company_name || prof.name || 'Your agency', logo: c.logo_url || null };
+                }
+              }
+            }
+          }
+        } catch (e) { /* branding is best-effort */ }
         const now = new Date();
-        return res.status(200).json({ posts, month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), expires: 7, firstDow: new Date(now.getFullYear(), now.getMonth(), 1).getDay(), days: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() });
+        return res.status(200).json({ posts, agency, client, brand, month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), expires: 7, firstDow: new Date(now.getFullYear(), now.getMonth(), 1).getDay(), days: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() });
       }
       if (action === 'respond') {
         const { postId, decision, comment } = req.body;
