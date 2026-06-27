@@ -55,7 +55,6 @@ export default async function handler(req, res) {
       // Check account info first
       const meRes = await fetch(`${base}/me?fields=id,username&access_token=${accessToken}`);
       const meData = await meRes.json();
-      console.log('Account:', JSON.stringify(meData));
 
       // Instagram-login tokens are scoped to one account → read the token's own user ("me").
       // Facebook-login tokens can manage multiple IG accounts → address the specific accountId.
@@ -64,7 +63,6 @@ export default async function handler(req, res) {
         `${base}/${node}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
       );
       const mediaData = await mediaRes.json();
-      console.log('Media result:', JSON.stringify(mediaData).substring(0, 800));
       if (mediaData.error) return res.status(400).json({ error: mediaData.error.message, debug: { accountId, base, mediaError: mediaData.error } });
 
       const comments = [];

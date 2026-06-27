@@ -64,7 +64,6 @@ export default async function handler(req, res) {
           `https://graph.facebook.com/v19.0/${page.id}?fields=instagram_business_account,connected_instagram_account&access_token=${page.access_token}`
         );
         const igData = await igRes.json();
-        console.log(`Page ${page.name} method1:`, JSON.stringify(igData));
         igId = igData.instagram_business_account?.id || igData.connected_instagram_account?.id || null;
 
         // Method 2: /page/instagram_accounts endpoint
@@ -73,7 +72,6 @@ export default async function handler(req, res) {
             `https://graph.facebook.com/v19.0/${page.id}/instagram_accounts?access_token=${page.access_token}`
           );
           const igAccData = await igAccRes.json();
-          console.log(`Page ${page.name} method2:`, JSON.stringify(igAccData));
           if (igAccData.data && igAccData.data.length > 0) igId = igAccData.data[0].id;
         }
 
@@ -83,7 +81,6 @@ export default async function handler(req, res) {
             `https://graph.facebook.com/v19.0/me/instagram_accounts?access_token=${longToken}`
           );
           const bizIgData = await bizIgRes.json();
-          console.log(`User IG accounts method3:`, JSON.stringify(bizIgData));
           if (bizIgData.data && bizIgData.data.length > 0) igId = bizIgData.data[0].id;
         }
 
@@ -92,7 +89,6 @@ export default async function handler(req, res) {
             `https://graph.facebook.com/v19.0/${igId}?fields=id,name,username,profile_picture_url,followers_count&access_token=${page.access_token}`
           );
           const igInfo = await igInfoRes.json();
-          console.log(`IG info for ${igId}:`, JSON.stringify(igInfo));
 
           accounts.push({
             platform: 'ig',

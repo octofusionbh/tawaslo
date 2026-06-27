@@ -538,15 +538,6 @@ const ADMIN_HOST_PREFIX = 'admin.';
 const ACCOUNT_LABELS = { agency: "Agency", freelancer: "Freelancer", corporate: "Corporate", enterprise: "Enterprise" };
 const accountLabelOf = (t) => ACCOUNT_LABELS[t] || "Agency";
 
-const CLIENTS = [
-  { id:"octo",   name:"Octo Fusion",       plan:"Internal", free:true,  status:"active",   accounts:8,  posts:142, reach:"380K", health:99, spend:0   },
-  { id:"bloom",  name:"Bloom Agency",       plan:"Pro",      free:false, status:"active",   accounts:12, posts:284, reach:"1.2M", health:96, spend:99  },
-  { id:"gulf",   name:"Gulf Motors Group",  plan:"Corporate",free:false, status:"active",   accounts:28, posts:891, reach:"4.8M", health:88, spend:199 },
-  { id:"zara",   name:"Zara Bahrain",       plan:"Growth",   free:false, status:"active",   accounts:6,  posts:142, reach:"380K", health:72, spend:69  },
-  { id:"nbb",    name:"NBB Bank",           plan:"Corporate",free:false, status:"inactive", accounts:20, posts:0,   reach:"—",    health:0,  spend:199 },
-  { id:"ithmaar",name:"Ithmaar Properties", plan:"Growth",   free:false, status:"active",   accounts:8,  posts:98,  reach:"240K", health:64, spend:69  },
-];
-
 const AppCtx = createContext(null);
 const TR = {
   en: {},
@@ -1471,22 +1462,34 @@ function OwnerDashboard() {
   const th = useTheme();
 
   // Live platform data — pulled straight from Supabase so HQ shows real signups/counts.
-  const [live, setLive] = useState({ profiles:null, clients:null, signups:[], loaded:false });
+  const [live, setLive] = useState({ profiles:null, clients:null, signups:[], loaded:false, activeSubs:null, trials:null, mrr:null, arpu:null, planMix:null });
+  const [tickets, setTickets] = useState(null);
   useEffect(() => {
     let on = true;
     (async () => {
       try {
-        const [pRes, cRes, recentRes] = await Promise.all([
+        const [pRes, cRes, recentRes, subs] = await Promise.all([
           supabase.from('profiles').select('id', { count:'exact', head:true }),
           supabase.from('clients').select('id', { count:'exact', head:true }),
           supabase.from('profiles').select('name,email,plan,account_type,company_name,created_at').order('created_at', { ascending:false }).limit(6),
+          loadOwnerSubscribers(),
         ]);
         if (!on) return;
-        setLive({ profiles: pRes.count ?? null, clients: cRes.count ?? null, signups: recentRes.data || [], loaded:true });
+        const billable = subs.filter(s => s.plan !== "Internal");
+        const activeSubs = billable.filter(s => s.status === "active").length;
+        const trials = billable.filter(s => s.status === "trial").length;
+        const mrr = billable.reduce((t,s)=>t+(s.mrr||0),0);
+        const arpu = activeSubs ? Math.round(mrr/activeSubs) : 0;
+        const mixCount = {};
+        billable.filter(s=>s.status==="active").forEach(s => { mixCount[s.plan] = (mixCount[s.plan]||0)+1; });
+        const palette = { Professional:th.accent, Essential:th.accent2, Enterprise:th.success, Studio:th.orange };
+        const planMix = Object.keys(mixCount).map(name => ({ name, count:mixCount[name], color:palette[name]||th.accent }));
+        setLive({ profiles: pRes.count ?? null, clients: cRes.count ?? null, signups: recentRes.data || [], loaded:true, activeSubs, trials, mrr, arpu, planMix });
       } catch (e) { if (on) setLive(s => ({ ...s, loaded:true })); }
     })();
+    getSupportTickets().then(({ data }) => { if (on && Array.isArray(data)) setTickets(data); }, () => {});
     return () => { on = false; };
-  }, []);
+  }, []); // eslint-disable-line
 
   const sinceLabel = (ts) => {
     if (!ts) return "";
@@ -1498,30 +1501,21 @@ function OwnerDashboard() {
   };
 
   const kpis = [
-    { label:"Active subscriptions", value:"18", change:"+3", up:true, Icon:CreditCard, color:"accent", spark:[11,12,12,13,14,15,15,16,17,18] },
-    { label:"Total clients", value: live.clients!=null ? String(live.clients) : "24", change:"+5", up:true, Icon:Building2, color:"accent2", spark:[14,16,17,18,19,20,21,22,23,24] },
-    { label:"Trials active", value:"6", change:"+2", up:true, Icon:Sparkles, color:"info", spark:[3,2,4,3,5,4,5,4,5,6] },
-    { label:"ARPU", value:"$91", change:"+4%", up:true, Icon:TrendingUp, color:"accent", spark:[79,81,82,84,85,86,88,89,90,91] },
+    { label:"Active subscriptions", value: live.activeSubs!=null ? String(live.activeSubs) : "—", Icon:CreditCard, color:"accent" },
+    { label:"Total brands", value: live.clients!=null ? String(live.clients) : "—", Icon:Building2, color:"accent2" },
+    { label:"Trials active", value: live.trials!=null ? String(live.trials) : "—", Icon:Sparkles, color:"info" },
+    { label:"MRR", value: live.mrr!=null ? `$${live.mrr.toLocaleString()}` : "—", sub: live.arpu!=null ? `$${live.arpu} ARPU` : null, Icon:TrendingUp, color:"accent" },
   ];
 
-  const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
-  const max = Math.max(...rev), min = Math.min(...rev), W = 560, H = 150, rng = (max - min) || 1;
-  const pts = rev.map((v,i)=>[ (i/(rev.length-1))*W, H - ((v-min)/rng)*(H-16) - 8 ]);
-  const line = "M" + pts.map(pt=>pt[0].toFixed(1)+","+pt[1].toFixed(1)).join(" L");
-  const area = line + ` L${W},${H} L0,${H} Z`;
-
-  const planMix = [
-    { name:"Professional", count:11, color:th.accent },
-    { name:"Essential", count:8, color:th.accent2 },
-    { name:"Enterprise", count:5, color:th.success },
-  ];
+  const planMix = (live.planMix && live.planMix.length) ? live.planMix : [];
   const planTotal = planMix.reduce((s,p)=>s+p.count,0);
 
-  const support = [
-    { who:"Marina Cafe", msg:"How do I connect a second Instagram?", ago:"12m", urgent:false },
-    { who:"Trio Restaurant", msg:"Payment failed on renewal", ago:"1h", urgent:true },
-    { who:"Lulwa Events", msg:"Can I get an invoice for March?", ago:"3h", urgent:false },
-  ];
+  const support = (tickets || []).slice(0,4).map(t => ({
+    who: t.client_name || t.email || "Customer",
+    msg: t.subject || "(no subject)",
+    ago: sinceLabel(t.created_at),
+    urgent: t.status === "open" || t.priority === "high",
+  }));
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
 
@@ -1539,7 +1533,9 @@ function OwnerDashboard() {
       </div>
 
       <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 20px", marginBottom:20, fontSize:14, color:th.text2, lineHeight:1.6}}>
-        Tawaslo is at <span className="tw-num" style={{color:th.text, fontWeight:600}}>$2,180</span> MRR, up <span className="tw-num" style={{color:th.success, fontWeight:600}}>12%</span> this month, across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.clients!=null?live.clients:24}</span> clients on <span className="tw-num">3</span> plans. <span style={{color:th.text3}}>Revenue has grown <span className="tw-num" style={{color:th.success}}>251%</span> over the last year.</span>
+        {live.loaded
+          ? <>Tawaslo is at <span className="tw-num" style={{color:th.text, fontWeight:600}}>${(live.mrr||0).toLocaleString()}</span> MRR across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.activeSubs||0}</span> active {live.activeSubs===1?"subscription":"subscriptions"}, <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.trials||0}</span> on trial, with <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.clients!=null?live.clients:0}</span> brands managed.</>
+          : <>Loading platform numbers…</>}
       </div>
 
       {/* Bento — hero revenue panel + sparkline KPI tiles (breaks the uniform grid) */}
@@ -1548,17 +1544,28 @@ function OwnerDashboard() {
           <div style={{position:"absolute",right:-36,top:-36,opacity:0.05,pointerEvents:"none"}}><TrendingUp size={200} color={th.accent}/></div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
             <div style={{fontSize:10.5,fontWeight:700,letterSpacing:0.7,color:th.text3,textTransform:"uppercase"}}>Monthly recurring revenue</div>
-            <div style={{fontSize:11,color:th.success,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><ArrowUpRight size={14}/>+251% YoY</div>
           </div>
           <div style={{display:"flex",alignItems:"baseline",gap:12}}>
-            <span className="tw-num" style={{fontSize:42,fontWeight:600,letterSpacing:-1.2,color:th.text,lineHeight:1}}>$2,180</span>
-            <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:13,fontWeight:700,color:th.success}}><ArrowUpRight size={15}/>12% this month</span>
+            <span className="tw-num" style={{fontSize:42,fontWeight:600,letterSpacing:-1.2,color:th.text,lineHeight:1}}>${(live.mrr||0).toLocaleString()}</span>
+            <span style={{fontSize:13,fontWeight:600,color:th.text2}}>{live.activeSubs||0} active {live.activeSubs===1?"subscription":"subscriptions"}</span>
           </div>
-          <div style={{fontSize:12,color:th.text2,marginTop:6,marginBottom:18}}><span className="tw-num">$26,160</span> ARR · <span className="tw-num">{live.clients!=null?live.clients:24}</span> paying clients</div>
-          <HoverChart height={140}
-            yTop={"$"+Math.max(...rev).toLocaleString()}
-            lines={[{color:th.accent,label:"Revenue ($)",values:rev}]}
-            labels={(()=>{const arr=[];const d=new Date();for(let i=11;i>=0;i--){arr.push(new Date(d.getFullYear(),d.getMonth()-i,1).toLocaleDateString([], {month:'short'}));}return arr;})()}/>
+          <div style={{fontSize:12,color:th.text2,marginTop:6,marginBottom:18}}><span className="tw-num">${((live.mrr||0)*12).toLocaleString()}</span> ARR · <span className="tw-num">${live.arpu||0}</span> ARPU</div>
+          {planMix.length>0 ? (
+            <div style={{marginTop:4}}>
+              <div style={{display:"flex",height:10,borderRadius:6,overflow:"hidden",border:`1px solid ${th.border}`}}>
+                {planMix.map(pl=>(<div key={pl.name} title={`${pl.name}: ${pl.count}`} style={{width:`${pl.count/planTotal*100}%`,background:pl.color}}/>))}
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:14,marginTop:12}}>
+                {planMix.map(pl=>(
+                  <div key={pl.name} style={{display:"flex",alignItems:"center",gap:6,fontSize:11.5,color:th.text2}}>
+                    <span style={{width:9,height:9,borderRadius:3,background:pl.color}}/>{pl.name} <span className="tw-num" style={{color:th.text,fontWeight:600}}>{pl.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{fontSize:12,color:th.text3,padding:"18px 0"}}>{live.loaded ? "No active subscriptions yet. Revenue will appear here as customers subscribe." : "Loading…"}</div>
+          )}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
           {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
@@ -1574,45 +1581,18 @@ function OwnerDashboard() {
               <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pl.count/planTotal*100}%`,background:pl.color,borderRadius:4}}/></div>
             </div>
           ))}
-          <div style={{fontSize:11,color:th.text2,marginTop:4}}><span className="tw-num">{planTotal}</span> paying clients across <span className="tw-num">3</span> plans</div>
+          {planMix.length===0 && <div style={{fontSize:12,color:th.text3,padding:"8px 0"}}>{live.loaded?"No active plans yet.":"Loading…"}</div>}
+          {planMix.length>0 && <div style={{fontSize:11,color:th.text2,marginTop:4}}><span className="tw-num">{planTotal}</span> paying {planTotal===1?"customer":"customers"} across <span className="tw-num">{planMix.length}</span> {planMix.length===1?"plan":"plans"}</div>}
         </div>
         <div style={{...card,padding:20}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:8,display:"flex",alignItems:"center",gap:7}}><Activity size={15} color={th.accent}/>This month</div>
-          {[["Net new clients","+5",th.success],["Net revenue retention","112%",th.success],["Trial to paid","38%",th.text],["Open support tickets","3",th.warning]].map(([l,v,c],i,arr)=>(
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8,display:"flex",alignItems:"center",gap:7}}><Activity size={15} color={th.accent}/>At a glance</div>
+          {[["Active subscriptions", String(live.activeSubs??"—"), th.success],["Trials active", String(live.trials??"—"), th.info],["Monthly revenue", `$${(live.mrr||0).toLocaleString()}`, th.text],["Open support tickets", String((tickets||[]).filter(t=>t.status==="open").length), th.warning]].map(([l,v,c],i,arr)=>(
             <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none"}}>
               <span style={{fontSize:12.5,color:th.text2}}>{l}</span>
               <span className="tw-num" style={{fontSize:14.5,fontWeight:600,color:c}}>{v}</span>
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Recent activity across all clients — like the reference's main table, in our dark brand */}
-      <div style={{...card,overflow:"hidden",marginBottom:16}}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><Activity size={15} color={th.accent}/>Recent activity across clients</div>
-          <button onClick={()=>setPage("clients")} style={{fontSize:11,color:th.accent,background:th.accentSoft,border:"none",borderRadius:8,padding:"5px 11px",cursor:"pointer"}}>See all →</button>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1.6fr 1.4fr 0.9fr 0.9fr",gap:12,padding:"11px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
-          <span>Client</span><span>Activity</span><span>Platform</span><span style={{textAlign:"right"}}>When</span>
-        </div>
-        {[
-          { c:"Marina Cafe", a:"Published a Reel", p:"ig", t:"4m ago", dot:th.success },
-          { c:"Gulf Auto", a:"Scheduled 3 posts", p:"fb", t:"22m ago", dot:th.accent },
-          { c:"Lulwa Events", a:"Replied to 5 comments", p:"ig", t:"1h ago", dot:th.accent2 },
-          { c:"Trio Restaurant", a:"Connected a new account", p:"tt", t:"2h ago", dot:th.info },
-          { c:"Noor Designs", a:"Started free trial", p:"li", t:"3h ago", dot:th.success },
-        ].map((r,i,arr)=>{ const PI = PlatformIcons[r.p]; return (
-          <div key={i} style={{display:"grid",gridTemplateColumns:"1.6fr 1.4fr 0.9fr 0.9fr",gap:12,padding:"12px 20px",borderBottom:i<arr.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
-            <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-              <div style={{width:30,height:30,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{r.c.slice(0,2).toUpperCase()}</div>
-              <span style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.c}</span>
-            </div>
-            <span style={{fontSize:12,color:th.text2,display:"flex",alignItems:"center",gap:8}}><span style={{width:6,height:6,borderRadius:"50%",background:r.dot,flexShrink:0}}/>{r.a}</span>
-            <span style={{display:"flex",alignItems:"center"}}>{PI && <PI/>}</span>
-            <span style={{fontSize:11,color:th.text3,textAlign:"right"}}>{r.t}</span>
-          </div>
-        );})}
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16}}>
@@ -1650,18 +1630,11 @@ function OwnerDashboard() {
               );
             })
           ) : (
-            CLIENTS.slice(0,5).map((cl,i)=>(
-              <div key={cl.id} onClick={()=>{setSelClient(cl);setMode("agency");setPage("dashboard");}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 20px",borderBottom:i<4?`1px solid ${th.border}`:"none",cursor:"pointer"}}>
-                <div style={{display:"flex",alignItems:"center",gap:11}}>
-                  <div style={{width:34,height:34,borderRadius:10,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:"#fff"}}>{(cl.name||"?").slice(0,2).toUpperCase()}</div>
-                  <div><div style={{fontSize:13,fontWeight:600}}>{cl.name}</div><div style={{fontSize:10.5,color:th.text2}}>{cl.accounts} accounts · {cl.reach} reach</div></div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <Badge color={cl.plan==="Corporate"?"orange":cl.plan==="Pro"?"accent2":cl.plan==="Internal"?"success":"accent"}>{cl.plan}</Badge>
-                  <span className="tw-num" style={{fontSize:13,fontWeight:600,color:cl.free?th.success:th.text,minWidth:54,textAlign:"right"}}>{cl.free?"Free":"$"+cl.spend}</span>
-                </div>
-              </div>
-            ))
+            <div style={{padding:"34px 20px",textAlign:"center"}}>
+              <div style={{width:42,height:42,borderRadius:12,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}><Users size={20} color={th.text3}/></div>
+              <div style={{fontSize:13,fontWeight:600,color:th.text,marginBottom:4}}>{live.loaded?"No signups yet":"Loading…"}</div>
+              {live.loaded && <div style={{fontSize:11.5,color:th.text2}}>New sign ups will appear here the moment someone joins.</div>}
+            </div>
           )}
         </div>
         <div style={{...card,overflow:"hidden"}}>
@@ -1699,17 +1672,6 @@ function OwnerPageHead({ Icon, title, subtitle, action }) {
   );
 }
 
-const OWNER_CLIENTS = [
-  { id:"c1", name:"Marina Cafe",      email:"hi@marinacafe.bh",     plan:"Professional", status:"active",  accounts:3, mrr:99,  joined:"Mar 2026" },
-  { id:"c2", name:"Trio Restaurant",  email:"team@trio.bh",         plan:"Essential",    status:"active",  accounts:2, mrr:49,  joined:"Feb 2026" },
-  { id:"c3", name:"Lulwa Events",     email:"lulwa@events.bh",      plan:"Professional", status:"active",  accounts:4, mrr:99,  joined:"Jan 2026" },
-  { id:"c4", name:"Gulf Auto",        email:"info@gulfauto.bh",     plan:"Enterprise",   status:"active",  accounts:6, mrr:199, joined:"Dec 2025" },
-  { id:"c5", name:"Bayan Clinic",     email:"admin@bayan.bh",       plan:"Essential",    status:"trial",   accounts:1, mrr:0,   joined:"Jun 2026" },
-  { id:"c6", name:"Noor Designs",     email:"noor@designs.bh",      plan:"Professional", status:"past_due",accounts:2, mrr:99,  joined:"Nov 2025" },
-  { id:"c7", name:"Octo Fusion",      email:"theoctopus.bh@gmail.com", plan:"Internal",  status:"active",  accounts:4, mrr:0,   joined:"Jan 2025" },
-  { id:"c8", name:"Souq Online",      email:"hello@souq.bh",        plan:"Enterprise",   status:"suspended",accounts:5,mrr:199, joined:"Oct 2025" },
-];
-
 const planColor = (th, p) => p==="Enterprise"?th.orange : p==="Professional"?th.accent : p==="Internal"?th.success : th.accent2;
 const statusMeta = (th, s) => ({
   active:   { label:"Active",   c:th.success, bg:th.successSoft },
@@ -1718,25 +1680,80 @@ const statusMeta = (th, s) => ({
   suspended:{ label:"Suspended",c:th.danger,  bg:th.dangerSoft },
 }[s] || { label:s, c:th.text2, bg:th.card2 });
 
+// Monthly-equivalent price per plan, used to compute real MRR in the founder views.
+const OWNER_PLAN_M = { Essential:49, Professional:99, Enterprise:199, Studio:459 };
+const OWNER_PLAN_Y = { Essential:39, Professional:79, Enterprise:159, Studio:367 };
+const normPlanName = (p) => {
+  const s = String(p||"").toLowerCase();
+  if (s.includes("internal")) return "Internal";
+  if (s.includes("studio")) return "Studio";
+  if (s.includes("enter") || s==="agency") return "Enterprise";
+  if (s.includes("pro")) return "Professional";
+  return "Essential";
+};
+const ownerMonthFmt = (ts) => { try { return new Date(ts).toLocaleDateString("en", { month:"short", year:"numeric" }); } catch(e){ return ""; } };
+
+// Load every subscriber (one row per signed-up account) with real plan, status,
+// brand count and monthly revenue, pulled live from profiles + subscriptions + clients.
+// The founder reads these client-side because profiles and clients SELECT stay open.
+async function loadOwnerSubscribers() {
+  const [profRes, subRes, cliRes] = await Promise.all([
+    supabase.from("profiles").select("id,name,email,plan,account_type,company_name,created_at").order("created_at", { ascending:false }),
+    supabase.from("subscriptions").select("email,plan,status,interval,current_period_end,updated_at"),
+    supabase.from("clients").select("id,owner_id"),
+  ]);
+  const profs = profRes.data || [];
+  const subs = subRes.data || [];
+  const clients = cliRes.data || [];
+  const brandByOwner = {};
+  clients.forEach(c => { if (c.owner_id) brandByOwner[c.owner_id] = (brandByOwner[c.owner_id]||0)+1; });
+  const subByEmail = {};
+  subs.forEach(s => {
+    const e = (s.email||"").toLowerCase(); if (!e) return;
+    const prev = subByEmail[e];
+    if (!prev || new Date(s.updated_at||0) > new Date(prev.updated_at||0)) subByEmail[e] = s;
+  });
+  const statusMap = { active:"active", trialing:"trial", past_due:"past_due", canceled:"suspended", cancelled:"suspended" };
+  return profs.map(p => {
+    const email = (p.email||"").toLowerCase();
+    const sub = subByEmail[email];
+    const isInternal = email === ADMIN_EMAIL.toLowerCase();
+    const plan = isInternal ? "Internal" : normPlanName(sub?.plan || p.plan);
+    let status = sub ? (statusMap[sub.status] || "trial") : (String(p.plan||"").toLowerCase()==="trial" ? "trial" : "active");
+    if (isInternal) status = "active";
+    const yearly = sub?.interval === "year";
+    const mrr = (status==="active" && !isInternal) ? (yearly ? (OWNER_PLAN_Y[plan]||0) : (OWNER_PLAN_M[plan]||0)) : 0;
+    return {
+      id: p.id,
+      name: p.company_name || p.name || (p.email||"?").split("@")[0],
+      email: p.email || "",
+      plan, status,
+      accounts: brandByOwner[p.id] || 0,
+      mrr,
+      joined: ownerMonthFmt(p.created_at),
+    };
+  });
+}
+
 function OwnerClientsPage() {
   const { setMode, setPage, setSelClient } = useApp();
   const th = useTheme();
-  const [rows, setRows] = useState(OWNER_CLIENTS);
+  const [rows, setRows] = useState([]);
+  const [loadingRows, setLoadingRows] = useState(true);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const [menu, setMenu] = useState(null);
   const [detail, setDetail] = useState(null);   // client open in the side drawer
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({});
-  const [logs, setLogs] = useState([
-    { id:1, msg:"Bayan Clinic started a free trial", who:"System", ago:"12m ago", icon:Sparkles, c:th.info },
-    { id:2, msg:"Marina Cafe upgraded to Professional", who:"System", ago:"1h ago", icon:ArrowUpRight, c:th.success },
-    { id:3, msg:"Payment failed for Noor Designs", who:"System", ago:"3h ago", icon:CreditCard, c:th.warning },
-    { id:4, msg:"Souq Online was suspended", who:"You", ago:"5h ago", icon:Pause, c:th.danger },
-    { id:5, msg:"Gulf Auto connected a new account", who:"System", ago:"1d ago", icon:Link, c:th.accent },
-    { id:6, msg:"Promo code BAHRAIN10 redeemed by Trio Restaurant", who:"System", ago:"1d ago", icon:Tag, c:th.accent2 },
-  ]);
+  const [logs, setLogs] = useState([]);
   const pushLog = (msg, icon=Activity, c=th.accent) => setLogs(ls => [{ id:Date.now(), msg, who:"You", ago:"just now", icon, c }, ...ls].slice(0,14));
+
+  useEffect(() => {
+    let on = true;
+    loadOwnerSubscribers().then(list => { if (on) { setRows(list); setLoadingRows(false); } }, () => { if (on) setLoadingRows(false); });
+    return () => { on = false; };
+  }, []);
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const openDetail = (r) => { setDetail(r); setEditing(false); setForm({ name:r.name, email:r.email, plan:r.plan, status:r.status }); setMenu(null); };
@@ -1800,7 +1817,7 @@ function OwnerClientsPage() {
             </div>
           </div>
         );})}
-        {filtered.length===0 && <div style={{padding:"40px",textAlign:"center",fontSize:13,color:th.text3}}>No clients match your search.</div>}
+        {filtered.length===0 && <div style={{padding:"40px",textAlign:"center",fontSize:13,color:th.text3}}>{loadingRows ? "Loading subscribers…" : (rows.length===0 ? "No subscribers yet. New sign ups appear here automatically." : "No clients match your search.")}</div>}
       </div>
 
       {/* Activity log — audit trail of platform actions */}
@@ -1817,6 +1834,7 @@ function OwnerClientsPage() {
             <span style={{fontSize:10.5,color:th.text3,flexShrink:0,minWidth:62,textAlign:"right"}}>{lg.ago}</span>
           </div>
         );})}
+        {logs.length===0 && <div style={{padding:"24px 20px",textAlign:"center",fontSize:12,color:th.text3}}>Actions you take here (edits, suspensions) will be logged in this session.</div>}
       </div>
 
       {/* Client detail / edit drawer */}
@@ -2021,10 +2039,11 @@ function OwnerGiftsPage() {
   const [amount, setAmount] = useState("50");
   const [recipient, setRecipient] = useState("");
   const [message, setMessage] = useState("");
-  const [giftClient, setGiftClient] = useState("Marina Cafe");
+  const [giftClient, setGiftClient] = useState("");
   const [giftPlan, setGiftPlan] = useState("Professional");
   const [giftMonths, setGiftMonths] = useState("1");
   const [toast, setToast] = useState("");
+  const [giftSubs, setGiftSubs] = useState([]);
 
   useEffect(() => {
     let on = true;
@@ -2033,6 +2052,7 @@ function OwnerGiftsPage() {
       if (!on) return;
       if (!error && Array.isArray(data)) { setCards(data.map(mapGift)); setLive(true); }
     })();
+    loadOwnerSubscribers().then(list => { if (on) { setGiftSubs(list); if (list[0]) setGiftClient(list[0].name); } }, () => {});
     return () => { on = false; };
   }, []);
 
@@ -2088,7 +2108,7 @@ function OwnerGiftsPage() {
           ) : (
             <>
               <label style={lbl}>Client</label>
-              <select value={giftClient} onChange={e=>setGiftClient(e.target.value)} style={{...inp,marginBottom:14}}>{OWNER_CLIENTS.map(c=><option key={c.id}>{c.name}</option>)}</select>
+              <select value={giftClient} onChange={e=>setGiftClient(e.target.value)} style={{...inp,marginBottom:14}}>{giftSubs.length===0 ? <option value="">No subscribers yet</option> : giftSubs.map(c=><option key={c.id}>{c.name}</option>)}</select>
               <label style={lbl}>Plan</label>
               <select value={giftPlan} onChange={e=>setGiftPlan(e.target.value)} style={{...inp,marginBottom:14}}><option>Essential</option><option>Professional</option><option>Enterprise</option></select>
               <label style={lbl}>Free months</label>
@@ -9732,27 +9752,22 @@ function InboxPage() {
   const exitSample = () => { setSampleMode(false); setMessages([]); setSelected(null); fetchInbox(); };
 
   useEffect(() => {
-    console.log('[Inbox] selClient:', selClient?.name);
     if (!selClient?.name) return;
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
-      .then(({ data, error }) => {
-        console.log('[Inbox] clients result:', data, error);
+      .then(({ data }) => {
         if (data?.[0]) setRealClientId(data[0].id);
       });
   }, [selClient]);
 
   useEffect(() => {
-    console.log('[Inbox] realClientId:', realClientId);
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data, error }) => {
-        console.log('[Inbox] accounts result:', data, error);
+      .then(({ data }) => {
         if (data) setAccounts(data);
       });
   }, [realClientId]);
 
   useEffect(() => {
-    console.log('[Inbox] accounts:', accounts.length);
     if (sampleMode) return;
     if (accounts.length === 0) return;
     fetchInbox();

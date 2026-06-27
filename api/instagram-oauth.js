@@ -29,7 +29,6 @@ export default async function handler(req, res) {
       body: params,
     });
     const tokenData = await tokenRes.json();
-    console.log('IG token response:', JSON.stringify(tokenData));
     if (tokenData.error_type || tokenData.error) {
       return res.status(400).json({ error: tokenData.error_message || tokenData.error });
     }
@@ -49,16 +48,13 @@ export default async function handler(req, res) {
       `https://graph.instagram.com/v21.0/me?fields=id,name,username,profile_picture_url,followers_count,biography&access_token=${longToken}`
     );
     const igInfo = await infoRes.json();
-    console.log('IG info:', JSON.stringify(igInfo));
 
     if (igInfo.error) {
-      console.error('IG info error:', igInfo.error);
       // Try fetching just the basics with the user ID as fallback
       const fallbackRes = await fetch(
         `https://graph.instagram.com/${igUserId}?fields=id,username,name&access_token=${longToken}`
       );
       const fallbackData = await fallbackRes.json();
-      console.log('IG fallback info:', JSON.stringify(fallbackData));
       if (!fallbackData.error) {
         Object.assign(igInfo, fallbackData);
       }
