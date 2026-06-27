@@ -100,6 +100,50 @@ function trialDaysLeft(email) {
 // but publishing / scheduling / AI are locked until they upgrade.
 function trialEnded(email) { return isTrialUser(email) && trialDaysLeft(email) <= 0; }
 
+// ── Plan model: single source of truth for tier limits + feature access ──────
+// Cheaper tiers get less. Limits match the public Compare Packages table, and
+// features unlock at a minimum tier. The owner / demo are full-access (see
+// FULL_ACCESS_EMAILS) and are never capped.
+const PLAN_ORDER = ['trial','essential','professional','enterprise','studio'];
+function planKeyOf(plan) {
+  const s = String(plan || '').toLowerCase();
+  if (s.includes('studio')) return 'studio';
+  if (s.includes('enter') || s === 'agency') return 'enterprise';
+  if (s.includes('pro')) return 'professional';
+  if (s.includes('essential') || s === 'starter') return 'essential';
+  return 'trial';
+}
+const PLAN_LIMITS = {
+  trial:        { accounts: 3,        members: 1,  posts: 10,        label: 'Free trial' },
+  essential:    { accounts: 3,        members: 1,  posts: 30,        label: 'Essential' },
+  professional: { accounts: 10,       members: 5,  posts: 100,       label: 'Professional' },
+  enterprise:   { accounts: Infinity, members: 20, posts: Infinity,  label: 'Enterprise' },
+  studio:       { accounts: Infinity, members: 20, posts: Infinity,  label: 'Studio' },
+};
+// Minimum tier that unlocks each feature.
+const PLAN_FEATURES = {
+  ads: 'essential',            // all paid tiers
+  customTone: 'professional',
+  multiClient: 'professional',
+  whatsapp: 'professional',
+  prioritySupport: 'professional',
+  whitelabelReports: 'enterprise',
+  dedicatedSupport: 'enterprise',
+  xPublishing: 'enterprise',
+  whitelabel: 'studio',        // branded dashboard, client pages, your logo & colors
+  priorityOnboarding: 'studio',
+};
+function planRank(plan) { return PLAN_ORDER.indexOf(planKeyOf(plan)); }
+function planHas(plan, feature) {
+  const need = PLAN_FEATURES[feature];
+  if (!need) return true;
+  return planRank(plan) >= PLAN_ORDER.indexOf(need);
+}
+function planLimit(plan, key) { return (PLAN_LIMITS[planKeyOf(plan)] || PLAN_LIMITS.trial)[key]; }
+// Effective caps for the signed-in user: trial caps while trialing, else the paid tier's caps.
+function accountLimitOf(email, plan) { if (FULL_ACCESS_EMAILS.includes(String(email||'').toLowerCase())) return Infinity; return isTrialUser(email) ? TRIAL.accounts : planLimit(plan, 'accounts'); }
+function postLimitOf(email, plan) { if (FULL_ACCESS_EMAILS.includes(String(email||'').toLowerCase())) return Infinity; return isTrialUser(email) ? TRIAL.posts : planLimit(plan, 'posts'); }
+
 // Reusable upgrade prompt — shown when a trial user hits a cap.
 function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
   if (!open) return null;
@@ -171,7 +215,7 @@ const X_TOPUPS = [
   { id:"x300",  posts:300,  price:49, popular:true },
   { id:"x1000", posts:1000, price:149 },
 ];
-function xIncludedOf(plan) { return /enter|agency/i.test(String(plan || "")) ? X_INCLUDED_ENTERPRISE : 0; }
+function xIncludedOf(plan) { return planHas(plan, 'xPublishing') ? X_INCLUDED_ENTERPRISE : 0; }
 function xUsedOf(acct) { try { return acct ? parseInt(localStorage.getItem("tw_x_" + acct + "_" + imgMonthKey()) || "0", 10) : 0; } catch (e) { return 0; } }
 function bumpXUsed(acct, by = 1) { try { if (!acct) return 0; const n = xUsedOf(acct) + by; localStorage.setItem("tw_x_" + acct + "_" + imgMonthKey(), String(n)); return n; } catch (e) { return 0; } }
 function xExtraOf(acct) { try { return acct ? parseInt(localStorage.getItem("tw_xextra_" + acct) || "0", 10) : 0; } catch (e) { return 0; } }
@@ -4932,9 +4976,9 @@ function WhatsAppPage() {
   const isDemoAcct = /theoctopus\.bh@gmail\.com|octofusionbh@gmail\.com/i.test(String(userEmail || ""));
   // Strict gating: only known paid plans unlock; blank/unknown stays locked. The owner
   // account is always unlimited (for demos) and clearly flagged "just for demonstration".
-  const waFull = isDemoAcct || /pro|prof|agency|enter/i.test(String(userPlan || ""));
+  const waFull = isDemoAcct || planHas(userPlan, 'whatsapp');   // Professional and up (incl. Studio)
   const waUnlimited = isDemoAcct;
-  const waIncluded = /agency|enter/i.test(String(userPlan || "")) ? 5000 : 1000;
+  const waIncluded = planRank(userPlan) >= PLAN_ORDER.indexOf('enterprise') ? 5000 : 1000;
   const [tab, setTab] = useState("link");
 
   // ---- Click-to-chat link builder (fully functional, no API) ----
@@ -7290,7 +7334,7 @@ function PublisherPage() {
 }
 
 function SocialAccountsPage() {
-  const { selClient, userEmail, setPage, lang } = useApp();
+  const { selClient, userEmail, setPage, lang, userPlan } = useApp();
   const th = useTheme();
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const META_APP_ID = process.env.REACT_APP_META_APP_ID || "1652475822681144";
@@ -7308,10 +7352,17 @@ function SocialAccountsPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [liOptions, setLiOptions] = useState(null);
 
-  // Trial cap: limit connected accounts. Returns false (and prompts upgrade) when at the cap.
+  // Tier cap: limit connected accounts to the plan's allowance. Returns false (and prompts upgrade) when at the cap.
   const guardConnect = () => {
-    if (isTrialUser(userEmail) && accounts.length >= TRIAL.accounts) {
-      setUpgrade({ title:L(`Trial limit: ${TRIAL.accounts} connected accounts`,`حدّ التجربة: ${TRIAL.accounts} حسابات مرتبطة`), detail:L(`Your free trial lets you connect up to ${TRIAL.accounts} social accounts so you can feel the multi-account workflow. Upgrade to connect unlimited accounts across all your brands.`,`تتيح لك التجربة المجانية ربط حتى ${TRIAL.accounts} حسابات لتجربة سير العمل متعدد الحسابات. قم بالترقية لربط حسابات غير محدودة عبر كل علاماتك.`), Icon:Plus });
+    const cap = accountLimitOf(userEmail, userPlan);
+    if (accounts.length >= cap) {
+      const trial = isTrialUser(userEmail);
+      setUpgrade({
+        title: trial ? L(`Trial limit: ${cap} connected accounts`,`حدّ التجربة: ${cap} حسابات مرتبطة`) : L(`Your plan includes ${cap} connected accounts`,`خطتك تشمل ${cap} حسابات مرتبطة`),
+        detail: trial
+          ? L(`Your free trial lets you connect up to ${cap} social accounts so you can feel the multi-account workflow. Upgrade to connect more across all your brands.`,`تتيح لك التجربة المجانية ربط حتى ${cap} حسابات. قم بالترقية لربط المزيد عبر كل علاماتك.`)
+          : L(`You've reached the ${cap} connected accounts your current plan includes. Upgrade to connect more across all your brands.`,`لقد وصلت إلى ${cap} حسابات المضمّنة في خطتك الحالية. قم بالترقية لربط المزيد.`),
+        Icon:Plus });
       return false;
     }
     return true;
@@ -10599,7 +10650,8 @@ function BillingPage() {
 }
 
 function SettingsPage() {
-  const { dark, setDark, lang, setLang, setUserName, setIsAuthed } = useApp();
+  const { dark, setDark, lang, setLang, setUserName, setIsAuthed, userPlan, userEmail, setPage } = useApp();
+  const wlAllowed = FULL_ACCESS_EMAILS.includes(String(userEmail||'').toLowerCase()) || planHas(userPlan, 'whitelabel');
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -10834,6 +10886,16 @@ function SettingsPage() {
         {wl && (
         <div style={card}>
           {secTitle(Sparkles, L("Studio · White-label","استوديو · العلامة البيضاء"))}
+          {!wlAllowed ? (
+            <div style={{display:"flex", alignItems:"center", gap:12, background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:"14px 16px"}}>
+              <Lock size={16} color={th.text3}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12.5, color:th.text}}>{L("White-label is part of the Studio plan","العلامة البيضاء ضمن خطة استوديو")}</div>
+                <div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Put your own logo, colors and name on every client page. Upgrade to Studio to turn it on.","ضع شعارك وألوانك واسمك على كل صفحة عميل. رقِّ إلى استوديو لتفعيلها.")}</div>
+              </div>
+              <button onClick={()=>setPage('billing')} style={{padding:"9px 15px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"}}>{L("Upgrade","ترقية")}</button>
+            </div>
+          ) : (<>
           <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom: wl.enabled?16:0}}>
             <div><div style={{fontSize:12.5}}>{L("Make the client pages yours","اجعل صفحات العملاء بعلامتك")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Your logo, colors, font and name on everything clients see","شعارك وألوانك وخطك واسمك على كل ما يراه العملاء")}</div></div>
             <Sw on={!!wl.enabled} onClick={()=>setWl(w=>({...w, enabled:!w.enabled}))}/>
@@ -10857,6 +10919,7 @@ function SettingsPage() {
             </div>}
             <button onClick={saveWl} style={{alignSelf:"flex-start", marginTop:2, padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer"}}>{wlSaved?L("Saved ✓","تم ✓"):L("Save branding","حفظ الهوية")}</button>
           </div>}
+          </>)}
         </div>
         )}
 
