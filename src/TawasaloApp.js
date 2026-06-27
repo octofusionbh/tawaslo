@@ -144,6 +144,21 @@ function planLimit(plan, key) { return (PLAN_LIMITS[planKeyOf(plan)] || PLAN_LIM
 function accountLimitOf(email, plan) { if (FULL_ACCESS_EMAILS.includes(String(email||'').toLowerCase())) return Infinity; return isTrialUser(email) ? TRIAL.accounts : planLimit(plan, 'accounts'); }
 function postLimitOf(email, plan) { if (FULL_ACCESS_EMAILS.includes(String(email||'').toLowerCase())) return Infinity; return isTrialUser(email) ? TRIAL.posts : planLimit(plan, 'posts'); }
 
+// White-label: load an agency's branding for a client-facing page, given the client id.
+// Returns the branding row only when white-label is switched on, otherwise null
+// (so pages cleanly fall back to the normal Tawaslo look).
+async function loadClientBranding(clientId) {
+  if (!clientId) return null;
+  try {
+    const { data: c } = await supabase.from('clients').select('owner_id').eq('id', clientId).limit(1);
+    const ownerId = c && c[0] && c[0].owner_id;
+    if (!ownerId) return null;
+    const { data: b } = await supabase.from('agency_branding').select('*').eq('owner_id', ownerId).limit(1);
+    const row = b && b[0];
+    return (row && row.enabled) ? row : null;
+  } catch (e) { return null; }
+}
+
 // Reusable upgrade prompt — shown when a trial user hits a cap.
 function UpgradeGate({ open, onClose, onUpgrade, th, title, detail, Icon }) {
   if (!open) return null;
@@ -619,6 +634,17 @@ const DESKTOP_ONLY_LABEL = { publisher: "Publisher", planner: "Planner", calenda
 // Level 2 white-label (custom domain) stays hidden in the UI until we turn it on.
 const WL_DOMAIN_VISIBLE = false;
 const WL_FONTS = ["Plus Jakarta Sans", "Inter", "Poppins", "Montserrat", "Cairo", "Fraunces", "Georgia"];
+// Tasteful, pre-tested accent + secondary pairings the agency can apply in one click.
+const WL_PRESETS = [
+  { name: "Slate & teal", accent: "#4F6B8C", accent2: "#1D9E75" },
+  { name: "Midnight blue", accent: "#3B5BA5", accent2: "#6E8CAB" },
+  { name: "Gold & slate", accent: "#C7942B", accent2: "#4F6B8C" },
+  { name: "Emerald", accent: "#1D9E75", accent2: "#0F6E56" },
+  { name: "Plum", accent: "#7F77DD", accent2: "#534AB7" },
+  { name: "Coral", accent: "#D85A30", accent2: "#993C1D" },
+  { name: "Rose", accent: "#D4537E", accent2: "#993556" },
+  { name: "Graphite", accent: "#2C2C2A", accent2: "#5F5E5A" },
+];
 
 // Monthly report reminder preference (per agency). On/off + which day of the month.
 const twReportPref = () => { try { const o = JSON.parse(localStorage.getItem('tw_report_reminder') || '{}'); return { on: o.on !== false, day: Math.min(28, Math.max(1, Number(o.day) || 1)), time: o.time || '09:00' }; } catch (e) { return { on: true, day: 1, time: '09:00' }; } };
@@ -8963,6 +8989,22 @@ function ReportsPage() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
   const [opens, setOpens] = useState([]);
+  const [wlBrand, setWlBrand] = useState(null);
+
+  // White-label: load this agency's branding so exported / shared reports wear their brand.
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !on) return;
+        const { data } = await supabase.from('agency_branding').select('*').eq('owner_id', user.id).limit(1);
+        const row = data && data[0];
+        if (on) setWlBrand(row && row.enabled ? row : null);
+      } catch (e) { /* ignore */ }
+    })();
+    return () => { on = false; };
+  }, []);
 
   // Monthly opens per client — menu views, QR scans and short link clicks.
   useEffect(() => {
@@ -9040,6 +9082,14 @@ function ReportsPage() {
     };
     const dateStr = now.toLocaleDateString(isAR?'ar-u-nu-latn':'en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
+    // White-label: wear the agency's brand on the report when it's switched on.
+    const wl = wlBrand;
+    const bName = (wl && wl.brand_name) || 'Tawaslo';
+    const bLogo = (wl && wl.logo_url) || 'https://tawaslo.com/logo-transparent.png';
+    const bSite = (wl && wl.contact) || 'tawaslo.com';
+    const bPrepared = wl ? (wl.footer_text || ((isAR ? 'أعدّته ' : 'Prepared by ') + bName)) : T.confidentialBy;
+    const bFootLine = wl ? (bName + (bSite ? ' · ' + bSite : '')) : ('Tawaslo &mdash; ' + T.socialIntel + ' &middot; tawaslo.com');
+
     const igAccounts = accounts.filter(a => a.platform === 'ig');
     const fbAccounts = accounts.filter(a => a.platform === 'fb');
     const topPosts = analyticsData
@@ -9103,7 +9153,7 @@ function ReportsPage() {
   body{font-family:'Segoe UI',Helvetica,Arial,sans-serif;background:#fff;color:#16181d;direction:${dir};-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .cover{height:100vh;background:linear-gradient(150deg,#080B11 0%,#10141C 55%,#1A2230 100%);display:flex;flex-direction:column;justify-content:space-between;padding:64px;page-break-after:always;color:#fff}
   .clogo{display:flex;align-items:center;gap:13px}
-  .clogo .mk{width:46px;height:46px;border-radius:13px;background:#fff url('https://tawaslo.com/logo-transparent.png') center/72% no-repeat}
+  .clogo .mk{width:46px;height:46px;border-radius:13px;background:#fff url('${bLogo}') center/72% no-repeat}
   .clogo .nm{font-size:30px;font-weight:800;letter-spacing:-1px}
   .ctag{font-size:11px;color:rgba(255,255,255,.4);margin-top:10px;letter-spacing:3px;text-transform:uppercase}
   .clabel{font-size:12px;color:rgba(157,182,214,.85);text-transform:uppercase;letter-spacing:3px;margin-bottom:14px;font-weight:600}
@@ -9115,7 +9165,7 @@ function ReportsPage() {
   .page:last-child{page-break-after:auto}
   .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:46px}
   .ph-l{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:#16181d}
-  .ph-l .mk{width:20px;height:20px;border-radius:6px;background:#fff url('https://tawaslo.com/logo-transparent.png') center/contain no-repeat}
+  .ph-l .mk{width:20px;height:20px;border-radius:6px;background:#fff url('${bLogo}') center/contain no-repeat}
   .ph-r{font-size:10px;color:#9aa3b2;text-align:right;line-height:1.6}
   .eyebrow{font-size:11px;font-weight:700;color:#4F6B8C;text-transform:uppercase;letter-spacing:3px;margin-bottom:20px}
   .hero{display:flex;align-items:flex-end;gap:16px}
@@ -9147,18 +9197,18 @@ function ReportsPage() {
 </style></head><body>
 
 <div class="cover">
-  <div><div class="clogo"><div class="mk"></div><div class="nm">Tawaslo</div></div><div class="ctag">${T.platformTag}</div></div>
+  <div><div class="clogo"><div class="mk"></div><div class="nm">${bName}</div></div><div class="ctag">${T.platformTag}</div></div>
   <div>
     <div class="clabel">${T.monthlyReport}</div>
     <div class="cclient">${reportName}</div>
     <div class="csub">${rPlat !== "all" ? platLabel(rPlat) + " · " : ""}${T.perfInsights}</div>
     <div class="cpill">${month}</div>
   </div>
-  <div class="cft"><div>${T.generated} ${dateStr}<br/>${T.confidentialBy}</div><div>tawaslo.com</div></div>
+  <div class="cft"><div>${T.generated} ${dateStr}<br/>${bPrepared}</div><div>${bSite}</div></div>
 </div>
 
 <div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.execSummary}</div></div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>${bName}</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.execSummary}</div></div>
   <div class="eyebrow">${T.glance}</div>
   ${analyticsData ? `
     <div class="hero"><div class="hero-num">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="hero-tag">${T.peopleReached}</div></div>
@@ -9176,11 +9226,11 @@ function ReportsPage() {
       <div class="hl"><div class="hl-v">${platforms.length}</div><div class="hl-l">${T.platformsL}</div></div>
       <div class="hl"><div class="hl-v">${totalFollowers.toLocaleString()}</div><div class="hl-l">${T.totalFollowers}</div></div>
     </div>`}
-  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
+  <div class="ft"><div>${bFootLine}</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>
 
 <div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.platformPerf}</div></div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>${bName}</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.platformPerf}</div></div>
   <div class="eyebrow">${T.audienceLives}</div>
   <div style="margin-bottom:46px">${platBarsHtml || '<div style="color:#9aa3b2;font-size:13px">'+T.connectToSee+'</div>'}</div>
   <div class="eyebrow">${T.connectedAccounts}</div>
@@ -9188,14 +9238,14 @@ function ReportsPage() {
     <thead><tr><th style="text-align:${sa};font-size:10px;color:#9aa3b2;text-transform:uppercase;letter-spacing:.5px;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.account}</th><th style="text-align:${sa};font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.platform}</th><th style="text-align:${ea};font-size:10px;color:#9aa3b2;text-transform:uppercase;padding:9px 0;border-bottom:1px solid #ececf2;font-weight:700">${T.followers}</th></tr></thead>
     <tbody>${accountsHtml}</tbody>
   </table>
-  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
+  <div class="ft"><div>${bFootLine}</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>
 
 ${topPosts.length > 0 ? `<div class="page">
-  <div class="ph"><div class="ph-l"><div class="mk"></div>Tawaslo</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.topContent}</div></div>
+  <div class="ph"><div class="ph-l"><div class="mk"></div>${bName}</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.topContent}</div></div>
   <div class="eyebrow">${T.bestPosts}</div>
   ${postsHtml}
-  <div class="ft"><div>Tawaslo &mdash; ${T.socialIntel} &middot; tawaslo.com</div><div>${T.confidential} &middot; ${reportName}</div></div>
+  <div class="ft"><div>${bFootLine}</div><div>${T.confidential} &middot; ${reportName}</div></div>
 </div>` : ''}
 
 <script>window.onload=function(){window.print();}</script>
@@ -10903,6 +10953,18 @@ function SettingsPage() {
           {wl.enabled && <div style={{display:"flex", flexDirection:"column", gap:12}}>
             <div><div style={wLbl}>{L("Brand name","اسم العلامة")}</div><input value={wl.brand_name||""} onChange={e=>setWl(w=>({...w, brand_name:e.target.value}))} placeholder="Octo Studio" style={wInp}/></div>
             <div><div style={wLbl}>{L("Logo URL","رابط الشعار")}</div><input value={wl.logo_url||""} onChange={e=>setWl(w=>({...w, logo_url:e.target.value}))} placeholder="https://…" style={wInp}/></div>
+            <div>
+              <div style={wLbl}>{L("Recommended palettes","لوحات ألوان مقترحة")}</div>
+              <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+                {WL_PRESETS.map(ps => { const on = (wl.accent||"").toLowerCase()===ps.accent.toLowerCase() && (wl.accent2||"").toLowerCase()===ps.accent2.toLowerCase(); return (
+                  <button key={ps.name} title={ps.name} onClick={()=>setWl(w=>({...w, accent:ps.accent, accent2:ps.accent2}))} style={{display:"flex", alignItems:"center", gap:7, padding:"6px 10px", borderRadius:999, cursor:"pointer", background:on?th.accentSoft:th.card2, border:`1.5px solid ${on?th.accent:th.border}`}}>
+                    <span style={{display:"flex"}}><span style={{width:13, height:13, borderRadius:"50% 0 0 50%", background:ps.accent}}/><span style={{width:13, height:13, borderRadius:"0 50% 50% 0", background:ps.accent2}}/></span>
+                    <span style={{fontSize:11.5, color:th.text}}>{ps.name}</span>
+                    {on && <Check size={12} color={th.accent}/>}
+                  </button>
+                );})}
+              </div>
+            </div>
             <div style={{display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end"}}>
               <div><div style={wLbl}>{L("Accent","اللون الأساسي")}</div><input type="color" value={wl.accent||"#4F6B8C"} onChange={e=>setWl(w=>({...w, accent:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
               <div><div style={wLbl}>{L("Secondary","الثانوي")}</div><input type="color" value={wl.accent2||"#1D9E75"} onChange={e=>setWl(w=>({...w, accent2:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
