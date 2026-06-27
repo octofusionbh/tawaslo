@@ -755,6 +755,7 @@ function Sidebar() {
   const AGENCY_NAV = [
     {section:"Manage", items:[
       {key:"command",   Icon:Activity,         label:"Command Center", badge:null},
+      {key:"pilot",     Icon:Sparkles,         label:"Autopilot", badge:null},
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
@@ -14097,6 +14098,149 @@ function CampaignAutopilotPage() {
   );
 }
 
+// ── Autopilot — the hero. Flip it on for a client and Tawaslo runs the account:
+// drafts the week from your brief + brand voice, queues it for one-tap approval. ──
+function AutopilotPage() {
+  const { dark, lang, selClient, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [cid, setCid] = useState(null);
+  const [client, setClient] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [pending, setPending] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [brief, setBrief] = useState("");
+  const [count, setCount] = useState(5);
+  const [msg, setMsg] = useState("");
+
+  const reloadWeek = async (id) => {
+    const now = new Date(); const wk = new Date(Date.now() + 7 * 86400000);
+    const { data: ps } = await supabase.from('posts').select('id,caption,platform,scheduled_at,status,appr_status').eq('client_id', id);
+    if (ps) { setPosts(ps.filter(p => p.scheduled_at && new Date(p.scheduled_at) >= now && new Date(p.scheduled_at) <= wk).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))); setPending(ps.filter(p => p.appr_status === 'pending').length); }
+  };
+  useEffect(() => {
+    let live = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id,brand_voice,autopilot_on,autopilot_brief,autopilot_count').eq('name', selClient.name).limit(1);
+      const c = data && data[0]; if (!live) return;
+      if (!c) { setLoading(false); return; }
+      setCid(c.id); setClient(c); setBrief(c.autopilot_brief || ""); setCount(c.autopilot_count || 5);
+      await reloadWeek(c.id);
+      if (live) setLoading(false);
+    })();
+    return () => { live = false; };
+  }, [selClient]);
+
+  const on = !!(client && client.autopilot_on);
+  const setOn = async (v) => { setClient(c => ({ ...c, autopilot_on: v })); try { await supabase.from('clients').update({ autopilot_on: v }).eq('id', cid); } catch (e) {} };
+  const saveRails = async () => { try { await supabase.from('clients').update({ autopilot_brief: brief, autopilot_count: count }).eq('id', cid); setMsg(L("Saved", "تم الحفظ")); setTimeout(() => setMsg(""), 1500); } catch (e) {} };
+  const nameToCode = (n) => { const s = String(n || "").toLowerCase(); if (s.includes("insta")) return "ig"; if (s.includes("face")) return "fb"; if (s.includes("tiktok")) return "tt"; if (s.includes("linked")) return "li"; if (s.includes("youtube")) return "yt"; return "ig"; };
+  const fillWeek = async () => {
+    if (!cid) return; setBusy(true); setMsg("");
+    try {
+      const r = await fetch('/api/generate-caption', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'campaign', topic: brief.trim() || ((selClient.name || 'the brand') + " this week"), count, platforms: ['Instagram', 'Facebook'], brand: selClient.name, voice: client && client.brand_voice, lang: isAR ? 'ar' : 'en' }) });
+      const j = await r.json();
+      if (j && j.posts && j.posts.length) {
+        const rows = j.posts.map(p => { const d = new Date(); d.setDate(d.getDate() + (Number(p.dayOffset) || 0)); const tt = String(p.time || "12:00").split(":"); d.setHours(Number(tt[0]) || 12, Number(tt[1]) || 0, 0, 0); return { client_id: cid, caption: p.caption, platform: nameToCode(p.platform), scheduled_at: d.toISOString(), status: 'scheduled', appr_status: 'pending' }; });
+        await supabase.from('posts').insert(rows);
+        await reloadWeek(cid);
+        setMsg(L(`${rows.length} posts drafted and queued for your approval.`, `تم إعداد ${rows.length} منشور بانتظار موافقتك.`));
+      } else setMsg(L("Could not draft right now. Try again.", "تعذّر الإنشاء، حاول مجدداً."));
+    } catch (e) { setMsg(L("Something went wrong.", "حدث خطأ.")); }
+    setBusy(false);
+  };
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 16 };
+  const fmtT = (iso) => new Date(iso).toLocaleDateString(isAR ? "ar" : [], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  if (loading) return <div style={{ padding: 30, color: th.text2, fontSize: 13, textAlign: "center" }}>{L("Loading Autopilot…", "تحميل الطيار الآلي…")}</div>;
+  if (!selClient || !selClient.name || !cid) return <div style={{ padding: 24, color: th.text3, fontSize: 13 }}>{L("Pick a client to put on Autopilot.", "اختر عميلاً لتشغيل الطيار الآلي له.")}</div>;
+
+  const handling = [
+    { Icon: Wand2, t: L(`${posts.length} posts scheduled for the week ahead`, `${posts.length} منشور مجدول للأسبوع القادم`) },
+    { Icon: Clock, t: L("Each one timed for this audience's best hours", "كل منشور في أفضل وقت لهذا الجمهور") },
+    { Icon: MessageCircle, t: L("Answering comments and DMs in your brand voice", "الرد على التعليقات والرسائل بنبرة علامتك") },
+    { Icon: Shield, t: L("Watching for any negative spike, around the clock", "مراقبة أي ارتفاع سلبي على مدار الساعة") },
+    { Icon: FileText, t: L("Preparing the monthly report, ready to send", "إعداد التقرير الشهري جاهزاً للإرسال") },
+  ];
+
+  return (
+    <div style={{ maxWidth: 760, margin: "0 auto" }} className="tw-page-in">
+      <div style={{ ...card, padding: 0, overflow: "hidden", marginBottom: 14 }}>
+        <div style={{ padding: "18px 20px", borderBottom: `1px solid ${th.border}`, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 11, background: th.card2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: th.accent, flexShrink: 0 }}>{(selClient.name || "?")[0].toUpperCase()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{selClient.name} · {L("Autopilot", "الطيار الآلي")}</div>
+            <div style={{ fontSize: 11.5, color: th.text2 }}>{on ? L("Tawaslo is running this account", "تواصلو يدير هذا الحساب") : L("Paused — flip it on to hand over the grind", "متوقف — شغّله لتسليم العمل الروتيني")}</div>
+          </div>
+          <button onClick={() => setOn(!on)} style={{ display: "inline-flex", alignItems: "center", gap: 8, background: on ? "rgba(63,185,131,0.14)" : th.card2, border: `1px solid ${on ? "#3FB983" : th.border}`, borderRadius: 30, padding: "6px 12px", cursor: "pointer", flexShrink: 0 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: on ? "#3FB983" : th.text3 }} />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: on ? "#3FB983" : th.text2 }}>{on ? L("ON", "يعمل") : L("OFF", "متوقف")}</span>
+            <span style={{ width: 34, height: 19, borderRadius: 12, background: on ? "#3FB983" : th.border, position: "relative", display: "inline-block" }}><span style={{ position: "absolute", top: 2, [on ? "right" : "left"]: 2, width: 15, height: 15, borderRadius: "50%", background: "#fff", transition: "all .15s" }} /></span>
+          </button>
+        </div>
+
+        {on && <div style={{ padding: "16px 20px" }}>
+          <div style={{ fontSize: 10.5, letterSpacing: ".1em", textTransform: "uppercase", color: th.text3, fontWeight: 700, marginBottom: 12 }}>{L("What Tawaslo is handling", "ما يتولّاه تواصلو")}</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
+            {handling.map((h, i) => { const Ic = h.Icon; return (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11 }}><Ic size={17} color={th.accent} style={{ marginTop: 1, flexShrink: 0 }} /><div style={{ fontSize: 13, color: th.text, lineHeight: 1.5 }}>{h.t}</div></div>
+            ); })}
+          </div>
+        </div>}
+      </div>
+
+      {on && (pending > 0 || posts.length > 0) && (
+        <div style={{ ...card, padding: "15px 18px", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><AlertTriangle size={16} color="#E0B85C" /><span style={{ fontSize: 12.5, fontWeight: 700, color: th.text }}>{L("Needs you", "يحتاجك")}</span></div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {pending > 0 && <div style={{ flex: 1, minWidth: 160, display: "flex", alignItems: "center", gap: 10, background: th.card2, border: `1px solid ${th.border}`, borderRadius: 11, padding: "11px 13px" }}>
+              <span className="tw-num" style={{ fontSize: 19, fontWeight: 800, color: th.accent }}>{pending}</span>
+              <span style={{ flex: 1, fontSize: 11.5, color: th.text2 }}>{L("posts to approve", "منشورات للموافقة")}</span>
+              <button onClick={() => setPage && setPage("approvals")} style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: th.gradient, border: "none", borderRadius: 9, padding: "7px 13px", cursor: "pointer" }}>{L("Review", "مراجعة")}</button>
+            </div>}
+            <div style={{ flex: 1, minWidth: 160, display: "flex", alignItems: "center", gap: 10, background: th.card2, border: `1px solid ${th.border}`, borderRadius: 11, padding: "11px 13px" }}>
+              <FileText size={17} color={th.accent} />
+              <span style={{ flex: 1, fontSize: 11.5, color: th.text2 }}>{L("monthly report", "التقرير الشهري")}</span>
+              <button onClick={() => setPage && setPage("reports")} style={{ fontSize: 11.5, fontWeight: 700, color: th.text, background: "transparent", border: `1px solid ${th.border}`, borderRadius: 9, padding: "7px 13px", cursor: "pointer" }}>{L("Open", "فتح")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...card, padding: 18 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: th.text, marginBottom: 4 }}>{L("Your input for this cycle", "مدخلاتك لهذه الدورة")}</div>
+        <div style={{ fontSize: 11.5, color: th.text3, marginBottom: 11 }}>{L("Drop in promos, events, themes or a rough idea. Leave it blank and Tawaslo pulls from live trends and what is already working.", "أضف العروض أو المناسبات أو الأفكار. اتركه فارغاً وسيعتمد تواصلو على الرائج وما ينجح فعلاً.")}</div>
+        <textarea value={brief} onChange={e => setBrief(e.target.value)} placeholder={L("e.g. Push the autumn menu, Friday brunch promo, new latte launch…", "مثلاً قائمة الخريف، عرض برانش الجمعة، إطلاق لاتيه جديد…")} rows={3} style={{ width: "100%", boxSizing: "border-box", background: th.card2, border: `1px solid ${th.border}`, borderRadius: 10, padding: "11px 12px", color: th.text, fontSize: 14, outline: "none", resize: "vertical", direction: isAR ? "rtl" : "ltr" }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: th.text2 }}>{L("Posts per cycle", "منشورات لكل دورة")}</span>
+          <div style={{ display: "inline-flex", border: `1px solid ${th.border}`, borderRadius: 9, overflow: "hidden" }}>
+            {[3, 5, 7].map(n => <button key={n} onClick={() => setCount(n)} style={{ border: "none", padding: "7px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", background: count === n ? th.accent : "transparent", color: count === n ? "#fff" : th.text2 }}>{n}</button>)}
+          </div>
+          <button onClick={saveRails} style={{ fontSize: 12, color: th.text2, background: "transparent", border: `1px solid ${th.border}`, borderRadius: 9, padding: "7px 12px", cursor: "pointer" }}>{L("Save", "حفظ")}</button>
+          <div style={{ flex: 1 }} />
+          <button onClick={fillWeek} disabled={busy} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "11px 18px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 13, fontWeight: 700, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}><Wand2 size={15} />{busy ? L("Drafting the week…", "نُعِدّ الأسبوع…") : L("Draft this week", "أنشئ هذا الأسبوع")}</button>
+        </div>
+        {msg && <div style={{ fontSize: 11.5, color: "#3FB983", marginTop: 10 }}>{msg}</div>}
+      </div>
+
+      {posts.length > 0 && (
+        <div style={{ ...card, padding: 0, overflow: "hidden", marginTop: 14 }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${th.border}`, fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", color: th.text2 }}>{L("Queued this week", "مجدول هذا الأسبوع")} · {posts.length}</div>
+          {posts.slice(0, 8).map(p => (
+            <div key={p.id} style={{ padding: "11px 16px", borderTop: `1px solid ${th.border}`, display: "flex", alignItems: "center", gap: 11 }}>
+              <span style={{ fontSize: 10.5, color: th.text3, minWidth: 86, whiteSpace: "nowrap" }}>{fmtT(p.scheduled_at)}</span>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: th.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.caption}</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: p.appr_status === "approved" ? "#3FB983" : "#E0B85C", background: (p.appr_status === "approved" ? "#3FB983" : "#E0B85C") + "22", borderRadius: 6, padding: "2px 7px", whiteSpace: "nowrap" }}>{p.appr_status === "approved" ? L("approved", "موافق") : L("to approve", "للموافقة")}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Command Center — the agency home wall. Every client at a glance, the ones
 // that need you pulled to the top, fully theme aware. ──
 function CommandCenterPage() {
@@ -17006,6 +17150,7 @@ export default function TawasloApp() {
     }
     if (typeof window !== "undefined" && window.innerWidth < 820 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
     if (page==="command") return <CommandCenterPage/>;
+    if (page==="pilot") return <AutopilotPage/>;
     if (page==="autopilot") return <CampaignAutopilotPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return <ClientsPage/>;
