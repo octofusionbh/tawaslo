@@ -580,6 +580,10 @@ function useIsMobile(bp = 820) {
 // friendly note if reached, but fully available on desktop. (Hootsuite's model.)
 const DESKTOP_ONLY = new Set(["publisher", "planner", "calendar", "campaigns", "ads", "aistudio", "reelstudio", "reports"]);
 const DESKTOP_ONLY_LABEL = { publisher: "Publisher", planner: "Planner", calendar: "Calendar", campaigns: "Campaigns", ads: "Ads", aistudio: "AI Studio", reelstudio: "Reel Studio", reports: "Reports" };
+
+// Monthly report reminder preference (per agency). On/off + which day of the month.
+const twReportPref = () => { try { const o = JSON.parse(localStorage.getItem('tw_report_reminder') || '{}'); return { on: o.on !== false, day: Math.min(28, Math.max(1, Number(o.day) || 1)), time: o.time || '09:00' }; } catch (e) { return { on: true, day: 1, time: '09:00' }; } };
+const twSetReportPref = (p) => { try { localStorage.setItem('tw_report_reminder', JSON.stringify(p)); } catch (e) {} };
 function DesktopOnlyNotice({ pageKey }) {
   const { dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -8882,6 +8886,20 @@ function ReportsPage() {
   const [aiSummary, setAiSummary] = useState(null);
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState("");
+  const [opens, setOpens] = useState([]);
+
+  // Monthly opens per client — menu views, QR scans and short link clicks.
+  useEffect(() => {
+    const ids = (clients||[]).map(c=>c.id).filter(Boolean);
+    if (!ids.length) { setOpens([]); return; }
+    const start = new Date(); start.setDate(1); start.setHours(0,0,0,0);
+    supabase.from('link_events').select('client_id,kind').in('client_id', ids).gte('created_at', start.toISOString())
+      .then(({ data }) => {
+        const mp = {};
+        (data||[]).forEach(e => { const c = mp[e.client_id] || (mp[e.client_id] = { menu:0, short:0, other:0, total:0 }); if (e.kind==='menu') c.menu++; else if (e.kind==='short'||e.kind==='qr') c.short++; else c.other++; c.total++; });
+        setOpens(Object.entries(mp).map(([client_id, v]) => ({ client_id, ...v })).sort((a,b)=>b.total-a.total));
+      }, () => setOpens([]));
+  }, [clients]);
 
   const cName = (id) => (clients.find(c=>String(c.id)===String(id))||{}).name || "";
   const platLabel = (p) => ({ ig:"Instagram", fb:"Facebook", li:"LinkedIn", tt:"TikTok", tw:"X", yt:"YouTube" }[p] || p);
@@ -9160,6 +9178,26 @@ ${topPosts.length > 0 ? `<div class="page">
           </select>
         </div>
       </div>
+
+      {opens.length>0 && (() => { const rows = rClient==="all" ? opens : opens.filter(o=>String(o.client_id)===String(rClient)); if (!rows.length) return null; return (
+        <div style={{...rcard, padding:"15px 18px", marginBottom:16}}>
+          <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap"}}>
+            <Eye size={15} color={th.accent}/>
+            <span style={{fontSize:13, fontWeight:600}}>{L("Opens this month","الفتحات هذا الشهر")}</span>
+            <span style={{fontSize:11, color:th.text3}}>· {L("menu, QR & link views","فتح القوائم ورموز QR والروابط")}</span>
+          </div>
+          <div style={{display:"flex", flexDirection:"column"}}>
+            {rows.map((o,i)=>(
+              <div key={o.client_id} style={{display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderTop:i?`1px solid ${th.border}`:"none"}}>
+                <span style={{flex:1, minWidth:0, fontSize:13, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{cName(o.client_id)||L("Client","عميل")}</span>
+                <span style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap"}}>🍽 {o.menu}</span>
+                <span style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap"}}>🔗 {o.short}</span>
+                <span className="tw-num" style={{fontSize:15, fontWeight:700, color:th.accent, minWidth:42, textAlign:"right"}}>{o.total}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ); })()}
 
       {accounts.length>0 && (
         <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
@@ -10552,6 +10590,7 @@ function SettingsPage() {
   const [contactEmail, setContactEmail] = useState("");
   const [website, setWebsite] = useState("");
   const [notif, setNotif] = useState({ email:true, published:true, weekly:true, engagement:true });
+  const [reportPref, setReportPref] = useState(twReportPref());
   // Personal profile (your own name + login email)
   const [fullName, setFullName] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
@@ -10736,6 +10775,24 @@ function SettingsPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        <div style={card}>
+          {secTitle(FileText, L("Monthly report reminder","تذكير التقرير الشهري"))}
+          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom: reportPref.on?14:0}}>
+            <div><div style={{fontSize:12.5}}>{L("Remind me to send client reports","ذكّرني بإرسال تقارير العملاء")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("A banner on your Command Center each month","لافتة على لوحة القيادة كل شهر")}</div></div>
+            <Sw on={reportPref.on} onClick={()=>{ const p={...reportPref, on:!reportPref.on}; setReportPref(p); twSetReportPref(p); }}/>
+          </div>
+          {reportPref.on && (
+            <div style={{display:"flex", alignItems:"center", gap:9, flexWrap:"wrap"}}>
+              <span style={{fontSize:12, color:th.text2}}>{L("Remind me on day","ذكّرني في يوم")}</span>
+              <select value={reportPref.day} onChange={e=>{ const p={...reportPref, day:Number(e.target.value)}; setReportPref(p); twSetReportPref(p); }} style={{background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none", cursor:"pointer"}}>
+                {Array.from({length:28}).map((_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
+              </select>
+              <span style={{fontSize:12, color:th.text2}}>{L("of the month","من الشهر")}</span>
+              <span style={{fontSize:10.5, color:th.text3, flexBasis:"100%"}}>{L("Tip: pick 1 to be nudged at the start, or 26 for a few days before the month ends.","نصيحة: اختر 1 للتذكير في البداية أو 26 قبل نهاية الشهر بأيام.")}</span>
+            </div>
+          )}
         </div>
 
         <div style={card}>
@@ -13177,6 +13234,7 @@ function MenuPublicPage({ slug }) {
       try { const { data: c } = await supabase.from('clients').select('name,logo_url').eq('id', m.client_id).limit(1); if (c && c[0]) { name = m.title || c[0].name; logo = c[0].logo_url || null; } } catch(e){}
       const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true}).order('created_at',{ascending:true});
       if (live) { setData({ ...m, name, logo }); setItems((it||[]).filter(x=>!x.hidden)); }
+      try { const k='twopen_menu_'+slug; if (typeof window==='undefined' || !sessionStorage.getItem(k)) { supabase.from('link_events').insert({ client_id: m.client_id, kind:'menu', slug }); if (typeof window!=='undefined') sessionStorage.setItem(k,'1'); } } catch(e){}
     }, () => { if (live) setData(null); });
     return () => { live = false; };
   }, [slug]);
@@ -14105,6 +14163,17 @@ function CommandCenterPage() {
           <div key={i} style={{ ...card, padding: "11px 15px", minWidth: 74, textAlign: "center" }}><div className="tw-num" style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div><div style={{ fontSize: 10, color: th.text2, marginTop: 2 }}>{k}</div></div>
         ))}
       </div>
+
+      {(() => { const rp = twReportPref(); const dom = new Date().getDate(); return rp.on && rows.length > 0 && dom >= rp.day && dom <= rp.day + 2; })() && (
+        <div style={{ ...card, padding: "13px 15px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderInlineStart: `4px solid ${BLUE}` }}>
+          <span style={{ fontSize: 20 }}>📊</span>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{L("Report time", "وقت التقارير")} · {new Date().toLocaleDateString(isAR ? "ar" : [], { month: "long" })}</div>
+            <div style={{ fontSize: 11.5, color: th.text2 }}>{L("Send your clients their monthly recap while the month is fresh.", "أرسل لعملائك ملخّصهم الشهري بينما الشهر جديد.")}</div>
+          </div>
+          <button onClick={() => setPage && setPage("reports")} style={{ padding: "9px 15px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>{L("Open Reports", "افتح التقارير")}</button>
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div style={{ ...card, padding: "50px 20px", textAlign: "center", color: th.text3 }}><div style={{ fontSize: 34, marginBottom: 10 }}>🗂️</div><div style={{ fontSize: 13.5, fontWeight: 600, color: th.text2 }}>{L("No clients yet", "لا عملاء بعد")}</div><div style={{ fontSize: 12, marginTop: 6 }}>{L("Add a client and they will appear here.", "أضف عميلاً وسيظهر هنا.")}</div></div>
