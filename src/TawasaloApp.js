@@ -17197,7 +17197,34 @@ export default function TawasloApp() {
   const th = dark ? DARK : LIGHT;
   const isMobile = useIsMobile();
 
-  const savePage = (p) => { sessionStorage.setItem('tw_page', p); setPage(p); };
+  // Browser Back/Forward should move between in-app pages, not bounce out of the app.
+  // We push a history entry on each navigation and restore the page on popstate.
+  const inAppRef = useRef(false);
+  useEffect(() => { inAppRef.current = isAuthed && !showLanding; }, [isAuthed, showLanding]);
+  useEffect(() => {
+    const onPop = (e) => {
+      const st = e && e.state;
+      if (st && st.twApp && st.twPage) {
+        setPage(st.twPage);
+        try { sessionStorage.setItem('tw_page', st.twPage); } catch (_) {}
+        if (st.twMode) { setMode(st.twMode); try { sessionStorage.setItem('tw_mode', st.twMode); } catch (_) {} }
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  // Seed a baseline history entry the first time we land inside the app.
+  useEffect(() => {
+    if (isAuthed && !showLanding) {
+      try { if (!(window.history.state && window.history.state.twApp)) window.history.replaceState({ twApp:1, twPage: page, twMode: mode }, ''); } catch (_) {}
+    }
+  }, [isAuthed, showLanding]); // eslint-disable-line
+
+  const savePage = (p) => {
+    sessionStorage.setItem('tw_page', p);
+    setPage(p);
+    try { if (inAppRef.current && p !== page) window.history.pushState({ twApp:1, twPage:p, twMode: mode }, ''); } catch (_) {}
+  };
   const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
 
   const ctx = {
