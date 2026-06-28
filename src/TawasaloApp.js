@@ -825,6 +825,7 @@ function Sidebar() {
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
       {key:"recycle",   Icon:RefreshCw,       label:"Recycler",  badge:null},
+      {key:"htlab",     Icon:TrendingUp,      label:"Hashtag Lab", badge:null},
       {key:"autopilot", Icon:Wand2,           label:"Campaign Autopilot", badge:null},
       {key:"approvals", Icon:Shield,          label:"Approvals", badge:null},
       {key:"calendar",  Icon:CalendarCheck,   label:"Calendar",  badge:null},
@@ -9493,6 +9494,134 @@ function ContentRecyclerPage() {
                   {ago(p.timestamp||p.time) && <span style={{ marginLeft:"auto" }}>{ago(p.timestamp||p.time)}</span>}
                 </div>
                 <button onClick={()=>recycle(p)} style={{ marginTop:"auto", width:"100%", padding:"9px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><RefreshCw size={13}/>{L("Recycle this","أعد تدويره")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HashtagLabPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const cid = selClient?.id || "x";
+  const KEY = "tw_htsets_" + cid;
+  const [sets, setSets] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+  const [topic, setTopic] = useState("");
+  const [platform, setPlatform] = useState("ig");
+  const [draft, setDraft] = useState([]);
+  const [setName, setSetName] = useState("");
+  const [manual, setManual] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [copiedId, setCopiedId] = useState(null);
+  const [editId, setEditId] = useState(null);
+
+  useEffect(() => { try { const v = localStorage.getItem(KEY); setSets(v ? JSON.parse(v) : []); } catch(e) { setSets([]); } /* eslint-disable-next-line */ }, [cid]);
+  useEffect(() => { if (!selClient?.name) return; supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); }); }, [selClient]);
+
+  const persist = (next) => { setSets(next); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch(e){} try { if (realClientId) supabase.from('clients').update({ hashtag_sets: next }).eq('id', realClientId).then(()=>{}, ()=>{}); } catch(e){} };
+  const norm = (t) => { t = (t||"").trim().replace(/^#+/, ''); return t ? '#' + t.replace(/\s+/g,'') : ''; };
+  const PLATS = [["ig","Instagram"],["tiktok","TikTok"],["x","X"],["fb","Facebook"],["li","LinkedIn"]];
+  const MAXTAG = { ig:5, tiktok:20, x:5, fb:30, li:15 };
+
+  const generate = async () => {
+    if (!topic.trim()) return; setLoading(true); setError("");
+    try {
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ topic, platform, mode:'hashtags', brand:selClient?.name }) }).then(r=>r.json());
+      if (r.hashtags && r.hashtags.length) { const tags = [...new Set(r.hashtags.map(norm).filter(Boolean))]; setDraft(prev => [...new Set([...prev, ...tags])]); if (!setName) setSetName(topic.trim().slice(0,40)); }
+      else setError(r.error || L("Could not generate.","تعذّر التوليد."));
+    } catch(e) { setError(L("Something went wrong. Try again.","حدث خطأ ما. حاول مجددًا.")); }
+    setLoading(false);
+  };
+  const addManual = () => { const parts = (manual||"").split(/[\s,]+/).map(norm).filter(Boolean); if (parts.length) setDraft([...new Set([...draft, ...parts])]); setManual(""); };
+  const saveSet = () => { if (!draft.length) return; const name = (setName || L("Untitled set","مجموعة بدون اسم")).trim();
+    if (editId) { persist(sets.map(s => s.id===editId ? { ...s, name, tags:draft } : s)); setEditId(null); }
+    else persist([{ id:Date.now()+"", name, tags:draft, used:0, lastUsed:null, createdAt:Date.now() }, ...sets]);
+    setDraft([]); setSetName(""); setTopic(""); };
+  const editSet = (s) => { setEditId(s.id); setSetName(s.name); setDraft(s.tags); setTopic(""); try { window.scrollTo({ top:0, behavior:'smooth' }); } catch(e){} };
+  const delSet = (id) => { persist(sets.filter(s => s.id!==id)); if (editId===id) { setEditId(null); setDraft([]); setSetName(""); } };
+  const copySet = (s) => { try { navigator.clipboard.writeText(s.tags.join(' ')); } catch(e){} setCopiedId(s.id); setTimeout(()=>setCopiedId(null), 1400); };
+  const useInPost = (s) => { try { sessionStorage.setItem('tw_studio_caption', s.tags.join(' ')); } catch(e){} persist(sets.map(x => x.id===s.id ? { ...x, used:(x.used||0)+1, lastUsed:Date.now() } : x)); setPage('publisher'); };
+  const ago = (ts) => { if (!ts) return L("never used","لم تُستخدم"); const d = Math.floor((Date.now()-ts)/86400000); return d<=0 ? L("used today","استُخدمت اليوم") : d<30 ? L("used ","استُخدمت قبل ")+d+L("d ago"," يوم") : L("used ","استُخدمت قبل ")+Math.floor(d/30)+L("mo ago"," شهر"); };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"10px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const chip = (on) => ({ padding:"6px 12px", borderRadius:8, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.text:th.text2 });
+  const limit = MAXTAG[platform] || 30;
+  const over = draft.length > limit;
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1000 }}>
+      <div style={{ marginBottom:20 }}>
+        <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Hashtag Lab","مختبر الوسوم")}</h2>
+        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("build, save and reuse tuned hashtag sets","ابنِ واحفظ وأعد استخدام مجموعات وسوم مضبوطة")}</p>
+      </div>
+
+      <div style={{ ...card, padding:18, marginBottom:20 }}>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end", marginBottom:14 }}>
+          <div style={{ flex:1, minWidth:200 }}>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("What's the post about?","عمّ يدور المنشور؟")}</div>
+            <input value={topic} onChange={e=>setTopic(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') generate(); }} placeholder={L("e.g. specialty coffee, Adliya cafe","مثال: قهوة مختصة، مقهى العدلية")} style={inp}/>
+          </div>
+          <button onClick={generate} disabled={loading||!topic.trim()} style={{ display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?L("Generating…","جارٍ…"):L("Generate","توليد")}</button>
+        </div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>{PLATS.map(([k,l])=><button key={k} onClick={()=>setPlatform(k)} style={chip(platform===k)}>{l}</button>)}</div>
+
+        {(draft.length>0) && (<>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+            <div style={{ fontSize:11.5, color:over?th.danger:th.text2 }}><span className="tw-num">{draft.length}</span> {L("tags","وسم")} · <span className="tw-num">{draft.join(' ').length}</span> {L("chars","حرف")} {over && <span style={{ fontWeight:600 }}>· {L("over ","يتجاوز ")}<span className="tw-num">{limit}</span>{L(" recommended max"," كحد موصى")}</span>}</div>
+            <button onClick={()=>setDraft([])} style={{ background:"none", border:"none", color:th.text3, fontSize:11.5, cursor:"pointer" }}>{L("Clear","مسح")}</button>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:14 }}>
+            {draft.map(t=>(<span key={t} onClick={()=>setDraft(draft.filter(x=>x!==t))} title={L("Remove","إزالة")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 10px", borderRadius:8, background:th.accentSoft, color:th.text, fontSize:12, cursor:"pointer" }}>{t}<X size={11} color={th.text3}/></span>))}
+          </div>
+        </>)}
+
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"flex-end" }}>
+          <div style={{ flex:"1 1 180px" }}>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Add your own","أضف وسومك")}</div>
+            <input value={manual} onChange={e=>setManual(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') addManual(); }} placeholder={L("#brunch #manama","#برانش #المنامة")} style={inp}/>
+          </div>
+          <button onClick={addManual} style={{ padding:"10px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}><Plus size={14}/>{L("Add","إضافة")}</button>
+          <div style={{ flex:"1 1 180px" }}>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Set name","اسم المجموعة")}</div>
+            <input value={setName} onChange={e=>setSetName(e.target.value)} placeholder={L("Weekend brunch","برانش الويكند")} style={inp}/>
+          </div>
+          <button onClick={saveSet} disabled={!draft.length} style={{ padding:"10px 16px", borderRadius:10, background:draft.length?th.accent:th.card2, border:`1px solid ${draft.length?th.accent:th.border}`, color:draft.length?"#fff":th.text3, fontSize:12.5, fontWeight:600, cursor:draft.length?"pointer":"default", display:"flex", alignItems:"center", gap:6 }}><Check size={14}/>{editId?L("Update set","تحديث المجموعة"):L("Save set","حفظ المجموعة")}</button>
+        </div>
+        {error && <div style={{ marginTop:12, fontSize:12, color:th.danger }}>{error}</div>}
+      </div>
+
+      <div style={{ fontSize:12.5, fontWeight:600, color:th.text2, marginBottom:12 }}>{L("Saved sets","المجموعات المحفوظة")} {sets.length>0 && <span className="tw-num" style={{ color:th.text3 }}>· {sets.length}</span>}</div>
+      {sets.length===0 ? (
+        <div style={{ ...card, padding:"44px 24px", textAlign:"center" }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><TrendingUp size={24} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("No saved sets yet","لا مجموعات محفوظة بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:420, margin:"0 auto" }}>{L("Generate a set above, tune it, and save it. Reuse your best hashtags on every post in one tap.","ولّد مجموعة بالأعلى، اضبطها، واحفظها. أعد استخدام أفضل وسومك في كل منشور بنقرة.")}</div>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:14 }}>
+          {sets.map(s=>(
+            <div key={s.id} style={{ ...card, padding:16, display:"flex", flexDirection:"column" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:8, marginBottom:8 }}>
+                <div style={{ fontSize:14, fontWeight:700 }}>{s.name}</div>
+                <div style={{ fontSize:10.5, color:th.text3, whiteSpace:"nowrap" }}><span className="tw-num">{s.tags.length}</span> {L("tags","وسم")}</div>
+              </div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:11, maxHeight:74, overflow:"hidden" }}>
+                {s.tags.slice(0,12).map(t=><span key={t} style={{ fontSize:11.5, color:th.accent }}>{t}</span>)}
+                {s.tags.length>12 && <span style={{ fontSize:11.5, color:th.text3 }}>+{s.tags.length-12}</span>}
+              </div>
+              <div style={{ fontSize:10.5, color:th.text3, marginBottom:11 }}><span className="tw-num">{s.used||0}</span>× · {ago(s.lastUsed)}</div>
+              <div style={{ display:"flex", gap:7, marginTop:"auto" }}>
+                <button onClick={()=>useInPost(s)} style={{ flex:1, padding:"9px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Send size={12}/>{L("Use in post","استخدم")}</button>
+                <button onClick={()=>copySet(s)} title={L("Copy","نسخ")} style={{ padding:"9px 11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:copiedId===s.id?th.success:th.text2, cursor:"pointer" }}>{copiedId===s.id?<Check size={14}/>:<Copy size={14}/>}</button>
+                <button onClick={()=>editSet(s)} title={L("Edit","تعديل")} style={{ padding:"9px 11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer" }}><Edit3 size={14}/></button>
+                <button onClick={()=>delSet(s.id)} title={L("Delete","حذف")} style={{ padding:"9px 11px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text3, cursor:"pointer" }}><Trash2 size={14}/></button>
               </div>
             </div>
           ))}
@@ -18386,6 +18515,7 @@ export default function TawasloApp() {
     if (page==="crisis") return <CrisisRadarPage/>;
     if (page==="besttime") return <BestTimePage/>;
     if (page==="recycle") return <ContentRecyclerPage/>;
+    if (page==="htlab") return <HashtagLabPage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
