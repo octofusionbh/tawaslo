@@ -856,6 +856,7 @@ function Sidebar() {
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
       {key:"besttime",  Icon:Clock,           label:"Best Time", badge:null},
       {key:"crisis",    Icon:AlertTriangle,   label:"Crisis Radar", badge:null},
+      {key:"impact",    Icon:DollarSign,      label:"Impact",    badge:null},
       {key:"ads",       Icon:DollarSign,      label:"Ads",       badge:null},
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
       {key:"shortlinks",Icon:Link,            label:"Links",     badge:null},
@@ -9627,6 +9628,99 @@ function HashtagLabPage() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function ImpactPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const cid = selClient?.id || "x";
+  const SKEY = "tw_impact_" + cid;
+  const [realClientId, setRealClientId] = useState(null);
+  const [days, setDays] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [cur, setCur] = useState("BHD");
+  const [spend, setSpend] = useState(12);
+  const [d, setD] = useState({ bookings:0, covers:0, concierge:0, members:0, visits:0, reviews:0, rating:0, contacts:0, followers:0, reach:0, eng:0 });
+
+  useEffect(() => { try { const s = JSON.parse(localStorage.getItem(SKEY) || "{}"); if (s.cur) setCur(s.cur); if (s.spend) setSpend(s.spend); } catch(e){} /* eslint-disable-next-line */ }, [cid]);
+  useEffect(() => { try { localStorage.setItem(SKEY, JSON.stringify({ cur, spend })); } catch(e){} }, [cur, spend, SKEY]);
+  useEffect(() => { if (!selClient?.name) { setScanned(true); return; } supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); else { setRealClientId(null); setScanned(true); } }); }, [selClient]);
+  useEffect(() => { if (realClientId) load(); /* eslint-disable-next-line */ }, [realClientId, days]);
+
+  const load = async () => {
+    setLoading(true);
+    const id = realClientId;
+    const t0 = new Date(Date.now() - days*86400000).toISOString();
+    const out = { bookings:0, covers:0, concierge:0, members:0, visits:0, reviews:0, rating:0, contacts:0, followers:0, reach:0, eng:0 };
+    try {
+      const [bk, lc, rv, gs, accs] = await Promise.all([
+        supabase.from('bookings').select('party_size,status,source,starts_at').eq('client_id', id).gte('starts_at', t0),
+        supabase.from('loyalty_cards').select('visits,created_at').eq('client_id', id),
+        supabase.from('reviews').select('rating,created_at').eq('client_id', id).gte('created_at', t0),
+        supabase.from('guests').select('id,created_at').eq('client_id', id),
+        supabase.from('social_accounts').select('*').eq('client_id', id).neq('is_active', false),
+      ]);
+      const bkr = (bk.data||[]).filter(b => b.status !== 'cancelled');
+      out.bookings = bkr.length; out.covers = bkr.reduce((s,b)=>s+(Number(b.party_size)||1),0); out.concierge = bkr.filter(b=>b.source==='concierge').length;
+      const lcr = lc.data||[]; out.members = lcr.length; out.visits = lcr.reduce((s,c)=>s+(Number(c.visits)||0),0);
+      const rvr = rv.data||[]; out.reviews = rvr.length; out.rating = rvr.length ? (rvr.reduce((s,r)=>s+(Number(r.rating)||0),0)/rvr.length) : 0;
+      out.contacts = (gs.data||[]).length;
+      const ig = (accs.data||[]).find(a => a.platform === 'ig');
+      if (ig) { try { const res = await fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: ig.account_id, accessToken: ig.access_token }) }); const j = await res.json(); out.followers = j.followers || j.followersCount || 0; out.reach = j.reach || 0; const rp = j.recentPosts || []; out.eng = rp.reduce((s,p)=>s+((p.likes||0)+(p.comments||0)),0); } catch(e){} }
+    } catch(e){}
+    setD(out); setScanned(true); setLoading(false);
+  };
+
+  const fmt = (n) => (Number(n)||0).toLocaleString();
+  const revenue = Math.round(d.covers * (Number(spend)||0));
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const PERIODS = [[30,L("30 days","30 يوم")],[90,L("90 days","90 يوم")],[365,L("1 year","سنة")]];
+  const CURS = ["BHD","USD","SAR","AED","KWD","QAR"];
+  const Metric = ({ Ic, label, value, sub }) => (
+    <div style={{ ...card, padding:"15px 16px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:11.5, color:th.text2, marginBottom:9 }}><Ic size={14} color={th.accent}/>{label}</div>
+      <div className="tw-num" style={{ fontSize:26, fontWeight:700, letterSpacing:-0.5 }}>{value}</div>
+      {sub && <div style={{ fontSize:11, color:th.text3, marginTop:3 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1000 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:20 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Impact","الأثر")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("real business this brand drove, in numbers","النتائج الفعلية التي حققتها هذه العلامة، بالأرقام")}</p>
+        </div>
+        <div style={{ display:"flex", gap:6 }}>{PERIODS.map(([k,l])=><button key={k} onClick={()=>setDays(k)} style={{ padding:"7px 13px", borderRadius:9, fontSize:12, fontWeight:600, cursor:"pointer", border:`1px solid ${days===k?th.accent:th.border}`, background:days===k?th.accentSoft:"transparent", color:days===k?th.text:th.text2 }}>{l}</button>)}</div>
+      </div>
+
+      {!realClientId && scanned ? (
+        <div style={{ ...card, padding:"48px 24px", textAlign:"center" }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><BarChart2 size={24} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("No data for this brand yet","لا بيانات لهذه العلامة بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:430, margin:"0 auto" }}>{L("Impact pulls real bookings, loyalty, reviews and audience figures. Once this brand starts taking bookings and growing, the proof shows up here.","يجمع الأثر الحجوزات والولاء والتقييمات والجمهور الفعلي. بمجرد أن تبدأ هذه العلامة باستقبال الحجوزات والنمو، يظهر الدليل هنا.")}</div>
+        </div>
+      ) : (<>
+        {loading ? (
+          <div style={{ ...card, padding:"40px", textAlign:"center", fontSize:13, color:th.text3 }}>{L("Tallying the impact…","نحسب الأثر…")}</div>
+        ) : (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14 }}>
+            <Metric Ic={Calendar} label={L("Bookings","الحجوزات")} value={fmt(d.bookings)} sub={d.concierge?fmt(d.concierge)+L(" via Concierge"," عبر الكونسيرج"):null}/>
+            <Metric Ic={Users} label={L("Covers seated","الضيوف")} value={fmt(d.covers)}/>
+            <Metric Ic={Star} label={L("Reviews","التقييمات")} value={fmt(d.reviews)} sub={d.rating?("★ "+d.rating.toFixed(1)):null}/>
+            <Metric Ic={Users} label={L("Contacts captured","جهات اتصال")} value={fmt(d.contacts)}/>
+            <Metric Ic={Heart} label={L("Loyalty members","أعضاء الولاء")} value={fmt(d.members)} sub={d.visits?fmt(d.visits)+L(" visits"," زيارة"):null}/>
+            <Metric Ic={TrendingUp} label={L("Followers","المتابعون")} value={fmt(d.followers)}/>
+            <Metric Ic={BarChart2} label={L("Reach (30d)","الوصول (30ي)")} value={fmt(d.reach)}/>
+            <Metric Ic={MessageCircle} label={L("Engagement","التفاعل")} value={fmt(d.eng)}/>
+          </div>
+        )}
+        <div style={{ fontSize:11, color:th.text3, marginTop:14, lineHeight:1.6 }}>{L("Bookings, loyalty, reviews and contacts are real figures from this brand's connected tools.","الحجوزات والولاء والتقييمات وجهات الاتصال أرقام فعلية من أدوات هذه العلامة المتصلة.")}</div>
+      </>)}
     </div>
   );
 }
@@ -18513,6 +18607,7 @@ export default function TawasloApp() {
     if (page==="reports") return <ReportsPage/>;
     if (page==="invoicing") return <InvoicingPage/>;
     if (page==="crisis") return <CrisisRadarPage/>;
+    if (page==="impact") return <ImpactPage/>;
     if (page==="besttime") return <BestTimePage/>;
     if (page==="recycle") return <ContentRecyclerPage/>;
     if (page==="htlab") return <HashtagLabPage/>;
