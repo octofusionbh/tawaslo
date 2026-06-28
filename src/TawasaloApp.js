@@ -8849,7 +8849,7 @@ function StreamsPage() {
 }
 
 function AdsPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, setPage, userEmail, userPlan } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [loading, setLoading] = useState(false);
@@ -8857,12 +8857,41 @@ function AdsPage() {
   const [error, setError] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
+  const [boostOpen, setBoostOpen] = useState(false);
+  const [recent, setRecent] = useState([]);
+  const [pick, setPick] = useState(null);
+  const [bCountries, setBCountries] = useState(['BH']);
+  const [bAge, setBAge] = useState([18, 65]);
+  const [bBudget, setBBudget] = useState(5);
+  const [bDays, setBDays] = useState(5);
+  const [boosting, setBoosting] = useState(false);
+  const [boostRes, setBoostRes] = useState(null);
+  const GCC = [["BH","Bahrain"],["SA","Saudi Arabia"],["AE","UAE"],["KW","Kuwait"],["QA","Qatar"],["OM","Oman"]];
 
   useEffect(() => {
     if (!selClient?.name) return;
     supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
       .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
   }, [selClient]);
+
+  const openBoost = async () => {
+    setBoostOpen(true); setBoostRes(null); setPick(null);
+    if (realClientId) {
+      const { data } = await supabase.from('posts').select('id,caption,image_url,external_id,platform').eq('client_id', realClientId).order('created_at', { ascending:false }).limit(12);
+      setRecent((data || []).filter(p => p.image_url));
+    }
+  };
+  const toggleCountry = (code) => setBCountries(cs => cs.includes(code) ? cs.filter(c=>c!==code) : [...cs, code]);
+  const doBoost = async () => {
+    const fbAcc = accounts.find(a => a.platform === 'fb') || accounts[0];
+    if (!fbAcc || !pick || !bCountries.length) return;
+    setBoosting(true); setBoostRes(null);
+    try {
+      const res = await fetch('/api/meta-ads', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'boost', accessToken: fbAcc.access_token, pageId: fbAcc.account_id, postId: pick.external_id || pick.id, countries: bCountries, ageMin: bAge[0], ageMax: bAge[1], dailyBudgetUsd: bBudget, days: bDays }) });
+      setBoostRes(await res.json());
+    } catch (e) { setBoostRes({ error: e.message }); }
+    setBoosting(false);
+  };
 
   useEffect(() => {
     if (!realClientId) return;
@@ -8917,9 +8946,14 @@ function AdsPage() {
           <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Ads performance","أداء الإعلانات")}</h2>
           <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Last 30 days","آخر 30 يوماً")} &middot; {selClient?.name || L("your brand","علامتك")}</p>
         </div>
-        <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
-          <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
-        </button>
+        <div style={{ display:"flex", gap:9 }}>
+          <button onClick={openBoost} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}>
+            <Megaphone size={14}/> {L('Boost a post','تعزيز منشور')}
+          </button>
+          <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"10px 18px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
+            <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -8973,6 +9007,65 @@ function AdsPage() {
           </div>
         </>
       )}
+
+      {boostOpen && createPortal((
+        <div onClick={()=>setBoostOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:9998, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"40px 16px", overflowY:"auto" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:560, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
+              <span style={{ fontSize:17, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}><Megaphone size={18} color={th.accent}/>{L("Boost a post","تعزيز منشور")}</span>
+              <XCircle size={20} onClick={()=>setBoostOpen(false)} style={{ color:th.text2, cursor:"pointer" }}/>
+            </div>
+            <div style={{ fontSize:11.5, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}44`, borderRadius:10, padding:"8px 12px", marginBottom:16 }}>{L("Test mode — no real spend yet. Live boosting activates once Meta approves ads access.","وضع تجريبي — لا إنفاق فعلي بعد. يُفعّل التعزيز الحقيقي بعد موافقة ميتا.")}</div>
+
+            {accounts.find(a=>a.platform==='fb') ? (<>
+              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Pick a post","اختر منشوراً")}</div>
+              {recent.length===0 ? <div style={{ fontSize:12, color:th.text3, marginBottom:16 }}>{L("No recent posts with an image to boost.","لا توجد منشورات حديثة بصورة لتعزيزها.")}</div> : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:18 }}>
+                  {recent.map(p => { const on = pick && pick.id===p.id; return (
+                    <div key={p.id} onClick={()=>setPick(p)} title={p.caption||""} style={{ cursor:"pointer", borderRadius:10, overflow:"hidden", border:`2px solid ${on?th.accent:th.border}`, aspectRatio:"1", background:`center/cover url(${p.image_url})`, position:"relative" }}>
+                      {on && <span style={{ position:"absolute", top:4, right:4, background:th.accent, borderRadius:"50%", width:18, height:18, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={11} color="#fff"/></span>}
+                    </div>
+                  );})}
+                </div>
+              )}
+
+              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Audience","الجمهور")}</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:12 }}>
+                {GCC.map(([code,name]) => { const on = bCountries.includes(code); return (
+                  <button key={code} onClick={()=>toggleCountry(code)} style={{ padding:"6px 12px", borderRadius:999, cursor:"pointer", fontSize:11.5, background:on?th.accentSoft:th.card2, border:`1.5px solid ${on?th.accent:th.border}`, color:on?th.accent:th.text2 }}>{name}</button>
+                );})}
+              </div>
+              <div style={{ display:"flex", gap:12, marginBottom:18, flexWrap:"wrap" }}>
+                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Age from","العمر من")}</div><input type="number" min="13" max="65" value={bAge[0]} onChange={e=>setBAge([Math.max(13,Math.min(65,+e.target.value||18)), bAge[1]])} style={{ width:80, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
+                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Age to","إلى")}</div><input type="number" min="13" max="65" value={bAge[1]} onChange={e=>setBAge([bAge[0], Math.max(13,Math.min(65,+e.target.value||65))])} style={{ width:80, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
+              </div>
+
+              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Budget","الميزانية")}</div>
+              <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Daily (USD)","يومي (دولار)")}</div><input type="number" min="1" value={bBudget} onChange={e=>setBBudget(Math.max(1,+e.target.value||1))} style={{ width:110, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
+                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Days","الأيام")}</div><input type="number" min="1" value={bDays} onChange={e=>setBDays(Math.max(1,+e.target.value||1))} style={{ width:90, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
+              </div>
+              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", marginBottom:18, fontSize:12.5, color:th.text2 }}>
+                {L("Total spend","إجمالي الإنفاق")}: <span className="tw-num" style={{ color:th.text, fontWeight:700 }}>${(bBudget*bDays).toFixed(2)}</span>
+                <span style={{ margin:"0 8px", color:th.text3 }}>·</span>
+                {L("Est. reach","الوصول المتوقع")}: <span className="tw-num" style={{ color:th.accent, fontWeight:700 }}>{Math.round((bBudget*bDays)/9*1000).toLocaleString()}–{Math.round((bBudget*bDays)/4*1000).toLocaleString()}</span>
+              </div>
+
+              {boostRes && (
+                <div style={{ background: boostRes.error?th.dangerSoft:th.successSoft, border:`1px solid ${(boostRes.error?th.danger:th.success)}44`, color: boostRes.error?th.danger:th.success, borderRadius:11, padding:"11px 14px", marginBottom:16, fontSize:12.5 }}>
+                  {boostRes.error ? boostRes.error : (boostRes.message || L("Boost created.","تم إنشاء التعزيز."))}
+                </div>
+              )}
+
+              <button onClick={doBoost} disabled={!pick || !bCountries.length || boosting} style={{ width:"100%", padding:"13px", borderRadius:12, background:(!pick||!bCountries.length||boosting)?th.card2:th.gradient, border:"none", color:(!pick||!bCountries.length||boosting)?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(!pick||!bCountries.length||boosting)?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
+                <Megaphone size={15}/>{boosting?L("Boosting…","جارٍ…"):L("Boost this post","عزّز هذا المنشور")}
+              </button>
+            </>) : (
+              <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.7, padding:"8px 0 4px" }}>{L("Connect a Facebook account with ad access to boost posts.","اربط حساب فيسبوك لديه صلاحية إعلانية لتعزيز المنشورات.")} <span onClick={()=>{ setBoostOpen(false); setPage&&setPage('social'); }} style={{ color:th.accent, cursor:"pointer", fontWeight:600 }}>{L("Connect accounts","ربط الحسابات")}</span></div>
+            )}
+          </div>
+        </div>
+      ), document.body)}
     </div>
   );
 }
