@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { APPROVAL_IMAGES } from "./approvalImages";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
@@ -851,6 +851,7 @@ function Sidebar() {
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
+      {key:"besttime",  Icon:Clock,           label:"Best Time", badge:null},
       {key:"crisis",    Icon:AlertTriangle,   label:"Crisis Radar", badge:null},
       {key:"ads",       Icon:DollarSign,      label:"Ads",       badge:null},
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
@@ -6355,6 +6356,7 @@ function PublisherPage() {
   useEffect(() => {
     try {
       const c = sessionStorage.getItem('tw_studio_caption'); if (c) { setCaption(c); sessionStorage.removeItem('tw_studio_caption'); }
+      const pd = sessionStorage.getItem('tw_prefill_date'); const pt = sessionStorage.getItem('tw_prefill_time'); if (pd || pt) { setScheduleType('schedule'); if (pd) setScheduleDate(pd); if (pt) setScheduleTime(pt); sessionStorage.removeItem('tw_prefill_date'); sessionStorage.removeItem('tw_prefill_time'); }
       const at = sessionStorage.getItem('tw_studio_aitopic'); if (at) { setAiTopic(at); setShowAI(true); sessionStorage.removeItem('tw_studio_aitopic'); }
       const m = sessionStorage.getItem('tw_studio_media'); if (m) { setMedia(prev => [...prev, { id:'h'+Date.now(), name:'media', type:/\.(mp4|mov|webm)$/i.test(m)?'video':'image', url:m, uploading:false }]); sessionStorage.removeItem('tw_studio_media'); }
       // Repost → Story: an existing post's media handed off from Analytics / Calendar.
@@ -9196,6 +9198,81 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function BestTimePage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [plat, setPlat] = useState('ig');
+  const PLATS = [['ig','Instagram'],['fb','Facebook'],['tt','TikTok'],['li','LinkedIn'],['yt','YouTube']];
+  const BEST = { ig:[["13:00","Lunch scroll"],["20:00","Evening peak"],["21:00","Prime time"]], fb:[["12:00","Midday"],["19:00","Evening"],["21:00","Late evening"]], tt:[["18:00","After work"],["20:00","Evening"],["21:00","Prime time"]], li:[["08:00","Pre-work"],["09:00","Morning"],["12:00","Lunch"]], yt:[["17:00","Evening"],["20:00","Prime time"]] };
+  const HEATGRID = {
+    ig:[[2,1,2,2,3,4,3],[3,2,3,3,4,5,4],[4,3,4,4,5,5,5],[2,2,2,3,3,4,3]],
+    fb:[[2,2,2,2,3,3,3],[3,3,4,4,4,4,3],[3,3,4,4,5,4,4],[2,2,2,2,3,3,2]],
+    li:[[3,4,4,4,4,2,1],[3,4,4,4,4,2,1],[2,3,3,3,3,2,1],[1,1,1,1,2,1,1]],
+    tt:[[2,2,2,2,3,4,3],[3,3,3,3,4,4,4],[4,4,4,4,5,5,5],[3,3,3,3,4,5,4]],
+    yt:[[2,2,2,2,3,4,3],[3,3,3,3,4,4,4],[4,4,4,4,5,5,4],[2,2,2,2,3,4,3]],
+  };
+  const HEATCOL = ["#11161F","#1B2A3A","#2C4A63","#3E6E8C","#5B93B8","#7FC9A8"];
+  const ROWS = [L("Morning","صباح"),L("Noon","ظهر"),L("Evening","مساء"),L("Night","ليل")];
+  const DAYS = isAR ? ["إث","ثل","أر","خم","جم","سب","أح"] : ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const grid = HEATGRID[plat] || HEATGRID.ig;
+  const slots = (BEST[plat] || BEST.ig).map(([t,blab]) => {
+    const [hh,mm] = t.split(":").map(Number);
+    const now = new Date(); const d = new Date(now.getFullYear(),now.getMonth(),now.getDate(),hh,mm);
+    if (d <= now) d.setDate(d.getDate()+1);
+    const same = d.getDate()===now.getDate();
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const h12 = hh%12||12; const ap = hh>=12?"PM":"AM";
+    return { dateStr, time:t, blab, when:`${same?L("Today","اليوم"):L("Tomorrow","غداً")} ${h12}:${String(mm).padStart(2,'0')} ${ap}` };
+  });
+  const goSchedule = (s) => { try { sessionStorage.setItem('tw_prefill_date', s.dateStr); sessionStorage.setItem('tw_prefill_time', s.time); } catch(e){} setPage('publisher'); };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:920 }}>
+      <div style={{ marginBottom:18 }}>
+        <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Best Time to Post","أفضل وقت للنشر")}</h2>
+        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("when your audience is most active","متى يكون جمهورك أكثر نشاطاً")}</p>
+      </div>
+
+      <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:18 }}>
+        {PLATS.map(([k,lab])=>{ const on=plat===k; const PI=PlatformIcons[k]; return (
+          <button key={k} onClick={()=>setPlat(k)} style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:on?600:500, background:on?th.accentSoft:th.card, border:`1px solid ${on?th.accent:th.border}`, color:on?th.accent:th.text2 }}>{PI&&<PI/>}{lab}</button>
+        );})}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:18 }}>
+        {slots.map((s,i)=>(
+          <div key={i} style={{ ...card, padding:18 }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}><span style={{ fontSize:10.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:6, padding:"2px 8px" }}>{i===0?L("Top pick","الأفضل"):"#"+(i+1)}</span><Clock size={15} color={th.text3}/></div>
+            <div style={{ fontSize:17, fontWeight:700, color:th.text }}>{s.when}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:2, marginBottom:13 }}>{s.blab}</div>
+            <button onClick={()=>goSchedule(s)} style={{ width:"100%", padding:"9px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Calendar size={13}/>{L("Schedule for this","جدول لهذا")}</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...card, padding:"18px 20px" }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><TrendingUp size={15} color={th.accent}/>{L("Weekly engagement heatmap","خريطة التفاعل الأسبوعية")}</div>
+        <div style={{ display:"grid", gridTemplateColumns:`70px repeat(7,1fr)`, gap:5 }}>
+          <div/>
+          {DAYS.map(d=><div key={d} style={{ textAlign:"center", fontSize:10.5, color:th.text3, fontWeight:600 }}>{d}</div>)}
+          {grid.map((row,ri)=>(<Fragment key={ri}>
+            <div style={{ fontSize:11, color:th.text2, display:"flex", alignItems:"center" }}>{ROWS[ri]}</div>
+            {row.map((v,ci)=>(<div key={ci} title={`${ROWS[ri]} · ${DAYS[ci]}`} style={{ height:34, borderRadius:7, background:HEATCOL[v]||HEATCOL[0], border:`1px solid ${th.border}` }}/>))}
+          </Fragment>))}
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:14, fontSize:10.5, color:th.text3 }}>
+          <span>{L("Quieter","أهدأ")}</span>
+          <div style={{ display:"flex", gap:3 }}>{HEATCOL.slice(1).map((c,i)=><span key={i} style={{ width:16, height:10, borderRadius:3, background:c }}/>)}</div>
+          <span>{L("Busier","أنشط")}</span>
+        </div>
+        <div style={{ fontSize:10.5, color:th.text3, marginTop:12, display:"flex", gap:6, alignItems:"flex-start", lineHeight:1.5 }}><Info size={12} style={{ flexShrink:0, marginTop:1, color:th.accent }}/>{L("Based on typical engagement patterns for this platform. It upgrades to this brand's real audience data once Instagram insights access is granted.","مبني على أنماط التفاعل المعتادة لهذه المنصة. يتحدّث لبيانات جمهور هذه العلامة الحقيقية بعد منح صلاحية رؤى إنستغرام.")}</div>
+      </div>
     </div>
   );
 }
@@ -18006,6 +18083,7 @@ export default function TawasloApp() {
     if (page==="reports") return <ReportsPage/>;
     if (page==="invoicing") return <InvoicingPage/>;
     if (page==="crisis") return <CrisisRadarPage/>;
+    if (page==="besttime") return <BestTimePage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
