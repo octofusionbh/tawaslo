@@ -6320,6 +6320,8 @@ function PublisherPage() {
   const [results, setResults] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
   const [editingDraftId, setEditingDraftId] = useState(null);
+  const [multiCap, setMultiCap] = useState(false);   // carousel: one caption for all vs per slide
+  const setSlideCap = (id, val) => setMedia(prev => prev.map(m => m.id === id ? { ...m, cap: val } : m));
   const [showAI, setShowAI] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
   const [aiTone, setAiTone] = useState("engaging and professional");
@@ -6496,7 +6498,7 @@ function PublisherPage() {
     setAiLoading(false);
   };
 
-  const resetComposer = () => { setCaption(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); setFirstComment(""); setPostLabel(""); };
+  const resetComposer = () => { setCaption(""); setMedia([]); setSelectedSlide(null); setSelectedAccounts([]); setEditingDraftId(null); setIgFormat("feed"); setResults([]); setFirstComment(""); setPostLabel(""); setMultiCap(false); };
 
   // ── Saved hashtag groups (per client, localStorage) ──────────────────
   const hgKey = `tw_hashgroups_${selClient?.id || realClientId || 'default'}`;
@@ -6659,6 +6661,8 @@ function PublisherPage() {
     let imgs = images.map(m => m.url);
     if (watermark && selClient?.logo && imgs.length) { try { imgs = await Promise.all(imgs.map(u => applyWatermark(u))); } catch (e) { /* keep originals */ } }
     const imgAlts = images.map(m => (m.alt || "").trim());
+    const slideCaps = images.map(m => (m.cap || "").trim());
+    const effCaption = multiCap ? (slideCaps.find(c => c) || caption) : caption;   // slide 1 caption becomes the post caption
     const out = [];
     for (const accId of selectedAccounts) {
       const acc = accounts.find(a => a.id === accId); if (!acc) continue;
@@ -6678,7 +6682,7 @@ function PublisherPage() {
           if (repeatType === "daily") d.setDate(d.getDate() + n);
           else if (repeatType === "weekly") d.setDate(d.getDate() + n * 7);
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
-          const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
+          const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption: effCaption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
           if (postLabel) srow.label = postLabel;
           if (firstComment) srow.first_comment = firstComment;
           if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }
@@ -6688,9 +6692,9 @@ function PublisherPage() {
         out.push({ account: acc.account_name, success: ok, error: lastErr });
       } else {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption,
+          body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption: effCaption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, slideCaptions: multiCap ? slideCaps : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
         const data = await res.json();
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -6958,7 +6962,7 @@ function PublisherPage() {
                   const isSel = showAlt && isImg && effSlide===m.id;
                   const hasAlt = isImg && (m.alt||"").trim();
                   return (
-                  <div key={m.id} onClick={()=>{ if(showAlt && isImg) setSelectedSlide(m.id); }} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}`, cursor:(showAlt&&isImg)?"pointer":"default", boxShadow:isSel?`0 0 0 2px ${th.accent}`:"none" }}>
+                  <div key={m.id} onClick={()=>{ if((showAlt||multiCap) && isImg) setSelectedSlide(m.id); }} style={{ position:"relative", width:72, height:72, borderRadius:11, overflow:"hidden", background:th.card2, border:`1px solid ${th.border}`, cursor:((showAlt||multiCap)&&isImg)?"pointer":"default", boxShadow:(isSel||(multiCap&&isImg&&effSlide===m.id))?`0 0 0 2px ${th.accent}`:"none" }}>
                     {m.url && isImg && <img src={m.url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>}
                     {m.type==="video" && (m.cover ? <img src={m.cover} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : (m.url ? <video src={m.url + "#t=0.1"} muted playsInline preload="metadata" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : <div style={{ width:"100%", height:"100%", background:th.gradient }}/>))}
                     {m.type==="video" && !m.uploading && <span style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}><Play size={16} color="#fff" style={{ filter:"drop-shadow(0 1px 3px rgba(0,0,0,.65))" }}/></span>}
@@ -6992,6 +6996,29 @@ function PublisherPage() {
                 <button onClick={()=>generateAlt(effSlide)} disabled={altBusy!==null || !images.find(m=>m.id===effSlide)?.url} style={{ position:"absolute", top:8, right:8, display:"flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:"#fff", background:th.accent, border:"none", borderRadius:7, padding:"6px 10px", cursor:"pointer", opacity:altBusy!==null?0.6:1 }}><ScanLine size={11}/>{altBusy===effSlide?L("Reading…","قراءة…"):L("Read the image","اقرأ الصورة")}</button>
               </div>
               <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{igSelected ? L("Helps accessibility and reach. Hidden automatically on Reels and Stories.","يحسّن الوصول والانتشار. يُخفى تلقائياً في الريلز والقصص.") : L("Describe the image for screen readers — better accessibility and reach.","صف الصورة لقارئات الشاشة — وصول وانتشار أفضل.")}</div>
+            </div>
+          )}
+
+          {images.length>1 && (
+            <div style={card}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, gap:8, flexWrap:"wrap" }}>
+                <div style={{ fontSize:12, color:th.text2 }}>{L("Captions","التعليقات")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                  {[[false,L("One for all","واحد للكل")],[true,L("Per slide","لكل شريحة")]].map(([v,l])=>{ const on=multiCap===v; return (
+                    <button key={String(v)} onClick={()=>setMultiCap(v)} style={{ padding:"5px 12px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>
+                  );})}
+                </div>
+              </div>
+              {!multiCap ? (
+                <div style={{ fontSize:10.5, color:th.text3, lineHeight:1.5 }}>{L("One caption shows under every slide. Switch to Per slide to write a different caption for each photo, the new Instagram carousel option.","تعليق واحد يظهر تحت كل شريحة. بدّل إلى لكل شريحة لكتابة تعليق مختلف لكل صورة.")}</div>
+              ) : (<>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:9.5, fontWeight:700, color:th.accent, background:th.accentSoft, borderRadius:5, padding:"2px 7px" }}>{L("SLIDE","شريحة")} <span className="tw-num">{images.findIndex(m=>m.id===effSlide)+1}</span> / <span className="tw-num">{images.length}</span></span>
+                  <span style={{ fontSize:10.5, color:th.text3 }}>{L("Tap a slide above, then write its caption.","اضغط شريحة بالأعلى ثم اكتب تعليقها.")}</span>
+                </div>
+                <textarea value={images.find(m=>m.id===effSlide)?.cap || ""} onChange={e=>setSlideCap(effSlide, e.target.value)} placeholder={L("Caption for this slide…","تعليق هذه الشريحة…")} rows={3} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/>
+                <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("The first slide's caption is used as the post caption. Per slide captions show as viewers swipe (rolling out on Instagram).","تعليق الشريحة الأولى يُستخدم كتعليق المنشور. تظهر تعليقات الشرائح أثناء التمرير.")}</div>
+              </>)}
             </div>
           )}
 

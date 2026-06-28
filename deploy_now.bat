@@ -1,5 +1,5 @@
 @echo off
-cd /d "C:\Users\abdul\OneDrive\Desktop\tawaslo"
+cd /d "C:\dev\tawaslo"
 del /f /q ".git\index.lock" 2>nul
 del /f /q ".git\HEAD.lock" 2>nul
 git add -A
