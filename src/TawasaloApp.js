@@ -3259,7 +3259,7 @@ function AIStudioPage() {
 
   const PLATS = [["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
   const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
-  const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["hashtags",L("Hashtags","الوسوم"),TrendingUp],["images",L("Images","الصور"),Image]];
+  const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["hashtags",L("Hashtags","الوسوم"),TrendingUp],["images",L("Images","الصور"),Image],["graphics",L("Templates","قوالب"),LayoutDashboard]];
   const [imgMode, setImgMode] = useState("generate");   // generate | edit
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgPreset, setImgPreset] = useState("other");
@@ -3387,7 +3387,7 @@ function AIStudioPage() {
         ))}
       </div>
 
-      {tool!=="images" && (<div style={{ ...card, marginBottom:18 }}>
+      {tool!=="images" && tool!=="graphics" && (<div style={{ ...card, marginBottom:18 }}>
         <div style={{ fontSize:12, color:th.text2, marginBottom:7 }}>{tool==="hashtags"?L("What's the post about?","عمّ يدور المنشور؟"):L("Topic / product","الموضوع / المنتج")}</div>
         <textarea value={topic} onChange={e=>setTopic(e.target.value)} placeholder={L("e.g. New weekend brunch menu launch at our Adliya cafe","مثال: إطلاق قائمة برانش جديدة في مقهانا بالعدلية")} rows={2} style={{ ...inp, resize:"vertical", marginBottom:12, lineHeight:1.5 }}/>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
@@ -3427,6 +3427,8 @@ function AIStudioPage() {
           <button onClick={run} disabled={loading||!topic.trim()} style={{ marginLeft: (tool==="captions" && loadVoice(selClient?.id)) ? 0 : "auto", alignSelf:"flex-end", display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(loading||!topic.trim())?0.6:1 }}><Sparkles size={15}/>{loading?L("Generating…","جارٍ التوليد…"):L("Generate","توليد")}</button>
         </div>
       </div>)}
+
+      {tool==="graphics" && <GraphicMakerPage embedded/>}
 
       {tool==="images" && (
         <div style={{ ...card, marginBottom:14 }}>
@@ -9202,6 +9204,128 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function GraphicMakerPage({ embedded }) {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const canvasRef = useRef(null);
+  const [tpl, setTpl] = useState("quote");
+  const [headline, setHeadline] = useState(L("Great food brings people together.","الطعام الجيد يجمع الناس."));
+  const [sub, setSub] = useState(L("Marina Cafe","مارينا كافيه"));
+  const [accent, setAccent] = useState("#4F6B8C");
+  const [bg, setBg] = useState("accent");
+  const [msg, setMsg] = useState("");
+  const brand = selClient?.name || "Your brand";
+  const handle = (selClient?.name || "yourbrand").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+  const TPLS = [["quote",L("Quote","اقتباس")],["announce",L("Announcement","إعلان")],["tip",L("Tip","نصيحة")],["stat",L("Stat","رقم")]];
+  const EYEBROW = { quote:"", announce:L("ANNOUNCEMENT","إعلان"), tip:L("TIP","نصيحة"), stat:L("BY THE NUMBERS","بالأرقام") };
+
+  const wrap = (ctx, text, maxW) => {
+    const words = String(text||"").split(/\s+/); const lines=[]; let line="";
+    for (const w of words) { const t = line ? line+" "+w : w; if (ctx.measureText(t).width > maxW && line) { lines.push(line); line=w; } else line=t; }
+    if (line) lines.push(line); return lines;
+  };
+  const draw = () => {
+    const c = canvasRef.current; if (!c) return; const ctx = c.getContext('2d'); const S=1080; c.width=S; c.height=S;
+    const light = bg==='light';
+    ctx.fillStyle = bg==='accent' ? accent : bg==='dark' ? '#0B1118' : '#F4F1EA'; ctx.fillRect(0,0,S,S);
+    const fg = light ? '#1A1F2B' : '#FFFFFF';
+    const muted = light ? 'rgba(26,31,43,0.55)' : 'rgba(255,255,255,0.72)';
+    if (bg!=='accent') { ctx.fillStyle = accent; ctx.fillRect(90,160,84,10); }
+    ctx.textBaseline = 'alphabetic';
+    const eb = EYEBROW[tpl];
+    if (eb) { ctx.fillStyle = bg==='accent' ? 'rgba(255,255,255,0.8)' : accent; ctx.font='700 30px "Plus Jakarta Sans",sans-serif'; ctx.fillText(eb.split('').join(' '), 90, bg!=='accent'?150:150); }
+    if (tpl==='quote') {
+      ctx.fillStyle = bg==='accent' ? 'rgba(255,255,255,0.35)' : accent; ctx.font='800 180px Georgia,serif'; ctx.fillText('“', 78, 270);
+      ctx.fillStyle = fg; ctx.font='700 70px "Plus Jakarta Sans",sans-serif';
+      const lines = wrap(ctx, headline, S-180); let y=380; lines.slice(0,6).forEach(l=>{ ctx.fillText(l,90,y); y+=88; });
+      ctx.fillStyle = muted; ctx.font='500 38px "Plus Jakarta Sans",sans-serif'; ctx.fillText('— '+(sub||brand), 90, y+20);
+    } else if (tpl==='stat') {
+      ctx.fillStyle = fg; ctx.font='800 240px "Plus Jakarta Sans",sans-serif'; ctx.fillText(String(headline||"").slice(0,6), 84, 520);
+      ctx.fillStyle = muted; ctx.font='600 48px "Plus Jakarta Sans",sans-serif'; const lines=wrap(ctx,sub,S-180); let y=600; lines.slice(0,4).forEach(l=>{ ctx.fillText(l,90,y); y+=62; });
+    } else {
+      ctx.fillStyle = fg; ctx.font='800 76px "Plus Jakarta Sans",sans-serif';
+      const lines = wrap(ctx, headline, S-180); let y= tpl==='announce'?320:320; lines.slice(0,5).forEach(l=>{ ctx.fillText(l,90,y); y+=92; });
+      ctx.fillStyle = muted; ctx.font='500 42px "Plus Jakarta Sans",sans-serif'; const subl=wrap(ctx,sub,S-180); let y2=y+24; subl.slice(0,3).forEach(l=>{ ctx.fillText(l,90,y2); y2+=54; });
+    }
+    ctx.fillStyle = muted; ctx.font='600 32px "Plus Jakarta Sans",sans-serif'; ctx.fillText('@'+handle, 90, S-86);
+    ctx.fillStyle = bg==='accent' ? 'rgba(255,255,255,0.5)' : muted; ctx.font='500 26px "Plus Jakarta Sans",sans-serif'; ctx.textAlign='right'; ctx.fillText(brand, S-90, S-86); ctx.textAlign='left';
+  };
+  useEffect(() => { draw(); /* eslint-disable-next-line */ }, [tpl, headline, sub, accent, bg, selClient]);
+  useEffect(() => { const t=setTimeout(draw, 300); return ()=>clearTimeout(t); /* eslint-disable-next-line */ }, []);
+
+  const download = () => { try { const c=canvasRef.current; const a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='tawaslo-graphic.png'; document.body.appendChild(a); a.click(); a.remove(); } catch(e){} };
+  const useInPost = () => {
+    const c = canvasRef.current; if (!c) return; setMsg("");
+    c.toBlob(async (blob) => {
+      if (!blob) return;
+      try {
+        const { data:{ user } } = await supabase.auth.getUser(); const uid = user?.id || 'anon';
+        const path = `${uid}/graphics/${Date.now()}.png`;
+        const { error } = await supabase.storage.from('media').upload(path, blob, { contentType:'image/png', upsert:true });
+        if (error) throw error;
+        const { data:url } = supabase.storage.from('media').getPublicUrl(path);
+        try { sessionStorage.setItem('tw_studio_media', url.publicUrl); } catch(e){}
+        setPage('publisher');
+      } catch(e) { setMsg(L("Could not add to post — use Download instead.","تعذّرت الإضافة — استخدم التنزيل.")); }
+    }, 'image/png');
+  };
+
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+
+  return (
+    <div style={embedded ? {} : { padding:"28px 32px", maxWidth:980 }}>
+      {!embedded && (<div style={{ marginBottom:18 }}>
+        <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Graphic Maker","صانع الجرافيك")}</h2>
+        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{brand} · {L("on-brand quote and announcement graphics in seconds","جرافيك اقتباسات وإعلانات بهوية علامتك في ثوانٍ")}</p>
+      </div>)}
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 360px", gap:18, alignItems:"start" }}>
+        <div style={{ ...card, padding:"18px 20px" }}>
+          <div style={{ fontSize:11, color:th.text2, marginBottom:8 }}>{L("Template","القالب")}</div>
+          <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:16 }}>
+            {TPLS.map(([k,l])=>{ const on=tpl===k; return (<button key={k} onClick={()=>setTpl(k)} style={{ padding:"8px 14px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:on?600:500, background:on?th.accent:th.card2, border:`1px solid ${on?th.accent:th.border}`, color:on?"#fff":th.text2 }}>{l}</button>);})}
+          </div>
+
+          <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{tpl==='stat'?L("Number","الرقم"):L("Headline","العنوان")}</div>
+          <input value={headline} onChange={e=>setHeadline(e.target.value)} style={{ ...inp, marginBottom:12 }}/>
+          <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{tpl==='quote'?L("Attribution","العزو"):L("Supporting line","سطر داعم")}</div>
+          <input value={sub} onChange={e=>setSub(e.target.value)} style={{ ...inp, marginBottom:16 }}/>
+
+          <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:4 }}>
+            <div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Background","الخلفية")}</div>
+              <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                {[["accent",L("Color","لون")],["dark",L("Dark","داكن")],["light",L("Light","فاتح")]].map(([k,l])=>{ const on=bg===k; return (<button key={k} onClick={()=>setBg(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Brand color","لون العلامة")}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <input type="color" value={accent} onChange={e=>setAccent(e.target.value)} style={{ width:40, height:34, border:`1px solid ${th.border}`, borderRadius:8, background:th.card2, cursor:"pointer" }}/>
+                {WL_PRESETS.slice(0,5).map(ps=>(<button key={ps.name} title={ps.name} onClick={()=>setAccent(ps.accent)} style={{ width:24, height:24, borderRadius:7, background:ps.accent, border:`2px solid ${accent.toLowerCase()===ps.accent.toLowerCase()?th.text:th.border}`, cursor:"pointer" }}/>))}
+              </div>
+            </div>
+          </div>
+
+          {msg && <div style={{ fontSize:11.5, color:th.danger, marginTop:12 }}>{msg}</div>}
+          <div style={{ display:"flex", gap:10, marginTop:18 }}>
+            <button onClick={useInPost} style={{ flex:1, padding:"12px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Image size={15}/>{L("Use in post","استخدم في منشور")}</button>
+            <button onClick={download} style={{ padding:"12px 16px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Download size={15}/>{L("Download","تنزيل")}</button>
+          </div>
+        </div>
+
+        <div style={{ position:"sticky", top:20 }}>
+          <div style={{ fontSize:10.5, color:th.text3, textTransform:"uppercase", letterSpacing:1, textAlign:"center", marginBottom:10 }}>{L("Preview · 1080×1080","معاينة · 1080×1080")}</div>
+          <canvas ref={canvasRef} style={{ width:"100%", maxWidth:360, aspectRatio:"1 / 1", borderRadius:14, border:`1px solid ${th.border}`, display:"block", margin:"0 auto" }}/>
+        </div>
+      </div>
     </div>
   );
 }
