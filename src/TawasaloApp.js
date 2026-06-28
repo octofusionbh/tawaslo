@@ -9219,6 +9219,11 @@ function GraphicMakerPage({ embedded }) {
   const [accent, setAccent] = useState("#4F6B8C");
   const [bg, setBg] = useState("accent");
   const [msg, setMsg] = useState("");
+  const bgRef = useRef(null);
+  const [tick, setTick] = useState(0);
+  const onBgUpload = (file) => { if (!file) return; const r = new FileReader(); r.onload = e => { const im = new window.Image(); im.onload = () => { bgRef.current = im; setBg('photo'); setTick(t=>t+1); }; im.src = e.target.result; }; r.readAsDataURL(file); };
+  // Default the color to the agency's saved brand color (white-label), if any.
+  useEffect(() => { (async () => { try { const { data:{ user } } = await supabase.auth.getUser(); if (!user) return; const { data } = await supabase.from('agency_branding').select('accent').eq('owner_id', user.id).limit(1); const a = data && data[0] && data[0].accent; if (a) setAccent(a); } catch(e){} })(); }, []);
   const brand = selClient?.name || "Your brand";
   const handle = (selClient?.name || "yourbrand").toLowerCase().replace(/[^a-z0-9]/g,"");
 
@@ -9232,11 +9237,21 @@ function GraphicMakerPage({ embedded }) {
   };
   const draw = () => {
     const c = canvasRef.current; if (!c) return; const ctx = c.getContext('2d'); const S=1080; c.width=S; c.height=S;
-    const light = bg==='light';
-    ctx.fillStyle = bg==='accent' ? accent : bg==='dark' ? '#0B1118' : '#F4F1EA'; ctx.fillRect(0,0,S,S);
-    const fg = light ? '#1A1F2B' : '#FFFFFF';
-    const muted = light ? 'rgba(26,31,43,0.55)' : 'rgba(255,255,255,0.72)';
-    if (bg!=='accent') { ctx.fillStyle = accent; ctx.fillRect(90,160,84,10); }
+    let fg, muted;
+    if (bg==='photo' && bgRef.current && bgRef.current.naturalWidth) {
+      const img = bgRef.current; const iw=img.naturalWidth, ih=img.naturalHeight; const sc=Math.max(S/iw, S/ih); const w=iw*sc, h=ih*sc;
+      ctx.drawImage(img, (S-w)/2, (S-h)/2, w, h);
+      const g = ctx.createLinearGradient(0,0,0,S); g.addColorStop(0,'rgba(8,12,18,0.28)'); g.addColorStop(0.55,'rgba(8,12,18,0.55)'); g.addColorStop(1,'rgba(8,12,18,0.82)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,S,S);
+      ctx.fillStyle=accent; ctx.fillRect(90,160,84,10);
+      fg='#FFFFFF'; muted='rgba(255,255,255,0.82)';
+    } else {
+      const light = bg==='light';
+      ctx.fillStyle = bg==='accent' ? accent : bg==='dark' ? '#0B1118' : '#F4F1EA'; ctx.fillRect(0,0,S,S);
+      fg = light ? '#1A1F2B' : '#FFFFFF';
+      muted = light ? 'rgba(26,31,43,0.55)' : 'rgba(255,255,255,0.72)';
+      if (bg!=='accent') { ctx.fillStyle = accent; ctx.fillRect(90,160,84,10); }
+    }
     ctx.textBaseline = 'alphabetic';
     const eb = EYEBROW[tpl];
     if (eb) { ctx.fillStyle = bg==='accent' ? 'rgba(255,255,255,0.8)' : accent; ctx.font='700 30px "Plus Jakarta Sans",sans-serif'; ctx.fillText(eb.split('').join(' '), 90, bg!=='accent'?150:150); }
@@ -9256,7 +9271,7 @@ function GraphicMakerPage({ embedded }) {
     ctx.fillStyle = muted; ctx.font='600 32px "Plus Jakarta Sans",sans-serif'; ctx.fillText('@'+handle, 90, S-86);
     ctx.fillStyle = bg==='accent' ? 'rgba(255,255,255,0.5)' : muted; ctx.font='500 26px "Plus Jakarta Sans",sans-serif'; ctx.textAlign='right'; ctx.fillText(brand, S-90, S-86); ctx.textAlign='left';
   };
-  useEffect(() => { draw(); /* eslint-disable-next-line */ }, [tpl, headline, sub, accent, bg, selClient]);
+  useEffect(() => { draw(); /* eslint-disable-next-line */ }, [tpl, headline, sub, accent, bg, selClient, tick]);
   useEffect(() => { const t=setTimeout(draw, 300); return ()=>clearTimeout(t); /* eslint-disable-next-line */ }, []);
 
   const download = () => { try { const c=canvasRef.current; const a=document.createElement('a'); a.href=c.toDataURL('image/png'); a.download='tawaslo-graphic.png'; document.body.appendChild(a); a.click(); a.remove(); } catch(e){} };
@@ -9302,8 +9317,9 @@ function GraphicMakerPage({ embedded }) {
             <div>
               <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Background","الخلفية")}</div>
               <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
-                {[["accent",L("Color","لون")],["dark",L("Dark","داكن")],["light",L("Light","فاتح")]].map(([k,l])=>{ const on=bg===k; return (<button key={k} onClick={()=>setBg(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
+                {[["accent",L("Color","لون")],["dark",L("Dark","داكن")],["light",L("Light","فاتح")],["photo",L("Photo","صورة")]].map(([k,l])=>{ const on=bg===k; return (<button key={k} onClick={()=>setBg(k)} style={{ padding:"6px 12px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
               </div>
+              {bg==='photo' && (<label style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:9, padding:"7px 12px", borderRadius:8, border:`1px dashed ${th.border}`, fontSize:11.5, color:th.accent, cursor:"pointer", background:th.card2 }}><Plus size={13}/>{bgRef.current?L("Change photo","تغيير الصورة"):L("Upload photo","رفع صورة")}<input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>onBgUpload(e.target.files&&e.target.files[0])}/></label>)}
             </div>
             <div>
               <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Brand color","لون العلامة")}</div>
