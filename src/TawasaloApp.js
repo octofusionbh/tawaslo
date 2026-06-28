@@ -857,6 +857,7 @@ function Sidebar() {
     ]},
     {section:"Account", items:[
       {key:"clients",    Icon:Building2,       label:"Clients",   badge:null},
+      {key:"invoicing",  Icon:FileText,       label:"Invoicing", badge:null},
       {key:"social",     Icon:Link,           label:"Social Accounts", badge:null},
       {key:"agencyteam", Icon:Users,          label:"Team",      badge:null},
       {key:"billing",    Icon:CreditCard,     label:"Billing",   badge:null},
@@ -9194,6 +9195,270 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function InvoicingPage() {
+  const { clients, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uid, setUid] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const blank = { client_id:"", client_name:"", client_email:"", currency:"USD", items:[{desc:"",qty:1,price:0}], tax_pct:0, notes:"", due_date:"", template:"classic", accent:"#4F6B8C" };
+  const [f, setF] = useState(blank);
+
+  useEffect(() => { (async () => {
+    setLoading(true);
+    const { data:{ user } } = await supabase.auth.getUser();
+    setUid(user?.id || null);
+    const { data } = await supabase.from('invoices').select('*').order('created_at', { ascending:false });
+    setRows(data || []); setLoading(false);
+  })(); }, []);
+
+  const money = (n, cur) => { const v = Number(n||0).toLocaleString(undefined,{ minimumFractionDigits:2, maximumFractionDigits:2 }); return (cur||'USD')==='USD' ? '$'+v : v+' '+(cur||''); };
+  const calc = (inv) => { const sub=(inv.items||[]).reduce((s,i)=>s+(Number(i.qty||0)*Number(i.price||0)),0); const tax=sub*(Number(inv.tax_pct||0)/100); return { sub, tax, total:sub+tax }; };
+  const isOverdue = (inv) => inv.status==='sent' && inv.due_date && new Date(inv.due_date) < new Date(new Date().toDateString());
+  const statusOf = (inv) => inv.status==='paid' ? 'paid' : (isOverdue(inv) ? 'overdue' : inv.status);
+  const sMeta = { draft:{l:L("Draft","مسودة"),c:th.text2,bg:th.card2}, sent:{l:L("Sent","مُرسلة"),c:th.info,bg:th.infoSoft}, paid:{l:L("Paid","مدفوعة"),c:th.success,bg:th.successSoft}, overdue:{l:L("Overdue","متأخرة"),c:th.danger,bg:th.dangerSoft} };
+
+  const nextNumber = () => 'INV-' + String(rows.length+1).padStart(4,'0');
+  const setItem = (i,k,v) => setF(s=>({ ...s, items: s.items.map((it,idx)=> idx===i?{...it,[k]:v}:it) }));
+  const addItem = () => setF(s=>({ ...s, items:[...s.items,{desc:"",qty:1,price:0}] }));
+  const rmItem = (i) => setF(s=>({ ...s, items: s.items.filter((_,idx)=>idx!==i) }));
+  const pickClient = (id) => { const c=(clients||[]).find(x=>String(x.id)===String(id)); setF(s=>({ ...s, client_id:id, client_name:c?.name||"", client_email:c?.email||"" })); };
+  const genToken = () => 'inv' + Math.random().toString(36).slice(2,12);
+
+  const save = async () => {
+    if (!uid) return;
+    setSaving(true);
+    const row = { owner_id:uid, client_id:f.client_id||null, client_name:f.client_name||null, client_email:f.client_email||null, number:nextNumber(), currency:f.currency, items:f.items.filter(i=>i.desc||i.price), tax_pct:Number(f.tax_pct)||0, notes:f.notes||null, status:'draft', due_date:f.due_date||null, template:f.template||'classic', accent:f.accent||null };
+    const { data } = await supabase.from('invoices').insert([row]).select();
+    setSaving(false); setOpen(false); setF(blank);
+    if (data && data[0]) setRows(r=>[data[0],...r]);
+  };
+  const markSent = async (inv) => { const token=inv.token||genToken(); await supabase.from('invoices').update({ status:'sent', token }).eq('id',inv.id); setRows(r=>r.map(x=>x.id===inv.id?{...x,status:'sent',token}:x)); };
+  const markPaid = async (inv) => { await supabase.from('invoices').update({ status:'paid' }).eq('id',inv.id); setRows(r=>r.map(x=>x.id===inv.id?{...x,status:'paid'}:x)); };
+  const copyLink = async (inv) => { let t=inv.token; if(!t){ t=genToken(); await supabase.from('invoices').update({ token:t }).eq('id',inv.id); setRows(r=>r.map(x=>x.id===inv.id?{...x,token:t}:x)); } try{ await navigator.clipboard.writeText('tawaslo.com/i/'+t); }catch(e){} };
+  const del = async (inv) => { await supabase.from('invoices').delete().eq('id',inv.id); setRows(r=>r.filter(x=>x.id!==inv.id)); };
+
+  const outstanding = rows.filter(r=>r.status!=='draft' && statusOf(r)!=='paid').reduce((s,r)=>s+calc(r).total,0);
+  const overdueN = rows.filter(r=>statusOf(r)==='overdue').length;
+  const paidN = rows.filter(r=>r.status==='paid').length;
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
+  const ft = calc(f);
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1080 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:20 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Invoicing","الفواتير")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Bill your clients in your brand and track who has paid","افوتر عملاءك بعلامتك وتابع من دفع")}</p>
+        </div>
+        <button onClick={()=>{ setF({ ...blank }); setOpen(true); }} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Plus size={15}/>{L("New invoice","فاتورة جديدة")}</button>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:18 }}>
+        {[[L("Outstanding","مستحق"), money(outstanding,'USD'), DollarSign, th.accent],[L("Overdue","متأخرة"), String(overdueN), Clock, th.danger],[L("Paid","مدفوعة"), String(paidN), CheckCircle, th.success]].map(([lab,val,Ic,c],i)=>(
+          <div key={i} style={{ ...card, padding:18 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}><span style={{ fontSize:11, color:th.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:0.4 }}>{lab}</span><Ic size={15} color={c}/></div>
+            <div className="tw-num" style={{ fontSize:24, fontWeight:600, color:th.text }}>{val}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...card, overflow:"hidden" }}>
+        {loading ? <div style={{ padding:"40px", textAlign:"center", fontSize:13, color:th.text3 }}>{L("Loading…","جارٍ…")}</div>
+        : rows.length===0 ? <div style={{ padding:"48px 24px", textAlign:"center" }}><div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><FileText size={24} color={th.accent}/></div><div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("No invoices yet","لا فواتير بعد")}</div><div style={{ fontSize:12.5, color:th.text2 }}>{L("Create your first branded invoice for a client.","أنشئ أول فاتورة بعلامتك لعميل.")}</div></div>
+        : (
+          <div style={{ overflowX:"auto" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"110px 1fr 110px 110px 100px 150px", gap:10, padding:"11px 18px", borderBottom:`1px solid ${th.border}`, fontSize:10.5, color:th.text2, fontWeight:700, textTransform:"uppercase", letterSpacing:0.4 }}>
+              <span>{L("Number","الرقم")}</span><span>{L("Client","العميل")}</span><span>{L("Total","الإجمالي")}</span><span>{L("Due","الاستحقاق")}</span><span>{L("Status","الحالة")}</span><span style={{textAlign:"right"}}>{L("Actions","إجراءات")}</span>
+            </div>
+            {rows.map((inv,i)=>{ const st=sMeta[statusOf(inv)]||sMeta.draft; const t=calc(inv); return (
+              <div key={inv.id} style={{ display:"grid", gridTemplateColumns:"110px 1fr 110px 110px 100px 150px", gap:10, padding:"13px 18px", borderTop:i?`1px solid ${th.border}`:"none", alignItems:"center", fontSize:12.5 }}>
+                <span className="tw-num" style={{ fontWeight:600 }}>{inv.number}</span>
+                <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{inv.client_name||"—"}</span>
+                <span className="tw-num" style={{ fontWeight:600 }}>{money(t.total, inv.currency)}</span>
+                <span style={{ color:th.text2, fontSize:11.5 }}>{inv.due_date||"—"}</span>
+                <span><span style={{ fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:999, background:st.bg, color:st.c }}>{st.l}</span></span>
+                <span style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                  {inv.status!=='paid' && <button onClick={()=>markPaid(inv)} title={L("Mark paid","تعليم كمدفوعة")} style={{ width:28, height:28, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.success, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><CheckCircle size={13}/></button>}
+                  {inv.status==='draft' && <button onClick={()=>markSent(inv)} title={L("Mark sent","تعليم كمُرسلة")} style={{ width:28, height:28, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><SendIcon size={13}/></button>}
+                  <button onClick={()=>copyLink(inv)} title={L("Copy client link","نسخ رابط العميل")} style={{ width:28, height:28, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Copy size={13}/></button>
+                  <button onClick={()=>del(inv)} title={L("Delete","حذف")} style={{ width:28, height:28, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.danger, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Trash2 size={13}/></button>
+                </span>
+              </div>
+            );})}
+          </div>
+        )}
+      </div>
+
+      {open && createPortal((
+        <div onClick={()=>setOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:9998, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"40px 16px", overflowY:"auto" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:580, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
+              <span style={{ fontSize:17, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}><FileText size={18} color={th.accent}/>{L("New invoice","فاتورة جديدة")} <span className="tw-num" style={{ fontSize:12, color:th.text3 }}>{nextNumber()}</span></span>
+              <XCircle size={20} onClick={()=>setOpen(false)} style={{ color:th.text2, cursor:"pointer" }}/>
+            </div>
+            <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 220px" }}><div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Client","العميل")}</div>
+                <select value={f.client_id} onChange={e=>pickClient(e.target.value)} style={{ ...inp, cursor:"pointer" }}><option value="">{L("Select a client","اختر عميلاً")}</option>{(clients||[]).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select>
+              </div>
+              <div style={{ width:120 }}><div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Currency","العملة")}</div>
+                <select value={f.currency} onChange={e=>setF(s=>({...s,currency:e.target.value}))} style={{ ...inp, cursor:"pointer" }}>{["USD","BHD","SAR","AED","KWD","QAR","OMR","EUR","GBP"].map(c=><option key={c} value={c}>{c}</option>)}</select>
+              </div>
+              <div style={{ width:140 }}><div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Due date","تاريخ الاستحقاق")}</div><input type="date" value={f.due_date} onChange={e=>setF(s=>({...s,due_date:e.target.value}))} style={inp}/></div>
+            </div>
+
+            <div style={{ fontSize:11, color:th.text2, marginBottom:7 }}>{L("Line items","البنود")}</div>
+            {f.items.map((it,i)=>(
+              <div key={i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"center" }}>
+                <input value={it.desc} onChange={e=>setItem(i,'desc',e.target.value)} placeholder={L("Description","الوصف")} style={{ ...inp, flex:1 }}/>
+                <input type="number" min="1" value={it.qty} onChange={e=>setItem(i,'qty',e.target.value)} title={L("Qty","الكمية")} style={{ ...inp, width:60, textAlign:"center" }}/>
+                <input type="number" min="0" value={it.price} onChange={e=>setItem(i,'price',e.target.value)} title={L("Price","السعر")} style={{ ...inp, width:90, textAlign:"right" }}/>
+                <button onClick={()=>rmItem(i)} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text3, cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={14}/></button>
+              </div>
+            ))}
+            <button onClick={addItem} style={{ display:"inline-flex", alignItems:"center", gap:5, background:"none", border:`1px dashed ${th.border}`, color:th.text2, fontSize:11.5, padding:"7px 12px", borderRadius:9, cursor:"pointer", marginBottom:14 }}><Plus size={13}/>{L("Add line","إضافة بند")}</button>
+
+            <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap", alignItems:"flex-end" }}>
+              <div style={{ width:110 }}><div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Tax %","ضريبة %")}</div><input type="number" min="0" value={f.tax_pct} onChange={e=>setF(s=>({...s,tax_pct:e.target.value}))} style={inp}/></div>
+              <div style={{ flex:1, textAlign:isAR?"left":"right", fontSize:12.5, color:th.text2 }}>{L("Subtotal","المجموع")} <span className="tw-num" style={{ color:th.text }}>{money(ft.sub,f.currency)}</span>{ft.tax>0 && <> · {L("Tax","ضريبة")} <span className="tw-num">{money(ft.tax,f.currency)}</span></>}<div style={{ fontSize:16, fontWeight:700, color:th.text, marginTop:3 }}>{L("Total","الإجمالي")} <span className="tw-num" style={{ color:th.accent }}>{money(ft.total,f.currency)}</span></div></div>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:8 }}>{L("Template","القالب")}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+                {[["classic",L("Classic","كلاسيكي")],["minimal",L("Minimal","بسيط")],["accent",L("Accent","ملوّن")],["elegant",L("Elegant","أنيق")]].map(([tpl,lbl])=>{ const on=f.template===tpl; const A=f.accent||"#4F6B8C"; return (
+                  <div key={tpl} onClick={()=>setF(s=>({...s,template:tpl}))} style={{ cursor:"pointer" }}>
+                    <div style={{ aspectRatio:"1 / 1.414", background:"#fff", borderRadius:7, overflow:"hidden", border:`2px solid ${on?th.accent:th.border}` }}>
+                      {tpl==="classic" && <><div style={{height:"6%",background:A}}/><div style={{padding:"9%"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"9%"}}><div style={{width:"34%",height:5,background:"#222",borderRadius:2}}/><div style={{width:"26%",height:6,background:A,borderRadius:2}}/></div><div style={{height:4,width:"55%",background:"#E7E9EE",borderRadius:2,marginBottom:"4%"}}/><div style={{height:4,width:"40%",background:"#E7E9EE",borderRadius:2,marginBottom:"11%"}}/><div style={{border:"1px solid #ECEEF2",borderRadius:4,padding:"7%"}}><div style={{display:"flex",justifyContent:"space-between"}}><div style={{width:"50%",height:4,background:"#E7E9EE",borderRadius:2}}/><div style={{width:"22%",height:5,background:A,borderRadius:2}}/></div></div></div></>}
+                      {tpl==="minimal" && <div style={{padding:"10% 9%"}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"9%"}}><div style={{width:"34%",height:5,background:"#111",borderRadius:2}}/><div style={{width:"24%",height:4,background:"#999",borderRadius:2}}/></div><div style={{height:1,background:"#111",marginBottom:"10%"}}/><div style={{height:4,width:"50%",background:"#EEE",borderRadius:2,marginBottom:"4%"}}/><div style={{height:4,width:"36%",background:"#EEE",borderRadius:2,marginBottom:"13%"}}/><div style={{display:"flex",justifyContent:"space-between",borderTop:"1px solid #EEE",paddingTop:"7%"}}><div style={{width:"30%",height:4,background:"#EEE",borderRadius:2}}/><div style={{width:"26%",height:5,background:"#111",borderRadius:2}}/></div></div>}
+                      {tpl==="accent" && <><div style={{background:A,padding:"7% 9%",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{width:"34%",height:5,background:"rgba(255,255,255,0.85)",borderRadius:2}}/><div style={{width:"26%",height:5,background:"#fff",borderRadius:2}}/></div><div style={{padding:"9%"}}><div style={{height:4,width:"55%",background:"#E7E9EE",borderRadius:2,marginBottom:"4%"}}/><div style={{height:4,width:"40%",background:"#E7E9EE",borderRadius:2,marginBottom:"11%"}}/><div style={{background:A+"22",borderRadius:4,padding:"7%"}}><div style={{display:"flex",justifyContent:"space-between"}}><div style={{width:"45%",height:4,background:"#cfd3da",borderRadius:2}}/><div style={{width:"24%",height:5,background:A,borderRadius:2}}/></div></div></div></>}
+                      {tpl==="elegant" && <div style={{padding:"11% 9%",textAlign:"center"}}><div style={{height:6,width:"50%",background:"#222",borderRadius:2,margin:"0 auto 6%"}}/><div style={{height:3,width:"30%",background:A,borderRadius:2,margin:"0 auto 9%"}}/><div style={{height:1,background:"#E3D9C5",marginBottom:"10%"}}/><div style={{height:4,width:"46%",background:"#EFEAE0",borderRadius:2,margin:"0 auto 4%"}}/><div style={{height:4,width:"32%",background:"#EFEAE0",borderRadius:2,margin:"0 auto 13%"}}/><div style={{height:5,width:"40%",background:"#222",borderRadius:2,margin:"0 auto"}}/></div>}
+                    </div>
+                    <div style={{ textAlign:"center", fontSize:10.5, color:on?th.accent:th.text2, fontWeight:on?600:400, marginTop:5 }}>{lbl}</div>
+                  </div>
+                );})}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:11, color:th.text2, marginBottom:8 }}>{L("Invoice color","لون الفاتورة")}</div>
+              <div style={{ display:"flex", alignItems:"center", gap:9, flexWrap:"wrap" }}>
+                <input type="color" value={f.accent||"#4F6B8C"} onChange={e=>setF(s=>({...s,accent:e.target.value}))} style={{ width:42, height:34, border:`1px solid ${th.border}`, borderRadius:8, background:th.card2, cursor:"pointer" }}/>
+                {WL_PRESETS.map(ps=>(<button key={ps.name} title={ps.name} onClick={()=>setF(s=>({...s,accent:ps.accent}))} style={{ width:26, height:26, borderRadius:7, background:ps.accent, border:`2px solid ${(f.accent||"").toLowerCase()===ps.accent.toLowerCase()?th.text:th.border}`, cursor:"pointer" }}/>))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:16 }}><div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Notes (optional)","ملاحظات (اختياري)")}</div><textarea value={f.notes} onChange={e=>setF(s=>({...s,notes:e.target.value}))} rows={2} placeholder={L("Payment terms, bank details, thank you note…","شروط الدفع، تفاصيل الحساب، شكر…")} style={{ ...inp, resize:"vertical", lineHeight:1.5 }}/></div>
+
+            <button onClick={save} disabled={saving||!f.client_name} style={{ width:"100%", padding:"13px", borderRadius:12, background:(saving||!f.client_name)?th.card2:th.gradient, border:"none", color:(saving||!f.client_name)?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(saving||!f.client_name)?"not-allowed":"pointer" }}>{saving?L("Saving…","جارٍ…"):L("Save invoice","حفظ الفاتورة")}</button>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
+
+function InvoiceView({ token }) {
+  const [inv, setInv] = useState(undefined);
+  const [brand, setBrand] = useState(null);
+  useEffect(() => { let on=true; (async () => {
+    try {
+      const { data } = await supabase.rpc('invoice_by_token', { p_token: token });
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!on) return;
+      if (!row) { setInv(null); return; }
+      setInv(row);
+      if (row.owner_id) { try { const { data:b } = await supabase.from('agency_branding').select('*').eq('owner_id', row.owner_id).limit(1); const br=b&&b[0]; if (br && br.enabled) setBrand(br); } catch(e){} }
+    } catch(e) { if (on) setInv(null); }
+  })(); return ()=>{ on=false; }; }, [token]);
+
+  const ACC = (inv && inv.accent) || (brand && brand.accent) || "#4F6B8C";
+  const bName = (brand && brand.brand_name) || "Tawaslo";
+  const wrap = { minHeight:"100vh", background:"#F4F5F7", color:"#1A1F2B", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"40px 16px", boxSizing:"border-box" };
+  if (inv === undefined) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ color:"#8A93A3", fontSize:13 }}>Loading…</div></div>;
+  if (inv === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>This invoice isn't available</div></div></div>;
+  const sub = (inv.items||[]).reduce((s,i)=>s+(Number(i.qty||0)*Number(i.price||0)),0);
+  const tax = sub*(Number(inv.tax_pct||0)/100); const total = sub+tax;
+  const money = (n) => { const v=Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}); return (inv.currency||'USD')==='USD'?'$'+v:v+' '+(inv.currency||''); };
+  const paid = inv.status==='paid';
+  const tpl = inv.template || 'classic';
+  const logo = brand && brand.logo_url ? <img src={brand.logo_url} alt="" style={{ height:38, objectFit:"contain" }}/> : <span style={{ width:38, height:38, borderRadius:10, background:ACC, color:"#fff", fontSize:16, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center" }}>{bName[0]}</span>;
+  return (
+    <div style={wrap}>
+      <div style={{ maxWidth:680, margin:"0 auto", background:"#fff", borderRadius:16, boxShadow:"0 10px 40px rgba(20,30,50,0.10)", overflow:"hidden" }}>
+        {tpl==="classic" && <div style={{ height:6, background:ACC }}/>}
+        {tpl==="accent" && (
+          <div style={{ background:ACC, padding:"22px 32px", display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:11 }}>{logo}<span style={{ fontSize:18, fontWeight:700, color:"#fff" }}>{bName}</span></div>
+            <div style={{ fontSize:22, fontWeight:800, letterSpacing:"-0.5px", color:"#fff" }}>INVOICE</div>
+          </div>
+        )}
+        <div style={{ padding:"28px 32px" }}>
+          {tpl==="elegant" ? (
+            <div style={{ textAlign:"center", marginBottom:22 }}>
+              {brand && brand.logo_url && <img src={brand.logo_url} alt="" style={{ height:36, objectFit:"contain", marginBottom:8 }}/>}
+              <div style={{ fontFamily:"Georgia,'Times New Roman',serif", fontSize:20, fontWeight:600, letterSpacing:"1px", color:"#1A1F2B" }}>{bName}</div>
+              <div style={{ fontFamily:"Georgia,serif", fontSize:11, letterSpacing:"4px", color:ACC, marginTop:4 }}>I N V O I C E</div>
+              <div className="tw-num" style={{ fontSize:12, color:"#6B7280", marginTop:4 }}>{inv.number}</div>
+              <div style={{ height:1, background:"#E3D9C5", marginTop:18 }}/>
+            </div>
+          ) : tpl==="accent" ? (
+            <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:18 }}><div className="tw-num" style={{ fontSize:13, color:"#6B7280" }}>{inv.number}</div></div>
+          ) : tpl==="minimal" ? (
+            <>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                <span style={{ fontSize:18, fontWeight:700, color:"#111" }}>{bName}</span>
+                <div style={{ textAlign:"right" }}><div style={{ fontSize:13, letterSpacing:"3px", color:"#888" }}>INVOICE</div><div className="tw-num" style={{ fontSize:12, color:"#6B7280", marginTop:2 }}>{inv.number}</div></div>
+              </div>
+              <div style={{ height:1, background:"#111", marginBottom:22 }}/>
+            </>
+          ) : (
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:26, flexWrap:"wrap", gap:14 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:11 }}>{logo}<span style={{ fontSize:18, fontWeight:700 }}>{bName}</span></div>
+              <div style={{ textAlign:"right" }}><div style={{ fontSize:22, fontWeight:800, letterSpacing:"-0.5px", color:ACC }}>INVOICE</div><div className="tw-num" style={{ fontSize:13, color:"#6B7280", marginTop:2 }}>{inv.number}</div></div>
+            </div>
+          )}
+
+          <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:16, marginBottom:24, fontSize:12.5 }}>
+            <div><div style={{ color:"#9AA3B2", fontSize:11, marginBottom:4 }}>BILL TO</div><div style={{ fontWeight:600 }}>{inv.client_name||"—"}</div>{inv.client_email && <div style={{ color:"#6B7280" }}>{inv.client_email}</div>}</div>
+            <div style={{ textAlign:"right" }}>
+              <div><span style={{ color:"#9AA3B2" }}>Issued </span><span className="tw-num">{inv.issued_date||""}</span></div>
+              {inv.due_date && <div><span style={{ color:"#9AA3B2" }}>Due </span><span className="tw-num">{inv.due_date}</span></div>}
+              <div style={{ marginTop:6 }}><span style={{ fontSize:11, fontWeight:700, padding:"3px 11px", borderRadius:999, background: paid?"#E7F6EE":"#FBEEDC", color: paid?"#1E8E5A":"#9A6A18" }}>{paid?"PAID":(inv.status==='sent'?"DUE":"DRAFT")}</span></div>
+            </div>
+          </div>
+
+          <div style={{ border:"1px solid #ECEEF2", borderRadius:12, overflow:"hidden", marginBottom:18 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 60px 110px", gap:8, padding:"10px 14px", background:"#F7F8FA", fontSize:10.5, color:"#8A93A3", fontWeight:700, textTransform:"uppercase", letterSpacing:0.4 }}><span>Description</span><span style={{textAlign:"center"}}>Qty</span><span style={{textAlign:"right"}}>Amount</span></div>
+            {(inv.items||[]).map((it,i)=>(
+              <div key={i} style={{ display:"grid", gridTemplateColumns:"1fr 60px 110px", gap:8, padding:"11px 14px", borderTop:"1px solid #F0F1F4", fontSize:12.5, alignItems:"center" }}><span>{it.desc||"—"}</span><span className="tw-num" style={{ textAlign:"center", color:"#6B7280" }}>{it.qty}</span><span className="tw-num" style={{ textAlign:"right", fontWeight:600 }}>{money(Number(it.qty||0)*Number(it.price||0))}</span></div>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:18 }}>
+            <div style={{ width:240, fontSize:12.5 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", color:"#6B7280" }}><span>Subtotal</span><span className="tw-num">{money(sub)}</span></div>
+              {tax>0 && <div style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", color:"#6B7280" }}><span>Tax ({inv.tax_pct}%)</span><span className="tw-num">{money(tax)}</span></div>}
+              <div style={{ display:"flex", justifyContent:"space-between", padding:"9px 0 0", borderTop:"1px solid #ECEEF2", marginTop:5, fontSize:16, fontWeight:800 }}><span>Total</span><span className="tw-num" style={{ color:ACC }}>{money(total)}</span></div>
+            </div>
+          </div>
+
+          {inv.notes && <div style={{ background:"#F7F8FA", borderRadius:10, padding:"12px 14px", fontSize:12, color:"#5B6573", lineHeight:1.6, marginBottom:18, whiteSpace:"pre-wrap" }}>{inv.notes}</div>}
+
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", borderTop:"1px solid #ECEEF2", paddingTop:14, flexWrap:"wrap", gap:10 }}>
+            <div style={{ fontSize:10.5, color:"#9AA3B2" }}>{(brand && brand.footer_text) || (brand ? ("Powered by "+bName) : "Powered by Tawaslo")}{(brand && brand.contact) ? " · "+brand.contact : ""}</div>
+            <button onClick={()=>window.print()} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 16px", borderRadius:10, background:ACC, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Download size={14}/>Download / Print</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -17640,6 +17905,7 @@ export default function TawasloApp() {
     if (page==="analytics") return <AnalyticsPage/>;
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
+    if (page==="invoicing") return <InvoicingPage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
@@ -17662,6 +17928,10 @@ export default function TawasloApp() {
   // Public shareable engagement report (tawaslo.com/r/<token>) — no login.
   const repMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/r\/([A-Za-z0-9_-]+)/);
   if (repMatch) return <ClientReportPage token={repMatch[1]}/>;
+
+  // Public invoice link (tawaslo.com/i/<token>) — no login, client views and prints.
+  const invMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/i\/([A-Za-z0-9_-]+)/);
+  if (invMatch) return <InvoiceView token={invMatch[1]}/>;
 
   // Public link-in-bio page (tawaslo.com/bio/<slug>) — no login.
   const bioMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/bio\/([A-Za-z0-9_-]+)/);
