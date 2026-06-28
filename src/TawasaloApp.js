@@ -10321,6 +10321,9 @@ function ReportsPage() {
   const [aiErr, setAiErr] = useState("");
   const [opens, setOpens] = useState([]);
   const [wlBrand, setWlBrand] = useState(null);
+  const [aRep, setARep] = useState(false);
+  const [aEmail, setAEmail] = useState("");
+  const [aSaved, setASaved] = useState(false);
 
   // White-label: load this agency's branding so exported / shared reports wear their brand.
   useEffect(() => {
@@ -10611,6 +10614,23 @@ ${topPosts.length > 0 ? `<div class="page">
     setAiBusy(false);
   };
 
+  useEffect(() => {
+    setASaved(false);
+    if (rClient === "all") { setARep(false); setAEmail(""); return; }
+    let on = true;
+    (async () => {
+      try {
+        const { data } = await supabase.from('clients').select('auto_report,report_email').eq('id', rClient).limit(1);
+        const row = data && data[0];
+        if (on) { setARep(!!(row && row.auto_report)); setAEmail((row && row.report_email) || ""); }
+      } catch (e) { if (on) { setARep(false); setAEmail(""); } }
+    })();
+    return () => { on = false; };
+  }, [rClient]);
+  const saveAutoReport = async (next, email) => {
+    try { await supabase.from('clients').update({ auto_report: next, report_email: (email != null ? email : aEmail) || null }).eq('id', rClient); setASaved(true); setTimeout(() => setASaved(false), 1800); } catch (e) { /* column may not exist yet */ }
+  };
+
   return (
     <div style={{padding:"26px 30px", maxWidth:1060}}>
       <div style={{marginBottom:18}}>
@@ -10635,6 +10655,28 @@ ${topPosts.length > 0 ? `<div class="page">
           </select>
         </div>
       </div>
+
+      {rClient!=="all" && (
+        <div style={{...rcard, padding:"16px 18px", marginBottom:16}}>
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap"}}>
+            <div style={{display:"flex", alignItems:"center", gap:10}}>
+              <div style={{width:34, height:34, borderRadius:10, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center"}}><Send size={15} color={th.accent}/></div>
+              <div>
+                <div style={{fontSize:13.5, fontWeight:700}}>{L("Email this report automatically","أرسل هذا التقرير تلقائياً")}</div>
+                <div style={{fontSize:11.5, color:th.text2}}>{L("Sent to the client on the 1st of every month, on your brand.","يُرسل للعميل في أول كل شهر بهوية علامتك.")}</div>
+              </div>
+            </div>
+            <span onClick={()=>{ const n=!aRep; setARep(n); saveAutoReport(n); }} style={{ width:46, height:26, borderRadius:999, background:aRep?th.success:th.card2, border:`1px solid ${aRep?th.success:th.border}`, position:"relative", cursor:"pointer", flexShrink:0 }}><span style={{ position:"absolute", top:2, [aRep?"right":"left"]:2, width:20, height:20, borderRadius:"50%", background:"#fff", transition:"all .15s" }}/></span>
+          </div>
+          {aRep && (
+            <div style={{display:"flex", gap:8, marginTop:13, flexWrap:"wrap", alignItems:"center"}}>
+              <input value={aEmail} onChange={e=>setAEmail(e.target.value)} onBlur={()=>saveAutoReport(true)} placeholder={L("client@email.com","client@email.com")} style={{ flex:"1 1 240px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
+              <button onClick={()=>saveAutoReport(true)} style={{ padding:"9px 16px", borderRadius:9, background:th.accent, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{aSaved?L("Saved ✓","حُفظ ✓"):L("Save","حفظ")}</button>
+              {!aEmail && <span style={{fontSize:11, color:th.text3, width:"100%"}}>{L("Add the client's email to start sending.","أضف بريد العميل لبدء الإرسال.")}</span>}
+            </div>
+          )}
+        </div>
+      )}
 
       {opens.length>0 && (() => { const rows = rClient==="all" ? opens : opens.filter(o=>String(o.client_id)===String(rClient)); if (!rows.length) return null; return (
         <div style={{...rcard, padding:"15px 18px", marginBottom:16}}>
