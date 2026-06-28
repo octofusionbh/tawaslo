@@ -394,8 +394,18 @@ export default async function handler(req, res) {
       }
       const topHashtags = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]);
       const avgEngagement = n ? Math.round((likes + comments) / n) : null;
+      // Top posts (for the Steal-This digest): caption, engagement, image and link.
+      const topPosts = arr.slice(0, 12).map(p => {
+        const a = p.node || p.aweme_info || p;
+        const cap = (a.caption && a.caption.text) || a.desc || (a.edge_media_to_caption && a.edge_media_to_caption.edges?.[0]?.node?.text) || "";
+        const lk = a.like_count || (a.statistics && a.statistics.digg_count) || (a.edge_liked_by && a.edge_liked_by.count) || 0;
+        const cm = a.comment_count || (a.statistics && a.statistics.comment_count) || 0;
+        const img = a.display_url || a.thumbnail_url || (a.image_versions2 && a.image_versions2.candidates && a.image_versions2.candidates[0] && a.image_versions2.candidates[0].url) || (a.video && a.video.cover) || a.cover || a.thumbnail || null;
+        const url = a.permalink || a.share_url || (a.code ? ("https://instagram.com/p/" + a.code) : null);
+        return { caption: cap, likes: lk, comments: cm, eng: lk + cm, thumbnail: img, url };
+      }).sort((x, y) => y.eng - x.eng).slice(0, 6);
       res.setHeader("Cache-Control", "s-maxage=86400, stale-while-revalidate=86400");
-      return res.status(200).json({ ok: !!(followers || postCount || n), handle, platform: plat, followers, postCount, avgEngagement, sampleSize: n, topHashtags });
+      return res.status(200).json({ ok: !!(followers || postCount || n), handle, platform: plat, followers, postCount, avgEngagement, sampleSize: n, topHashtags, topPosts });
     } catch (e) {
       return res.status(200).json({ ok: false, error: e.message });
     }

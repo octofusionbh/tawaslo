@@ -838,6 +838,7 @@ function Sidebar() {
       {key:"aistudio",  Icon:Wand2,           label:"AI Studio", badge:null},
       {key:"reelstudio",Icon:Play,            label:"Reel Studio", badge:null},
       {key:"competitor",Icon:Search,          label:"Competitor Spy", badge:null},
+      {key:"stealthis", Icon:Sparkles,        label:"Steal This", badge:null},
       {key:"prospect",  Icon:Target,          label:"Win Clients", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
@@ -3266,6 +3267,8 @@ function AIStudioPage() {
   const [images, setImages] = useState([]);
   const [imgLoading, setImgLoading] = useState(false);
   const [imgErr, setImgErr] = useState("");
+  // Steal This handoff: land on the Images tool with the idea prefilled as the prompt.
+  useEffect(() => { try { const p = sessionStorage.getItem('tw_studio_imgprompt'); if (p) { setTool('images'); setImgPrompt(p); sessionStorage.removeItem('tw_studio_imgprompt'); } } catch(e){} }, []);
   const [payOpen, setPayOpen] = useState(false);
   const [, setCreditTick] = useState(0);   // forces a re-read after a generate / purchase
   const [justBought, setJustBought] = useState("");
@@ -9199,6 +9202,87 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function CompetitorDigestPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [handles, setHandles] = useState("");
+  const [platform, setPlatform] = useState("instagram");
+  const [busy, setBusy] = useState(false);
+  const [items, setItems] = useState(null);
+
+  const run = async () => {
+    const list = handles.split(',').map(h=>h.replace(/^@/,'').trim()).filter(Boolean).slice(0,5);
+    if (!list.length || busy) return;
+    setBusy(true); setItems(null); const all = [];
+    for (const h of list) {
+      try { const s = await fetch(`/api/trends?mode=competitor&handle=${encodeURIComponent(h)}&platform=${platform}`).then(r=>r.json()); if (s && Array.isArray(s.topPosts)) all.push(...s.topPosts.map(p=>({ ...p, handle:h }))); } catch(e){}
+    }
+    all.sort((a,b)=>(b.eng||0)-(a.eng||0));
+    setItems(all);
+    setBusy(false);
+  };
+  const steal = (p) => {
+    const cap = String(p.caption||'').slice(0,200);
+    try { if (cap) { sessionStorage.setItem('tw_studio_aitopic', cap); sessionStorage.setItem('tw_studio_imgprompt', 'On-brand social media photo, no text overlay: ' + cap); } } catch(e){}
+    setPage('aistudio');   // make the matching image first, then "Use in post" carries it to the Publisher where the caption auto-drafts
+  };
+  const fmt = (n) => n==null?"—":(n>=1000?(Math.round(n/100)/10)+"k":String(n));
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const top = (items||[]).slice(0,9);
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1000 }}>
+      <div style={{ marginBottom:18 }}>
+        <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Steal This","اسرق الفكرة")}</h2>
+        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Your competitors' best performing posts, ranked, so you can adapt what works","أفضل منشورات منافسيك مرتّبة لتقتبس ما ينجح")}</p>
+      </div>
+
+      <div style={{ ...card, padding:16, marginBottom:18 }}>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+          <div style={{ flex:"1 1 280px", display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"3px 12px" }}>
+            <Search size={15} color={th.text3}/>
+            <input value={handles} onChange={e=>setHandles(e.target.value)} onKeyDown={e=>e.key==='Enter'&&run()} placeholder={L("competitor handles, comma separated","حسابات المنافسين، مفصولة بفواصل")} style={{ flex:1, background:"transparent", border:"none", padding:"10px 4px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
+          </div>
+          <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3 }}>
+            {[["instagram","Instagram"],["tiktok","TikTok"]].map(([k,l])=>{ const on=platform===k; return (<button key={k} onClick={()=>setPlatform(k)} style={{ padding:"7px 13px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
+          </div>
+          <button onClick={run} disabled={busy||!handles.trim()} style={{ padding:"11px 18px", borderRadius:10, background:(busy||!handles.trim())?th.card2:th.gradient, border:"none", color:(busy||!handles.trim())?th.text3:"#fff", fontSize:12.5, fontWeight:600, cursor:(busy||!handles.trim())?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:7 }}><Sparkles size={14}/>{busy?L("Building…","يُجهّز…"):L("Build digest","ابنِ الملخص")}</button>
+        </div>
+        <div style={{ fontSize:10.5, color:th.text3, marginTop:8 }}>{L("Up to 5 competitors. We rank their recent posts by likes and comments.","حتى 5 منافسين. نرتّب منشوراتهم الأخيرة حسب الإعجابات والتعليقات.")}</div>
+      </div>
+
+      {busy ? (
+        <div style={{ ...card, padding:"40px", textAlign:"center", fontSize:13, color:th.text3 }}>{L("Scanning competitors…","يفحص المنافسين…")}</div>
+      ) : items===null ? (
+        <div style={{ ...card, padding:"48px 24px", textAlign:"center" }}><div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><Search size={24} color={th.accent}/></div><div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("Add competitors to start","أضف منافسين للبدء")}</div><div style={{ fontSize:12.5, color:th.text2, maxWidth:420, margin:"0 auto", lineHeight:1.6 }}>{L("Enter a few competitor handles and we will pull their top posts so you can adapt the ideas that are working.","أدخل بعض حسابات المنافسين وسنحضر أفضل منشوراتهم لتقتبس الأفكار الناجحة.")}</div></div>
+      ) : top.length===0 ? (
+        <div style={{ ...card, padding:"44px 24px", textAlign:"center" }}><div style={{ fontSize:14, fontWeight:600, marginBottom:6 }}>{L("No posts found","لم نجد منشورات")}</div><div style={{ fontSize:12.5, color:th.text2 }}>{L("Check the handles and try again. Public Instagram or TikTok accounts work best.","تحقق من الحسابات وحاول مجدداً. تعمل الحسابات العامة بشكل أفضل.")}</div></div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+          {top.map((p,i)=>(
+            <div key={i} style={{ ...card, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+              <div style={{ height:150, background: p.thumbnail?`center/cover url(${p.thumbnail})`:th.card2, position:"relative" }}>
+                <span style={{ position:"absolute", top:8, left:8, fontSize:10.5, fontWeight:600, color:"#fff", background:"rgba(0,0,0,0.55)", borderRadius:7, padding:"3px 9px" }}>@{p.handle}</span>
+                {i<3 && <span style={{ position:"absolute", top:8, right:8, fontSize:10, fontWeight:700, color:"#fff", background:th.accent, borderRadius:7, padding:"3px 8px" }}>{i===0?L("Top","الأعلى"):"#"+(i+1)}</span>}
+              </div>
+              <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", flex:1 }}>
+                <div style={{ fontSize:12, color:th.text2, lineHeight:1.5, marginBottom:9, maxHeight:54, overflow:"hidden" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:12, fontSize:11, color:th.text3, marginBottom:11 }}>
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={12}/><span className="tw-num">{fmt(p.likes)}</span></span>
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={12}/><span className="tw-num">{fmt(p.comments)}</span></span>
+                  {p.url && <a href={p.url} target="_blank" rel="noreferrer" style={{ marginLeft:"auto", color:th.text3, display:"flex" }} title={L("View original","عرض الأصل")}><ArrowUpRight size={14}/></a>}
+                </div>
+                <button onClick={()=>steal(p)} style={{ marginTop:"auto", width:"100%", padding:"9px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Sparkles size={13}/>{L("Steal the idea","اسرق الفكرة")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -18146,6 +18230,7 @@ export default function TawasloApp() {
     if (page==="whatsapp") return <WhatsAppPage/>;
     if (page==="reelstudio") return <ReelStudioPage/>;
     if (page==="competitor") return <CompetitorSpyPage/>;
+    if (page==="stealthis") return <CompetitorDigestPage/>;
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return <CalendarPage/>;
     if (page==="approvals") return <ApprovalsPage/>;
