@@ -824,6 +824,7 @@ function Sidebar() {
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
       {key:"planner",   Icon:Calendar,        label:"Planner",   badge:null},
+      {key:"recycle",   Icon:RefreshCw,       label:"Recycler",  badge:null},
       {key:"autopilot", Icon:Wand2,           label:"Campaign Autopilot", badge:null},
       {key:"approvals", Icon:Shield,          label:"Approvals", badge:null},
       {key:"calendar",  Icon:CalendarCheck,   label:"Calendar",  badge:null},
@@ -9198,6 +9199,81 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function ContentRecyclerPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [accounts, setAccounts] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [scanned, setScanned] = useState(false);
+
+  useEffect(() => { if (!selClient?.name) return; supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); }); }, [selClient]);
+  useEffect(() => { if (!realClientId) return; supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false).then(({ data }) => { if (data) { setAccounts(data); load(data); } }); }, [realClientId]);
+
+  const load = async (accs) => {
+    const ig = (accs || accounts).find(a => a.platform === 'ig');
+    if (!ig) { setScanned(true); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: ig.account_id, accessToken: ig.access_token }) });
+      const d = await res.json();
+      const rp = (d && d.recentPosts) || [];
+      setPosts([...rp].map(p=>({ ...p, eng:(p.likes||0)+(p.comments||0) })).sort((a,b)=>b.eng-a.eng));
+    } catch(e){}
+    setScanned(true); setLoading(false);
+  };
+  const recycle = (p) => { try { if (p.thumbnail) sessionStorage.setItem('tw_studio_media', p.thumbnail); if (p.caption) sessionStorage.setItem('tw_studio_caption', p.caption); } catch(e){} setPage('publisher'); };
+  const ago = (ts) => { if (!ts) return ''; const days = Math.floor((Date.now()-new Date(ts).getTime())/86400000); if (!isFinite(days)) return ''; return days<=0 ? L('today','اليوم') : days<30 ? days+L('d ago',' يوم') : Math.floor(days/30)+L('mo ago',' شهر'); };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const igAccts = accounts.filter(a=>a.platform==='ig');
+  const top = posts.slice(0,9);
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:1000 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:20 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Content Recycler","إعادة تدوير المحتوى")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("your best posts, ready to run again","أفضل منشوراتك، جاهزة للنشر من جديد")}</p>
+        </div>
+        <button onClick={()=>load(accounts)} disabled={loading} style={{ padding:"9px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}><RefreshCw size={14}/>{loading?L("Loading…","جارٍ…"):L("Refresh","تحديث")}</button>
+      </div>
+
+      {igAccts.length===0 ? (
+        <div style={{ ...card, padding:"48px 24px", textAlign:"center" }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><RefreshCw size={24} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("Connect Instagram to recycle","اربط إنستغرام لإعادة التدوير")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:420, margin:"0 auto" }}>{L("The recycler ranks this brand's past posts by engagement so you can run the winners again. Connect an Instagram account to begin.","يرتّب أداة إعادة التدوير منشورات هذه العلامة حسب التفاعل لتعيد نشر الأفضل. اربط إنستغرام للبدء.")} <span onClick={()=>setPage('social')} style={{ color:th.accent, cursor:"pointer", fontWeight:600 }}>{L("Connect accounts","ربط الحسابات")}</span></div>
+        </div>
+      ) : loading ? (
+        <div style={{ ...card, padding:"40px", textAlign:"center", fontSize:13, color:th.text3 }}>{L("Finding your best posts…","نبحث عن أفضل منشوراتك…")}</div>
+      ) : top.length===0 ? (
+        <div style={{ ...card, padding:"44px 24px", textAlign:"center" }}><div style={{ fontSize:14, fontWeight:600, marginBottom:6 }}>{scanned?L("No posts to recycle yet","لا منشورات لإعادة تدويرها بعد"):L("Refresh to load","حدّث للتحميل")}</div><div style={{ fontSize:12.5, color:th.text2 }}>{L("Once this brand has published posts, the best performers show up here.","بمجرد نشر هذه العلامة لمنشورات، يظهر الأفضل أداءً هنا.")}</div></div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+          {top.map((p,i)=>(
+            <div key={i} style={{ ...card, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+              <div style={{ height:150, background: p.thumbnail?`center/cover url(${p.thumbnail})`:th.card2, position:"relative" }}>
+                {i<3 && <span style={{ position:"absolute", top:8, left:8, fontSize:10, fontWeight:700, color:"#fff", background:th.accent, borderRadius:7, padding:"3px 8px" }}>{i===0?L("Top performer","الأفضل أداءً"):"#"+(i+1)}</span>}
+              </div>
+              <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", flex:1 }}>
+                <div style={{ fontSize:12, color:th.text2, lineHeight:1.5, marginBottom:9, maxHeight:54, overflow:"hidden" }}>{p.caption || L("(no caption)","(بدون نص)")}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:12, fontSize:11, color:th.text3, marginBottom:11 }}>
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><Heart size={12}/><span className="tw-num">{(p.likes||0).toLocaleString()}</span></span>
+                  <span style={{ display:"inline-flex", alignItems:"center", gap:4 }}><MessageCircle size={12}/><span className="tw-num">{(p.comments||0).toLocaleString()}</span></span>
+                  {ago(p.timestamp||p.time) && <span style={{ marginLeft:"auto" }}>{ago(p.timestamp||p.time)}</span>}
+                </div>
+                <button onClick={()=>recycle(p)} style={{ marginTop:"auto", width:"100%", padding:"9px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><RefreshCw size={13}/>{L("Recycle this","أعد تدويره")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -18084,6 +18160,7 @@ export default function TawasloApp() {
     if (page==="invoicing") return <InvoicingPage/>;
     if (page==="crisis") return <CrisisRadarPage/>;
     if (page==="besttime") return <BestTimePage/>;
+    if (page==="recycle") return <ContentRecyclerPage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
