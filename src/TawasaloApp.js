@@ -851,6 +851,7 @@ function Sidebar() {
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
+      {key:"crisis",    Icon:AlertTriangle,   label:"Crisis Radar", badge:null},
       {key:"ads",       Icon:DollarSign,      label:"Ads",       badge:null},
       {key:"reports",   Icon:PieChart,        label:"Reports",   badge:null},
       {key:"shortlinks",Icon:Link,            label:"Links",     badge:null},
@@ -9195,6 +9196,104 @@ function AdsPage() {
       )}
 
       {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+    </div>
+  );
+}
+
+function CrisisRadarPage() {
+  const { selClient, dark, lang, setPage } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [accounts, setAccounts] = useState([]);
+  const [realClientId, setRealClientId] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [sensitivity, setSensitivity] = useState(() => { try { return localStorage.getItem('tw_crisis_sens') || 'normal'; } catch(e){ return 'normal'; } });
+  const setSens = (v) => { setSensitivity(v); try { localStorage.setItem('tw_crisis_sens', v); } catch(e){} };
+
+  const NEG = ['bad','worst','terrible','awful','poor','slow','disappointed','hate','rude','broken','late','problem','issue','refund','wrong','angry','scam','disgusting','avoid','dirty','overpriced','😡','👎','😠','🤬'];
+  const isNeg = (t) => { const s=' '+String(t||'').toLowerCase()+' '; let n=0; NEG.forEach(w=>{ if(s.includes(w)) n++; }); if(/(سيء|سيئ|مشكلة|بطيء|وقح|زفت|مزعج|رفض|خداع|غاضب|وسخ|غالي)/.test(t||'')) n++; return n>0; };
+
+  useEffect(() => { if (!selClient?.name) return; supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); }); }, [selClient]);
+  useEffect(() => { if (!realClientId) return; supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false).then(({ data }) => { if (data) { setAccounts(data); scan(data); } }); }, [realClientId]);
+
+  const scan = async (accs) => {
+    const list = (accs || accounts).filter(a => a.platform === 'ig');
+    if (!list.length) { setScanned(true); return; }
+    setLoading(true); const all = [];
+    for (const acc of list) { for (const type of ['comments','messages']) {
+      try { const res = await fetch('/api/instagram-inbox', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId:acc.account_id, accessToken:acc.access_token, type }) }); const d = await res.json(); if (d.data) all.push(...d.data.map(m=>({ ...m, accountName:acc.account_name }))); } catch(e){}
+    } }
+    all.sort((a,b)=> new Date(b.time) - new Date(a.time));
+    setMsgs(all); setScanned(true); setLoading(false);
+  };
+
+  const within = (m,h) => { const t=new Date(m.time).getTime(); return isFinite(t) && (Date.now()-t) <= h*3600000; };
+  const negs = msgs.filter(m => isNeg(m.text));
+  const neg24 = negs.filter(m => within(m,24)).length;
+  const total = msgs.length;
+  const rate = total ? Math.round(negs.length/total*100) : 0;
+  const thresh = sensitivity==='high' ? {alert:2,watch:1} : sensitivity==='low' ? {alert:5,watch:3} : {alert:3,watch:1};
+  const level = (neg24>=thresh.alert || (rate>=40 && negs.length>=3)) ? 'alert' : (neg24>=thresh.watch || rate>=20) ? 'watch' : 'calm';
+  const lvl = { calm:{c:th.success,bg:th.successSoft,Icon:CheckCircle,t:L("All calm","كل شيء هادئ"),d:L("No negative spike detected across recent comments and messages.","لا ارتفاع في السلبية عبر التعليقات والرسائل الأخيرة.")},
+    watch:{c:th.warning,bg:th.warningSoft,Icon:Eye,t:L("Worth a look","يستحق المتابعة"),d:L("Some negative feedback is coming in. Keep an eye on it.","تصل بعض الملاحظات السلبية. راقبها.")},
+    alert:{c:th.danger,bg:th.dangerSoft,Icon:AlertTriangle,t:L("Negativity spike","ارتفاع في السلبية"),d:L("Several negative messages just landed. Respond quickly to get ahead of it.","وصلت عدة رسائل سلبية. رد بسرعة لتسبق المشكلة.")} }[level];
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const igAccts = accounts.filter(a=>a.platform==='ig');
+
+  return (
+    <div style={{ padding:"28px 32px", maxWidth:980 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:20 }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Crisis Radar","رادار الأزمات")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("watches comments and messages for a negativity spike","يراقب التعليقات والرسائل لرصد ارتفاع السلبية")}</p>
+        </div>
+        <div style={{ display:"flex", gap:9, alignItems:"center" }}>
+          <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+            {[["low",L("Low","منخفض")],["normal",L("Normal","عادي")],["high",L("High","عالٍ")]].map(([v,l])=>(<button key={v} onClick={()=>setSens(v)} title={L("Sensitivity","الحساسية")} style={{ padding:"6px 11px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11, fontWeight:600, background:sensitivity===v?th.accent:"transparent", color:sensitivity===v?"#fff":th.text2 }}>{l}</button>))}
+          </div>
+          <button onClick={()=>scan(accounts)} disabled={loading} style={{ padding:"9px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}><RefreshCw size={14}/>{loading?L("Scanning…","يفحص…"):L("Rescan","إعادة فحص")}</button>
+        </div>
+      </div>
+
+      {igAccts.length===0 ? (
+        <div style={{ ...card, padding:"48px 24px", textAlign:"center" }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><AlertTriangle size={24} color={th.accent}/></div>
+          <div style={{ fontSize:15, fontWeight:600, marginBottom:6 }}>{L("Connect Instagram to watch","اربط إنستغرام للمراقبة")}</div>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:420, margin:"0 auto" }}>{L("Crisis Radar reads this brand's comments and messages. Connect an Instagram account to start watching.","يقرأ رادار الأزمات تعليقات ورسائل هذه العلامة. اربط حساب إنستغرام لبدء المراقبة.")} <span onClick={()=>setPage('social')} style={{ color:th.accent, cursor:"pointer", fontWeight:600 }}>{L("Connect accounts","ربط الحسابات")}</span></div>
+        </div>
+      ) : (<>
+        <div style={{ display:"flex", alignItems:"center", gap:16, background:lvl.bg, border:`1px solid ${lvl.c}44`, borderRadius:18, padding:"20px 22px", marginBottom:18 }}>
+          <div style={{ width:54, height:54, borderRadius:15, background:lvl.c+"22", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><lvl.Icon size={26} color={lvl.c}/></div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:17, fontWeight:700, color:lvl.c }}>{lvl.t}</div>
+            <div style={{ fontSize:12.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{loading ? L("Scanning recent activity…","يفحص النشاط الأخير…") : lvl.d}</div>
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14, marginBottom:18 }}>
+          {[[L("Negative · 24h","سلبي · 24س"), String(neg24), th.danger],[L("Negative rate","نسبة السلبية"), rate+"%", rate>=30?th.danger:rate>=15?th.warning:th.success],[L("Scanned","تم فحصه"), String(total), th.accent]].map(([lab,val,c],i)=>(
+            <div key={i} style={{ ...card, padding:18 }}><div style={{ fontSize:11, color:th.text2, fontWeight:600, textTransform:"uppercase", letterSpacing:0.4, marginBottom:8 }}>{lab}</div><div className="tw-num" style={{ fontSize:24, fontWeight:600, color:c }}>{val}</div></div>
+          ))}
+        </div>
+
+        <div style={{ ...card, overflow:"hidden" }}>
+          <div style={{ padding:"14px 18px", borderBottom:`1px solid ${th.border}`, fontSize:13, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}><AlertTriangle size={15} color={th.danger}/>{L("Negative messages","الرسائل السلبية")} {negs.length>0 && <span className="tw-num" style={{ fontSize:11, color:th.text3 }}>({negs.length})</span>}</div>
+          {loading ? <div style={{ padding:"36px", textAlign:"center", fontSize:13, color:th.text3 }}>{L("Scanning…","يفحص…")}</div>
+          : negs.length===0 ? <div style={{ padding:"40px 24px", textAlign:"center" }}><CheckCircle size={26} color={th.success} style={{ marginBottom:10 }}/><div style={{ fontSize:13.5, fontWeight:600 }}>{scanned?L("Nothing negative right now","لا شيء سلبي الآن"):L("Run a scan to check","شغّل فحصاً للتحقق")}</div><div style={{ fontSize:12, color:th.text2, marginTop:4 }}>{L("We will keep watching every time you open this.","سنواصل المراقبة كلما فتحت هذه الصفحة.")}</div></div>
+          : negs.slice(0,30).map((m,i)=>(
+            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:12, padding:"13px 18px", borderTop:i?`1px solid ${th.border}`:"none" }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:th.danger, marginTop:6, flexShrink:0 }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12.5, color:th.text, lineHeight:1.5 }}>{m.text}</div>
+                <div style={{ fontSize:10.5, color:th.text3, marginTop:3 }}>{m.from?('@'+m.from):''}{m.from?' · ':''}{m.type==='dm'?L("DM","رسالة"):L("Comment","تعليق")}{m.accountName?' · '+m.accountName:''}</div>
+              </div>
+              <button onClick={()=>setPage('inbox')} style={{ fontSize:11, color:th.accent, background:th.accentSoft, border:"none", borderRadius:8, padding:"6px 12px", cursor:"pointer", flexShrink:0 }}>{L("Reply","رد")}</button>
+            </div>
+          ))}
+        </div>
+      </>)}
     </div>
   );
 }
@@ -17906,6 +18005,7 @@ export default function TawasloApp() {
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return <ReportsPage/>;
     if (page==="invoicing") return <InvoicingPage/>;
+    if (page==="crisis") return <CrisisRadarPage/>;
     if (page==="inbox") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return <TeamPage/>;
