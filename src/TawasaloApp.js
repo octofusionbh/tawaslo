@@ -8135,6 +8135,14 @@ function TrendingPage() {
 
   const fmt = (n) => n>=1000000 ? (n/1000000).toFixed(1)+"M" : n>=1000 ? (n/1000).toFixed(1)+"K" : String(n||0);
 
+  // Trending hashtags — pulled from the posts on screen, ranked by real engagement (likes + views)
+  // of the posts each tag appears in, so the top tags are the ones actually driving reach.
+  const shownPosts = sampleMode ? sampleShown : items;
+  const tagEng = {};
+  shownPosts.forEach(it => { const eng = (it.likes||0) + (it.views||0); let m; try { m = (it.caption||"").match(/#[\p{L}0-9_]+/gu) || []; } catch(e) { m = (it.caption||"").match(/#[A-Za-z0-9_]+/g) || []; } m.forEach(t => { const k = t.toLowerCase(); tagEng[k] = (tagEng[k]||0) + eng; }); });
+  const trendTags = Object.entries(tagEng).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const sendTagsToLab = (tags) => { try { sessionStorage.setItem('tw_htlab_draft', tags.join(' ')); } catch(e){} setPage('htlab'); };
+
   return (
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
@@ -8166,6 +8174,21 @@ function TrendingPage() {
           <button key={id} onClick={()=>setPlatform(id)} style={{fontSize:11.5,borderRadius:999,border:`1px solid ${platform===id?"transparent":th.border}`,background:platform===id?th.gradient:th.card,color:platform===id?"#fff":th.text2,padding:"6px 14px",cursor:"pointer",fontWeight:platform===id?600:400}}>{lbl}</button>
         ))}
       </div>
+
+      {trendTags.length>0 && (
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:"14px 16px", marginBottom:16 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, marginBottom:11, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:13, fontWeight:600 }}><TrendingUp size={15} color={th.accent}/>{L("Trending hashtags","الوسوم الرائجة")} <span style={{ fontSize:11, fontWeight:400, color:th.text3 }}>{L("· ranked by engagement","· مرتبة حسب التفاعل")}</span></div>
+            <button onClick={()=>sendTagsToLab(trendTags.map(([t])=>t))} style={{ display:"flex", alignItems:"center", gap:6, padding:"7px 13px", borderRadius:9, background:th.accent, border:"none", color:"#fff", fontSize:11.5, fontWeight:600, cursor:"pointer" }}><Plus size={13}/>{L("Add all to Hashtag Lab","أضف الكل إلى مختبر الوسوم")}</button>
+          </div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+            {trendTags.map(([t,eng])=>(
+              <button key={t} onClick={()=>sendTagsToLab([t])} title={fmt(eng)+L(" engagement"," تفاعل")} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 11px", borderRadius:8, background:th.accentSoft, border:`1px solid ${th.border}`, color:th.text, fontSize:12, cursor:"pointer" }}>{t}<span className="tw-num" style={{ fontSize:10, color:th.text3 }}>{fmt(eng)}</span></button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {sampleMode && (
         <div style={{marginBottom:14,padding:"10px 14px",borderRadius:10,background:th.accentSoft,border:`1px solid ${th.accent}55`,fontSize:12,color:th.accent,display:"flex",alignItems:"center",gap:8}}>
           <Eye size={13}/> {isAR ? <>عرض <strong>اتجاهات تجريبية</strong> للمعاينة. تُحمّل اتجاهات TikTok وInstagram الحيّة تلقائياً عند توفّر حصة مصدر البيانات.</> : <>Showing <strong>sample trends</strong> for preview. Live TikTok &amp; Instagram trends load automatically when the data source has quota.</>}
@@ -8916,7 +8939,15 @@ function AdsPage() {
   const [bDays, setBDays] = useState(5);
   const [boosting, setBoosting] = useState(false);
   const [boostRes, setBoostRes] = useState(null);
-  const PLATS = [['meta','Meta', true], ['tiktok','TikTok', false], ['google','Google', false]];
+  const [netObjective, setNetObjective] = useState('REACH');
+  const [gAdType, setGAdType] = useState('search');
+  const [gHeadline, setGHeadline] = useState('');
+  const [gDesc, setGDesc] = useState('');
+  const [gUrl, setGUrl] = useState('');
+  const [netSaved, setNetSaved] = useState(false);
+  const PLATS = [['meta','Meta', true], ['tiktok','TikTok', true], ['google','Google', true]];
+  const TT_OBJ = [['REACH',L('Reach','الوصول')],['VIDEO_VIEWS',L('Video views','مشاهدات الفيديو')],['TRAFFIC',L('Traffic','الزيارات')],['ENGAGEMENT',L('Engagement','التفاعل')],['LEADS',L('Lead generation','جمع العملاء')],['CONVERSIONS',L('Conversions','التحويلات')]];
+  const G_OBJ = [['SEARCH',L('Search ads','إعلانات البحث')],['PMAX',L('Performance Max','بيرفورمانس ماكس')],['DISPLAY',L('Display','الشبكة الإعلانية')],['YOUTUBE',L('YouTube video','فيديو يوتيوب')],['LOCAL',L('Local / Maps','محلي / الخرائط')]];
   const GOALS = [['AUTO','Automatic'],['MESSAGES','More messages'],['ENGAGEMENT','More engagement'],['TRAFFIC','More website visits'],['LEADS','More leads'],['CALLS','More calls']];
   const CTAS = ['Book now','Shop now','Learn more','Send message','Call now','Sign up'];
   const PLACE = ['Facebook feed','Instagram feed','Reels','Stories','Messenger'];
@@ -8959,6 +8990,15 @@ function AdsPage() {
       setBoostRes(await res.json());
     } catch (e) { setBoostRes({ error: e.message }); }
     setBoosting(false);
+  };
+
+  useEffect(() => { setNetObjective(platform==='google' ? 'SEARCH' : 'REACH'); }, [platform]);
+  const netName = platform==='tiktok' ? 'TikTok' : 'Google';
+  const ttReach = Math.round(totalSpend / 6 * 1000);
+  const gClicks = Math.round(totalSpend / 0.9);
+  const saveNetDraft = () => {
+    try { const k = 'tw_addrafts_' + (selClient?.id || 'x'); const arr = JSON.parse(localStorage.getItem(k) || '[]'); arr.unshift({ network:platform, objective:netObjective, budgetType, budget:bBudget, days:bDays, gender, age:bAge, locs:locs.map(l=>l.label), gAdType, gHeadline, gDesc, gUrl, postId:(pick&&pick.id)||null, at:Date.now() }); localStorage.setItem(k, JSON.stringify(arr.slice(0,50))); } catch(e){}
+    setNetSaved(true); setTimeout(()=>setNetSaved(false), 2600);
   };
 
   useEffect(() => {
@@ -9016,7 +9056,7 @@ function AdsPage() {
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:16 }}>
         <div>
           <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Ads","الإعلانات")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("Meta — Facebook & Instagram","ميتا — فيسبوك وإنستغرام")}</p>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {platform==='meta' ? L("Meta — Facebook & Instagram","ميتا — فيسبوك وإنستغرام") : platform==='tiktok' ? L("TikTok Ads","إعلانات تيك توك") : L("Google Ads","إعلانات جوجل")}</p>
         </div>
         <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
           {PLATS.map(([id,label,live]) => { const on = platform===id; return (
@@ -9027,13 +9067,15 @@ function AdsPage() {
         </div>
       </div>
 
+      {platform==='meta' && (
       <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:4, marginBottom:22, width:"fit-content", maxWidth:"100%", flexWrap:"wrap" }}>
         {[['perf',L('Performance','الأداء'),BarChart2],['boost',L('Boost a post','تعزيز منشور'),Megaphone],['campaigns',L('Campaigns','الحملات'),Target]].map(([k,lbl,Ic]) => { const on=tab===k; return (
           <button key={k} onClick={()=>setTab(k)} style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:9, border:"none", cursor:"pointer", fontSize:12.5, fontWeight:600, background:on?th.gradient:"transparent", color:on?"#fff":th.text2 }}><Ic size={14}/>{lbl}</button>
         );})}
       </div>
+      )}
 
-      {tab==='perf' && (<>
+      {platform==='meta' && tab==='perf' && (<>
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
         <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"9px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
           <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
@@ -9093,7 +9135,7 @@ function AdsPage() {
 
       </>)}
 
-      {tab==='boost' && (
+      {platform==='meta' && tab==='boost' && (
         accounts.find(a=>a.platform==='fb') ? (
         <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"minmax(0,1fr) 290px", gap:18, alignItems:"start" }}>
           <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:"20px 22px" }}>
@@ -9205,7 +9247,110 @@ function AdsPage() {
         )
       )}
 
-      {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+      {platform==='meta' && tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
+
+      {platform!=='meta' && (
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"minmax(0,1fr) 290px", gap:18, alignItems:"start" }}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:"20px 22px" }}>
+            <div style={{ fontSize:11.5, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}44`, borderRadius:10, padding:"8px 12px", marginBottom:18 }}>{L(`Design mode — set up your ${netName} campaign now. It launches the moment your ${netName} ads access is approved. Spend is billed by ${netName} to the client's own ad account.`, `وضع التصميم — جهّز حملة ${netName} الآن. تُطلق فور اعتماد صلاحية إعلانات ${netName}. تُحتسب التكلفة من ${netName} على حساب العميل الإعلاني.`)}</div>
+
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Objective","الهدف")}</div>
+            <select value={netObjective} onChange={e=>setNetObjective(e.target.value)} style={selSt}>{(platform==='tiktok'?TT_OBJ:G_OBJ).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+
+            {platform==='tiktok' ? (<>
+              <div style={{ fontSize:11, color:th.text2, margin:"16px 0 6px" }}>{L("Pick a video / post","اختر فيديو / منشوراً")}</div>
+              {recent.length===0 ? <div style={{ fontSize:12, color:th.text3 }}>{L("No recent posts to promote. Publish first, then promote here.","لا منشورات حديثة. انشر أولاً ثم روّج هنا.")}</div> : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+                  {recent.map(p=>{ const on=pick&&pick.id===p.id; return (
+                    <div key={p.id} onClick={()=>setPick(p)} title={p.caption||""} style={{ cursor:"pointer", borderRadius:9, overflow:"hidden", border:`2px solid ${on?th.accent:th.border}`, aspectRatio:"1", background:`center/cover url(${p.image_url})`, position:"relative" }}>{on&&<span style={{ position:"absolute", top:3, right:3, background:th.accent, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={10} color="#fff"/></span>}</div>
+                  );})}
+                </div>
+              )}
+            </>) : (<>
+              <div style={{ fontSize:11, color:th.text2, margin:"16px 0 6px" }}>{L("Ad copy","نص الإعلان")}</div>
+              <input value={gHeadline} onChange={e=>setGHeadline(e.target.value)} maxLength={30} placeholder={L("Headline (max 30)","العنوان (30 حرفاً)")} style={{...inpSt, width:"100%", marginBottom:8}}/>
+              <input value={gDesc} onChange={e=>setGDesc(e.target.value)} maxLength={90} placeholder={L("Description (max 90)","الوصف (90 حرفاً)")} style={{...inpSt, width:"100%", marginBottom:8}}/>
+              <input value={gUrl} onChange={e=>setGUrl(e.target.value)} placeholder={L("Final URL — https://…","الرابط النهائي — https://…")} style={{...inpSt, width:"100%"}}/>
+            </>)}
+
+            <div style={{ fontSize:12.5, fontWeight:700, color:th.text, margin:"20px 0 12px", paddingTop:16, borderTop:`1px solid ${th.border}` }}>{L("Audience","الجمهور")}</div>
+            <div style={{ display:"flex", gap:14, marginBottom:14, flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Gender","الجنس")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                  {[["all",L("All","الكل")],["male",L("Men","رجال")],["female",L("Women","نساء")]].map(([v,l])=>(<button key={v} onClick={()=>setGender(v)} style={segBtn(gender===v)}>{l}</button>))}
+                </div>
+              </div>
+              <div style={{ width:160 }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Age","العمر")}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <input type="number" min="13" max="65" value={bAge[0]} onChange={e=>setBAge([Math.max(13,Math.min(65,+e.target.value||18)),bAge[1]])} style={{...inpSt, width:64, textAlign:"center"}}/>
+                  <span style={{ color:th.text3 }}>–</span>
+                  <input type="number" min="13" max="65" value={bAge[1]} onChange={e=>setBAge([bAge[0],Math.max(13,Math.min(65,+e.target.value||65))])} style={{...inpSt, width:64, textAlign:"center"}}/>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Locations","المواقع")}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"8px 11px" }}>
+              <Search size={15} color={th.text3}/>
+              <input value={locQuery} onChange={e=>setLocQuery(e.target.value)} placeholder={L("Add countries, regions or cities…","أضف دولاً أو مدناً…")} style={{ flex:1, background:"transparent", border:"none", outline:"none", color:th.text, fontSize:12.5, fontFamily:"inherit" }}/>
+            </div>
+            {locResults.length>0 && (
+              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, marginTop:6, overflow:"hidden" }}>
+                {locResults.map(r=>(<div key={r.id} onClick={()=>addLoc(r)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 11px", cursor:"pointer", fontSize:12, color:th.text, borderTop:`1px solid ${th.border}` }}><span><Globe size={12} color={th.accent} style={{verticalAlign:-2, marginRight:6}}/>{r.label}</span><span style={{ fontSize:10.5, color:th.text3 }}>{r.sub}</span></div>))}
+              </div>
+            )}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+              {locs.map(l=>(<span key={l.id} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.accentSoft, color:th.accent, borderRadius:999, padding:"4px 10px", fontSize:11 }}>{l.label}<XCircle size={12} onClick={()=>removeLoc(l.id)} style={{cursor:"pointer"}}/></span>))}
+              {locs.length===0 && <span style={{ fontSize:11, color:th.text3 }}>{L("Add at least one location.","أضف موقعاً واحداً على الأقل.")}</span>}
+            </div>
+
+            <div style={{ display:"flex", gap:14, margin:"20px 0 0", paddingTop:16, borderTop:`1px solid ${th.border}`, flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Schedule","الجدولة")}</div>
+                <input type="number" min="1" value={bDays} onChange={e=>setBDays(Math.max(1,+e.target.value||1))} style={{...inpSt, width:"100%"}} placeholder={L("Days","الأيام")}/>
+              </div>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Budget","الميزانية")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:8 }}>
+                  {[["daily",L("Daily","يومي")],["total",L("Total","إجمالي")]].map(([v,l])=>(<button key={v} onClick={()=>setBudgetType(v)} style={segBtn(budgetType===v)}>{l}</button>))}
+                </div>
+                <input type="number" min="1" value={bBudget} onChange={e=>setBBudget(Math.max(1,+e.target.value||1))} style={{...inpSt, width:"100%"}} placeholder={L("Amount (USD)","المبلغ (دولار)")}/>
+              </div>
+            </div>
+
+            <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", margin:"16px 0", fontSize:12.5, color:th.text2 }}>
+              {L("Total spend","إجمالي الإنفاق")}: <span className="tw-num" style={{ color:th.text, fontWeight:700 }}>${totalSpend.toFixed(2)}</span><span style={{ margin:"0 8px", color:th.text3 }}>·</span>{platform==='tiktok' ? <>{L("Est. reach","الوصول المتوقع")}: <span className="tw-num" style={{ color:th.accent, fontWeight:700 }}>{Math.round(ttReach*0.8).toLocaleString()}–{Math.round(ttReach*1.3).toLocaleString()}</span></> : <>{L("Est. clicks","النقرات المتوقعة")}: <span className="tw-num" style={{ color:th.accent, fontWeight:700 }}>{Math.round(gClicks*0.8).toLocaleString()}–{Math.round(gClicks*1.3).toLocaleString()}</span></>}
+            </div>
+
+            {netSaved && <div style={{ background:th.successSoft, border:`1px solid ${th.success}44`, color:th.success, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12.5 }}>{L(`Saved as a ${netName} draft. It launches automatically once ${netName} ads access is approved.`, `حُفظت كمسودة ${netName}. تُطلق تلقائياً بعد اعتماد صلاحية إعلانات ${netName}.`)}</div>}
+
+            <button onClick={saveNetDraft} disabled={!locs.length || (platform==='google' && !gHeadline.trim()) || (platform==='tiktok' && !pick)} style={{ width:"100%", padding:"13px", borderRadius:12, background:(!locs.length||(platform==='google'&&!gHeadline.trim())||(platform==='tiktok'&&!pick))?th.card2:th.gradient, border:"none", color:(!locs.length||(platform==='google'&&!gHeadline.trim())||(platform==='tiktok'&&!pick))?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Megaphone size={15}/>{L("Save campaign draft","حفظ مسودة الحملة")}</button>
+          </div>
+
+          <div style={{ position:"sticky", top:20, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:16 }}>
+            <div style={{ fontSize:10.5, color:th.text3, textTransform:"uppercase", letterSpacing:1, textAlign:"center", marginBottom:10 }}>{L("Preview","معاينة")}</div>
+            {platform==='tiktok' ? (
+              <div style={{ borderRadius:14, overflow:"hidden", border:`1px solid ${th.border}`, aspectRatio:"9/16", background: pick&&pick.image_url ? `center/cover url(${pick.image_url})` : th.gradient, position:"relative" }}>
+                <div style={{ position:"absolute", left:0, right:0, bottom:0, padding:"12px 12px 14px", background:"linear-gradient(transparent, rgba(0,0,0,0.7))" }}>
+                  <div style={{ fontSize:11.5, fontWeight:700, color:"#fff", marginBottom:4 }}>@{(selClient?.name||"yourbrand").toLowerCase().replace(/\s+/g,'')}</div>
+                  <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.9)", lineHeight:1.4, maxHeight:42, overflow:"hidden", marginBottom:8 }}>{(pick&&pick.caption)||L("Your promoted video","الفيديو المروّج")}</div>
+                  <div style={{ fontSize:10.5, color:"#000", background:"#fff", borderRadius:7, padding:"6px 0", textAlign:"center", fontWeight:700 }}>{L("Learn more","اعرف المزيد")}</div>
+                </div>
+                <span style={{ position:"absolute", top:8, left:8, fontSize:9, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.5)", borderRadius:6, padding:"3px 7px" }}>{L("Sponsored","مموّل")}</span>
+              </div>
+            ) : (
+              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:13 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:7 }}><span style={{ fontSize:9, fontWeight:700, color:th.text, border:`1px solid ${th.text3}`, borderRadius:4, padding:"1px 5px" }}>{L("Ad","إعلان")}</span><span style={{ fontSize:10.5, color:th.success }}>{(gUrl||"https://yourbrand.com").replace(/^https?:\/\//,'').slice(0,34)}</span></div>
+                <div style={{ fontSize:14, color:"#1a73e8", fontWeight:600, lineHeight:1.3, marginBottom:5 }}>{gHeadline||L("Your headline shows here","عنوانك يظهر هنا")}</div>
+                <div style={{ fontSize:11.5, color:th.text2, lineHeight:1.5 }}>{gDesc||L("Your description text appears here, telling customers why to click.","يظهر وصفك هنا ليخبر العملاء لماذا ينقرون.")}</div>
+              </div>
+            )}
+            <div style={{ fontSize:10, color:th.text3, textAlign:"center", marginTop:10, lineHeight:1.5 }}>{platform==='tiktok' ? L("Shown in the TikTok feed. Billed by TikTok to the client's ad account.","يظهر في خلاصة تيك توك. تُحتسب التكلفة من تيك توك على حساب العميل.") : L("Shown on Google Search & partners. Billed by Google to the client's ad account.","يظهر على بحث جوجل وشركائه. تُحتسب التكلفة من جوجل على حساب العميل.")}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -9523,6 +9668,7 @@ function HashtagLabPage() {
   const [editId, setEditId] = useState(null);
 
   useEffect(() => { try { const v = localStorage.getItem(KEY); setSets(v ? JSON.parse(v) : []); } catch(e) { setSets([]); } /* eslint-disable-next-line */ }, [cid]);
+  useEffect(() => { try { const h = sessionStorage.getItem('tw_htlab_draft'); if (h) { sessionStorage.removeItem('tw_htlab_draft'); const parts = h.split(/[\s,]+/).map(t=>{ t=(t||"").trim().replace(/^#+/, ''); return t ? '#'+t.replace(/\s+/g,'') : ''; }).filter(Boolean); if (parts.length) { setDraft(d=>[...new Set([...d, ...parts])]); } } } catch(e){} }, []);
   useEffect(() => { if (!selClient?.name) return; supabase.from('clients').select('id').eq('name', selClient.name).limit(1).then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); }); }, [selClient]);
 
   const persist = (next) => { setSets(next); try { localStorage.setItem(KEY, JSON.stringify(next)); } catch(e){} try { if (realClientId) supabase.from('clients').update({ hashtag_sets: next }).eq('id', realClientId).then(()=>{}, ()=>{}); } catch(e){} };
