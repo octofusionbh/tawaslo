@@ -6832,11 +6832,11 @@ function PublisherPage() {
 
           {igSelected && (
             <div style={card}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:12, color:th.text2 }}>{L("Instagram publishes as","ينشر على إنستغرام كـ")}</span></div>
-              <div style={{ display:"flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3, width:"fit-content" }}>
-                {[["feed",L("Feed post","منشور")],["reel",L("Reel","ريل")],["story",L("Story","ستوري")]].map(([k,t])=>(
-                  <button key={k} onClick={()=>setIgFormat(k)} style={{ padding:"6px 14px", borderRadius:8, border:"none", background:igFormat===k?th.gradient:"transparent", color:igFormat===k?"#fff":th.text2, fontSize:11.5, fontWeight:igFormat===k?600:400, cursor:"pointer" }}>{t}</button>
-                ))}
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:11 }}><FaInstagram style={{ color:"#E1306C", fontSize:15 }}/><span style={{ fontSize:11.5, color:th.text2, fontWeight:600 }}>{L("Format","الشكل")}</span></div>
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                {[["feed", images.length>1?L("Carousel","كاروسيل"):L("Post","منشور"), images.length>1?Copy:Image],["reel",L("Reel","ريل"),Play],["story",L("Story","ستوري"),Circle]].map(([k,t,Ic])=>{ const on=igFormat===k; return (
+                  <button key={k} onClick={()=>setIgFormat(k)} style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 15px", borderRadius:11, cursor:"pointer", fontSize:12, fontWeight:on?600:500, background:on?th.accent:th.card2, border:`1px solid ${on?th.accent:th.border}`, color:on?"#fff":th.text2 }}><Ic size={14}/>{t}</button>
+                );})}
               </div>
               {igFormat==="story" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Stories publish as a single photo or video and disappear after 24 hours. Caption, alt text and carousel don't apply on Instagram Stories.","تُنشر القصص كصورة أو فيديو واحد وتختفي بعد 24 ساعة. النص والنص البديل والكاروسيل لا تنطبق على قصص إنستغرام.")}</div>}
               {igFormat==="reel" && <div style={{ marginTop:10, fontSize:11, color:th.text2, lineHeight:1.5, display:"flex", gap:7, alignItems:"flex-start" }}><Info size={13} style={{ color:th.accent, flexShrink:0, marginTop:1 }}/>{L("Reels use your video and caption. Alt text doesn't apply to Reels.","تستخدم الريلز الفيديو والنص. النص البديل لا ينطبق على الريلز.")}</div>}
