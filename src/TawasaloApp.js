@@ -8852,21 +8852,49 @@ function AdsPage() {
   const { selClient, dark, lang, setPage, userEmail, userPlan } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
   const [adsData, setAdsData] = useState(null);
   const [error, setError] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [realClientId, setRealClientId] = useState(null);
-  const [boostOpen, setBoostOpen] = useState(false);
+  const [tab, setTab] = useState('perf');               // perf | boost | campaigns
+  const [platform, setPlatform] = useState('meta');     // meta (live) | tiktok | google (soon)
   const [recent, setRecent] = useState([]);
   const [pick, setPick] = useState(null);
-  const [bCountries, setBCountries] = useState(['BH']);
+  const [goal, setGoal] = useState('AUTO');
+  const [cta, setCta] = useState('Book now');
+  const [gender, setGender] = useState('all');
   const [bAge, setBAge] = useState([18, 65]);
+  const [locs, setLocs] = useState([{ id:'c_BH', label:'Bahrain', sub:'Country', type:'country', code:'BH' }]);
+  const [locQuery, setLocQuery] = useState('');
+  const [interests, setInterests] = useState([]);
+  const [intInput, setIntInput] = useState('');
+  const [placeAuto, setPlaceAuto] = useState(true);
+  const [schedType, setSchedType] = useState('duration');
+  const [budgetType, setBudgetType] = useState('daily');
   const [bBudget, setBBudget] = useState(5);
   const [bDays, setBDays] = useState(5);
   const [boosting, setBoosting] = useState(false);
   const [boostRes, setBoostRes] = useState(null);
-  const GCC = [["BH","Bahrain"],["SA","Saudi Arabia"],["AE","UAE"],["KW","Kuwait"],["QA","Qatar"],["OM","Oman"]];
+  const PLATS = [['meta','Meta', true], ['tiktok','TikTok', false], ['google','Google', false]];
+  const GOALS = [['AUTO','Automatic'],['MESSAGES','More messages'],['ENGAGEMENT','More engagement'],['TRAFFIC','More website visits'],['LEADS','More leads'],['CALLS','More calls']];
+  const CTAS = ['Book now','Shop now','Learn more','Send message','Call now','Sign up'];
+  const PLACE = ['Facebook feed','Instagram feed','Reels','Stories','Messenger'];
+  const COUNTRIES = [['BH','Bahrain'],['SA','Saudi Arabia'],['AE','United Arab Emirates'],['KW','Kuwait'],['QA','Qatar'],['OM','Oman'],['EG','Egypt'],['JO','Jordan'],['LB','Lebanon'],['IQ','Iraq'],['MA','Morocco'],['TR','Turkey'],['US','United States'],['GB','United Kingdom'],['FR','France'],['DE','Germany'],['IT','Italy'],['ES','Spain'],['IN','India'],['PK','Pakistan'],['ID','Indonesia'],['CA','Canada'],['AU','Australia']];
+  const CITIES = [['Manama','Bahrain'],['Riffa','Bahrain'],['Muharraq','Bahrain'],['Riyadh','Saudi Arabia'],['Jeddah','Saudi Arabia'],['Dammam','Saudi Arabia'],['Khobar','Saudi Arabia'],['Dubai','United Arab Emirates'],['Abu Dhabi','United Arab Emirates'],['Sharjah','United Arab Emirates'],['Kuwait City','Kuwait'],['Doha','Qatar'],['Muscat','Oman'],['Cairo','Egypt'],['Amman','Jordan']];
+  const locResults = (() => {
+    const q = locQuery.trim().toLowerCase(); if (!q) return [];
+    const have = new Set(locs.map(l => l.id));
+    const out = [];
+    if ('worldwide'.includes(q) && !have.has('ww')) out.push({ id:'ww', label:'Worldwide', sub:'Everywhere', type:'ww' });
+    COUNTRIES.forEach(([code,name]) => { if (name.toLowerCase().includes(q) && !have.has('c_'+code)) out.push({ id:'c_'+code, label:name, sub:'Country', type:'country', code }); });
+    CITIES.forEach(([city,country]) => { if (city.toLowerCase().includes(q) && !have.has('city_'+city)) out.push({ id:'city_'+city, label:city, sub:'City · '+country, type:'city' }); });
+    return out.slice(0, 6);
+  })();
+  const addLoc = (item) => { setLocs(ls => ls.find(l=>l.id===item.id) ? ls : [...ls, item]); setLocQuery(''); };
+  const removeLoc = (id) => setLocs(ls => ls.filter(l => l.id !== id));
+  const addInterest = () => { const v = intInput.trim(); if (v && !interests.includes(v)) setInterests(xs => [...xs, v]); setIntInput(''); };
 
   useEffect(() => {
     if (!selClient?.name) return;
@@ -8874,20 +8902,21 @@ function AdsPage() {
       .then(({ data }) => { if (data?.[0]) setRealClientId(data[0].id); });
   }, [selClient]);
 
-  const openBoost = async () => {
-    setBoostOpen(true); setBoostRes(null); setPick(null);
-    if (realClientId) {
-      const { data } = await supabase.from('posts').select('id,caption,image_url,external_id,platform').eq('client_id', realClientId).order('created_at', { ascending:false }).limit(12);
-      setRecent((data || []).filter(p => p.image_url));
-    }
+  const loadRecent = async () => {
+    if (!realClientId) return;
+    const { data } = await supabase.from('posts').select('id,caption,image_url,external_id,platform').eq('client_id', realClientId).order('created_at', { ascending:false }).limit(12);
+    setRecent((data || []).filter(p => p.image_url));
   };
-  const toggleCountry = (code) => setBCountries(cs => cs.includes(code) ? cs.filter(c=>c!==code) : [...cs, code]);
+  useEffect(() => { if (tab === 'boost') { loadRecent(); setBoostRes(null); } }, [tab, realClientId]); // eslint-disable-line
+  const countryCodes = locs.some(l => l.type === 'ww') ? [] : locs.filter(l => l.type === 'country').map(l => l.code);
+  const dailyEq = budgetType === 'daily' ? bBudget : (bBudget / Math.max(1, bDays));
+  const totalSpend = budgetType === 'daily' ? bBudget * bDays : bBudget;
   const doBoost = async () => {
     const fbAcc = accounts.find(a => a.platform === 'fb') || accounts[0];
-    if (!fbAcc || !pick || !bCountries.length) return;
+    if (!fbAcc || !pick || !locs.length) return;
     setBoosting(true); setBoostRes(null);
     try {
-      const res = await fetch('/api/meta-ads', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'boost', accessToken: fbAcc.access_token, pageId: fbAcc.account_id, postId: pick.external_id || pick.id, countries: bCountries, ageMin: bAge[0], ageMax: bAge[1], dailyBudgetUsd: bBudget, days: bDays }) });
+      const res = await fetch('/api/meta-ads', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'boost', accessToken: fbAcc.access_token, pageId: fbAcc.account_id, postId: pick.external_id || pick.id, goal, cta, gender, interests, countries: countryCodes.length ? countryCodes : ['BH'], ageMin: bAge[0], ageMax: bAge[1], dailyBudgetUsd: Math.round(dailyEq), days: bDays }) });
       setBoostRes(await res.json());
     } catch (e) { setBoostRes({ error: e.message }); }
     setBoosting(false);
@@ -8939,23 +8968,38 @@ function AdsPage() {
     </div>
   );
 
+  const inpSt = { background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" };
+  const selSt = { ...inpSt, width:"100%", cursor:"pointer" };
+  const segBtn = (on) => ({ flex:1, padding:"6px 0", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 });
+
   return (
     <div style={{ padding:"28px 32px", maxWidth:1200 }}>
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
+      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:16 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Ads performance","أداء الإعلانات")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Last 30 days","آخر 30 يوماً")} &middot; {selClient?.name || L("your brand","علامتك")}</p>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Ads","الإعلانات")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("Meta — Facebook & Instagram","ميتا — فيسبوك وإنستغرام")}</p>
         </div>
-        <div style={{ display:"flex", gap:9 }}>
-          <button onClick={openBoost} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}>
-            <Megaphone size={14}/> {L('Boost a post','تعزيز منشور')}
-          </button>
-          <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"10px 18px", borderRadius:11, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
-            <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
-          </button>
+        <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+          {PLATS.map(([id,label,live]) => { const on = platform===id; return (
+            <button key={id} onClick={()=> live ? setPlatform(id) : null} disabled={!live} title={live?"":L("Coming soon","قريباً")} style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 13px", borderRadius:10, cursor:live?"pointer":"not-allowed", fontSize:12, fontWeight:600, background:on?th.accentSoft:th.card, border:`1px solid ${on?th.accent:th.border}`, color:on?th.accent:(live?th.text2:th.text3) }}>
+              {label}{!live && <span style={{ fontSize:9, background:th.card2, borderRadius:6, padding:"1px 6px", color:th.text3 }}>{L("soon","قريباً")}</span>}
+            </button>
+          );})}
         </div>
       </div>
 
+      <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:12, padding:4, marginBottom:22, width:"fit-content", maxWidth:"100%", flexWrap:"wrap" }}>
+        {[['perf',L('Performance','الأداء'),BarChart2],['boost',L('Boost a post','تعزيز منشور'),Megaphone],['campaigns',L('Campaigns','الحملات'),Target]].map(([k,lbl,Ic]) => { const on=tab===k; return (
+          <button key={k} onClick={()=>setTab(k)} style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:9, border:"none", cursor:"pointer", fontSize:12.5, fontWeight:600, background:on?th.gradient:"transparent", color:on?"#fff":th.text2 }}><Ic size={14}/>{lbl}</button>
+        );})}
+      </div>
+
+      {tab==='perf' && (<>
+      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:14 }}>
+        <button onClick={()=>fetchAds(accounts)} disabled={loading} style={{ padding:"9px 16px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, opacity:loading?0.7:1 }}>
+          <RefreshCw size={14}/> {loading ? L('Loading…','جارٍ التحميل…') : L('Refresh','تحديث')}
+        </button>
+      </div>
       {loading ? (
         <div><SkStatRow th={th} n={4}/><SkChart th={th}/></div>
       ) : error ? (
@@ -9008,64 +9052,121 @@ function AdsPage() {
         </>
       )}
 
-      {boostOpen && createPortal((
-        <div onClick={()=>setBoostOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:9998, display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"40px 16px", overflowY:"auto" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:560, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:18, padding:24, boxShadow:"0 30px 80px rgba(0,0,0,0.6)" }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:6 }}>
-              <span style={{ fontSize:17, fontWeight:700, display:"flex", alignItems:"center", gap:8 }}><Megaphone size={18} color={th.accent}/>{L("Boost a post","تعزيز منشور")}</span>
-              <XCircle size={20} onClick={()=>setBoostOpen(false)} style={{ color:th.text2, cursor:"pointer" }}/>
-            </div>
-            <div style={{ fontSize:11.5, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}44`, borderRadius:10, padding:"8px 12px", marginBottom:16 }}>{L("Test mode — no real spend yet. Live boosting activates once Meta approves ads access.","وضع تجريبي — لا إنفاق فعلي بعد. يُفعّل التعزيز الحقيقي بعد موافقة ميتا.")}</div>
+      </>)}
 
-            {accounts.find(a=>a.platform==='fb') ? (<>
-              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Pick a post","اختر منشوراً")}</div>
-              {recent.length===0 ? <div style={{ fontSize:12, color:th.text3, marginBottom:16 }}>{L("No recent posts with an image to boost.","لا توجد منشورات حديثة بصورة لتعزيزها.")}</div> : (
-                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:18 }}>
-                  {recent.map(p => { const on = pick && pick.id===p.id; return (
-                    <div key={p.id} onClick={()=>setPick(p)} title={p.caption||""} style={{ cursor:"pointer", borderRadius:10, overflow:"hidden", border:`2px solid ${on?th.accent:th.border}`, aspectRatio:"1", background:`center/cover url(${p.image_url})`, position:"relative" }}>
-                      {on && <span style={{ position:"absolute", top:4, right:4, background:th.accent, borderRadius:"50%", width:18, height:18, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={11} color="#fff"/></span>}
-                    </div>
-                  );})}
-                </div>
-              )}
+      {tab==='boost' && (
+        accounts.find(a=>a.platform==='fb') ? (
+        <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"minmax(0,1fr) 290px", gap:18, alignItems:"start" }}>
+          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:"20px 22px" }}>
+            <div style={{ fontSize:11.5, color:th.warning, background:th.warningSoft, border:`1px solid ${th.warning}44`, borderRadius:10, padding:"8px 12px", marginBottom:18 }}>{L("Test mode — no real spend yet. Goes live once Meta approves ads access.","وضع تجريبي — لا إنفاق فعلي. يُفعّل بعد موافقة ميتا.")}</div>
 
-              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Audience","الجمهور")}</div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:7, marginBottom:12 }}>
-                {GCC.map(([code,name]) => { const on = bCountries.includes(code); return (
-                  <button key={code} onClick={()=>toggleCountry(code)} style={{ padding:"6px 12px", borderRadius:999, cursor:"pointer", fontSize:11.5, background:on?th.accentSoft:th.card2, border:`1.5px solid ${on?th.accent:th.border}`, color:on?th.accent:th.text2 }}>{name}</button>
+            <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Goal","الهدف")}</div>
+            <select value={goal} onChange={e=>setGoal(e.target.value)} style={selSt}>{GOALS.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+
+            <div style={{ fontSize:11, color:th.text2, margin:"16px 0 6px" }}>{L("Pick a post","اختر منشوراً")}</div>
+            {recent.length===0 ? <div style={{ fontSize:12, color:th.text3 }}>{L("No recent posts with an image to boost.","لا منشورات حديثة بصورة.")}</div> : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8 }}>
+                {recent.map(p=>{ const on=pick&&pick.id===p.id; return (
+                  <div key={p.id} onClick={()=>setPick(p)} title={p.caption||""} style={{ cursor:"pointer", borderRadius:9, overflow:"hidden", border:`2px solid ${on?th.accent:th.border}`, aspectRatio:"1", background:`center/cover url(${p.image_url})`, position:"relative" }}>{on&&<span style={{ position:"absolute", top:3, right:3, background:th.accent, borderRadius:"50%", width:16, height:16, display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={10} color="#fff"/></span>}</div>
                 );})}
               </div>
-              <div style={{ display:"flex", gap:12, marginBottom:18, flexWrap:"wrap" }}>
-                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Age from","العمر من")}</div><input type="number" min="13" max="65" value={bAge[0]} onChange={e=>setBAge([Math.max(13,Math.min(65,+e.target.value||18)), bAge[1]])} style={{ width:80, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
-                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Age to","إلى")}</div><input type="number" min="13" max="65" value={bAge[1]} onChange={e=>setBAge([bAge[0], Math.max(13,Math.min(65,+e.target.value||65))])} style={{ width:80, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
-              </div>
-
-              <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:8 }}>{L("Budget","الميزانية")}</div>
-              <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
-                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Daily (USD)","يومي (دولار)")}</div><input type="number" min="1" value={bBudget} onChange={e=>setBBudget(Math.max(1,+e.target.value||1))} style={{ width:110, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
-                <div><div style={{ fontSize:11, color:th.text2, marginBottom:4 }}>{L("Days","الأيام")}</div><input type="number" min="1" value={bDays} onChange={e=>setBDays(Math.max(1,+e.target.value||1))} style={{ width:90, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:13, outline:"none" }}/></div>
-              </div>
-              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", marginBottom:18, fontSize:12.5, color:th.text2 }}>
-                {L("Total spend","إجمالي الإنفاق")}: <span className="tw-num" style={{ color:th.text, fontWeight:700 }}>${(bBudget*bDays).toFixed(2)}</span>
-                <span style={{ margin:"0 8px", color:th.text3 }}>·</span>
-                {L("Est. reach","الوصول المتوقع")}: <span className="tw-num" style={{ color:th.accent, fontWeight:700 }}>{Math.round((bBudget*bDays)/9*1000).toLocaleString()}–{Math.round((bBudget*bDays)/4*1000).toLocaleString()}</span>
-              </div>
-
-              {boostRes && (
-                <div style={{ background: boostRes.error?th.dangerSoft:th.successSoft, border:`1px solid ${(boostRes.error?th.danger:th.success)}44`, color: boostRes.error?th.danger:th.success, borderRadius:11, padding:"11px 14px", marginBottom:16, fontSize:12.5 }}>
-                  {boostRes.error ? boostRes.error : (boostRes.message || L("Boost created.","تم إنشاء التعزيز."))}
-                </div>
-              )}
-
-              <button onClick={doBoost} disabled={!pick || !bCountries.length || boosting} style={{ width:"100%", padding:"13px", borderRadius:12, background:(!pick||!bCountries.length||boosting)?th.card2:th.gradient, border:"none", color:(!pick||!bCountries.length||boosting)?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(!pick||!bCountries.length||boosting)?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>
-                <Megaphone size={15}/>{boosting?L("Boosting…","جارٍ…"):L("Boost this post","عزّز هذا المنشور")}
-              </button>
-            </>) : (
-              <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.7, padding:"8px 0 4px" }}>{L("Connect a Facebook account with ad access to boost posts.","اربط حساب فيسبوك لديه صلاحية إعلانية لتعزيز المنشورات.")} <span onClick={()=>{ setBoostOpen(false); setPage&&setPage('social'); }} style={{ color:th.accent, cursor:"pointer", fontWeight:600 }}>{L("Connect accounts","ربط الحسابات")}</span></div>
             )}
+
+            <div style={{ fontSize:11, color:th.text2, margin:"16px 0 6px" }}>{L("Button","الزر")}</div>
+            <select value={cta} onChange={e=>setCta(e.target.value)} style={selSt}>{CTAS.map(c=><option key={c} value={c}>{c}</option>)}</select>
+
+            <div style={{ fontSize:12.5, fontWeight:700, color:th.text, margin:"20px 0 12px", paddingTop:16, borderTop:`1px solid ${th.border}` }}>{L("Audience","الجمهور")}</div>
+            <div style={{ display:"flex", gap:14, marginBottom:14, flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Gender","الجنس")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3 }}>
+                  {[["all",L("All","الكل")],["male",L("Men","رجال")],["female",L("Women","نساء")]].map(([v,l])=>(<button key={v} onClick={()=>setGender(v)} style={segBtn(gender===v)}>{l}</button>))}
+                </div>
+              </div>
+              <div style={{ width:160 }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Age","العمر")}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <input type="number" min="13" max="65" value={bAge[0]} onChange={e=>setBAge([Math.max(13,Math.min(65,+e.target.value||18)),bAge[1]])} style={{...inpSt, width:64, textAlign:"center"}}/>
+                  <span style={{ color:th.text3 }}>–</span>
+                  <input type="number" min="13" max="65" value={bAge[1]} onChange={e=>setBAge([bAge[0],Math.max(13,Math.min(65,+e.target.value||65))])} style={{...inpSt, width:64, textAlign:"center"}}/>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Locations","المواقع")}</div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"8px 11px" }}>
+              <Search size={15} color={th.text3}/>
+              <input value={locQuery} onChange={e=>setLocQuery(e.target.value)} placeholder={L("Add countries, regions or cities…","أضف دولاً أو مدناً…")} style={{ flex:1, background:"transparent", border:"none", outline:"none", color:th.text, fontSize:12.5, fontFamily:"inherit" }}/>
+            </div>
+            {locResults.length>0 && (
+              <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, marginTop:6, overflow:"hidden" }}>
+                {locResults.map(r=>(<div key={r.id} onClick={()=>addLoc(r)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 11px", cursor:"pointer", fontSize:12, color:th.text, borderTop:`1px solid ${th.border}` }}><span><Globe size={12} color={th.accent} style={{verticalAlign:-2, marginRight:6}}/>{r.label}</span><span style={{ fontSize:10.5, color:th.text3 }}>{r.sub}</span></div>))}
+              </div>
+            )}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>
+              {locs.map(l=>(<span key={l.id} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.accentSoft, color:th.accent, borderRadius:999, padding:"4px 10px", fontSize:11 }}>{l.label}<XCircle size={12} onClick={()=>removeLoc(l.id)} style={{cursor:"pointer"}}/></span>))}
+              {locs.length===0 && <span style={{ fontSize:11, color:th.text3 }}>{L("Add at least one location.","أضف موقعاً واحداً على الأقل.")}</span>}
+            </div>
+
+            <div style={{ fontSize:11, color:th.text2, margin:"14px 0 5px" }}>{L("Interests","الاهتمامات")} <span style={{color:th.text3}}>· {L("optional","اختياري")}</span></div>
+            <div style={{ display:"flex", gap:8 }}>
+              <input value={intInput} onChange={e=>setIntInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addInterest();}} placeholder={L("e.g. Dining out, Coffee","مثال: المطاعم، القهوة")} style={{...inpSt, flex:1}}/>
+              <button onClick={addInterest} style={{ padding:"0 16px", borderRadius:9, background:th.card2, border:`1px solid ${th.accent}`, color:th.accent, fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{L("Add","إضافة")}</button>
+            </div>
+            {interests.length>0 && <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginTop:8 }}>{interests.map(it=>(<span key={it} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.accentSoft, color:th.accent, borderRadius:999, padding:"4px 10px", fontSize:11 }}>{it}<XCircle size={12} onClick={()=>setInterests(xs=>xs.filter(x=>x!==it))} style={{cursor:"pointer"}}/></span>))}</div>}
+
+            <div style={{ fontSize:12.5, fontWeight:700, color:th.text, margin:"20px 0 10px", paddingTop:16, borderTop:`1px solid ${th.border}` }}>{L("Placements","مواضع الظهور")}</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <span style={{ fontSize:12.5, color:th.text }}>{L("Automatic","تلقائي")} <span style={{ fontSize:11, color:th.text3 }}>· {L("let Meta place it best","دع ميتا تختار")}</span></span>
+              <span onClick={()=>setPlaceAuto(v=>!v)} style={{ width:38, height:20, borderRadius:999, background:placeAuto?th.success:th.card2, border:`1px solid ${placeAuto?th.success:th.border}`, position:"relative", cursor:"pointer", flexShrink:0 }}><span style={{ position:"absolute", top:2, [placeAuto?"right":"left"]:2, width:14, height:14, borderRadius:"50%", background:"#fff" }}/></span>
+            </div>
+            {!placeAuto && <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>{PLACE.map(p=>(<span key={p} style={{ fontSize:11, color:th.text2, background:th.card2, border:`1px solid ${th.border}`, borderRadius:7, padding:"5px 9px" }}>{p}</span>))}</div>}
+
+            <div style={{ display:"flex", gap:14, margin:"20px 0 0", paddingTop:16, borderTop:`1px solid ${th.border}`, flexWrap:"wrap" }}>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Schedule","الجدولة")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:8 }}>
+                  {[["duration",L("Duration","مدة")],["dates",L("Start–end","تواريخ")]].map(([v,l])=>(<button key={v} onClick={()=>setSchedType(v)} style={segBtn(schedType===v)}>{l}</button>))}
+                </div>
+                {schedType==='duration'
+                  ? <input type="number" min="1" value={bDays} onChange={e=>setBDays(Math.max(1,+e.target.value||1))} style={{...inpSt, width:"100%"}} placeholder={L("Days","الأيام")}/>
+                  : <div style={{ display:"flex", gap:8 }}><input type="date" style={{...inpSt, flex:1}}/><input type="date" style={{...inpSt, flex:1}}/></div>}
+              </div>
+              <div style={{ flex:"1 1 200px" }}>
+                <div style={{ fontSize:11, color:th.text2, marginBottom:5 }}>{L("Budget","الميزانية")}</div>
+                <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:8 }}>
+                  {[["daily",L("Daily","يومي")],["total",L("Total","إجمالي")]].map(([v,l])=>(<button key={v} onClick={()=>setBudgetType(v)} style={segBtn(budgetType===v)}>{l}</button>))}
+                </div>
+                <input type="number" min="1" value={bBudget} onChange={e=>setBBudget(Math.max(1,+e.target.value||1))} style={{...inpSt, width:"100%"}} placeholder={L("Amount (USD)","المبلغ (دولار)")}/>
+              </div>
+            </div>
+
+            <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"12px 14px", margin:"16px 0", fontSize:12.5, color:th.text2 }}>
+              {L("Total spend","إجمالي الإنفاق")}: <span className="tw-num" style={{ color:th.text, fontWeight:700 }}>${totalSpend.toFixed(2)}</span><span style={{ margin:"0 8px", color:th.text3 }}>·</span>{L("Est. reach","الوصول المتوقع")}: <span className="tw-num" style={{ color:th.accent, fontWeight:700 }}>{Math.round(totalSpend/9*1000).toLocaleString()}–{Math.round(totalSpend/4*1000).toLocaleString()}</span>
+            </div>
+
+            {boostRes && <div style={{ background:boostRes.error?th.dangerSoft:th.successSoft, border:`1px solid ${(boostRes.error?th.danger:th.success)}44`, color:boostRes.error?th.danger:th.success, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12.5 }}>{boostRes.error?boostRes.error:(boostRes.message||L("Boost created.","تم."))}</div>}
+
+            <button onClick={doBoost} disabled={!pick||!locs.length||boosting} style={{ width:"100%", padding:"13px", borderRadius:12, background:(!pick||!locs.length||boosting)?th.card2:th.gradient, border:"none", color:(!pick||!locs.length||boosting)?th.text3:"#fff", fontSize:13.5, fontWeight:700, cursor:(!pick||!locs.length||boosting)?"not-allowed":"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Megaphone size={15}/>{boosting?L("Boosting…","جارٍ…"):L("Boost this post","عزّز المنشور")}</button>
+          </div>
+
+          <div style={{ position:"sticky", top:20, background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:16 }}>
+            <div style={{ fontSize:10.5, color:th.text3, textTransform:"uppercase", letterSpacing:1, textAlign:"center", marginBottom:10 }}>{L("Preview","معاينة")}</div>
+            <div style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 11px" }}><span style={{ width:26, height:26, borderRadius:"50%", background:th.gradient }}/><div style={{ lineHeight:1.3 }}><div style={{ fontSize:11.5, fontWeight:600 }}>{selClient?.name||"Your brand"}</div><div style={{ fontSize:9.5, color:th.text3 }}>{L("Sponsored","مموّل")}</div></div></div>
+              {pick&&pick.caption && <div style={{ fontSize:11, color:th.text2, padding:"0 11px 9px", lineHeight:1.45, maxHeight:48, overflow:"hidden" }}>{pick.caption}</div>}
+              <div style={{ height:150, background: pick&&pick.image_url ? `center/cover url(${pick.image_url})` : th.card, borderTop:`1px solid ${th.border}`, borderBottom:`1px solid ${th.border}` }}/>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 11px" }}><span style={{ fontSize:11, color:th.text2 }}>{selClient?.name||""}</span><span style={{ fontSize:10.5, color:"#1A1206", background:"#E0E6EE", borderRadius:6, padding:"4px 10px", fontWeight:700 }}>{cta}</span></div>
+            </div>
+            <div style={{ fontSize:10, color:th.text3, textAlign:"center", marginTop:10, lineHeight:1.5 }}>{L("Shown across Facebook & Instagram. Spend is billed by Meta to the connected ad account.","يظهر على فيسبوك وإنستغرام. تُحتسب التكلفة من ميتا.")}</div>
           </div>
         </div>
-      ), document.body)}
+        ) : (
+          emptyState(Megaphone, L("Connect a Facebook account","اربط حساب فيسبوك"), <>{L("Boosting runs through a connected Facebook account with ad access.","يتم التعزيز عبر حساب فيسبوك مرتبط لديه صلاحية إعلانية.")} <span onClick={()=>setPage&&setPage('social')} style={{ color:th.accent, cursor:"pointer", fontWeight:600 }}>{L("Connect accounts","ربط الحسابات")}</span></>)
+        )
+      )}
+
+      {tab==='campaigns' && emptyState(Target, L("Full campaign builder is coming","منشئ الحملات الكامل قادم"), L("Objectives, ad sets, detailed audiences, creatives and bidding — the full Meta Ads Manager experience. It unlocks here once Meta approves ads access. For now, use Boost a post.","الأهداف ومجموعات الإعلانات والجماهير والإبداعات والمزايدة — تجربة مدير إعلانات ميتا الكاملة. تُفتح بعد موافقة ميتا. استخدم تعزيز منشور حالياً."))}
     </div>
   );
 }
