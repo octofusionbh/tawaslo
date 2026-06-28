@@ -6718,8 +6718,8 @@ function PublisherPage() {
   };
 
   const PLAT = { ig:{name:"Instagram",color:"#E1306C",Icon:FaInstagram}, fb:{name:"Facebook",color:"#1877F2",Icon:FaFacebook}, tw:{name:"X",color:th.text,Icon:FaTwitter}, li:{name:"LinkedIn",color:"#0A66C2",Icon:FaLinkedin}, tt:{name:"TikTok",color:th.text,Icon:FaTiktok}, yt:{name:"YouTube",color:"#FF0000",Icon:FaYoutube} };
-  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:16, boxShadow:"none" };
-  const lbl = { fontSize:12, color:th.text2, marginBottom:10 };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:"18px 20px", boxShadow: dark ? "0 8px 26px rgba(0,0,0,0.20)" : "0 1px 2px rgba(16,24,40,0.04), 0 10px 26px rgba(16,24,40,0.06)" };
+  const lbl = { fontSize:11.5, color:th.text2, fontWeight:600, letterSpacing:0.2, marginBottom:10 };
   const inp = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit" };
   const firstImg = images[0];
   const previewIsLandscape = !!(firstImg && pvAR > 1.05);
