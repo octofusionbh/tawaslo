@@ -8977,7 +8977,7 @@ function AdsPage() {
     const { data } = await supabase.from('posts').select('id,caption,image_url,external_id,platform').eq('client_id', realClientId).order('created_at', { ascending:false }).limit(12);
     setRecent((data || []).filter(p => p.image_url));
   };
-  useEffect(() => { if (tab === 'boost') { loadRecent(); setBoostRes(null); } }, [tab, realClientId]); // eslint-disable-line
+  useEffect(() => { if (tab === 'boost' || platform !== 'meta') { loadRecent(); setBoostRes(null); } }, [tab, platform, realClientId]); // eslint-disable-line
   const countryCodes = locs.some(l => l.type === 'ww') ? [] : locs.filter(l => l.type === 'country').map(l => l.code);
   const dailyEq = budgetType === 'daily' ? bBudget : (bBudget / Math.max(1, bDays));
   const totalSpend = budgetType === 'daily' ? bBudget * bDays : bBudget;
@@ -12379,6 +12379,9 @@ function LandingPage({ onGetStarted, onLogin }) {
   const isMobile = useIsMobile();
   const [navOpen, setNavOpen] = useState(false);
   const [billing, setBilling] = useState('monthly');
+  const [featTab, setFeatTab] = useState(0);
+  const [wjLoop, setWjLoop] = useState(0);
+  useEffect(() => { const id = setInterval(() => setWjLoop(x => x + 1), 12500); return () => clearInterval(id); }, []);
   const lgeo = useGeo();
   const [contact, setContact] = useState({name:'',email:'',company:'',message:''});
   const [contactSent, setContactSent] = useState(false);
@@ -12592,6 +12595,155 @@ function LandingPage({ onGetStarted, onLogin }) {
         )}
       </div>
 
+      {/* See it live — animated WhatsApp Concierge journey */}
+      <div style={{background:"#0A0E15",borderTop:"1px solid #161D29",padding:isMobile?"50px 18px":"72px 32px"}}>
+        <style>{`
+@keyframes wjIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes wjDotsOut{0%,48%{opacity:1}62%,100%{opacity:0}}
+@keyframes wjTextIn{0%,50%{opacity:0}64%,100%{opacity:1}}
+@keyframes wjBob{0%,70%,100%{transform:translateY(0);opacity:.5}35%{transform:translateY(-3px);opacity:1}}
+.wj{opacity:0;animation:wjIn .55s cubic-bezier(.2,.8,.2,1) forwards}
+.wjb{position:relative}
+.wjdots{position:absolute;left:13px;top:11px;display:flex;gap:4px;animation:wjDotsOut 1.7s ease forwards}
+.wjdots span{width:6px;height:6px;border-radius:50%;background:#8aa;animation:wjBob 1s ease-in-out infinite}
+.wjtxt{animation:wjTextIn 1.7s ease forwards}
+`}</style>
+        <div style={{maxWidth:1000,margin:"0 auto",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 340px",gap:44,alignItems:"center"}}>
+          <div>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10.5,color:"#25D366",background:"rgba(37,211,102,0.09)",border:"1px solid rgba(37,211,102,0.3)",padding:"5px 12px",borderRadius:20,letterSpacing:0.4,fontWeight:600}}><FaWhatsapp style={{fontSize:12}}/>WHATSAPP CONCIERGE</span>
+            <h2 style={{fontSize:isMobile?24:30,fontWeight:800,lineHeight:1.18,margin:"16px 0 12px",letterSpacing:-0.6}}>It books the table <span style={grad}>while you run the floor.</span></h2>
+            <p style={{fontSize:14.5,color:"#8A9BB8",lineHeight:1.65,maxWidth:440,margin:0}}>A guest messages your number and the Concierge takes it from there — answering, taking the reservation, noting the occasion, confirming the table, and sending the menu. All in WhatsApp, in Arabic or English, day or night.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginTop:18}}>
+              {["Replies and books in seconds, 24/7","Captures the occasion for a warmer welcome","Drops your live menu straight into the chat"].map(t=>(
+                <div key={t} style={{display:"flex",alignItems:"center",gap:9,fontSize:13,color:"#C2D0E6"}}><CheckCircle size={16} color="#5FBF92"/>{t}</div>
+              ))}
+            </div>
+          </div>
+          <div style={{position:"relative",marginTop:isMobile?30:0,maxWidth:340,marginLeft:"auto",marginRight:"auto"}}>
+            <div style={{background:"#0B141A",border:"1px solid #1E2A33",borderRadius:20,overflow:"hidden",boxShadow:"0 30px 70px rgba(0,0,0,0.6)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:9,padding:"12px 14px",background:"#1F2C33"}}>
+                <span style={{width:30,height:30,borderRadius:"50%",background:"#25D366",display:"flex",alignItems:"center",justifyContent:"center"}}><FaWhatsapp style={{fontSize:17,color:"#04342C"}}/></span>
+                <div style={{lineHeight:1.3}}><div style={{fontSize:12.5,fontWeight:700,color:"#E9F1F4"}}>Marina Café</div><div style={{fontSize:9.5,color:"#7FC9A8"}}>online</div></div>
+                <span style={{marginLeft:"auto",fontSize:8.5,color:"#7FA0B0",border:"1px solid #2A3A44",borderRadius:6,padding:"2px 7px"}}>auto-reply on</span>
+              </div>
+              <div key={wjLoop} style={{padding:"16px 13px",display:"flex",flexDirection:"column",gap:9,background:"linear-gradient(180deg,#0C151B,#0A1016)",minHeight:380}}>
+                <div className="wj" style={{alignSelf:"flex-start",maxWidth:"82%",background:"#202D34",color:"#E9EFF2",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 11px 3px",padding:"8px 11px",animationDelay:".3s"}}>Hi! Do you have a table for 2 tonight? 🙏</div>
+
+                <div className="wj wjb" style={{alignSelf:"flex-end",maxWidth:"82%",minWidth:46,background:"#075E54",color:"#E9FFEF",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 3px 11px",padding:"8px 11px",animationDelay:"1.2s"}}>
+                  <span className="wjdots" style={{animationDelay:"1.2s",left:"auto",right:13}}><span/><span style={{animationDelay:".15s"}}/><span style={{animationDelay:".3s"}}/></span>
+                  <span className="wjtxt" style={{display:"block",animationDelay:"1.2s"}}>Hi 🌿 Yes! What time suits you?</span>
+                </div>
+
+                <div className="wj" style={{alignSelf:"flex-start",maxWidth:"82%",background:"#202D34",color:"#E9EFF2",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 11px 3px",padding:"8px 11px",animationDelay:"3.2s"}}>8 PM please 🙏</div>
+
+                <div className="wj wjb" style={{alignSelf:"flex-end",maxWidth:"84%",minWidth:46,background:"#075E54",color:"#E9FFEF",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 3px 11px",padding:"8px 11px",animationDelay:"4.1s"}}>
+                  <span className="wjdots" style={{animationDelay:"4.1s",left:"auto",right:13}}><span/><span style={{animationDelay:".15s"}}/><span style={{animationDelay:".3s"}}/></span>
+                  <span className="wjtxt" style={{display:"block",animationDelay:"4.1s"}}>Lovely! Any special occasion? 🎉
+                    <span style={{display:"flex",gap:5,marginTop:7,flexWrap:"wrap"}}>
+                      {["Birthday","Anniversary","Just dinner"].map(c=><span key={c} style={{fontSize:10,color:"#9FFFD0",border:"1px solid rgba(159,255,208,0.4)",borderRadius:7,padding:"3px 9px"}}>{c}</span>)}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="wj" style={{alignSelf:"flex-start",maxWidth:"82%",background:"#202D34",color:"#E9EFF2",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 11px 3px",padding:"8px 11px",animationDelay:"6.1s"}}>Anniversary ❤️</div>
+
+                <div className="wj wjb" style={{alignSelf:"flex-end",maxWidth:"86%",minWidth:46,background:"#075E54",color:"#E9FFEF",fontSize:11.5,lineHeight:1.45,borderRadius:"11px 11px 3px 11px",padding:"8px 11px",animationDelay:"7.0s"}}>
+                  <span className="wjdots" style={{animationDelay:"7.0s",left:"auto",right:13}}><span/><span style={{animationDelay:".15s"}}/><span style={{animationDelay:".3s"}}/></span>
+                  <span className="wjtxt" style={{display:"block",animationDelay:"7.0s"}}>All booked — table for 2 at 8 PM ✨ Happy anniversary! Here's our menu 👇</span>
+                </div>
+
+                <div className="wj" style={{alignSelf:"flex-end",maxWidth:"82%",background:"#075E54",borderRadius:"11px 11px 3px 11px",padding:4,animationDelay:"9.0s"}}>
+                  <div style={{background:"#06433C",borderRadius:9,overflow:"hidden"}}>
+                    <div style={{height:74,background:"linear-gradient(135deg,#1E7A6B,#0B3A33)",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                      <span style={{fontSize:26}}>🍽️</span>
+                      <span style={{position:"absolute",bottom:6,left:8,fontSize:8.5,fontWeight:700,letterSpacing:1.2,color:"rgba(255,255,255,0.82)"}}>MENU</span>
+                    </div>
+                    <div style={{padding:"8px 10px"}}>
+                      <div style={{fontSize:11,fontWeight:700,color:"#EAFBF1",marginBottom:2}}>Marina Café — Menu</div>
+                      <div style={{fontSize:9.5,color:"#A7CBBF",lineHeight:1.4,marginBottom:4}}>Brunch, mains & desserts · updated live</div>
+                      <div style={{fontSize:9,color:"#7FB8A8"}}>tawaslo.com/menu/marina</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* More in action — animated feature snippets */}
+      <div style={{background:"#080B11",borderTop:"1px solid #161D29",padding:isMobile?"48px 18px":"64px 32px"}}>
+        <style>{`
+@keyframes rvStar{0%,8%{color:#39434f}18%,86%{color:#F5C451}96%,100%{color:#39434f}}
+@keyframes rvGo{0%,58%{opacity:.3;transform:translateY(3px)}70%,90%{opacity:1;transform:none}100%{opacity:.3}}
+@keyframes apChk{0%,12%{opacity:0;transform:scale(.4)}26%,88%{opacity:1;transform:scale(1)}97%,100%{opacity:0;transform:scale(.4)}}
+@keyframes apPulse{0%,40%{opacity:.4}55%,92%{opacity:1}100%{opacity:.4}}
+@keyframes lyRew{0%,72%{opacity:0;transform:scale(.8)}82%,95%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(.8)}}
+@keyframes lyP0{0%,5%{background:#111722;border-color:#222C3A}11%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP1{0%,12%{background:#111722;border-color:#222C3A}18%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP2{0%,19%{background:#111722;border-color:#222C3A}25%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP3{0%,26%{background:#111722;border-color:#222C3A}32%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP4{0%,33%{background:#111722;border-color:#222C3A}39%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP5{0%,40%{background:#111722;border-color:#222C3A}46%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP6{0%,47%{background:#111722;border-color:#222C3A}53%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes lyP7{0%,54%{background:#111722;border-color:#222C3A}60%,90%{background:#E1306C;border-color:#E1306C}100%{background:#111722;border-color:#222C3A}}
+@keyframes aiGen{0%,6%{opacity:0}12%,28%{opacity:1}36%,100%{opacity:0}}
+@keyframes aiEn{0%,34%{opacity:0;transform:translateY(4px)}44%,93%{opacity:1;transform:none}100%{opacity:0;transform:translateY(4px)}}
+@keyframes aiAr{0%,52%{opacity:0;transform:translateY(4px)}62%,93%{opacity:1;transform:none}100%{opacity:0;transform:translateY(4px)}}
+@keyframes aiDot{0%,70%,100%{transform:translateY(0);opacity:.5}35%{transform:translateY(-3px);opacity:1}}
+`}</style>
+        <div style={{maxWidth:1000,margin:"0 auto"}}>
+          <div style={{textAlign:"center",marginBottom:26}}>
+            <div style={{color:"#566173",fontSize:10,fontWeight:700,letterSpacing:1.6,marginBottom:9}}>MORE, IN ACTION</div>
+            <h2 style={{fontSize:isMobile?22:27,fontWeight:800,letterSpacing:-0.7,margin:0}}>Tools that <span style={grad}>do the work for you.</span></h2>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:14}}>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18,minHeight:196}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}><Sparkles size={15} color="#C8A6E8"/><span style={{fontSize:13.5,fontWeight:700}}>AI captions</span><span style={{fontSize:10,color:"#566173"}}>· EN + AR</span></div>
+              <div style={{background:"#121826",border:"1px solid #232B38",borderRadius:9,padding:"7px 10px",fontSize:11,color:"#7E8A9C",marginBottom:11,display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:9,fontWeight:700,color:"#C8A6E8"}}>TOPIC</span>New summer collection launch</div>
+              <div style={{position:"relative",minHeight:74}}>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",gap:6,fontSize:11,color:"#C8A6E8",animation:"aiGen 6s infinite"}}><Sparkles size={12}/>Writing<span style={{display:"inline-flex",gap:3,marginLeft:2}}><span style={{width:5,height:5,borderRadius:"50%",background:"#C8A6E8",animation:"aiDot 1s ease-in-out infinite"}}/><span style={{width:5,height:5,borderRadius:"50%",background:"#C8A6E8",animation:"aiDot 1s ease-in-out .15s infinite"}}/><span style={{width:5,height:5,borderRadius:"50%",background:"#C8A6E8",animation:"aiDot 1s ease-in-out .3s infinite"}}/></span></div>
+                <div style={{border:"1px solid #232B38",borderRadius:8,padding:9,marginBottom:7,animation:"aiEn 6s infinite"}}><div style={{fontSize:8.5,color:"#9DB6D6",fontWeight:700,marginBottom:3,letterSpacing:0.5}}>ENGLISH</div><div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.5}}>Summer's here, and so is the new collection ☀️ Shop the drop now.</div></div>
+                <div style={{border:"1px solid #232B38",borderRadius:8,padding:9,animation:"aiAr 6s infinite"}}><div style={{fontSize:8.5,color:"#D9A45C",fontWeight:700,marginBottom:3,letterSpacing:0.5}}>ARABIC</div><div style={{fontSize:11,color:"#E8EFF8",lineHeight:1.6,direction:"rtl",textAlign:"right"}}>الصيف وصل ومعه المجموعة الجديدة ☀️ تسوّقها الآن.</div></div>
+              </div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18,minHeight:196}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}><Star size={15} color="#F5C451"/><span style={{fontSize:13.5,fontWeight:700}}>Reviews</span><span style={{fontSize:10,color:"#566173"}}>· smart routing</span></div>
+              <div style={{display:"flex",gap:6,marginBottom:14}}>
+                {[0,1,2,3,4].map(i=><Star key={i} size={22} fill="currentColor" style={{color:"#39434f",animation:`rvStar 5s ${(i*0.2).toFixed(2)}s infinite`}}/>)}
+              </div>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,color:"#7FC9A8",background:"rgba(127,201,168,0.12)",border:"1px solid rgba(127,201,168,0.3)",borderRadius:8,padding:"6px 11px",animation:"rvGo 5s infinite"}}><CheckCircle size={12}/>5.0 — posted to Google</div>
+              <div style={{fontSize:11,color:"#7E8A9C",lineHeight:1.55,marginTop:11}}>A low rating? It routes to you privately, never public.</div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18,minHeight:196,position:"relative"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}><Heart size={15} color="#E1306C"/><span style={{fontSize:13.5,fontWeight:700}}>Loyalty</span><span style={{fontSize:10,color:"#566173"}}>· every visit counts</span></div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:9,marginBottom:14}}>
+                {[0,1,2,3,4,5,6,7].map(i=><span key={i} style={{height:30,borderRadius:8,background:"#111722",border:"1px solid #222C3A",display:"flex",alignItems:"center",justifyContent:"center",animation:`lyP${i} 6s infinite`}}><Heart size={12} color="#fff" style={{opacity:0.85}}/></span>)}
+              </div>
+              <div style={{fontSize:11,color:"#7E8A9C"}}>Fills with every visit, then unlocks a reward.</div>
+              <div style={{position:"absolute",top:14,right:14,fontSize:10.5,fontWeight:700,color:"#1A1206",background:"linear-gradient(135deg,#E0B85C,#C7942B)",borderRadius:8,padding:"5px 10px",animation:"lyRew 6s infinite"}}>🎉 Free dessert</div>
+            </div>
+
+            <div style={{background:"#0D1119",border:"1px solid #1E2838",borderRadius:16,padding:18,minHeight:196}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}><SendIcon size={15} color="#9DB6D6"/><span style={{fontSize:13.5,fontWeight:700}}>Auto-publish</span></div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:9,marginBottom:14}}>
+                {[[FaInstagram,"#E1306C"],[FaTiktok,"#E8EFF8"],[FaFacebook,"#1877F2"],[FaLinkedin,"#0A66C2"],[FaWhatsapp,"#25D366"]].map(([Ic,c],i)=>(
+                  <div key={i} style={{position:"relative",width:38,height:38,borderRadius:10,background:"#141923",border:"1px solid #232B38",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <Ic style={{fontSize:17,color:c}}/>
+                    <span style={{position:"absolute",top:-5,right:-5,width:16,height:16,borderRadius:"50%",background:"#10B981",display:"flex",alignItems:"center",justifyContent:"center",animation:`apChk 4.5s ${(i*0.28).toFixed(2)}s infinite`}}><Check size={10} color="#04221A"/></span>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,color:"#9DB6D6",animation:"apPulse 4.5s infinite"}}><Calendar size={12}/>Scheduled at the best time</div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
       {/* Client approvals — brag section */}
       <div style={{padding:isMobile?"56px 18px":"78px 32px",background:"#080B11",borderTop:"1px solid #232B38"}}>
         <div style={{maxWidth:1000,margin:"0 auto",display:isMobile?"block":"grid",gridTemplateColumns:"1fr 320px",gap:44,alignItems:"center"}}>
@@ -12788,6 +12940,51 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
           <div style={{textAlign:"center",marginTop:28}}><button onClick={()=>setLandingPage('features')} style={{padding:"10px 24px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>See all features →</button></div>
         </div>
       </div>
+      <div style={{position:"relative",background:"radial-gradient(ellipse 70% 60% at 50% 0%, rgba(110,140,171,0.10) 0%, transparent 60%), #080B11",padding:isMobile?"56px 16px":"80px 32px",borderTop:"1px solid #161D29",overflow:"hidden"}}>
+        <style>{`.tw-feat{transition:transform .16s ease,border-color .16s ease,background .16s ease}.tw-feat:hover{transform:translateY(-3px)}`}</style>
+        <div style={{maxWidth:1080,margin:"0 auto",position:"relative"}}>
+          <div style={{textAlign:"center",marginBottom:36}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 14px",borderRadius:20,background:"rgba(110,140,171,0.1)",border:"1px solid rgba(110,140,171,0.28)",color:"#9DB6D6",fontSize:10.5,fontWeight:700,letterSpacing:1.4,marginBottom:16}}><LayoutDashboard size={12}/>ONE PLATFORM, EVERY TOOL</div>
+            <h2 style={{fontSize:isMobile?25:32,fontWeight:800,letterSpacing:-0.9,margin:0}}>Far more than a <span style={grad}>scheduler.</span></h2>
+            <p style={{color:"#8794A8",fontSize:isMobile?13:14.5,maxWidth:580,margin:"14px auto 0",lineHeight:1.7}}>From the first post to a fully booked restaurant — 30+ tools across content, engagement, analytics and a full F&amp;B suite, in one place.</p>
+          </div>
+          {(() => {
+            const GROUPS = [
+              ["Create","#9DB6D6",[["AI Studio","Captions, ideas, hashtags, images & templates",Sparkles],["Reel Studio","Scripted short-video scenes",Wand2],["Hashtag Lab","Saved, tracked hashtag sets",TrendingUp],["Content Recycler","Replay your best posts",RefreshCw],["Campaign Autopilot","A month of posts in one click",LayoutDashboard]]],
+              ["Publish","#7FC9A8",[["Smart Publisher","Per-network, per-slide, scheduled",Send],["Visual Planner","Drag-and-drop monthly calendar",Calendar],["Approvals","Client sign-off before it goes live",CheckCircle],["Best Time to Post","AI-picked optimal slots",Clock]]],
+              ["Engage","#25D366",[["Unified Inbox","Every DM and comment in one place",MessageCircle],["WhatsApp Concierge","Auto-replies, bookings, broadcasts",Send],["Social Listening","Track keywords & mentions live",Radio],["Crisis Radar","Negative-sentiment spike alerts",AlertTriangle]]],
+              ["Analyse","#D9A45C",[["Analytics","Live reach, growth & engagement",BarChart2],["Reports","Client-ready monthly PDFs",PieChart],["Competitor Spy","Track rival accounts",Eye],["Steal-This Digest","Weekly top-performing ideas",Sparkles],["Impact","Real business results per client",DollarSign]]],
+              ["Advertise","#C8A6E8",[["Boost & Ads","Meta, TikTok & Google campaigns",Megaphone],["Audience builder","Location, interest & age targeting",Target]]],
+              ["F&B Suite","#E1306C",[["Smart Menu","Bilingual menu with photos & specials",FileText],["Bookings","Reservations + host stand",Calendar],["Loyalty","Digital stamp & points cards",Heart],["Reviews","Catch unhappy guests privately",Star],["Birthday Club","Guest CRM for repeat visits",Gift],["Fill My Tables","Quiet-hour yield engine",Users]]],
+              ["For Agencies","#9FC2E4",[["Multi-client","A clean workspace per brand",Building2],["White-label","Your brand on every client page",Sparkles],["Invoicing","Branded invoices & reminders",FileText],["Link-in-bio","A booking-ready bio page",Link],["Prospect Audit","Win pitches with instant audits",Search]]],
+            ];
+            const active = GROUPS[featTab] || GROUPS[0];
+            const col = active[1], items = active[2];
+            return (<>
+              <div style={{display:"flex",flexWrap:"wrap",justifyContent:"center",gap:8,marginBottom:24}}>
+                {GROUPS.map(([g,c,its],i)=>{ const on=i===featTab; return (
+                  <button key={g} onClick={()=>setFeatTab(i)} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"8px 14px",borderRadius:10,cursor:"pointer",fontSize:12.5,fontWeight:700,background:on?`${c}1e`:"transparent",border:`1px solid ${on?c+"66":"#1A2230"}`,color:on?"#EDF2F9":"#8794A8",transition:"all .15s ease"}}>
+                    <span style={{width:7,height:7,borderRadius:"50%",background:c,flexShrink:0,boxShadow:on?`0 0 8px ${c}`:"none"}}/>{g}<span style={{fontSize:10,color:on?c:"#566173",fontWeight:600}}>{its.length}</span>
+                  </button>
+                );})}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:11,minHeight:isMobile?"auto":188,alignContent:"start"}}>
+                {items.map(([t,d,Ic])=>(
+                  <div key={t} style={{background:"#0C111A",border:"1px solid #19212F",borderRadius:13,padding:"15px",display:"flex",gap:12,alignItems:"flex-start",cursor:"default",transition:"transform .16s ease,border-color .16s ease,background .16s ease,box-shadow .16s ease"}} onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.borderColor=`${col}66`;e.currentTarget.style.background="#0E1521";e.currentTarget.style.boxShadow=`0 12px 30px ${col}22`;}} onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor="#19212F";e.currentTarget.style.background="#0C111A";e.currentTarget.style.boxShadow="none";}}>
+                    <div style={{width:36,height:36,borderRadius:10,background:`${col}18`,border:`1px solid ${col}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ic size={17} color={col}/></div>
+                    <div style={{minWidth:0}}>
+                      <div style={{fontSize:13.5,fontWeight:700,color:"#EDF2F9",letterSpacing:-0.2,marginBottom:3}}>{t}</div>
+                      <div style={{fontSize:11.5,color:"#7E8A9C",lineHeight:1.5}}>{d}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>);
+          })()}
+          <div style={{textAlign:"center",marginTop:36}}><button onClick={()=>setLandingPage('features')} style={{padding:"12px 28px",borderRadius:11,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13.5,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 28px rgba(110,140,171,0.28)"}}>Explore every feature →</button></div>
+        </div>
+      </div>
+
       <div style={{padding:"72px 32px",textAlign:"center",background:"#080B11",borderTop:"1px solid #232B38"}}>
         <h2 style={{fontSize:30,fontWeight:900,marginBottom:12}}>Ready to grow your brand?</h2>
         <p style={{color:"#7A8BA8",fontSize:14,marginBottom:28}}>Join brands worldwide using Tawaslo to manage their social media.</p>
