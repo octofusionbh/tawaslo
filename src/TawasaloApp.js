@@ -8254,8 +8254,9 @@ function TrendingPage() {
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:14}}>
           {(sampleMode?sampleShown:items).map((it,i)=>(
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
-              <div style={{position:"relative",height:150,background:th.gradient}}>
-                {it.thumbnail && <img src={(it.platform==="youtube")?it.thumbnail:`/api/trends?img=${encodeURIComponent(it.thumbnail)}`} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
+              <div style={{position:"relative",height:150,background:`linear-gradient(150deg, ${th.accent}33, #11161f)`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <div style={{position:"absolute",opacity:0.5}}>{it.platform==="tiktok"?<FaTiktok style={{fontSize:32,color:"#fff"}}/>:it.platform==="youtube"?<FaYoutube style={{fontSize:32,color:"#fff"}}/>:<FaInstagram style={{fontSize:32,color:"#fff"}}/>}</div>
+                {it.thumbnail && <img src={(it.platform==="youtube")?it.thumbnail:`/api/trends?img=${encodeURIComponent(it.thumbnail)}`} alt="" style={{width:"100%",height:"100%",objectFit:"cover",position:"relative",zIndex:1}} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":it.platform==="youtube"?"YouTube":"Instagram"}</span>
                 {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>{L("Sample","عينة")}</span>}
                 <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{(it.platform==="tiktok"||it.platform==="youtube")?fmt(it.views)+" "+L("views","مشاهدة"):fmt(it.likes)+" "+L("likes","إعجاب")}</span>
