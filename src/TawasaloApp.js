@@ -1181,7 +1181,7 @@ function Topbar() {
 // Pinned client + platform context bar — appears on every data board so it's
 // always clear whose data is on screen, and lets you switch client/platform.
 function ContextBar() {
-  const { selClient, setSelClient, clients, setClients, lang, setPage, selPlatform, setSelPlatform } = useApp();
+  const { selClient, setSelClient, clients, setClients, lang, setPage, selPlatform, setSelPlatform, page } = useApp();
   const th = useTheme();
   const isAR = lang === "ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -1228,6 +1228,12 @@ function ContextBar() {
   const chip = (active, onClick, children, key) => (
     <button key={key} onClick={onClick} style={{display:"inline-flex",alignItems:"center",gap:6,borderRadius:999,padding:"6px 13px",fontSize:12,fontWeight:active?600:500,cursor:"pointer",whiteSpace:"nowrap",border:`1px solid ${active?th.accent:"transparent"}`,background:active?th.accent:th.card2,color:active?(th===DARK?"#0B0E12":"#fff"):th.text2,transition:"all 0.12s"}}>{children}</button>
   );
+
+  // The "Viewing <client> · All/Instagram" bar only makes sense on social, platform-scoped pages.
+  // Hide it on agency-wide screens and on storefront/F&B tools (which aren't filtered by social platform).
+  const NO_VIEW_BAR = ["command","clients","agencyteam","billing","agencysets","invoicing",
+    "loyalty","menu","reservations","reviews","guests","filltables","whatsapp","linkbio","business","shortlinks","prospect","suggested"];
+  if (NO_VIEW_BAR.includes(page)) return null;
 
   return (
     <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 22px",borderBottom:`1px solid ${th.border}`,background:th.surface,flexWrap:"wrap",direction:isAR?"rtl":"ltr"}}>
@@ -11766,12 +11772,14 @@ function BillingPage() {
     Essential:    { monthly: process.env.REACT_APP_PADDLE_ESSENTIAL_M, annual: process.env.REACT_APP_PADDLE_ESSENTIAL_Y },
     Professional: { monthly: process.env.REACT_APP_PADDLE_PRO_M,       annual: process.env.REACT_APP_PADDLE_PRO_Y },
     Enterprise:   { monthly: process.env.REACT_APP_PADDLE_ENT_M,       annual: process.env.REACT_APP_PADDLE_ENT_Y },
+    Studio:       { monthly: process.env.REACT_APP_PADDLE_STUDIO_M,    annual: process.env.REACT_APP_PADDLE_STUDIO_Y },
   };
   // ── Polar (Merchant of Record — no CR, handles VAT). Public hosted checkout links. ──
   const POLAR_LINKS = {
     Essential:    { monthly: "https://buy.polar.sh/polar_cl_t90FjtEJfhm4tH5iA87Fu3sNSCvamHtkd9yDk1GnMiz", annual: "https://buy.polar.sh/polar_cl_x3acgLGUejk77aFLPYoPTjDZmpd4yQmLsS4uQ4cDoBA" },
     Professional: { monthly: "https://buy.polar.sh/polar_cl_2bKo134bQOslnmpGWX8WzjIKS8rMJ6bZHQTku0E4bJn", annual: "https://buy.polar.sh/polar_cl_sUVmyeTEGGjBcb8mRXKuj6TLgwDoUQEJp8Ooh26bitb" },
     Enterprise:   { monthly: "https://buy.polar.sh/polar_cl_zw3oznG33atWqGUsrXZYwH2B7gblW9pYhlofT1ceE0x", annual: "https://buy.polar.sh/polar_cl_YqtKEfHdKdPbJjC9tFSpcyP4eO2hwsyClMqOm223tWL" },
+    Studio:       { monthly: process.env.REACT_APP_POLAR_STUDIO_M || "", annual: process.env.REACT_APP_POLAR_STUDIO_Y || "" },
   };
   const paddleReady = useRef(false);
   useEffect(() => {
@@ -11814,6 +11822,7 @@ function BillingPage() {
     { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
     { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
     { name:"Enterprise", m:199, y:159, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
+    { name:"Studio", m:459, y:367, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("White-label for agencies","علامة بيضاء للوكالات") },
   ];
 
   const applyPromo = async () => {
@@ -12002,7 +12011,7 @@ function BillingPage() {
         </div>
       )}
 
-      <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:16, alignItems:"stretch"}}>
+      <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, alignItems:"stretch"}}>
         {plans.map(plan => {
           const price = period==="annual" ? plan.y : plan.m;
           const dPrice = discounted(price, plan.name);
@@ -13437,7 +13446,7 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
           <div style={{overflowX:"auto"}}><div style={{minWidth:isMobile?520:"auto"}}>
           <div style={{display:"grid",gridTemplateColumns:"2.1fr 1fr 1fr 1fr",padding:"15px 18px",borderBottom:"1px solid #232B38",fontSize:13,fontWeight:800,alignItems:"center"}}>
             <div/>
-            <div style={{textAlign:"center",color:"#fff",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><img src="/logo-transparent.png" alt="" style={{width:20,height:20,objectFit:"contain"}}/>Tawaslo</div>
+            <div style={{textAlign:"center",color:"#fff"}}>Tawaslo</div>
             <div style={{textAlign:"center",color:"#7A8BA8"}}>Hootsuite</div>
             <div style={{textAlign:"center",color:"#7A8BA8"}}>Sprout Social</div>
           </div>
@@ -15473,6 +15482,13 @@ function LoyaltyPage() {
     try { await supabase.from('loyalty_cards').update(patch).eq('id', card.id); } catch(e){}
     const nc = { ...card, ...patch }; setCards(cs => cs.map(c=>c.id===card.id?nc:c)); return nc;
   };
+  const undoVisit = async (card) => {
+    const p = program; const patch = { visits: Math.max(0,(card.visits||0)-1), updated_at:new Date().toISOString() };
+    if (p.type==='points') patch.points = Math.max(0,(card.points||0)-(p.points_per_visit||10));
+    else if (p.type==='stamps') patch.stamps = Math.max(0,(card.stamps||0)-1);
+    try { await supabase.from('loyalty_cards').update(patch).eq('id', card.id); } catch(e){}
+    const nc = { ...card, ...patch }; setCards(cs => cs.map(c=>c.id===card.id?nc:c)); return nc;
+  };
   const redeem = async (card) => {
     const p = program; const patch = { redeemed:(card.redeemed||0)+1, updated_at:new Date().toISOString() };
     if (p.type==='points') patch.points = Math.max(0,(card.points||0)-(p.points_goal||100));
@@ -15620,7 +15636,10 @@ function LoyaltyPage() {
                 <div style={{ fontSize:12.5, fontWeight:700, color: ready?th.success:th.text }}>{p.type==='points'?`${c.points||0} pts`:p.type==='tiers'?(tier?tier.name:L("—","—")):`${c.stamps||0}/${p.stamp_goal||8}`}</div>
                 {p.type!=='tiers' && <div style={{ fontSize:10, color:th.text3 }}>{c.visits||0} {L("visits","زيارة")}</div>}
               </div>
-              <button onClick={()=>doStamp(c.code||c.phone)} title={L("Add","إضافة")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 10px", color:th.accent, fontSize:12, fontWeight:700, cursor:"pointer" }}>+1</button>
+              <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                <button onClick={()=>undoVisit(c)} disabled={!((c.visits||0)>0||(c.stamps||0)>0||(c.points||0)>0)} title={L("Undo last (added by mistake)","تراجع عن آخر إضافة")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 10px", color:th.text3, fontSize:12, fontWeight:700, cursor:"pointer", opacity:((c.visits||0)>0||(c.stamps||0)>0||(c.points||0)>0)?1:0.4 }}>−1</button>
+                <button onClick={()=>doStamp(c.code||c.phone)} title={L("Add","إضافة")} style={{ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 10px", color:th.accent, fontSize:12, fontWeight:700, cursor:"pointer" }}>+1</button>
+              </div>
             </div>
           );
         })}

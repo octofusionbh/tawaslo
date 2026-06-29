@@ -349,7 +349,7 @@ Tone: ${toneText}
 ${audience ? `Audience: ${audience}` : ''}
 ${details ? `Extra context: ${details}` : ''}
 
-Write a complete, production-ready short-video script. Open with a scroll-stopping hook in the first 2 seconds. Break the video into ${dur === '15s' ? '3-4' : dur === '60s' ? '6-8' : '4-6'} scenes; for each scene give the timecode, the shot/visual direction, the on-screen text, and the voiceover/spoken line. Keep it punchy and native to the platform. Then give a caption with emojis, 8-12 relevant hashtags, a clear CTA, and a trending-style audio/music suggestion.
+Write a complete, production-ready short-video script. Open with a scroll-stopping hook in the first 2 seconds. Break the video into ${dur === '15s' ? '3-4' : dur === '60s' ? '6-8' : '4-6'} scenes; for each scene give the timecode, the shot/visual direction, the on-screen text, and the voiceover/spoken line. Keep it punchy and native to the platform. Then give a caption with emojis, a maximum of 5 relevant hashtags (Instagram recommends 5 or fewer), a clear CTA, and a trending-style audio/music suggestion.
 
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 {
@@ -477,6 +477,7 @@ Topic/Product: ${topic}
 Platform: ${platformName}
 Tone: ${toneText}
 ${extras}${voiceBlock}
+Hashtag rule: include a maximum of 5 highly relevant hashtags — Instagram now recommends 5 or fewer. Never include more than 5 hashtags in the caption.
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 ${shape}`;
   }
