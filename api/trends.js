@@ -267,6 +267,25 @@ function twDemoAudit(handle, benchmark, deep) {
 }
 
 export default async function handler(req, res) {
+  // ── Image proxy ──────────────────────────────────────────────────────────
+  // TikTok/Instagram CDNs block hotlinking, so their thumbnails won't load in an
+  // <img> on our domain. We fetch the image server-side (with a referer) and
+  // stream it back from tawaslo.com so the trend covers actually render.
+  if (req.query && req.query.img) {
+    try {
+      const u = String(req.query.img);
+      if (!/^https?:\/\//i.test(u)) return res.status(400).end();
+      const ref = u.includes('tiktok') ? 'https://www.tiktok.com/' : u.includes('cdninstagram') || u.includes('instagram') ? 'https://www.instagram.com/' : '';
+      const r = await fetch(u, { headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', ...(ref ? { Referer: ref } : {}) } });
+      if (!r.ok) return res.status(502).end();
+      const ct = r.headers.get('content-type') || 'image/jpeg';
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.setHeader('Content-Type', ct);
+      res.setHeader('Cache-Control', 'public, max-age=86400, s-maxage=86400');
+      return res.status(200).send(buf);
+    } catch (e) { return res.status(502).end(); }
+  }
+
   const token = process.env.ENSEMBLE_TOKEN;
   const YT_KEY = process.env.YOUTUBE_API_KEY;
   const APIFY_TOKEN = process.env.APIFY_TOKEN;

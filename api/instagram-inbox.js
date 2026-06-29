@@ -27,6 +27,26 @@ export default async function handler(req, res) {
     }
   }
 
+  // Reply to a DM. Meta only allows this within 24 hours of the user's last message
+  // (the "messaging window"), and needs the instagram_manage_messages permission.
+  // Cold/outbound DMs to accounts that never messaged you are not possible on the API.
+  if (type === 'send-dm') {
+    const recipientId = req.body.recipientId;
+    if (!recipientId || !message) return res.status(400).json({ error: 'Missing recipientId or message' });
+    try {
+      const r = await fetch(`${base}/me/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: { id: recipientId }, message: { text: message }, messaging_type: 'RESPONSE', access_token: accessToken }),
+      });
+      const data = await r.json();
+      if (data.error) return res.status(400).json({ error: data.error.message, code: data.error.code });
+      return res.status(200).json({ success: true, id: data.message_id || data.id });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to send message', details: err.message });
+    }
+  }
+
   // Real profile + feed for the Grid planner (photo, bio, followers, following, posts).
   if (type === 'profile') {
     try {
@@ -109,9 +129,13 @@ export default async function handler(req, res) {
       for (const conv of (convsData.data || [])) {
         const latestMsg = conv.messages?.data?.[0];
         if (latestMsg) {
+          // The person to reply to is the conversation participant who is NOT this business account.
+          const others = (conv.participants?.data || []).filter(pp => pp.id && pp.id !== accountId);
+          const replyToId = (others[0] && others[0].id) || latestMsg.from?.id || null;
           messages.push({
             id: conv.id,
-            from: latestMsg.from?.name || 'Instagram User',
+            from: latestMsg.from?.name || (others[0] && others[0].username) || 'Instagram User',
+            fromId: replyToId,
             text: latestMsg.message,
             time: latestMsg.created_time,
             platform: 'ig',

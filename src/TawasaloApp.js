@@ -8255,7 +8255,7 @@ function TrendingPage() {
           {(sampleMode?sampleShown:items).map((it,i)=>(
             <div key={it.id||i} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,overflow:"hidden",boxShadow:"none"}}>
               <div style={{position:"relative",height:150,background:th.gradient}}>
-                {it.thumbnail && <img src={it.thumbnail} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
+                {it.thumbnail && <img src={(it.platform==="youtube")?it.thumbnail:`/api/trends?img=${encodeURIComponent(it.thumbnail)}`} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>}
                 <span style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"3px 8px",fontSize:10,color:"#fff"}}>{it.platform==="tiktok"?"TikTok":it.platform==="youtube"?"YouTube":"Instagram"}</span>
                 {it.sample&&<span style={{position:"absolute",top:8,right:8,background:th.accent,borderRadius:8,padding:"3px 8px",fontSize:9,fontWeight:700,color:"#fff"}}>{L("Sample","عينة")}</span>}
                 <span style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,0.55)",borderRadius:8,padding:"2px 7px",fontSize:10,color:"#fff"}}>{(it.platform==="tiktok"||it.platform==="youtube")?fmt(it.views)+" "+L("views","مشاهدة"):fmt(it.likes)+" "+L("likes","إعجاب")}</span>
@@ -11312,16 +11312,21 @@ function InboxPage() {
 
   const sendReply = async (overrideText) => {
     const text = (typeof overrideText === 'string' ? overrideText : reply);
-    if (!text.trim() || !selected || selected.type === 'dm') return;
+    if (!text.trim() || !selected) return;
     if (selected.sample) { logReply(); setReply(''); setReplySuccess(true); setTimeout(()=>setReplySuccess(false),3000); return; }
     const acc = accounts.find(a => a.platform === 'ig');
     if (!acc) return;
+    const isDM = selected.type === 'dm';
+    if (isDM && !selected.fromId) { setReplyError(L("Can't reply to this DM — no sender on record. Replies only work within 24 hours of the guest's message.","لا يمكن الرد على هذه الرسالة. الردود تعمل خلال 24 ساعة من رسالة الضيف فقط.")); return; }
     setReplying(true); setReplyError(''); setReplySuccess(false);
     try {
+      const body = isDM
+        ? { type: 'send-dm', recipientId: selected.fromId, message: text, accessToken: acc.access_token }
+        : { type: 'reply', commentId: selected.id, message: text, accessToken: acc.access_token };
       const res = await fetch('/api/instagram-inbox', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'reply', commentId: selected.id, message: text, accessToken: acc.access_token }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -11605,21 +11610,24 @@ function InboxPage() {
                 {replyError && <div style={{fontSize:12, color:th.danger, marginBottom:8}}>{replyError}</div>}
                 {selected.type!=='dm' && selected.type!=='saved' && <button onClick={()=>setShowSaved(true)} style={{ display:"inline-flex", alignItems:"center", gap:5, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, padding:"5px 11px", borderRadius:8, cursor:"pointer", marginBottom:8 }}><MessageCircle size={12}/>{L("Saved replies","الردود المحفوظة")}</button>}
                 {showSaved && <SavedRepliesModal voice={loadVoice(realClientId)||{}} brand={selClient?.name} onPick={(t)=>setReply(r=>r&&r.trim()?(r.replace(/\s+$/,'')+' '+t):t)} onClose={()=>setShowSaved(false)}/>}
-                {selected.type !== 'saved' && <div style={{display:"flex", gap:8}}>
+                {selected.type !== 'saved' && <>
+                  <div style={{display:"flex", gap:8}}>
                   <input
                     value={reply}
                     onChange={e=>{setReply(e.target.value); setReplyError('');}}
                     onKeyDown={e=>e.key==='Enter'&&sendReply()}
-                    placeholder={selected.type==='dm'?L("DM replies coming soon…","الرد على الرسائل قريباً…"):L("Write a reply…","اكتب رداً…")}
-                    disabled={selected.type==='dm'||replying}
-                    style={{flex:1, padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", opacity:selected.type==='dm'?0.5:1}}
+                    placeholder={selected.type==='dm'?L("Reply to this guest…","رد على الضيف…"):L("Write a reply…","اكتب رداً…")}
+                    disabled={replying}
+                    style={{flex:1, padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none"}}
                   />
                   <button
                     onClick={sendReply}
-                    disabled={!reply.trim()||replying||selected.type==='dm'}
-                    style={{padding:"11px 22px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", opacity:(!reply.trim()||replying||selected.type==='dm')?0.5:1}}
+                    disabled={!reply.trim()||replying}
+                    style={{padding:"11px 22px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", opacity:(!reply.trim()||replying)?0.5:1}}
                   >{replying?L("Sending…","جارٍ…"):L("Reply","رد")}</button>
-                </div>}
+                  </div>
+                  {selected.type==='dm' && <div style={{fontSize:10.5, color:th.text3, marginTop:7, lineHeight:1.5}}>{L("You can reply within 24 hours of the guest's message. Instagram does not allow starting a new DM to someone who hasn't messaged you.","يمكنك الرد خلال 24 ساعة من رسالة الضيف. لا يسمح إنستغرام ببدء رسالة جديدة لمن لم يراسلك.")}</div>}
+                </>}
               </>
             ); })() : (
               <div style={{display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", height:"100%", color:th.text3, fontSize:13, gap:10}}><MessageCircle size={30} style={{opacity:0.3}}/>{L("Select a conversation","اختر محادثة")}</div>
