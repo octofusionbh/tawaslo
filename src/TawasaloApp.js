@@ -11314,7 +11314,15 @@ function InboxPage() {
   const sendReply = async (overrideText) => {
     const text = (typeof overrideText === 'string' ? overrideText : reply);
     if (!text.trim() || !selected) return;
-    if (selected.sample) { logReply(); setReply(''); setReplySuccess(true); setTimeout(()=>setReplySuccess(false),3000); return; }
+    if (selected.sample) {
+      logReply();
+      const handle = (selected.accountName || selClient?.name || 'you').toString().replace(/\s+/g,'').toLowerCase();
+      const newReply = { id: 'sr' + Date.now(), username: handle, text };
+      setMessages(ms => ms.map(m => m.id === selected.id ? { ...m, replies: [...(m.replies||[]), newReply] } : m));
+      setSelected(s => (s && s.id === selected.id) ? { ...s, replies: [...(s.replies||[]), newReply] } : s);
+      setReply(''); setReplySuccess(true); setTimeout(()=>setReplySuccess(false),3000);
+      return;
+    }
     const acc = accounts.find(a => a.platform === 'ig');
     if (!acc) return;
     const isDM = selected.type === 'dm';
