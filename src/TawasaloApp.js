@@ -770,6 +770,7 @@ function Sidebar() {
   const sbSub = shortCompany(userCompany) || (userEmail === ADMIN_EMAIL ? "Octo Fusion" : (accountType==="freelancer" ? "" : accountLabelOf(accountType)));
   const planLabel = planTrial ? L("Free trial","نسخة تجريبية") : (userPlan ? (userPlan.charAt(0).toUpperCase()+userPlan.slice(1)) : L("Pro","احترافي"));
   const [collapsed, setCollapsed] = useState(()=>{ try{ return localStorage.getItem('tw_sidebar')==='1'; }catch(e){ return false; } });
+  const [brandSwitchOpen, setBrandSwitchOpen] = useState(false);
   useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
   const col = collapsed && !isMobile; // effective collapsed (mobile uses the drawer, never the rail)
 
@@ -819,7 +820,6 @@ function Sidebar() {
 
   const AGENCY_NAV = [
     {section:"Manage", items:[
-      {key:"command",   Icon:Activity,         label:"Command Center", badge:null},
       {key:"pilot",     Icon:Sparkles,         label:"Autopilot", badge:null},
       {key:"dashboard", Icon:LayoutDashboard, label:"Dashboard", badge:null},
       {key:"publisher", Icon:Edit3,           label:"Publisher", badge:null},
@@ -919,28 +919,43 @@ function Sidebar() {
       </div>
       {!isMobile&&col&&<div style={{display:"flex",justifyContent:"center",paddingBottom:8}}><button onClick={()=>setCollapsed(false)} title={isAR?"توسيع الشريط الجانبي":"Expand sidebar"} style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,width:34,height:28,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:th.text2}}>{isAR?<ChevronLeft size={15}/>:<ChevronRight size={15}/>}</button></div>}
 
+      {mode==="agency"&&(
+        <div style={{padding:col?"0 0 10px":"0 14px 10px"}}>
+          <div onClick={()=>setPage("command")} title={col?"Command Center":undefined} style={{display:"flex",alignItems:"center",justifyContent:col?"center":"flex-start",gap:9,padding:col?"9px 0":"9px 11px",borderRadius:9,cursor:"pointer",background:page==="command"?th.accentSoft:th.card2,border:`1px solid ${page==="command"?th.accent:th.border}`,color:page==="command"?th.accent:th.text,transition:"all 0.15s"}}>
+            <Activity size={16} style={{flexShrink:0}}/>
+            {!col&&<span style={{fontSize:12,fontWeight:700}}>Command Center</span>}
+            {!col&&<span style={{marginLeft:"auto",fontSize:8,color:th.text3,letterSpacing:0.6,textTransform:"uppercase"}}>Agency</span>}
+          </div>
+        </div>
+      )}
+
       {mode==="agency"&&!col&&(
         <div style={{padding:"0 14px 12px"}}>
-          <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",marginBottom:6}}>
-            <div style={{fontSize:11,fontWeight:700}}>{selClient.name}</div>
-            <div style={{fontSize:9,color:th.text2,marginTop:1}}>{selClient.accounts} connected account{selClient.accounts===1?"":"s"}</div>
-          </div>
-          {clients.length===0 && (
-            <div style={{fontSize:10,color:th.text3,padding:"6px 9px"}}>No brands yet</div>
-          )}
-          {clients.map(c=>(
-            <div key={c.id} onClick={()=>setSelClient(c)} style={{
-              display:"flex",alignItems:"center",gap:7,
-              padding:"6px 9px",borderRadius:7,cursor:"pointer",
-              background:selClient.id===c.id?th.accentSoft:"transparent",
-              color:selClient.id===c.id?th.accent:th.text2,
-              fontSize:11,fontWeight:selClient.id===c.id?600:400,
-              transition:"all 0.15s",
-            }}>
-              <div style={{width:6,height:6,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>
-              <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+          <div onClick={()=>setBrandSwitchOpen(o=>!o)} style={{background:th.card2,border:`1px solid ${brandSwitchOpen?th.accent:th.border}`,borderRadius:9,padding:"8px 11px",cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:6,height:6,borderRadius:"50%",background:selClient.status==="active"?th.success:th.text3,flexShrink:0}}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{selClient.name}</div>
+              <div style={{fontSize:9,color:th.text2,marginTop:1}}>{selClient.accounts} connected account{selClient.accounts===1?"":"s"}</div>
             </div>
-          ))}
+            <ChevronDown size={15} color={th.text2} style={{flexShrink:0,transition:"transform 0.18s",transform:brandSwitchOpen?"rotate(180deg)":"none"}}/>
+          </div>
+          {brandSwitchOpen && (
+            <div className="tw-pop" style={{marginTop:6,maxHeight:280,overflowY:"auto"}}>
+              {clients.length===0 && (
+                <div style={{fontSize:10,color:th.text3,padding:"6px 9px"}}>No brands yet</div>
+              )}
+              {clients.filter(c=>c.id!==selClient.id).map(c=>(
+                <div key={c.id} onClick={()=>{setSelClient(c);setBrandSwitchOpen(false);}} style={{
+                  display:"flex",alignItems:"center",gap:7,
+                  padding:"7px 9px",borderRadius:7,cursor:"pointer",
+                  color:th.text2,fontSize:11,fontWeight:400,transition:"all 0.15s",
+                }} onMouseEnter={e=>e.currentTarget.style.background=th.card2} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:c.status==="active"?th.success:th.text3,flexShrink:0}}/>
+                  <span style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1429,7 +1444,6 @@ function ClientsPage() {
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 <span style={{fontSize:14,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-                <span style={{fontSize:9,color:c.free?th.success:th.text2,border:`1px solid ${c.free?th.success+"55":th.border}`,borderRadius:5,padding:"1px 6px"}}>{c.free?L("Free","مجاني"):(c.plan||L("Active","نشط"))}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:7,marginTop:5,color:th.text3,fontSize:11}}>
                 {plats.map(p=>{ const m=PLAT[p]; if(!m) return null; const PI=m.Icon; return <PI key={p} style={{color:m.color,fontSize:14}}/>; })}
@@ -2916,14 +2930,26 @@ function AgencyDashboard() {
   const fmtN = (n) => n>=1000000 ? (n/1000000).toFixed(1).replace(/\.0$/,"")+"M" : n>=1000 ? (n/1000).toFixed(1).replace(/\.0$/,"")+"K" : String(n);
   const shownAccounts = (selPlatform && selPlatform!=="all") ? accounts.filter(a=>a.platform===selPlatform) : accounts;
   const dashFollowers = shownAccounts.reduce((s,a)=>s+(a.followers_count||0),0);
-  // Real reach & engagement need Meta/insights data we don't have on the dashboard yet,
-  // so show genuine zeros instead of fabricating numbers from the follower count.
-  const dashReach = 0;
-  const dashEng = "0%";
+  // Real reach & engagement, pulled live from the connected Instagram account's insights.
+  const [dashStats, setDashStats] = useState(null);
+  useEffect(() => {
+    const ig = shownAccounts.find(a => a.platform === 'ig' && a.account_id && a.access_token);
+    if (!ig) { setDashStats(null); return; }
+    let active = true;
+    fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: ig.account_id, accessToken: ig.access_token }) })
+      .then(r => r.json()).then(d => { if (active && d && d.summary) setDashStats(d); }).catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line
+  }, [accounts, selPlatform, selClient && selClient.id]);
+  const dSum = dashStats && dashStats.summary;
+  const dashHasData = !!dSum;
+  const dashReach = (dSum && dSum.totalReach) || 0;
+  const dashEng = (dSum && dSum.engagementRate != null) ? dSum.engagementRate + "%" : "0%";
   const CHART_DAYS = 14;
-  const reachSeries = Array.from({length:CHART_DAYS},()=>0);
+  const _cd = (dashStats && Array.isArray(dashStats.chartData)) ? dashStats.chartData : [];
+  const reachSeries = _cd.length ? _cd.map(x => Number((x && (x.reach ?? x.value)) || 0)) : Array.from({length:CHART_DAYS},()=>0);
   const engBase = 0;
-  const engSeries = Array.from({length:CHART_DAYS},()=>0);
+  const engSeries = _cd.length ? _cd.map(x => Number((x && (x.engagement ?? x.eng)) || 0)) : Array.from({length:CHART_DAYS},()=>0);
   const chartLabels = Array.from({length:CHART_DAYS},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-(CHART_DAYS-1-i)); return d.toLocaleDateString([], {month:'short', day:'numeric'}); });
   const fmtWhen = (iso) => { const d=new Date(iso); const now=new Date(); const sameDay=d.toDateString()===now.toDateString(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (sameDay?"Today":d.toLocaleDateString([], {weekday:'short'}))+" · "+tm; };
   // Real upcoming posts only — no demo fallback. Empty list shows an empty state below.
@@ -3033,7 +3059,9 @@ function AgencyDashboard() {
       <div style={{marginBottom:22,paddingTop:4}}>
         <div style={{fontSize:10.5,fontWeight:700,letterSpacing:"1.5px",color:th.text3,marginBottom:11}}>{L("THIS MONTH","هذا الشهر")}</div>
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
-          {L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{fmtN(dashReach)}</span> {L("people, with a","شخصًا، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}
+          {dashHasData
+            ? <>{L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashReach.toLocaleString()}</span> {L("people, with a","شخصًا، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}</>
+            : <>{L("This brand has","لدى هذه العلامة")} <span className="tw-num" style={{fontWeight:600}}>{fmtN(dashFollowers)}</span> {L("followers. Reach and engagement appear once Instagram insights sync.","متابع. يظهر الوصول والتفاعل بمجرد مزامنة بيانات إنستغرام.")}</>}
         </div>
         <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر 30 يومًا")}</div>
       </div>
@@ -4149,18 +4177,18 @@ function StrategyModal({ clientId, clientName, th, L, isAR, onClose, onUseInPlan
 // GCC / Hijri occasion calendar — Ramadan, Eid, Islamic dates and Gulf National Days.
 // Dates are approximate (lunar dates depend on moon sighting) and meant for planning ahead.
 const GCC_OCCASIONS = [
-  { en:"Islamic New Year",        ar:"رأس السنة الهجرية",   date:"2026-06-26", kind:"islamic" },
-  { en:"Ashura",                  ar:"عاشوراء",             date:"2026-07-05", kind:"islamic" },
-  { en:"Prophet's Birthday",      ar:"المولد النبوي",       date:"2026-09-04", kind:"islamic" },
+  { en:"Islamic New Year",        ar:"رأس السنة الهجرية",   date:"2026-06-16", kind:"islamic" },
+  { en:"Ashura",                  ar:"عاشوراء",             date:"2026-06-25", kind:"islamic" },
+  { en:"Prophet's Birthday",      ar:"المولد النبوي",       date:"2026-08-25", kind:"islamic" },
   { en:"Saudi National Day",      ar:"اليوم الوطني السعودي", date:"2026-09-23", kind:"national" },
   { en:"Oman National Day",       ar:"العيد الوطني العماني", date:"2026-11-18", kind:"national" },
   { en:"UAE National Day",        ar:"اليوم الوطني الإماراتي", date:"2026-12-02", kind:"national" },
   { en:"Bahrain National Day",    ar:"اليوم الوطني البحريني", date:"2026-12-16", kind:"national" },
   { en:"Qatar National Day",      ar:"اليوم الوطني القطري",   date:"2026-12-18", kind:"national" },
   { en:"Kuwait National Day",     ar:"اليوم الوطني الكويتي",  date:"2027-02-25", kind:"national" },
-  { en:"Ramadan begins",          ar:"بداية رمضان",          date:"2027-02-18", kind:"ramadan" },
-  { en:"Eid al-Fitr",             ar:"عيد الفطر",            date:"2027-03-20", kind:"eid" },
-  { en:"Eid al-Adha",             ar:"عيد الأضحى",           date:"2027-05-27", kind:"eid" },
+  { en:"Ramadan begins",          ar:"بداية رمضان",          date:"2027-02-08", kind:"ramadan" },
+  { en:"Eid al-Fitr",             ar:"عيد الفطر",            date:"2027-03-10", kind:"eid" },
+  { en:"Eid al-Adha",             ar:"عيد الأضحى",           date:"2027-05-17", kind:"eid" },
 ];
 const upcomingOccasions = (n = 4) => {
   const now = new Date(); now.setHours(0,0,0,0);
@@ -7417,6 +7445,11 @@ function SocialAccountsPage() {
   const [realClientId, setRealClientId] = useState(null);
   const [liOptions, setLiOptions] = useState(null);
 
+  // Connection banners belong to the action just taken — clear them when switching brands.
+  useEffect(() => { setError(""); setSuccess(""); }, [selClient && selClient.id]);
+  // Auto-dismiss a success banner so it doesn't linger.
+  useEffect(() => { if (!success) return; const t = setTimeout(() => setSuccess(""), 6000); return () => clearTimeout(t); }, [success]);
+
   // Tier cap: limit connected accounts to the plan's allowance. Returns false (and prompts upgrade) when at the cap.
   const guardConnect = () => {
     const cap = accountLimitOf(userEmail, userPlan);
@@ -7573,7 +7606,7 @@ function SocialAccountsPage() {
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const storedId = sessionStorage.getItem('ig_redirect_client');
     sessionStorage.removeItem('ig_redirect_client');
-    setConnecting(true);
+    setConnecting(true); setError(""); setSuccess("");
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); setConnecting(false); return; }
     try {
@@ -12933,6 +12966,10 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
                 <div style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
                   <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(225,48,108,0.12)",color:"#E1306C",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaInstagram style={{fontSize:13}}/>Instagram</span>
                   <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(24,119,242,0.12)",color:"#5B9BF5",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaFacebook style={{fontSize:13}}/>Facebook</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(226,232,240,0.10)",color:"#C7D4E4",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaTiktok style={{fontSize:13}}/>TikTok</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(10,102,194,0.14)",color:"#5FA0E6",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaLinkedin style={{fontSize:13}}/>LinkedIn</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(226,232,240,0.10)",color:"#C7D4E4",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaTwitter style={{fontSize:13}}/>X</span>
+                  <span style={{display:"inline-flex",alignItems:"center",gap:5,background:"rgba(255,0,0,0.12)",color:"#FF6B6B",fontSize:10,fontWeight:600,borderRadius:7,padding:"5px 9px"}}><FaYoutube style={{fontSize:13}}/>YouTube</span>
                   <span style={{marginLeft:"auto",display:"inline-flex",alignItems:"center",gap:5,background:"#6E8CAB",color:"#0B0E12",fontSize:10,fontWeight:700,borderRadius:7,padding:"5px 10px"}}><Calendar size={12}/>Schedule</span>
                 </div>
               </div>
