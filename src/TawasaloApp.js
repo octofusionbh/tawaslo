@@ -7453,8 +7453,9 @@ function SocialAccountsPage() {
 
   // Connection banners belong to the action just taken — clear them when switching brands.
   useEffect(() => { setError(""); setSuccess(""); }, [selClient && selClient.id]);
-  // Auto-dismiss a success banner so it doesn't linger.
+  // Auto-dismiss banners so they don't linger.
   useEffect(() => { if (!success) return; const t = setTimeout(() => setSuccess(""), 6000); return () => clearTimeout(t); }, [success]);
+  useEffect(() => { if (!error) return; const t = setTimeout(() => setError(""), 12000); return () => clearTimeout(t); }, [error]);
 
   // Tier cap: limit connected accounts to the plan's allowance. Returns false (and prompts upgrade) when at the cap.
   const guardConnect = () => {
@@ -7993,8 +7994,8 @@ function SocialAccountsPage() {
         </div>
       </div>
 
-      {error && <div style={{ padding:"12px 16px", borderRadius:11, background:th.dangerSoft, color:th.danger, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><XCircle size={15}/>{error}</div>}
-      {success && <div style={{ padding:"12px 16px", borderRadius:11, background:th.successSoft, color:th.success, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><CheckCircle size={15}/>{success}</div>}
+      {error && <div style={{ padding:"12px 16px", borderRadius:11, background:th.dangerSoft, color:th.danger, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><XCircle size={15} style={{flexShrink:0}}/><span style={{flex:1}}>{error}</span><button onClick={()=>setError("")} title={L("Dismiss","إغلاق")} style={{ background:"none", border:"none", color:th.danger, cursor:"pointer", display:"flex", padding:2, opacity:0.8, flexShrink:0 }}><X size={15}/></button></div>}
+      {success && <div style={{ padding:"12px 16px", borderRadius:11, background:th.successSoft, color:th.success, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><CheckCircle size={15} style={{flexShrink:0}}/><span style={{flex:1}}>{success}</span><button onClick={()=>setSuccess("")} title={L("Dismiss","إغلاق")} style={{ background:"none", border:"none", color:th.success, cursor:"pointer", display:"flex", padding:2, opacity:0.8, flexShrink:0 }}><X size={15}/></button></div>}
 
       <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>{L("Add a network","أضف شبكة")}</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(188px,1fr))", gap:15, marginBottom:32 }}>
