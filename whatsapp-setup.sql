@@ -30,11 +30,17 @@ drop policy if exists wa_messages_all on public.wa_messages;
 create policy wa_messages_all on public.wa_messages for all using (true) with check (true);
 
 -- ============================================================
--- Vercel env vars the WhatsApp code ACTUALLY reads (api/meta-publish.js):
---   WA_TOKEN                 (access token from Meta)
---   WA_PHONE_ID              (the phone number ID from WhatsApp Manager)
---   WA_VERIFY_TOKEN          (any string you choose; must match the webhook setup)
+-- WHATSAPP — single unified webhook (after the merge):
+--   Point Meta's webhook at:  https://tawaslo.com/api/generate-caption
+--   Subscribe to the "messages" field.
+--   This ONE endpoint now: runs the trained Concierge (answers + books),
+--   logs every message to wa_messages (this table), and keeps wa_threads.
+--
+-- Vercel env vars to set (the code reads WHATSAPP_* first, WA_* as fallback):
+--   WHATSAPP_TOKEN              (access token from Meta)
+--   WHATSAPP_PHONE_ID           (phone number ID from WhatsApp Manager — for outbound/test)
+--   WHATSAPP_VERIFY_TOKEN       (any string you choose; must match the webhook setup)
+--   WHATSAPP_DEFAULT_CLIENT_ID  (the Tawaslo client UUID the number answers for)
 --   SUPABASE_URL
---   SUPABASE_SERVICE_KEY     (or SUPABASE_SERVICE_ROLE_KEY — code accepts either)
--- NOTE: ignore the WHATSAPP_* names in tawaslo-whatsapp.sql — those are stale.
+--   SUPABASE_SERVICE_ROLE_KEY   (or SUPABASE_SERVICE_KEY — code accepts either)
 -- ============================================================

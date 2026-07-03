@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   // === WhatsApp Cloud API (folded in here to stay under Vercel's 12-function limit) ===
   // Webhook verification — Meta calls this once (GET) when you set the callback URL.
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === process.env.WA_VERIFY_TOKEN) {
+    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === (process.env.WA_VERIFY_TOKEN || process.env.WHATSAPP_VERIFY_TOKEN)) {
       return res.status(200).send(req.query['hub.challenge']);
     }
     return res.status(403).send('Forbidden');
@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   const coverUrl = req.body.coverUrl || null; // optional custom cover for Reels
   const igFormat = (req.body.igFormat || 'feed').toLowerCase(); // feed | reel | story
 
-  if (!platform || !accountId || !accessToken || !caption) {
+  if (!platform || !accountId || !accessToken || (!caption && !imageUrl && !videoUrl && !(imageUrls && imageUrls.length))) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -298,8 +298,8 @@ async function handleWhatsApp(req, res) {
   }
 
   // --- Outbound: send a message / template / interactive on behalf of a business. ---
-  const token = b.token || process.env.WA_TOKEN;
-  const phoneId = b.phoneId || process.env.WA_PHONE_ID;
+  const token = b.token || process.env.WA_TOKEN || process.env.WHATSAPP_TOKEN;
+  const phoneId = b.phoneId || process.env.WA_PHONE_ID || process.env.WHATSAPP_PHONE_ID;
   if (!token || !phoneId) {
     return res.status(200).json({ ok: false, configured: false, message: 'WhatsApp is not connected yet. Add WA_TOKEN and WA_PHONE_ID (or connect a number) to start sending.' });
   }

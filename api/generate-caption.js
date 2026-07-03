@@ -17,7 +17,7 @@ function campaignFallback(topic, plats, count) {
 export default async function handler(req, res) {
   // ── WhatsApp Cloud API webhook (folded in here to stay under Vercel's function cap) ──
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
-    const vt = process.env.WHATSAPP_VERIFY_TOKEN || 'tawaslo_wa_verify';
+    const vt = process.env.WHATSAPP_VERIFY_TOKEN || process.env.WA_VERIFY_TOKEN || 'tawaslo_wa_verify';
     if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === vt) return res.status(200).send(req.query['hub.challenge']);
     return res.status(403).send('Forbidden');
   }
@@ -633,7 +633,7 @@ async function waSend(phoneId, token, to, bodyText) {
   } catch (e) { /* network error — skip */ }
 }
 async function handleWhatsApp(body) {
-  const token = process.env.WHATSAPP_TOKEN;
+  const token = process.env.WHATSAPP_TOKEN || process.env.WA_TOKEN;
   const clientId = process.env.WHATSAPP_DEFAULT_CLIENT_ID;
   for (const en of (body.entry || [])) {
     for (const ch of (en.changes || [])) {
@@ -642,6 +642,7 @@ async function handleWhatsApp(body) {
       for (const m of (val.messages || [])) {
         if (m.type !== 'text' || !m.text || !phoneId || !token || !clientId) continue;
         const from = m.from; const text = m.text.body || '';
+        try { await waSb('wa_messages', { method: 'POST', headers: { Prefer: 'resolution=ignore-duplicates' }, body: JSON.stringify({ wa_message_id: m.id, direction: 'in', from_number: from, body: text, msg_type: m.type, received_at: new Date(Number(m.timestamp || (Date.now() / 1000)) * 1000).toISOString() }) }); } catch (e) {}
         let thread = [];
         try { const r = await waSb(`wa_threads?client_id=eq.${clientId}&wa_from=eq.${encodeURIComponent(from)}&select=messages&limit=1`); const t = (await r.json())[0]; if (t && Array.isArray(t.messages)) thread = t.messages; } catch (e) {}
         thread.push({ role: 'user', content: text }); thread = thread.slice(-12);
@@ -651,6 +652,7 @@ async function handleWhatsApp(body) {
         thread.push({ role: 'assistant', content: reply }); thread = thread.slice(-12);
         try { await waSb(`wa_threads?on_conflict=client_id,wa_from`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ client_id: clientId, wa_from: from, messages: thread, updated_at: new Date().toISOString() }) }); } catch (e) {}
         await waSend(phoneId, token, from, reply);
+        try { await waSb('wa_messages', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ direction: 'out', from_number: from, body: reply, msg_type: 'text', received_at: new Date().toISOString() }) }); } catch (e) {}
         if (out && out.cancel) {
           try {
             const nowIso = new Date().toISOString();

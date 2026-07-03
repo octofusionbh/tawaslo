@@ -93,4 +93,4 @@ Submit these two WhatsApp permissions in the **same App Review cycle** as your I
 3. Record Video A (cURL send) + Video B (template create).
 4. Paste the justification text, attach the videos, add privacy URL.
 5. Submit — bundled with the Instagram permissions.
-6. The backend is already built (`/api/meta-publish` handles WhatsApp send + webhook), so the inbox/broadcasts go live the moment you're approved and add the env vars.
+6. The backend is already built and unified: point Meta's webhook at **`https://tawaslo.com/api/generate-caption`** (subscribe to the `messages` field). That single endpoint runs the trained Concierge (answers + books), logs to the inbox (`wa_messages`), and holds conversation memory (`wa_threads`). Set the `WHATSAPP_*` env vars (see `whatsapp-setup.sql`) and it goes live the moment you're approved.

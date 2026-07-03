@@ -6696,7 +6696,8 @@ function PublisherPage() {
   const deleteDraft = async (id) => { await supabase.from('posts').delete().eq('id', id); loadDrafts(); };
 
   const handlePost = async (apprMode) => {
-    if (!caption.trim() || selectedAccounts.length === 0) return;
+    if (selectedAccounts.length === 0) return;
+    if (!caption.trim() && images.length === 0 && !video) return;
     if (trialEnded(userEmail)) {
       setUpgrade({ title:"Your free trial has ended", detail:"Upgrade to publish and schedule again. Your accounts, posts and analytics are all still here.", Icon:Lock });
       return;
@@ -7207,7 +7208,7 @@ function PublisherPage() {
           )}
           <div style={{ display:"flex", gap:10 }}>
             <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?L("Update draft","تحديث المسودة"):L("Save draft","حفظ كمسودة")}</button>
-            <button onClick={()=>handlePost(scheduleType==="approval"?"client":scheduleType==="schedule"?"me":undefined)} disabled={posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||!caption.trim()||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="approval"?<><Shield size={15}/>{L("Send for approval","إرسال للموافقة")}</>:scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
+            <button onClick={()=>handlePost(scheduleType==="approval"?"client":scheduleType==="schedule"?"me":undefined)} disabled={posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="approval"?<><Shield size={15}/>{L("Send for approval","إرسال للموافقة")}</>:scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
           </div>
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
