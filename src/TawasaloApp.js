@@ -14954,7 +14954,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
   }, [clientId, currency]);
 
   useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, open, busy]);
-  useEffect(() => { if (open && msgs.length===0) setMsgs([{ role:'assistant', content:`Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋` }]); }, [open]); // eslint-disable-line
+  useEffect(() => { if (open && msgs.length===0) { const g = (ctx && ctx.settings && ctx.settings.hours && ctx.settings.hours.concierge_greeting) || `Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋`; setMsgs([{ role:'assistant', content:g }]); } }, [open, ctx]); // eslint-disable-line
   const openChat = () => setOpen(true);
 
   const send = async () => {
@@ -14965,7 +14965,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -16941,6 +16941,65 @@ function ReviewPublicPage({ slug }) {
   );
 }
 
+// ── Concierge live preview — same AI brain as the public widget + WhatsApp,
+// fed with the owner's UNSAVED edits so training is instant. ──
+function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
+  const { dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const [ctx, setCtx] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef(null);
+  const defGreet = `Hi! I'm the host at ${name || 'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋`;
+  useEffect(() => {
+    if (!cid) return; let live = true;
+    (async () => {
+      let menu = [], settings = {}, cur = 'BHD', special = null, dayparts = null, menuUrl = null;
+      try { const { data: mn } = await supabase.from('menus').select('id,slug,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours,external_menu_url').eq('client_id', cid).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || ((m.slug && typeof window!=='undefined') ? `${window.location.origin}/menu/${m.slug}` : null); special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', cid).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
+      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl });
+    })();
+    return () => { live = false; };
+  }, [cid]);
+  const restart = () => setMsgs([{ role:'assistant', content:(greeting && greeting.trim()) || defGreet }]);
+  useEffect(() => { setMsgs(m => (m.length <= 1 ? [{ role:'assistant', content:(greeting && greeting.trim()) || defGreet }] : m)); }, [greeting, name]); // eslint-disable-line
+  useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, busy]);
+  const send = async () => {
+    const text = input.trim(); if (!text || busy) return;
+    const next = [...msgs, { role:'user', content:text }]; setMsgs(next); setInput(""); setBusy(true);
+    try {
+      const s = (ctx && ctx.settings) || {}; const h = s.hours || {};
+      const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
+      let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
+      const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+      const d = await r.json();
+      setMsgs(m => [...m, { role:'assistant', content: d.reply || "…" }]);
+    } catch (e) { setMsgs(m => [...m, { role:'assistant', content:"Preview error — check your connection and try again." }]); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:460, background:"#0E1013", border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px", borderBottom:`1px solid ${th.border}` }}>
+        <div style={{ width:30, height:30, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center" }}><Sparkles size={14} color="#fff"/></div>
+        <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:13, fontWeight:700, color:"#ECEAE1" }}>{name || L("Your restaurant","مطعمك")}</div><div style={{ fontSize:10, color:"#5e6b78" }}>{L("Live preview · uses your unsaved edits","معاينة مباشرة · تعديلاتك غير المحفوظة")}</div></div>
+        <button onClick={restart} style={{ background:"none", border:`1px solid ${th.border}`, color:"#7E8794", cursor:"pointer", fontSize:11, borderRadius:8, padding:"5px 9px" }}>{L("Restart","إعادة")}</button>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"12px", display:"flex", flexDirection:"column", gap:8 }}>
+        {msgs.map((m,i)=>(<div key={i} style={{ alignSelf:m.role==='user'?"flex-end":"flex-start", maxWidth:"85%", background:m.role==='user'?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#141923", color:m.role==='user'?"#fff":"#ECEAE1", border:m.role==='user'?"none":"1px solid #20242b", borderRadius:13, padding:"8px 11px", fontSize:12.5, lineHeight:1.5, whiteSpace:"pre-wrap" }}>{m.content}</div>))}
+        {busy && <div style={{ alignSelf:"flex-start", background:"#141923", border:"1px solid #20242b", borderRadius:13, padding:"8px 12px", fontSize:12.5, color:"#7E8794" }}>…</div>}
+        <div ref={endRef}/>
+      </div>
+      <div style={{ display:"flex", gap:8, padding:"11px 12px", borderTop:`1px solid ${th.border}` }}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') send(); }} placeholder={L("Message your host…","راسل مضيفك…")} style={{ flex:1, boxSizing:"border-box", background:"#141923", border:"1px solid #20242b", borderRadius:10, padding:"10px 12px", color:"#ECEAE1", fontSize:14, outline:"none" }}/>
+        <button onClick={send} disabled={busy||!input.trim()} style={{ width:42, borderRadius:10, background:input.trim()?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230", border:"none", color:"#fff", cursor:input.trim()&&!busy?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center" }}><Send size={15}/></button>
+      </div>
+    </div>
+  );
+}
+
 // ── Reservations (owner) — bookings dashboard + availability + public link. ──
 function ReservationsPage() {
   const { selClient, dark, lang } = useApp();
@@ -16962,6 +17021,11 @@ function ReservationsPage() {
   const [savedMsg, setSavedMsg] = useState(false);
   const [tab, setTab] = useState("bookings");
   const [hostPin, setHostPin] = useState("");
+  const [brandVoice, setBrandVoice] = useState("");
+  const [greeting, setGreeting] = useState("");
+  const [brief, setBrief] = useState("");
+  const [waNum, setWaNum] = useState("");
+  const [waMsg, setWaMsg] = useState("");
 
   useEffect(() => {
     let active = true; setLoading(true);
@@ -16975,7 +17039,7 @@ function ReservationsPage() {
       let bs = null;
       try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); bs = bp && bp[0] && bp[0].slug; if (!bs) { bs = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:bs, title:selClient.name }]); } } catch(e){}
       if (active) setPubSlug(bs);
-      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); if(h.host_pin) setHostPin(h.host_pin); } } catch(e){}
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); if(h.host_pin) setHostPin(h.host_pin); setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } } catch(e){}
       const t0 = new Date(); t0.setHours(0,0,0,0);
       try { const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', t0.toISOString()).order('starts_at',{ascending:true}); if (active) setBookings(bk||[]); } catch(e){}
       if (active) setLoading(false);
@@ -16985,7 +17049,19 @@ function ReservationsPage() {
 
   const saveSettings = async () => {
     if (!cid) return;
-    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
+    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null, concierge_voice: brandVoice||null, concierge_greeting: greeting||null, concierge_brief: brief||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
+  };
+  const sendWaTest = async () => {
+    const to = String(waNum||'').replace(/[^\d]/g,''); if(!to){ setWaMsg(L("Enter a WhatsApp number first.","أدخل رقم واتساب أولاً.")); return; }
+    setWaMsg(L("Sending…","جارٍ الإرسال…"));
+    try {
+      const g = (greeting && greeting.trim()) || `Hi! This is a test from ${selClient?.name||'your restaurant'}'s Concierge.`;
+      const r = await fetch('/api/meta-publish', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ channel:'whatsapp', to, body:g }) });
+      const d = await r.json().catch(()=>({}));
+      if (d && d.success) setWaMsg(L("Sent ✓ — check WhatsApp on that number.","تم الإرسال ✓ — تحقق من واتساب."));
+      else if (d && d.configured===false) setWaMsg(L("WhatsApp isn't connected yet — set WA_TOKEN & WA_PHONE_ID in Vercel first.","واتساب غير متصل بعد — اضبط WA_TOKEN وWA_PHONE_ID أولاً."));
+      else setWaMsg((d&&d.error)||L("Couldn't send — the guest must message you first, or WhatsApp isn't connected.","تعذّر الإرسال — يجب أن يراسلك الضيف أولاً أو أن واتساب غير متصل."));
+    } catch(e){ setWaMsg(L("Network error.","خطأ في الشبكة.")); }
   };
   const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); };
   const notifyCancel = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if(!ph) return; const when = `${fmtD(b.starts_at)} ${fmtT(b.starts_at)}`; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, we're sorry — your reservation at ${selClient?.name||'us'} for ${when} has been cancelled. Please contact us to rebook. Apologies for the inconvenience.`); if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); };
@@ -17004,6 +17080,7 @@ function ReservationsPage() {
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const inp = { background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
+  const lblS = { display:"block", fontSize:11.5, fontWeight:600, color:th.text2, marginBottom:6 };
   if (loading) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Loading…","جارٍ التحميل…")}</div>;
   if (!cid) return <div style={{ padding:24, color:th.text2, fontSize:13 }}>{L("Select a client to manage reservations.","اختر عميلاً لإدارة الحجوزات.")}</div>;
 
@@ -17021,11 +17098,40 @@ function ReservationsPage() {
       </div>
 
       <div style={{ display:"flex", gap:7, marginBottom:18, borderBottom:`1px solid ${th.border}`, paddingBottom:0 }}>
-        {[["bookings",L("Bookings","الحجوزات")],["floor",L("Floor","المخطط")],["guests",L("Guests","الضيوف")]].map(([k,lbl])=>(
+        {[["bookings",L("Bookings","الحجوزات")],["floor",L("Floor","المخطط")],["guests",L("Guests","الضيوف")],["concierge",L("Concierge","الكونسيرج")]].map(([k,lbl])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"9px 14px", background:"none", border:"none", borderBottom:`2px solid ${tab===k?th.accent:"transparent"}`, color:tab===k?th.text:th.text2, fontSize:13, fontWeight:tab===k?600:500, cursor:"pointer", marginBottom:-1 }}>{lbl}</button>
         ))}
       </div>
 
+      {tab==="concierge" && (
+        <div style={{ display:"flex", flexWrap:"wrap", gap:16, alignItems:"flex-start" }}>
+          <div style={{ ...card, padding:18, flex:"1 1 340px", minWidth:0 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:th.text, marginBottom:2 }}>{L("Concierge — your AI host","الكونسيرج — مضيفك الذكي")}</div>
+            <p style={{ margin:"0 0 16px", fontSize:12, color:th.text2, lineHeight:1.5 }}>{L("It already knows this client's menu and hours. Add the brand voice, greeting and house rules to make it sound like you. Edits show instantly in the live preview; Save to make them live on the web widget and WhatsApp.","هو يعرف قائمة هذا العميل وساعاته. أضف نبرة العلامة والترحيب والقواعد ليتحدث بأسلوبك. تظهر التعديلات فوراً في المعاينة، واضغط حفظ لتفعيلها على الويب وواتساب.")}</p>
+            <label style={lblS}>{L("Brand voice","نبرة العلامة")}</label>
+            <textarea value={brandVoice} onChange={e=>setBrandVoice(e.target.value)} rows={2} placeholder={L("e.g. Warm and upbeat — speaks like a friendly Bahraini host. Light emojis welcome.","مثلاً: ودّي ومرح — يتحدث كمضيف بحريني لطيف.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:14, lineHeight:1.5 }}/>
+            <label style={lblS}>{L("Greeting (first message)","الترحيب (الرسالة الأولى)")}</label>
+            <textarea value={greeting} onChange={e=>setGreeting(e.target.value)} rows={2} placeholder={L("Hi! Welcome — ask me about the menu or tell me a day, time and party size to book.","أهلاً! اسألني عن القائمة أو أخبرني باليوم والوقت وعدد الضيوف للحجز.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:14, lineHeight:1.5 }}/>
+            <label style={lblS}>{L("House instructions","تعليمات المطعم")}</label>
+            <textarea value={brief} onChange={e=>setBrief(e.target.value)} rows={6} placeholder={L("Teach your host, e.g.:\n• No outside food or cakes.\n• Always suggest the saffron cheesecake for dessert.\n• Valet parking is free after 7pm.\n• Groups over 8 should call us directly.","علّم مضيفك، مثلاً:\n• لا يُسمح بطعام خارجي.\n• اقترح دائماً تشيز كيك الزعفران.\n• صف السيارات مجاني بعد السابعة مساءً.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:16, lineHeight:1.6 }}/>
+            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+              <button onClick={saveSettings} style={{ padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved ✓","تم الحفظ ✓"):L("Save & make live","حفظ وتفعيل")}</button>
+              <span style={{ fontSize:11.5, color:th.text3 }}>{L("Applies to the web widget and WhatsApp.","يُطبّق على الويب وواتساب.")}</span>
+            </div>
+            <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${th.border}` }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:th.text, marginBottom:8 }}>{L("Send a test to WhatsApp","إرسال اختبار إلى واتساب")}</div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                <input value={waNum} onChange={e=>setWaNum(e.target.value.replace(/[^\d+]/g,''))} placeholder={L("WhatsApp number, e.g. 9733...","رقم واتساب، مثل 9733...")} style={{ ...inp, flex:1, minWidth:170 }}/>
+                <button onClick={sendWaTest} style={{ padding:"9px 14px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><FaWhatsapp/>{L("Send test","إرسال")}</button>
+              </div>
+              {waMsg && <div style={{ fontSize:11.5, color:th.text2, marginTop:8, lineHeight:1.45 }}>{waMsg}</div>}
+            </div>
+          </div>
+          <div style={{ flex:"1 1 320px", minWidth:280 }}>
+            <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting}/>
+          </div>
+        </div>
+      )}
       {tab==="floor" && (<>
         {pubSlug && (
           <div style={{ ...card, padding:16, marginBottom:14, display:"flex", gap:14, flexWrap:"wrap", alignItems:"center" }}>

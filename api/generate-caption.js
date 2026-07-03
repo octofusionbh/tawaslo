@@ -548,11 +548,13 @@ async function conciergeReply(ctx, convo) {
   const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
   const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
   const menuLink = ctx.menuUrl ? `\nFull visual menu (photos, both languages, prices): ${ctx.menuUrl} — share this link whenever the guest asks to see the menu, wants pictures, or asks for "the list".` : '';
+  const voiceLine = ctx.brandVoice ? `\n\nBrand voice — write EVERY reply in this voice and personality: ${String(ctx.brandVoice).slice(0, 500)}` : '';
+  const houseLine = ctx.instructions ? `\n\nHouse instructions from the owner (these take priority — follow them exactly, but never invent menu items, prices or facts that are not listed above):\n${String(ctx.instructions).slice(0, 1800)}` : '';
   const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
 You can: answer menu and price questions, give opening hours, and book a table.
 Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
 Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}${voiceLine}${houseLine}
 
 Rules:
 - Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
@@ -617,7 +619,7 @@ async function waBuildContext(clientId) {
       ctx.menu = items.filter(x => !x.hidden).map(x => ({ category: x.category, name_en: x.name_en, name_ar: x.name_ar, description: x.description || null, available: x.available, tags: Array.isArray(x.tags) ? x.tags : [], variants: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.variants) ? x.variants : []), addons: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.addons) ? x.addons : []), price: (m.hide_prices || x.show_price === false) ? null : x.price }));
     }
   } catch (e) {}
-  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=*&limit=1`); const sj = await r.json(); const s = Array.isArray(sj) ? sj[0] : null; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; } } catch (e) {}
+  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=*&limit=1`); const sj = await r.json(); const s = Array.isArray(sj) ? sj[0] : null; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; if (h.concierge_brief) ctx.instructions = h.concierge_brief; if (h.concierge_greeting) ctx.greeting = h.concierge_greeting; if (h.concierge_voice) ctx.brandVoice = h.concierge_voice; } } catch (e) {}
   return ctx;
 }
 async function waSend(phoneId, token, to, bodyText) {
