@@ -1059,10 +1059,13 @@ function Topbar() {
         const items = Object.values(byKey).sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 8);
         setRespNotifs(items);
         let seen = 0; try { seen = parseInt(localStorage.getItem('tw_resp_seen') || '0', 10); } catch (e) { /* ignore */ }
+        let toasted = 0; try { toasted = parseInt(localStorage.getItem('tw_resp_toasted') || '0', 10); } catch (e) { /* ignore */ }
         setUnseenResp(items.filter(it => new Date(it.t).getTime() > seen).length);
-        // Pop a toast the moment a genuinely-new response lands.
+        // Pop a toast only the FIRST time a given response lands, then never again on reload.
+        // It still stays in the notifications list; we persist the last-toasted time so a
+        // fresh sign-in doesn't re-pop the same approval.
         const newest = items[0];
-        if (newest) { const nt = new Date(newest.t).getTime(); if (nt > seen && nt > toastedRef.current) { toastedRef.current = nt; setToast(newest); setTimeout(() => setToast(t => (t === newest ? null : t)), 7000); } }
+        if (newest) { const nt = new Date(newest.t).getTime(); if (nt > seen && nt > toasted && nt > toastedRef.current) { toastedRef.current = nt; try { localStorage.setItem('tw_resp_toasted', String(nt)); } catch (e) { /* ignore */ } setToast(newest); setTimeout(() => setToast(t => (t === newest ? null : t)), 7000); } }
       } catch (e) { /* ignore */ }
     };
     poll(); const iv = setInterval(poll, 30000);
