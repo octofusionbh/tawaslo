@@ -773,6 +773,9 @@ function Sidebar() {
   const [collapsed, setCollapsed] = useState(()=>{ try{ return localStorage.getItem('tw_sidebar')==='1'; }catch(e){ return false; } });
   const [brandSwitchOpen, setBrandSwitchOpen] = useState(false);
   useEffect(()=>{ try{ localStorage.setItem('tw_sidebar', collapsed?'1':'0'); }catch(e){} },[collapsed]);
+  const [collapsedSecs, setCollapsedSecs] = useState(()=>{ try{ return JSON.parse(localStorage.getItem('tw_secs')||'{}')||{}; }catch(e){ return {}; } });
+  useEffect(()=>{ try{ localStorage.setItem('tw_secs', JSON.stringify(collapsedSecs)); }catch(e){} },[collapsedSecs]);
+  const toggleSec = (s)=> setCollapsedSecs(o=>({ ...o, [s]: !o[s] }));
   const col = collapsed && !isMobile; // effective collapsed (mobile uses the drawer, never the rail)
 
   // New-booking badge for Reservations: count bookings created since the host last opened the page.
@@ -979,13 +982,21 @@ function Sidebar() {
         {mode==="owner"?(
           <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
-          AGENCY_NAV.map((sec,si)=>(
-            <div key={si} style={{marginBottom:16}}>
-              {!col&&<div style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,padding:"0 10px",marginBottom:4}}>{t("sec."+sec.section,sec.section)}</div>}
+          AGENCY_NAV.map((sec,si)=>{
+            const secOpen = !collapsedSecs[sec.section];
+            return (
+            <div key={si} style={{marginBottom:col?0:(secOpen?16:6)}}>
+              {!col&&(
+                <div onClick={()=>toggleSec(sec.section)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:"3px 10px",marginBottom:4,userSelect:"none",borderRadius:7}} onMouseEnter={e=>e.currentTarget.style.background=th.card2} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <span style={{fontSize:9,color:th.text3,fontWeight:700,textTransform:"uppercase",letterSpacing:1.2}}>{t("sec."+sec.section,sec.section)}</span>
+                  <ChevronDown size={13} color={th.text3} style={{transition:"transform .18s",transform:secOpen?"none":(isAR?"rotate(90deg)":"rotate(-90deg)")}}/>
+                </div>
+              )}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key))).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
+              {(col||secOpen)&&sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key))).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
-          ))
+            );
+          })
         )}
       </nav>
 
