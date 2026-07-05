@@ -8,6 +8,47 @@ export default async function handler(req, res) {
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY) return res.status(500).json({ error: 'Resend API key not configured' });
 
+  // ── Team invite email (folded in here to stay under Vercel's 12-function cap) ──
+  if (req.body.kind === 'invite') {
+    const inviterName = req.body.inviterName || 'Your team';
+    const workspaceName = req.body.workspaceName || 'their Tawaslo workspace';
+    const role = req.body.role || 'Editor';
+    const link = req.body.acceptUrl || 'https://tawaslo.com';
+    const inviteHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>You're invited to Tawaslo</title></head>
+<body style="margin:0;padding:0;background:#080B11;font-family:-apple-system,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#080B11;padding:36px 16px;"><tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0" style="background:#0F141C;border-radius:16px;border:1px solid #1E2838;overflow:hidden;max-width:520px;width:100%;">
+  <tr><td style="background:#060810;padding:36px 40px 30px;text-align:center;border-bottom:1px solid #1E2838;">
+    <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;"><tr>
+      <td style="vertical-align:middle;padding-right:10px;"><img src="https://tawaslo.com/logo-transparent.png" width="34" height="34" alt="Tawaslo" style="display:block;"/></td>
+      <td style="vertical-align:middle;font-size:21px;font-weight:800;color:#E8EFF8;letter-spacing:-0.5px;">Tawaslo</td>
+    </tr></table>
+    <h1 style="font-size:23px;font-weight:800;color:#E8EFF8;margin:0 0 12px;line-height:1.3;">You've been invited to join<br>${workspaceName}</h1>
+    <p style="font-size:14px;color:#7A8BA8;margin:0 0 26px;line-height:1.7;"><strong style="color:#A8B9CE;">${inviterName}</strong> has invited you to collaborate on Tawaslo as a <strong style="color:#6E8CAB;">${role}</strong>. Accept to start publishing, scheduling and replying together.</p>
+    <a href="${link}" style="display:inline-block;background:#6E8CAB;color:#fff;font-size:14px;font-weight:700;padding:14px 40px;border-radius:10px;text-decoration:none;">Accept invitation</a>
+  </td></tr>
+  <tr><td style="padding:26px 40px;">
+    <p style="font-size:13px;color:#A8B9CE;line-height:1.75;margin:0 0 8px;">Sign up (or log in) with <strong style="color:#E8EFF8;">${email}</strong> and you'll be added to the workspace automatically.</p>
+    <p style="font-size:12px;color:#7A8BA8;margin:0;line-height:1.6;">Roles: <strong>Admin</strong> can publish and manage, <strong>Editor</strong> drafts and schedules, <strong>Viewer</strong> is read-only.</p>
+  </td></tr>
+  <tr><td style="background:#060810;padding:20px 40px;text-align:center;border-top:1px solid #1E2838;">
+    <div style="font-size:11px;color:#3D5068;">If you weren't expecting this, you can ignore this email. &middot; © 2026 Tawaslo</div>
+  </td></tr>
+</table></td></tr></table></body></html>`;
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'Tawaslo <support@tawaslo.com>', to: [email], subject: `${inviterName} invited you to Tawaslo`, html: inviteHtml }),
+      });
+      const d = await r.json();
+      if (!r.ok) return res.status(400).json({ error: d.message || 'Failed to send invite' });
+      return res.status(200).json({ success: true, id: d.id });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to send invite', details: err.message });
+    }
+  }
+
   const planLimits = {
     starter:      { accounts: 3,   members: 1, posts: 30  },
     professional: { accounts: 10,  members: 5, posts: 100 },

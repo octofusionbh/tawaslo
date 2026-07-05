@@ -4,7 +4,8 @@ import { APPROVAL_IMAGES } from "./approvalImages";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
-  getSupportTickets, createSupportTicket, updateSupportTicket, getSupportMessages, addSupportMessage } from './supabase';
+  getSupportTickets, createSupportTicket, updateSupportTicket, getSupportMessages, addSupportMessage,
+  getTeam, inviteTeamMember, updateTeamMemberRole, removeTeamMember, claimInvites, getMyWorkspace } from './supabase';
 import {
   LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -11653,30 +11654,46 @@ function InboxPage() {
 }
 
 function TeamPage() {
-  const { dark, lang } = useApp();
+  const { dark, lang, userEmail, userName, userCompany } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const roleLabel = (r) => isAR ? ({ Owner:"المالك", Admin:"مشرف", Editor:"محرّر", Viewer:"مشاهد" }[r] || r) : r;
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState("Admin");
+  const [inviteRole, setInviteRole] = useState("Editor");
   const [sent, setSent] = useState(false);
-  const [editIdx, setEditIdx] = useState(null);
-  const [team, setTeam] = useState([
-    { name:"Abdulla Alnahash", email:"octofusionbh@gmail.com", role:"Owner", joined:"Jan 2025", avatar:"A" },
-    { name:"Agency Manager", email:"manager@octofusion.bh", role:"Admin", joined:"Mar 2025", avatar:"M" },
-  ]);
+  const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [ownerId, setOwnerId] = useState(null);
+  const [rows, setRows] = useState([]);
   const SEATS = 5;
   const roleColor = (r) => r === "Owner" ? th.accent : r === "Admin" ? th.accent2 : r === "Editor" ? th.success : th.text2;
   const inp = { padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" };
-  const sendInvite = () => { if (!inviteEmail.trim()) return; setSent(true); setTimeout(()=>{ setSent(false); setInviteEmail(""); setShowInvite(false); }, 1400); };
+  const reload = async (oid) => { const id = oid || ownerId; if (!id) return; const { data } = await getTeam(id); setRows(data || []); };
+  useEffect(() => { (async () => { const { data: { user } } = await supabase.auth.getUser(); if (!user) return; setOwnerId(user.id); const { data } = await getTeam(user.id); setRows(data || []); })(); }, []); // eslint-disable-line
+  const ownerRow = { id:'owner', name: userName || L('You','أنت'), email: userEmail || '', role:'Owner', status:'active', isOwner:true };
+  const members = [ownerRow, ...rows.map(r => ({ id:r.id, name:r.name||r.email, email:r.email, role:r.role, status:r.status }))];
+  const avatarOf = (m) => (m.name || m.email || '?').trim().slice(0,1).toUpperCase();
+  const sendInvite = async () => {
+    const email = inviteEmail.trim().toLowerCase(); if (!email || !ownerId || busy) return;
+    setBusy(true);
+    try {
+      await inviteTeamMember(ownerId, email, inviteRole);
+      try { await fetch('/api/send-welcome-email', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ kind:'invite', email, inviterName: userName || userCompany || L('Your team','فريقك'), workspaceName: userCompany || (userName ? userName + (isAR ? '' : "'s workspace") : L('a Tawaslo workspace','مساحة عمل تواصلو')), role: inviteRole, acceptUrl: (typeof window!=='undefined'?window.location.origin:'https://tawaslo.com') + '/signup' }) }); } catch (e) {}
+      setSent(true); setInviteEmail(""); await reload(ownerId);
+      setTimeout(()=>{ setSent(false); setShowInvite(false); }, 1600);
+    } catch (e) {}
+    setBusy(false);
+  };
+  const changeRole = async (id, role) => { setRows(rs=>rs.map(r=>r.id===id?{...r,role}:r)); try { await updateTeamMemberRole(id, role); } catch (e) {} };
+  const removeMemberRow = async (id) => { setRows(rs=>rs.filter(r=>r.id!==id)); setEditId(null); try { await removeTeamMember(id); } catch (e) {} };
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:880 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
           <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Team","الفريق")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{L(`${team.length} of ${SEATS} seats used`,`${team.length} من ${SEATS} مقاعد مستخدمة`)}</span></p>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{L(`${members.length} of ${SEATS} seats used`,`${members.length} من ${SEATS} مقاعد مستخدمة`)}</span></p>
         </div>
         <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
           <UserPlus size={15}/> {L("Invite member","دعوة عضو")}
@@ -11684,7 +11701,7 @@ function TeamPage() {
       </div>
 
       <div style={{ height:6, borderRadius:999, background:th.card2, border:`1px solid ${th.border}`, overflow:"hidden", marginBottom:22 }}>
-        <div style={{ width:`${Math.min(100, team.length/SEATS*100)}%`, height:"100%", background:th.gradient }}/>
+        <div style={{ width:`${Math.min(100, members.length/SEATS*100)}%`, height:"100%", background:th.gradient }}/>
       </div>
 
       {showInvite && (
@@ -11702,29 +11719,29 @@ function TeamPage() {
       )}
 
       <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
-        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>{L("Members","الأعضاء")} &middot; {team.length}</div>
-        {team.map((m,i) => (
-          <div key={i} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<team.length-1?`1px solid ${th.border}`:"none" }}>
+        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>{L("Members","الأعضاء")} &middot; {members.length}</div>
+        {members.map((m,i) => (
+          <div key={m.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<members.length-1?`1px solid ${th.border}`:"none" }}>
             <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(110,140,171,0.35)" }}>{m.avatar}</div>
+              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(110,140,171,0.35)" }}>{avatarOf(m)}</div>
               <div>
                 <div style={{ fontSize:13.5, fontWeight:600 }}>{m.name}</div>
                 <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{m.email}</div>
               </div>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-              {editIdx===i && m.role!=="Owner" ? (
-                <select value={m.role} onChange={e=>setTeam(t=>t.map((x,j)=>j===i?{...x,role:e.target.value}:x))} style={{ fontSize:11.5, fontWeight:600, padding:"5px 9px", borderRadius:9, border:`1px solid ${th.accent}`, background:th.card2, color:th.text, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
+              {editId===m.id && !m.isOwner ? (
+                <select value={m.role} onChange={e=>changeRole(m.id, e.target.value)} style={{ fontSize:11.5, fontWeight:600, padding:"5px 9px", borderRadius:9, border:`1px solid ${th.accent}`, background:th.card2, color:th.text, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
                   <option value="Admin">{L("Admin","مشرف")}</option><option value="Editor">{L("Editor","محرّر")}</option><option value="Viewer">{L("Viewer","مشاهد")}</option>
                 </select>
               ) : (
                 <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{roleLabel(m.role)}</span>
               )}
-              <span style={{ fontSize:11.5, color:th.text2, minWidth:74, textAlign:isAR?"left":"right" }}>{m.joined}</span>
-              {m.role !== "Owner" ? (
+              <span style={{ fontSize:11, color:m.status==='pending'?th.warning:th.text2, minWidth:74, textAlign:isAR?"left":"right" }}>{m.isOwner?"":(m.status==='pending'?L("Invited","مدعو"):L("Active","نشط"))}</span>
+              {!m.isOwner ? (
                 <div style={{ display:"flex", gap:7 }}>
-                  <button onClick={()=>setEditIdx(editIdx===i?null:i)} style={{ fontSize:11.5, fontWeight:600, color:editIdx===i?th.success:th.accent, background:"none", border:`1px solid ${editIdx===i?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editIdx===i?<><CheckCircle size={13}/>{L("Done","تم")}</>:<><Edit3 size={13}/>{L("Edit","تعديل")}</>}</button>
-                  <button onClick={()=>{ setTeam(t=>t.filter((_,j)=>j!==i)); setEditIdx(null); }} style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>{L("Remove","إزالة")}</button>
+                  <button onClick={()=>setEditId(editId===m.id?null:m.id)} style={{ fontSize:11.5, fontWeight:600, color:editId===m.id?th.success:th.accent, background:"none", border:`1px solid ${editId===m.id?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editId===m.id?<><CheckCircle size={13}/>{L("Done","تم")}</>:<><Edit3 size={13}/>{L("Edit","تعديل")}</>}</button>
+                  <button onClick={()=>removeMemberRow(m.id)} style={{ fontSize:11.5, color:th.danger, background:"none", border:`1px solid ${th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer" }}>{L("Remove","إزالة")}</button>
                 </div>
               ) : <span style={{ width:62 }}/>}
             </div>
@@ -18953,6 +18970,7 @@ export default function TawasloApp() {
   // Load the signed-in user's real brands + decide which app (client vs admin) to show
   const loadWorkspace = async (user, fresh) => {
     setUserEmail(user.email || null);
+    try { await claimInvites(user.id, user.email); } catch (e) {}
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
     setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");

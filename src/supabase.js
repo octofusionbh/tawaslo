@@ -288,3 +288,54 @@ export const getInvoices = async (clientId) => {
     .order('created_at', { ascending: false });
   return { data, error };
 };
+
+// ───────────────────────── TEAM MEMBERS / INVITES ─────────────────────────
+export const getTeam = async (ownerId) => {
+  const { data, error } = await supabase
+    .from('team_members').select('*').eq('owner_id', ownerId)
+    .order('created_at', { ascending: true });
+  return { data, error };
+};
+
+export const inviteTeamMember = async (ownerId, email, role = 'Editor', name = null) => {
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const { data, error } = await supabase
+    .from('team_members')
+    .upsert([{ owner_id: ownerId, email: email.trim().toLowerCase(), role, name, status: 'pending', token, updated_at: new Date().toISOString() }], { onConflict: 'owner_id,email' })
+    .select()
+    .single();
+  return { data, error };
+};
+
+export const updateTeamMemberRole = async (id, role) => {
+  const { data, error } = await supabase.from('team_members').update({ role, updated_at: new Date().toISOString() }).eq('id', id).select();
+  return { data, error };
+};
+
+export const removeTeamMember = async (id) => {
+  const { error } = await supabase.from('team_members').delete().eq('id', id);
+  return { error };
+};
+
+// Called on login: attach the user to any workspace they were invited to.
+export const claimInvites = async (userId, email) => {
+  if (!userId || !email) return { data: null };
+  const { data, error } = await supabase
+    .from('team_members')
+    .update({ member_id: userId, status: 'active', updated_at: new Date().toISOString() })
+    .eq('status', 'pending')
+    .ilike('email', email.trim().toLowerCase())
+    .select();
+  return { data, error };
+};
+
+// The workspace this user belongs to as a member (owner_id), if any.
+export const getMyWorkspace = async (userId) => {
+  if (!userId) return { data: null };
+  const { data, error } = await supabase
+    .from('team_members')
+    .select('owner_id, role')
+    .eq('member_id', userId).eq('status', 'active')
+    .limit(1).maybeSingle();
+  return { data, error };
+};
