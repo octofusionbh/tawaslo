@@ -847,15 +847,18 @@ function Sidebar() {
       {key:"prospect",  Icon:Target,          label:"Win Clients", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
-      {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
+      {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
+      {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
+    ]},
+    {section:"Restaurant", items:[
+      {key:"concierge", Icon:MessageCircle,   label:"Concierge", badge:null},
       {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
-      {key:"orders",    Icon:ShoppingBag,     label:"Orders", badge:null},
+      {key:"orders",    Icon:ShoppingBag,     label:"Pickup Orders", badge:null},
       {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
       {key:"loyalty",   Icon:Gift,            label:"Loyalty", badge:null},
       {key:"reviews",   Icon:Star,            label:"Reviews", badge:null},
       {key:"guests",    Icon:Users,           label:"Guests", badge:null},
       {key:"filltables",Icon:Sparkles,        label:"Fill My Tables", badge:null},
-      {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Analyse", items:[
       {key:"analytics", Icon:BarChart2,       label:"Analytics", badge:null},
@@ -15080,6 +15083,72 @@ const menuPalette = (t) => t==='light' ? {
 // ── Public digital menu (tawaslo.com/menu/<slug>) — no login. Sectioned, ──
 // ── sticky category bar, tap-to-detail with photo gallery + bilingual text. ──
 // ── Public pickup ordering page (tawaslo.com/order/<slug>) — no login. ──
+// ── Concierge (owner) — dedicated room to train the AI host + live preview. ──
+function ConciergePage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang==="ar"; const L=(en,ar)=>isAR?ar:en;
+  const [cid,setCid]=useState(null);
+  const [brandVoice,setBrandVoice]=useState("");
+  const [greeting,setGreeting]=useState("");
+  const [brief,setBrief]=useState("");
+  const [waNum,setWaNum]=useState("");
+  const [waMsg,setWaMsg]=useState("");
+  const [savedMsg,setSavedMsg]=useState(false);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{ let active=true; setLoading(true);
+    if(!selClient?.name){ setLoading(false); return; }
+    (async()=>{
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id=data&&data[0]&&data[0].id; if(!active) return; setCid(id||null);
+      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} }
+      if(active) setLoading(false);
+    })();
+    return ()=>{ active=false; };
+  },[selClient]);
+  const save=async()=>{ if(!cid) return; try{ const { data:st }=await supabase.from('booking_settings').select('hours,slot_minutes,capacity').eq('client_id',cid).limit(1); const cur=(st&&st[0])||{}; const h={...(cur.hours||{}), concierge_voice:brandVoice||null, concierge_greeting:greeting||null, concierge_brief:brief||null}; await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:cur.slot_minutes||30, capacity:cur.capacity||4, hours:h, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); }catch(e){} };
+  const sendWaTest=async()=>{ const to=String(waNum||'').replace(/[^\d]/g,''); if(!to){ setWaMsg(L("Enter a WhatsApp number first.","أدخل رقم واتساب أولاً.")); return; } setWaMsg(L("Sending…","جارٍ الإرسال…")); try{ const g=(greeting&&greeting.trim())||("Hi! This is a test from "+(selClient?.name||'your restaurant')+"'s Concierge."); const r=await fetch('/api/meta-publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:'whatsapp',to,body:g})}); const d=await r.json().catch(()=>({})); if(d&&d.success) setWaMsg(L("Sent — check WhatsApp.","تم الإرسال — تحقق من واتساب.")); else if(d&&d.configured===false) setWaMsg(L("WhatsApp isn't connected yet.","واتساب غير متصل بعد.")); else setWaMsg((d&&d.error)||L("Couldn't send — is WhatsApp connected?","تعذّر الإرسال.")); }catch(e){ setWaMsg(L("Network error.","خطأ في الشبكة.")); } };
+  const card={ background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  const inp={ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
+  const lblS={ display:"block", fontSize:11.5, fontWeight:600, color:th.text2, marginBottom:6 };
+  if(loading) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if(!cid) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Select a client to train the Concierge.","اختر عميلاً لتدريب الكونسيرج.")}</div>;
+  return (
+    <div style={{maxWidth:980,margin:"0 auto"}}>
+      <div style={{marginBottom:18}}>
+        <h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Concierge","الكونسيرج")}</h1>
+        <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("your AI host — trains the web widget and WhatsApp","مضيفك الذكي — يدرّب الويب وواتساب")}</p>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
+        <div style={{...card,padding:18,flex:"1 1 360px",minWidth:0}}>
+          <label style={lblS}>{L("Brand voice","نبرة العلامة")}</label>
+          <textarea value={brandVoice} onChange={e=>setBrandVoice(e.target.value)} rows={2} placeholder={L("e.g. Warm and upbeat — speaks like a friendly Bahraini host.","مثلاً: ودّي ومرح.")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:14,lineHeight:1.5}}/>
+          <label style={lblS}>{L("Greeting (first message)","الترحيب")}</label>
+          <textarea value={greeting} onChange={e=>setGreeting(e.target.value)} rows={2} placeholder={L("Hi! Welcome — ask about the menu, order for pickup, or book a table.","أهلاً! اسأل عن القائمة أو اطلب أو احجز.")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:14,lineHeight:1.5}}/>
+          <label style={lblS}>{L("House instructions","تعليمات المطعم")}</label>
+          <textarea value={brief} onChange={e=>setBrief(e.target.value)} rows={7} placeholder={L("Teach your host, e.g.:\n- No outside food.\n- Always suggest the saffron cheesecake.\n- Valet is free after 7pm.\n- Groups over 8 should call us.","علّم مضيفك…")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:16,lineHeight:1.6}}/>
+          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <button onClick={save} style={{padding:"10px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{savedMsg?L("Saved ✓","تم ✓"):L("Save & make live","حفظ وتفعيل")}</button>
+            <span style={{fontSize:11.5,color:th.text3}}>{L("Applies to the web widget and WhatsApp.","يُطبّق على الويب وواتساب.")}</span>
+          </div>
+          <div style={{marginTop:18,paddingTop:16,borderTop:`1px solid ${th.border}`}}>
+            <div style={{fontSize:12.5,fontWeight:600,color:th.text,marginBottom:8}}>{L("Send a test to WhatsApp","إرسال اختبار إلى واتساب")}</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <input value={waNum} onChange={e=>setWaNum(e.target.value.replace(/[^\d+]/g,''))} placeholder={L("WhatsApp number, e.g. 9733...","رقم واتساب")} style={{...inp,flex:1,minWidth:170}}/>
+              <button onClick={sendWaTest} style={{padding:"9px 14px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><FaWhatsapp/>{L("Send test","إرسال")}</button>
+            </div>
+            {waMsg && <div style={{fontSize:11.5,color:th.text2,marginTop:8,lineHeight:1.45}}>{waMsg}</div>}
+          </div>
+        </div>
+        <div style={{flex:"1 1 320px",minWidth:280}}>
+          <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 function OrderPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
   const [items, setItems] = useState([]);
@@ -17279,7 +17348,7 @@ function ReservationsPage() {
       </div>
 
       <div style={{ display:"flex", gap:7, marginBottom:18, borderBottom:`1px solid ${th.border}`, paddingBottom:0 }}>
-        {[["bookings",L("Bookings","الحجوزات")],["floor",L("Floor","المخطط")],["guests",L("Guests","الضيوف")],["concierge",L("Concierge","الكونسيرج")]].map(([k,lbl])=>(
+        {[["bookings",L("Bookings","الحجوزات")],["floor",L("Floor","المخطط")],["guests",L("Guests","الضيوف")]].map(([k,lbl])=>(
           <button key={k} onClick={()=>setTab(k)} style={{ padding:"9px 14px", background:"none", border:"none", borderBottom:`2px solid ${tab===k?th.accent:"transparent"}`, color:tab===k?th.text:th.text2, fontSize:13, fontWeight:tab===k?600:500, cursor:"pointer", marginBottom:-1 }}>{lbl}</button>
         ))}
       </div>
@@ -19334,6 +19403,7 @@ export default function TawasloApp() {
     if (page==="menu") return <MenuBuilderPage/>;
     if (page==="orders") return <OrdersPage/>;
     if (page==="reservations") return <ReservationsPage/>;
+    if (page==="concierge") return <ConciergePage/>;
     if (page==="loyalty") return <LoyaltyPage/>;
     if (page==="reviews") return <ReviewsPage/>;
     if (page==="guests") return <GuestsPage/>;
