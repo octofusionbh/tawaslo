@@ -576,7 +576,7 @@ When (and only when) all booking details are gathered and confirmed, set "bookin
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5', max_tokens: 600, system: sys,
+        model: 'claude-haiku-4-5', max_tokens: 600, system: [{ type: 'text', text: sys, cache_control: { type: 'ephemeral' } }],
         messages: convo.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 900) })),
       }),
     });
