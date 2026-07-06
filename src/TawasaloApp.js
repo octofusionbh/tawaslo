@@ -15125,6 +15125,7 @@ function ConciergePage() {
   const [cid,setCid]=useState(null);
   const [brandVoice,setBrandVoice]=useState("");
   const [usage,setUsage]=useState({used:0,topup:0});
+  const [stats,setStats]=useState(null);
   const [greeting,setGreeting]=useState("");
   const [brief,setBrief]=useState("");
   const [waNum,setWaNum]=useState("");
@@ -15136,7 +15137,7 @@ function ConciergePage() {
     (async()=>{
       const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
       const id=data&&data[0]&&data[0].id; if(!active) return; setCid(id||null);
-      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} try{ const ym=new Date().toISOString().slice(0,7); const { data:u } = await supabase.from('concierge_usage').select('used,topup').eq('client_id',id).eq('ym',ym).maybeSingle(); if(active&&u) setUsage({used:u.used||0,topup:u.topup||0}); }catch(e){} }
+      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} try{ const ym=new Date().toISOString().slice(0,7); const { data:u } = await supabase.from('concierge_usage').select('used,topup').eq('client_id',id).eq('ym',ym).maybeSingle(); if(active&&u) setUsage({used:u.used||0,topup:u.topup||0}); }catch(e){} try{ const ms=new Date(); ms.setDate(1); ms.setHours(0,0,0,0); const iso=ms.toISOString(); const rr=await Promise.all([ supabase.from('orders').select('total,items,status').eq('client_id',id).gte('created_at',iso), supabase.from('bookings').select('source').eq('client_id',id).gte('starts_at',iso), supabase.from('link_events').select('id',{count:'exact',head:true}).eq('client_id',id).eq('kind','menu').gte('created_at',iso) ]); const od=rr[0].data||[]; const bk=rr[1].data||[]; const mv=rr[2].count||0; const orders=od.filter(o=>o.status!=='cancelled'); const revenue=orders.reduce((s,o)=>s+(Number(o.total)||0),0); const botBk=bk.filter(b=>b.source==='whatsapp'||b.source==='concierge').length; const agg={}; orders.forEach(o=>(o.items||[]).forEach(it=>{ if(it&&it.name) agg[it.name]=(agg[it.name]||0)+(Number(it.qty)||0); })); const topE=Object.entries(agg).sort((a,b)=>b[1]-a[1])[0]; if(active) setStats({ orders:orders.length, revenue, bookings:botBk, menuOpens:mv, top: topE?topE[0]:null }); }catch(e){} }
       if(active) setLoading(false);
     })();
     return ()=>{ active=false; };
@@ -15167,6 +15168,14 @@ function ConciergePage() {
         <div style={{height:7,borderRadius:20,background:th.card2,overflow:"hidden"}}><div style={{height:"100%",width:usagePct+"%",background:usageColor}}/></div>
         {usagePct>=80 && <div style={{fontSize:11.5,color:usageColor,marginTop:8}}>{usagePct>=100?L("You\u2019re out of Concierge chats \u2014 top up to keep your host answering.","نفدت محادثات الكونسيرج."):L("Running low on Concierge chats.","محادثات الكونسيرج على وشك النفاد.")}</div>}
       </div>
+      {stats && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
+          {[[L("Conversations","المحادثات"),usedN],[L("Menu opens","فتح القائمة"),stats.menuOpens],[L("Orders","الطلبات"),stats.orders],[L("Revenue","الإيراد"),stats.revenue.toFixed(3)],[L("Bot bookings","حجوزات البوت"),stats.bookings]].map((m,i)=>(
+            <div key={i} style={{...card,padding:"12px 14px"}}><div style={{fontSize:20,fontWeight:700,color:th.text}}>{m[1]}</div><div style={{fontSize:11,color:th.text2,marginTop:2}}>{m[0]}</div></div>
+          ))}
+          {stats.top && <div style={{...card,padding:"12px 14px"}}><div style={{fontSize:13.5,fontWeight:700,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{stats.top}</div><div style={{fontSize:11,color:th.text2,marginTop:2}}>{L("Top item","الأكثر طلباً")}</div></div>}
+        </div>
+      )}
       <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
         <div style={{...card,padding:18,flex:"1 1 360px",minWidth:0}}>
           <label style={lblS}>{L("Brand voice","نبرة العلامة")}</label>
@@ -15190,6 +15199,46 @@ function ConciergePage() {
         </div>
         <div style={{flex:"1 1 320px",minWidth:280}}>
           <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ── Public F&B monthly report (tawaslo.com/rreport/<slug>[?host=1]) — no login. ──
+function RreportPublicPage({ slug, host }) {
+  const [d, setD] = useState(undefined);
+  useEffect(() => { let live = true; (async () => { try { const { data } = await supabase.rpc('fnb_report', { p_slug: slug }); if (live) setD(data || null); } catch (e) { if (live) setD(null); } })(); return () => { live = false; }; }, [slug]);
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"30px 16px", boxSizing:"border-box" };
+  if (d === undefined) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:13,color:"#7E8794"}}>Loading…</div></div>;
+  if (d === null) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:15,fontWeight:600}}>Report not available</div><div style={{fontSize:12.5,color:"#7E8794",marginTop:6}}>Powered by Tawaslo</div></div></div>;
+  const cur = d.currency || 'BHD';
+  const money = (n) => (Number(n)||0).toFixed(3);
+  const kpis = host
+    ? [['Orders', d.orders], ['Bookings', d.bookings], ['Conversations', d.conversations], ['Menu opens', d.menu_opens]]
+    : [['Revenue ('+cur+')', money(d.revenue)], ['Orders', d.orders], ['Bot bookings', d.bookings], ['Conversations', d.conversations]];
+  return (
+    <div style={wrap}>
+      <div style={{maxWidth:600,margin:"0 auto",background:"#0F141C",border:"1px solid #1E2838",borderRadius:16,overflow:"hidden"}}>
+        <div style={{background:"#060810",padding:"22px 24px",borderBottom:"1px solid #1E2838",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:11}}>
+            {d.logo ? <img src={d.logo} alt="" style={{width:38,height:38,borderRadius:10,objectFit:"cover"}}/> : <div style={{width:38,height:38,borderRadius:10,background:"#4F6B8C",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:15,fontWeight:700}}>{(d.name||'?').slice(0,1)}</div>}
+            <div><div style={{fontSize:17,fontWeight:700,color:"#E8EFF8"}}>{d.name}</div><div style={{fontSize:11,color:"#7A8BA8"}}>{host?'Operations report':'Performance report'}</div></div>
+          </div>
+          <div style={{fontSize:13,fontWeight:700,color:"#6E8CAB"}}>{d.month}</div>
+        </div>
+        <div style={{padding:"22px 24px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:11,marginBottom:18}}>
+            {kpis.map((k,i)=>(<div key={i} style={{background:"#111827",border:"1px solid #1E2838",borderRadius:10,padding:"13px 14px"}}><div style={{fontSize:21,fontWeight:700,color:(i===0&&!host)?"#3FB983":"#E8EFF8"}}>{k[1]}</div><div style={{fontSize:10,color:"#7A8BA8",marginTop:3}}>{k[0]}</div></div>))}
+          </div>
+          <div style={{fontSize:11,color:"#7A8BA8",textTransform:"uppercase",letterSpacing:0.7,marginBottom:9}}>Top items</div>
+          <div style={{fontSize:12.5,color:"#C7CCD6",lineHeight:2}}>{(d.top_items||[]).map((t,i)=><div key={i}>{i+1}. {t.name} · {Number(t.qty)||0}</div>)}{(!d.top_items||!d.top_items.length)&&<div style={{color:"#5e6b78"}}>No orders yet this month.</div>}</div>
+          {!host && d.rating!=null && <div style={{marginTop:16,padding:"11px 14px",background:"#111827",border:"1px solid #1E2838",borderRadius:10,fontSize:12,color:"#C7942B"}}>★ {d.rating} avg rating · {d.reviews} reviews · <span style={{color:"#E8EFF8"}}>{d.new_guests} new guests</span></div>}
+        </div>
+        <div style={{background:"#060810",padding:"16px 24px",borderTop:"1px solid #1E2838",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"#8A9BB8"}}>Prepared by {d.name}</span>
+          <span style={{fontSize:11,color:"#5A6B86"}}>Powered by Tawaslo</span>
         </div>
       </div>
     </div>
@@ -15292,6 +15341,7 @@ function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [rcopied,setRcopied]=useState(false);
   const load = async (id) => { try { const { data } = await supabase.from('orders').select('*').eq('client_id', id).order('created_at',{ascending:false}).limit(60); setOrders(data||[]); } catch(e){} };
   useEffect(() => {
     let active=true; setLoading(true);
@@ -15322,6 +15372,9 @@ function OrdersPage() {
         <div><h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Orders","الطلبات")}</h1><p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("pickup orders","طلبات الاستلام")}</p></div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={copy} disabled={!orderUrl} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:orderUrl?"pointer":"default"}}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy order link","نسخ رابط الطلب")}</button>
+          <button onClick={()=>{ try{ navigator.clipboard.writeText(origin+"/rreport/"+slug); setRcopied(true); setTimeout(()=>setRcopied(false),1500);}catch(e){} }} disabled={!slug} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,cursor:slug?"pointer":"default"}}><FileText size={13}/>{rcopied?L("Copied","تم"):L("Report link","رابط التقرير")}</button>
+          <a href={slug?("https://wa.me/?text="+encodeURIComponent(origin+"/rreport/"+slug)):undefined} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"9px 12px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,textDecoration:"none"}}><FaWhatsapp/></a>
+          <a href={slug?("mailto:?subject=Monthly%20report&body="+encodeURIComponent(origin+"/rreport/"+slug)):undefined} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"9px 12px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,textDecoration:"none"}}><Send size={13}/></a>
           <button onClick={()=>load(cid)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:"pointer"}}><RefreshCw size={13}/>{L("Refresh","تحديث")}</button>
         </div>
       </div>
@@ -19514,6 +19567,8 @@ export default function TawasloApp() {
   // Public digital menu (tawaslo.com/menu/<slug>) — no login.
   const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
   if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
+  const rreportMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/rreport\/([A-Za-z0-9_-]+)/);
+  if (rreportMatch) return <RreportPublicPage slug={rreportMatch[1]} host={typeof window!=="undefined" && window.location.search.indexOf("host=1")!==-1}/>;
   const orderMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/order\/([A-Za-z0-9_-]+)/);
   if (orderMatch) return <OrderPublicPage slug={orderMatch[1]}/>;
 
