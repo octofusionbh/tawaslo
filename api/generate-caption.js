@@ -548,18 +548,20 @@ async function conciergeReply(ctx, convo) {
   const dpLine = dp ? `\nTime-based menu — sections served only at set times: ${catTimes || 'none'}. Daypart hours: ${hrs}. Right now it is ${dp.now || 'between service times'}.` : '';
   const specialLine = ctx.special ? `\nToday's special (mention it when it fits): ${ctx.special}` : '';
   const menuLink = ctx.menuUrl ? `\nFull visual menu (photos, both languages, prices): ${ctx.menuUrl} — share this link whenever the guest asks to see the menu, wants pictures, or asks for "the list".` : '';
+  const orderLine = ctx.orderUrl ? `\nPickup ordering is ON. Order & pay link: ${ctx.orderUrl} — when the guest wants to order for pickup / takeaway / to-go, share this link so they can build their order.` : '';
   const voiceLine = ctx.brandVoice ? `\n\nBrand voice — write EVERY reply in this voice and personality: ${String(ctx.brandVoice).slice(0, 500)}` : '';
   const houseLine = ctx.instructions ? `\n\nHouse instructions from the owner (these take priority — follow them exactly, but never invent menu items, prices or facts that are not listed above):\n${String(ctx.instructions).slice(0, 1800)}` : '';
   const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
-You can: answer menu and price questions, give opening hours, and book a table.
+You can: answer menu and price questions, give opening hours, book a table for dine-in, and (when pickup ordering is on) help with pickup orders. When a guest first says hi or seems unsure, warmly offer the three options — see the menu, order for pickup, or book a table to dine in — and share the matching link.
 Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
 Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}${voiceLine}${houseLine}
+${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}${orderLine}${voiceLine}${houseLine}
 
 Rules:
 - Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
 - Dietary questions: use the bracketed tags to answer "what's vegan / vegetarian / halal / gluten-free / dairy-free / spicy?" — list only items that carry that exact tag, and warn if nothing matches.
 - Time-based menu: if a section is served only at certain times, and the guest asks for it outside those hours, tell them warmly when it's available (e.g. "Breakfast is served 7–11am").
+- Intent routing: "pickup / takeaway / to-go / order to collect" → share the pickup order link (if provided). "dine in / table / reservation / book" → do the booking flow. "menu / the list / photos / what do you have" → share the menu link.
 - To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one item at a time.
 - Confirm the details back to the guest before booking. Only once date, time, party size AND name are known and the guest agrees, return the booking object.
 
@@ -611,6 +613,7 @@ async function waBuildContext(clientId) {
     if (m) {
       ctx.currency = m.currency || ctx.currency;
       ctx.menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || (m.slug ? `https://www.tawaslo.com/menu/${m.slug}` : null);
+      ctx.orderUrl = (m.pickup_enabled && m.slug) ? `https://www.tawaslo.com/order/${m.slug}` : null;
       ctx.special = (m.special_on && m.special) ? m.special : null;
       ctx.dayparts = { hours: m.daypart_hours || {}, cats: m.cat_dayparts || {}, now: waActiveDaypart(m.daypart_hours) };
       const ri = await waSb(`menu_items?menu_id=eq.${m.id}&select=*&limit=120`);
