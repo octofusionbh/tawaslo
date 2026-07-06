@@ -879,6 +879,25 @@ function Sidebar() {
     ]},
   ];
 
+  const RESTO_ITEMS = {
+    concierge:{ key:"concierge", Icon:MessageCircle, label:"Concierge" },
+    menu:{ key:"menu", Icon:FileText, label:"Menu" },
+    orders:{ key:"orders", Icon:ShoppingBag, label:"Pickup Orders" },
+    reservations:{ key:"reservations", Icon:CalendarCheck, label:"Reservations" },
+    loyalty:{ key:"loyalty", Icon:Gift, label:"Loyalty" },
+    reviews:{ key:"reviews", Icon:Star, label:"Reviews" },
+    guests:{ key:"guests", Icon:Users, label:"Guests" },
+    filltables:{ key:"filltables", Icon:Sparkles, label:"Fill My Tables" },
+  };
+  const BIZ = {
+    restaurant:{ label:"Restaurant", items:["concierge","menu","orders","reservations","loyalty","reviews","guests","filltables"], labels:{} },
+    shop:{ label:"Storefront", items:["concierge","menu","orders","loyalty","reviews","guests"], labels:{ menu:"Catalog", orders:"Orders", guests:"Customers" } },
+    services:{ label:"Bookings", items:["concierge","reservations","guests","loyalty","reviews"], labels:{ reservations:"Bookings", guests:"Clients" } },
+  };
+  const bizType = (selClient && selClient.business_type) || 'restaurant';
+  const bizCfg = BIZ[bizType] || BIZ.restaurant;
+  const AGENCY_NAV2 = AGENCY_NAV.map(s => s.section==="Restaurant" ? { section:bizCfg.label, items: bizCfg.items.map(k=>({ ...RESTO_ITEMS[k], label:(bizCfg.labels && bizCfg.labels[k]) || RESTO_ITEMS[k].label, badge:null })) } : s);
+
   const navItem = (key, Icon, label, badge, isActive, onClick) => (
     <div key={key} onClick={onClick} title={col?label:undefined} style={{
       display:"flex", alignItems:"center", justifyContent:col?"center":"space-between",
@@ -986,7 +1005,7 @@ function Sidebar() {
         {mode==="owner"?(
           <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
-          AGENCY_NAV.map((sec,si)=>{
+          AGENCY_NAV2.map((sec,si)=>{
             const secOpen = !collapsedSecs[sec.section];
             return (
             <div key={si} style={{marginBottom:col?0:(secOpen?16:6)}}>
@@ -1226,6 +1245,8 @@ function ContextBar() {
     if (selPlatform !== "all" && present.length > 0 && !present.includes(selPlatform)) setSelPlatform("all");
   }, [accounts, selPlatform]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [newBizType, setNewBizType] = useState('restaurant');
+  const [editBizType, setEditBizType] = useState('restaurant');
   const createClient = async () => {
     const name = newName.trim();
     if (!name || creating) return;
@@ -1295,6 +1316,12 @@ function ContextBar() {
             <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","إضافة عميل")}</h3>
             <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports.","كل عميل مساحة عمل مستقلة بحساباته ومنشوراته وتقاريره.")}</p>
             <input value={newName} autoFocus onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","مثال: مطعم تريو")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+                        <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Business type","نوع النشاط")}</div>
+            <select value={newBizType} onChange={e=>setNewBizType(e.target.value)} style={{width:"100%",background:th.card2,border:"1px solid "+th.border,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18,cursor:"pointer"}}>
+              <option value="restaurant">{L("Restaurant / Cafe","مطعم / مقهى")}</option>
+              <option value="shop">{L("Shop / Retail","متجر / بيع")}</option>
+              <option value="services">{L("Services / Appointments","خدمات / مواعيد")}</option>
+            </select>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setAddOpen(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
               <button onClick={createClient} disabled={!newName.trim()||creating} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{creating?L("Creating…","جارٍ الإنشاء…"):L("Create client","إنشاء عميل")}</button>
@@ -1413,7 +1440,7 @@ function ClientsPage() {
   const createClient = async () => {
     const name=newName.trim(); if(!name||busy) return; setBusy(true);
     try { const { data:{ user } } = await supabase.auth.getUser();
-      if(user){ const { data, error } = await supabase.from('clients').insert([{ owner_id:user.id, name, plan:'trial', status:'active', is_free:true }]).select();
+      if(user){ const { data, error } = await supabase.from('clients').insert([{ owner_id:user.id, name, plan:'trial', status:'active', is_free:true, business_type:newBizType||'restaurant' }]).select();
         if(!error&&data&&data[0]){ const nc={ ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 }; setClients(prev=>[...prev,nc]); setSelClient(nc); setNewClientForVoice(nc); } }
     } catch(e){ /* ignore */ }
     setBusy(false); setAddOpen(false); setNewName("");
@@ -1433,12 +1460,13 @@ function ClientsPage() {
   const saveEdit = async () => {
     const name=editName.trim(); if(!name||busy||!editClient) return; setBusy(true);
     try { await supabase.from('clients').update({ name }).eq('id', editClient.id); } catch(e){ /* ignore */ }
+    try { await supabase.from('clients').update({ business_type: editBizType||'restaurant' }).eq('id', editClient.id); } catch(e){ /* column may not exist yet */ }
     // logo_url is an additive column; update it separately so a missing column never blocks the rename
     if (editLogo !== (editClient.logo_url||"")) {
       try { await supabase.from('clients').update({ logo_url: editLogo||null }).eq('id', editClient.id); } catch(e){ /* column may not exist yet */ }
     }
-    setClients(prev=>prev.map(c=>c.id===editClient.id?{...c,name,logo_url:editLogo||null}:c));
-    if(selClient?.id===editClient.id) setSelClient({...selClient,name,logo_url:editLogo||null});
+    setClients(prev=>prev.map(c=>c.id===editClient.id?{...c,name,logo_url:editLogo||null,business_type:editBizType||'restaurant'}:c));
+    if(selClient?.id===editClient.id) setSelClient({...selClient,name,logo_url:editLogo||null,business_type:editBizType||'restaurant'});
     setBusy(false); setEditClient(null);
   };
   const doDelete = async () => {
@@ -1475,12 +1503,12 @@ function ClientsPage() {
                 <span className="tw-num" style={{color:th.text2,marginInlineStart:plats.length?3:0}}>{c.accounts||0}</span> {L("accounts","حسابات")} · {c.status==="active"?L("active","نشط"):c.status}
               </div>
             </div>
-            <button onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
+            <button onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant');}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
             <button onClick={()=>setMenuFor(menuFor===c.id?null:c.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4}}><MoreHorizontal size={18}/></button>
             {menuFor===c.id&&(<>
               <div onClick={()=>setMenuFor(null)} style={{position:"fixed",inset:0,zIndex:49}}/>
               <div style={{position:"absolute",[isAR?"left":"right"]:6,top:54,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:5,width:170,boxShadow:"0 16px 36px rgba(0,0,0,0.4)"}}>
-                <div onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
+                <div onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant');setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
                 <div onClick={()=>{setSelClient(c);setPage("social");}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Link size={14}/>{L("Connections","الحسابات")}</div>
                 <div style={{height:1,background:th.border,margin:"3px 0"}}/>
                 <div onClick={()=>{setDelClient(c);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.danger,fontSize:12}}><Trash2 size={14}/>{L("Delete client","حذف العميل")}</div>
@@ -1531,6 +1559,12 @@ function ClientsPage() {
               <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:th.text}}>{L("Brand voice","نبرة العلامة")}{loadVoice(editClient.id)&&<span style={{fontSize:9,fontWeight:700,color:th.success,background:th.successSoft,borderRadius:20,padding:"1px 7px",marginInlineStart:7}}>{L("TRAINED","مدرّبة")}</span>}</div><div style={{fontSize:10.5,color:th.text3}}>{loadVoice(editClient.id)?L("Edit how AI writes replies & captions","عدّل طريقة كتابة الردود والتعليقات"):L("Train how AI writes replies & captions for this client","درّب طريقة كتابة الردود والتعليقات")}</div></div>
               <ChevronRight size={16} color={th.text3} style={{flexShrink:0}}/>
             </div>
+                        <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Business type","نوع النشاط")}</div>
+            <select value={editBizType} onChange={e=>setEditBizType(e.target.value)} style={{width:"100%",background:th.card2,border:"1px solid "+th.border,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18,cursor:"pointer"}}>
+              <option value="restaurant">{L("Restaurant / Cafe","مطعم / مقهى")}</option>
+              <option value="shop">{L("Shop / Retail","متجر / بيع")}</option>
+              <option value="services">{L("Services / Appointments","خدمات / مواعيد")}</option>
+            </select>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setEditClient(null)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
               <button onClick={saveEdit} disabled={!editName.trim()||busy} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:editName.trim()?"pointer":"not-allowed",opacity:editName.trim()?1:0.6}}>{busy?L("Saving…","جارٍ الحفظ…"):L("Save","حفظ")}</button>
