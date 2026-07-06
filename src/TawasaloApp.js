@@ -7,7 +7,7 @@ import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, 
   getSupportTickets, createSupportTicket, updateSupportTicket, getSupportMessages, addSupportMessage,
   getTeam, inviteTeamMember, updateTeamMemberRole, removeTeamMember, claimInvites, getMyWorkspace } from './supabase';
 import {
-  LayoutDashboard, Calendar, BarChart2, Megaphone, Users,
+  LayoutDashboard, Calendar, ShoppingBag, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
   Heart, Bookmark, TrendingUp, Eye, CheckCircle, Circle,
   Download, ArrowUpRight, ArrowDownRight, Inbox, Star,
@@ -849,6 +849,7 @@ function Sidebar() {
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
       {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
       {key:"menu",      Icon:FileText,        label:"Menu", badge:null},
+      {key:"orders",    Icon:ShoppingBag,     label:"Orders", badge:null},
       {key:"reservations",Icon:CalendarCheck, label:"Reservations", badge:null},
       {key:"loyalty",   Icon:Gift,            label:"Loyalty", badge:null},
       {key:"reviews",   Icon:Star,            label:"Reviews", badge:null},
@@ -15078,6 +15079,157 @@ const menuPalette = (t) => t==='light' ? {
 
 // ── Public digital menu (tawaslo.com/menu/<slug>) — no login. Sectioned, ──
 // ── sticky category bar, tap-to-detail with photo gallery + bilingual text. ──
+// ── Public pickup ordering page (tawaslo.com/order/<slug>) — no login. ──
+function OrderPublicPage({ slug }) {
+  const [data, setData] = useState(undefined);
+  const [items, setItems] = useState([]);
+  const [cart, setCart] = useState({});
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [pickup, setPickup] = useState("");
+  const [placing, setPlacing] = useState(false);
+  const [done, setDone] = useState(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20;
+      try {
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min').eq('slug', slug).limit(1);
+        const m = md && md[0];
+        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20;
+          const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true});
+          const arr = (it||[]).filter(x=>!x.hidden && x.available!==false);
+          const pick = arr.filter(x=>x.on_pickup===true);
+          if (live) setItems(pick.length?pick:arr);
+        }
+      } catch(e){}
+      if (!cid) { if(live) setData(null); return; }
+      try { if (!cname) { const { data:c } = await supabase.from('clients').select('name').eq('id',cid).limit(1); cname = c&&c[0]&&c[0].name; } } catch(e){}
+      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep });
+    })();
+    return () => { live = false; };
+  }, [slug]);
+  const cur = (data&&data.currency)||'BHD';
+  const money = (n)=> (Number(n)||0).toFixed(3)+' '+cur;
+  const showPhoto = (it)=> data && (data.photoMode==='all' || (data.photoMode==='per_item' && it.show_photo!==false)) && it.photo_url;
+  const add = (it)=> setCart(c=>({ ...c, [it.id]: { item:it, qty:(c[it.id]?c[it.id].qty:0)+1 } }));
+  const sub = (id)=> setCart(c=>{ const n={...c}; if(n[id]){ n[id]={...n[id],qty:n[id].qty-1}; if(n[id].qty<=0) delete n[id]; } return n; });
+  const lines = Object.values(cart);
+  const subtotal = lines.reduce((s,l)=> s + (Number(l.item.price)||0)*l.qty, 0);
+  const count = lines.reduce((s,l)=>s+l.qty,0);
+  const cats = Array.from(new Set(items.map(i=>i.category||'Menu')));
+  const place = async () => {
+    if (!name.trim() || !phone.trim() || !count || placing) return;
+    setPlacing(true);
+    const order_no = '#'+Math.random().toString(36).slice(2,6).toUpperCase();
+    const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:Number(l.item.price)||0, line_total:(Number(l.item.price)||0)*l.qty }));
+    let pickupAt=null; try { if(pickup) pickupAt=new Date(new Date().toDateString()+' '+pickup).toISOString(); } catch(e){}
+    try {
+      await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, total:subtotal, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
+      setDone(order_no);
+    } catch(e){}
+    setPlacing(false);
+  };
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"24px 14px 120px", boxSizing:"border-box" };
+  if (data===undefined) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:13,color:"#7E8794"}}>Loading…</div></div>;
+  if (data===null) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:15,fontWeight:600}}>Ordering not available</div><div style={{fontSize:12.5,color:"#7E8794",marginTop:6}}>Powered by Tawaslo</div></div></div>;
+  if (done) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center",maxWidth:340}}><div style={{width:56,height:56,borderRadius:"50%",background:"rgba(63,185,131,0.15)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Check size={28} color="#3FB983"/></div><div style={{fontSize:18,fontWeight:700}}>Order placed!</div><div style={{fontSize:13,color:"#9aa3b2",marginTop:8,lineHeight:1.6}}>Your order {done} is in. {data.name} will have it ready in about {data.prep} minutes. Pay at pickup.</div></div></div>;
+  return (
+    <div style={wrap}>
+      <div style={{maxWidth:520,margin:"0 auto"}}>
+        <div style={{marginBottom:18}}><div style={{fontSize:20,fontWeight:800}}>{data.name}</div><div style={{fontSize:12,color:"#7E8794",marginTop:2}}>Order for pickup · ready in about {data.prep} min</div></div>
+        {cats.map(cat=>(
+          <div key={cat} style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:"#7E8794",textTransform:"uppercase",letterSpacing:1,fontWeight:700,marginBottom:8}}>{cat}</div>
+            {items.filter(i=>(i.category||'Menu')===cat).map(it=>{ const q=cart[it.id]?cart[it.id].qty:0; return (
+              <div key={it.id} style={{display:"flex",gap:11,alignItems:"center",background:"#141923",border:"1px solid #20242b",borderRadius:12,padding:10,marginBottom:8}}>
+                {showPhoto(it) ? <img src={it.photo_url} alt="" style={{width:52,height:52,borderRadius:9,objectFit:"cover",flexShrink:0}}/> : null}
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600}}>{it.name_en||it.name_ar}</div>{it.description?<div style={{fontSize:11,color:"#7E8794",marginTop:2,lineHeight:1.4}}>{String(it.description).slice(0,80)}</div>:null}<div style={{fontSize:12,color:"#9aa3b2",marginTop:3}}>{money(it.price)}</div></div>
+                {q>0 ? <div style={{display:"flex",alignItems:"center",gap:9}}><button onClick={()=>sub(it.id)} style={{width:28,height:28,borderRadius:8,background:"#1a2230",border:"1px solid #20242b",color:"#fff",cursor:"pointer",fontSize:16}}>−</button><span style={{fontSize:13,minWidth:14,textAlign:"center"}}>{q}</span><button onClick={()=>add(it)} style={{width:28,height:28,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",fontSize:16}}>+</button></div> : <button onClick={()=>add(it)} style={{width:30,height:30,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Plus size={16}/></button>}
+              </div>
+            ); })}
+          </div>
+        ))}
+        {count>0 && (
+          <div style={{background:"#141923",border:"1px solid #20242b",borderRadius:14,padding:16,marginTop:6}}>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Your order · {count} item{count>1?"s":""} · {money(subtotal)}</div>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
+            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
+            <input value={pickup} onChange={e=>setPickup(e.target.value)} type="time" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:12}}/>
+            <button onClick={place} disabled={placing||!name.trim()||!phone.trim()} style={{width:"100%",padding:"13px",borderRadius:12,background:(placing||!name.trim()||!phone.trim())?"#1a2230":"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{placing?"Placing…":"Place order · Pay at pickup"}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Orders (owner) — live pickup-order board + the shareable order link. ──
+function OrdersPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang==="ar"; const L=(en,ar)=>isAR?ar:en;
+  const origin = (typeof window!=="undefined" && window.location.origin) || "https://tawaslo.com";
+  const [cid, setCid] = useState(null);
+  const [slug, setSlug] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const load = async (id) => { try { const { data } = await supabase.from('orders').select('*').eq('client_id', id).order('created_at',{ascending:false}).limit(60); setOrders(data||[]); } catch(e){} };
+  useEffect(() => {
+    let active=true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id; if(!active) return; setCid(id||null);
+      if (id) { try { const { data:mn } = await supabase.from('menus').select('slug').eq('client_id', id).limit(1); if(mn&&mn[0]) setSlug(mn[0].slug); } catch(e){} await load(id); }
+      if (active) setLoading(false);
+    })();
+    return ()=>{ active=false; };
+  }, [selClient]);
+  const setStatus = async (o, st) => { setOrders(os=>os.map(x=>x.id===o.id?{...x,status:st}:x)); try { await supabase.from('orders').update({ status:st }).eq('id', o.id); } catch(e){} };
+  const orderUrl = slug ? origin+'/order/'+slug : "";
+  const copy = () => { try { navigator.clipboard.writeText(orderUrl); setCopied(true); setTimeout(()=>setCopied(false),1500); } catch(e){} };
+  const curOf = (o)=> o.currency||'BHD';
+  const money = (n,c)=> (Number(n)||0).toFixed(3)+' '+c;
+  const active = orders.filter(o=>o.status!=='picked_up'&&o.status!=='cancelled');
+  const SC = { new:th.warning, accepted:th.accent, preparing:th.accent, ready:th.success, picked_up:th.text3, cancelled:th.text3 };
+  const nextSt = { new:'accepted', accepted:'preparing', preparing:'ready', ready:'picked_up' };
+  const nextLbl = { new:L('Accept','قبول'), accepted:L('Start preparing','بدء التحضير'), preparing:L('Mark ready','جاهز'), ready:L('Picked up','تم الاستلام') };
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
+  if (loading) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Loading…","جارٍ التحميل…")}</div>;
+  if (!cid) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Select a client to manage orders.","اختر عميلاً لإدارة الطلبات.")}</div>;
+  return (
+    <div style={{maxWidth:820,margin:"0 auto"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:18}}>
+        <div><h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Orders","الطلبات")}</h1><p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("pickup orders","طلبات الاستلام")}</p></div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={copy} disabled={!orderUrl} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:orderUrl?"pointer":"default"}}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy order link","نسخ رابط الطلب")}</button>
+          <button onClick={()=>load(cid)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:"pointer"}}><RefreshCw size={13}/>{L("Refresh","تحديث")}</button>
+        </div>
+      </div>
+      {active.length===0 ? <div style={{...card,padding:40,textAlign:"center",color:th.text2,fontSize:13}}>{L("No active orders. Share your order link to start taking pickup orders.","لا طلبات نشطة. شارك رابط الطلب لبدء استقبال الطلبات.")}</div> : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
+          {active.map(o=>(
+            <div key={o.id} style={{...card,padding:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <span style={{fontSize:13,fontWeight:700,color:th.text}}>{o.order_no} · {o.customer_name}</span>
+                <span style={{fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:20,background:(SC[o.status]||th.text3)+"22",color:SC[o.status]||th.text3}}>{o.status}</span>
+              </div>
+              <div style={{fontSize:11.5,color:th.text2,lineHeight:1.5,marginBottom:10}}>{(o.items||[]).map((it,i)=><div key={i}>{it.qty}× {it.name}</div>)}<div style={{marginTop:4,color:th.text,fontWeight:600}}>{money(o.total,curOf(o))} · {o.pay_status}</div>{o.customer_phone?<div style={{marginTop:2}}>{o.customer_phone}</div>:null}</div>
+              <div style={{display:"flex",gap:7}}>
+                {nextSt[o.status] && <button onClick={()=>setStatus(o,nextSt[o.status])} style={{flex:1,padding:"8px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{nextLbl[o.status]}</button>}
+                <button onClick={()=>setStatus(o,'cancelled')} style={{padding:"8px 11px",borderRadius:9,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,fontSize:11.5,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function MenuPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
   const [items, setItems] = useState([]);
@@ -19180,6 +19332,7 @@ export default function TawasloApp() {
     if (page==="business") return <BusinessProfilePage/>;
     if (page==="linkbio") return <LinkInBioBuilderPage/>;
     if (page==="menu") return <MenuBuilderPage/>;
+    if (page==="orders") return <OrdersPage/>;
     if (page==="reservations") return <ReservationsPage/>;
     if (page==="loyalty") return <LoyaltyPage/>;
     if (page==="reviews") return <ReviewsPage/>;
@@ -19243,6 +19396,8 @@ export default function TawasloApp() {
   // Public digital menu (tawaslo.com/menu/<slug>) — no login.
   const menuMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/menu\/([A-Za-z0-9_-]+)/);
   if (menuMatch) return <MenuPublicPage slug={menuMatch[1]}/>;
+  const orderMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/order\/([A-Za-z0-9_-]+)/);
+  if (orderMatch) return <OrderPublicPage slug={orderMatch[1]}/>;
 
   // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
   const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
