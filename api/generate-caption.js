@@ -200,6 +200,7 @@ export default async function handler(req, res) {
     if (!convo.length) return res.status(400).json({ error: 'messages required' });
     const out = await conciergeReply(ctx, convo);
     if (out.error) return res.status(500).json({ error: 'Concierge AI error', details: out.details });
+    bumpConcierge(ctx.client_id);
     return res.status(200).json({ reply: out.reply, booking: out.booking });
   }
 
@@ -596,6 +597,8 @@ const WA_SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 function waSb(path, opts = {}) {
   return fetch(`${WA_SUPA}/rest/v1/${path}`, { ...opts, headers: { apikey: WA_SB_KEY, Authorization: `Bearer ${WA_SB_KEY}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
 }
+// Meter one concierge reply against a client's monthly allowance (fire-and-forget).
+function bumpConcierge(clientId) { if (!clientId) return; const ym = new Date().toISOString().slice(0, 7); try { waSb('rpc/bump_concierge', { method: 'POST', body: JSON.stringify({ p_client: clientId, p_ym: ym }) }); } catch (e) {} }
 function waActiveDaypart(hours) {
   const h = new Date().getHours();
   const H = { breakfast: [7, 11], brunch: [11, 15], lunch: [12, 16], dinner: [16, 23], ...(hours || {}) };
@@ -656,6 +659,7 @@ async function handleWhatsApp(body) {
         try { await waSb(`wa_threads?on_conflict=client_id,wa_from`, { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ client_id: clientId, wa_from: from, messages: thread, updated_at: new Date().toISOString() }) }); } catch (e) {}
         await waSend(phoneId, token, from, reply);
         try { await waSb('wa_messages', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ direction: 'out', from_number: from, body: reply, msg_type: 'text', received_at: new Date().toISOString() }) }); } catch (e) {}
+        bumpConcierge(clientId);
         if (out && out.cancel) {
           try {
             const nowIso = new Date().toISOString();

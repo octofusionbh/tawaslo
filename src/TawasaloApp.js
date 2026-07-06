@@ -15032,7 +15032,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -15124,6 +15124,7 @@ function ConciergePage() {
   const isAR = lang==="ar"; const L=(en,ar)=>isAR?ar:en;
   const [cid,setCid]=useState(null);
   const [brandVoice,setBrandVoice]=useState("");
+  const [usage,setUsage]=useState({used:0,topup:0});
   const [greeting,setGreeting]=useState("");
   const [brief,setBrief]=useState("");
   const [waNum,setWaNum]=useState("");
@@ -15135,7 +15136,7 @@ function ConciergePage() {
     (async()=>{
       const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
       const id=data&&data[0]&&data[0].id; if(!active) return; setCid(id||null);
-      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} }
+      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} try{ const ym=new Date().toISOString().slice(0,7); const { data:u } = await supabase.from('concierge_usage').select('used,topup').eq('client_id',id).eq('ym',ym).maybeSingle(); if(active&&u) setUsage({used:u.used||0,topup:u.topup||0}); }catch(e){} }
       if(active) setLoading(false);
     })();
     return ()=>{ active=false; };
@@ -15145,6 +15146,11 @@ function ConciergePage() {
   const card={ background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const inp={ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
   const lblS={ display:"block", fontSize:11.5, fontWeight:600, color:th.text2, marginBottom:6 };
+  const PLAN_CHATS={ Essential:250, Professional:1000, Enterprise:3000, Studio:8000 };
+  const included=(PLAN_CHATS[selClient&&selClient.plan]||100)+(usage.topup||0);
+  const usedN=usage.used||0;
+  const usagePct=included?Math.min(100,Math.round(usedN/included*100)):0;
+  const usageColor=usagePct>=100?th.danger:usagePct>=80?th.warning:th.success;
   if(loading) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Loading…","جارٍ التحميل…")}</div>;
   if(!cid) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Select a client to train the Concierge.","اختر عميلاً لتدريب الكونسيرج.")}</div>;
   return (
@@ -15152,6 +15158,14 @@ function ConciergePage() {
       <div style={{marginBottom:18}}>
         <h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Concierge","الكونسيرج")}</h1>
         <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("your AI host — trains the web widget and WhatsApp","مضيفك الذكي — يدرّب الويب وواتساب")}</p>
+      </div>
+      <div style={{...card,padding:14,marginBottom:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <span style={{fontSize:12.5,fontWeight:600,color:th.text}}>{L("Concierge chats this month","محادثات الكونسيرج هذا الشهر")}</span>
+          <span style={{fontSize:13,fontWeight:700,color:usageColor}}>{usedN} / {included}</span>
+        </div>
+        <div style={{height:7,borderRadius:20,background:th.card2,overflow:"hidden"}}><div style={{height:"100%",width:usagePct+"%",background:usageColor}}/></div>
+        {usagePct>=80 && <div style={{fontSize:11.5,color:usageColor,marginTop:8}}>{usagePct>=100?L("You\u2019re out of Concierge chats \u2014 top up to keep your host answering.","نفدت محادثات الكونسيرج."):L("Running low on Concierge chats.","محادثات الكونسيرج على وشك النفاد.")}</div>}
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
         <div style={{...card,padding:18,flex:"1 1 360px",minWidth:0}}>
@@ -17257,7 +17271,7 @@ function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
       const s = (ctx && ctx.settings) || {}; const h = s.hours || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:cid, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "…" }]);
