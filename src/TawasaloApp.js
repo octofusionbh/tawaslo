@@ -14694,6 +14694,52 @@ function MenuBuilderPage() {
   const shown = cat==="All" ? items : items.filter(i=>(i.category||'General')===cat);
   const publicUrl = menu ? `${origin}/menu/${menu.slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+  const [shareOpen, setShareOpen] = useState(false);
+  const [dcopied, setDcopied] = useState(false);
+  const displayUrl = menu ? `${origin}/menu/${menu.slug}?display=1` : "";
+  const copyDisplay = () => { try { navigator.clipboard.writeText(displayUrl); setDcopied(true); setTimeout(()=>setDcopied(false),1500);}catch(e){} };
+  const shareWA = () => { try { window.open('https://wa.me/?text='+encodeURIComponent(((selClient&&selClient.name)||'Menu')+' — '+publicUrl), '_blank'); } catch(e){} setShareOpen(false); };
+  const bookingOn = !(menu && menu.booking_enabled === false);
+  const openQrPoster = async () => {
+    if (!publicUrl) return;
+    let wl = null; try { wl = await loadClientBranding(cid); } catch(e){}
+    const cName = (selClient && selClient.name) || (menu && menu.title) || 'Menu';
+    const cLogo = (selClient && selClient.logo_url) || '';
+    const tw = origin + '/logo-transparent.png';
+    const centerLogo = cLogo || (wl ? '' : tw);
+    const footerText = wl ? (wl.footer_text || '') : 'Powered by Tawaslo';
+    const showTwMark = !wl;
+    const fileName = (String(cName).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'menu') + '-menu-qr.png';
+    const esc = (x) => String(x==null?'':x).replace(/[<>&"]/g, function(c){ return ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'})[c]; });
+    const w = window.open('', '_blank', 'width=520,height=800'); if (!w) return;
+    const S = '<'+'/scr'+'ipt>';
+    const headerImg = cLogo ? ('<img class="clogo" crossorigin="anonymous" src="'+esc(cLogo)+'"/>') : ('<div class="clogo mono">'+esc((cName||'M')[0])+'</div>');
+    const centerImg = centerLogo ? ('<div class="center"><img crossorigin="anonymous" src="'+esc(centerLogo)+'"/></div>') : '';
+    const foot = footerText ? ('<div class="divider"></div><div class="foot">'+(showTwMark?('<img crossorigin="anonymous" src="'+esc(tw)+'"/>'):'')+esc(footerText)+'</div>') : '';
+    const doc = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(cName)+' menu QR</title>'
+      + '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:\'Plus Jakarta Sans\',-apple-system,\'Segoe UI\',sans-serif;background:#e9e4d8;display:flex;flex-direction:column;align-items:center;padding:24px}'
+      + '#poster{width:340px;background:#F6F1E8;border:1px solid #E4DAC8;border-radius:22px;padding:30px 26px 20px;text-align:center;color:#2A2018}'
+      + '.clogo{width:70px;height:70px;margin:0 auto 14px;object-fit:contain;border-radius:50%}.clogo.mono{background:#2A2018;color:#F6F1E8;display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:30px}'
+      + '.name{font-family:Georgia,serif;font-size:26px;margin-bottom:3px}.tag{font-size:13px;color:#8A7B63;margin-bottom:20px}'
+      + '.qrwrap{position:relative;width:250px;height:250px;margin:0 auto;background:#fff;border-radius:16px;padding:14px}#qr{width:222px;height:222px}#qr img,#qr canvas{width:222px !important;height:222px !important;display:block}'
+      + '.center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:54px;height:54px;background:#fff;border-radius:13px;border:3px solid #F6F1E8;display:flex;align-items:center;justify-content:center}.center img{width:42px;height:42px;object-fit:contain;border-radius:8px}'
+      + '.divider{height:1px;background:#E4DAC8;margin:20px 8px 12px}.foot{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;color:#9A8B72}.foot img{width:16px;height:16px;object-fit:contain}'
+      + '.bar{margin-top:20px}.bar button{font-family:inherit;font-size:14px;padding:11px 24px;border-radius:11px;border:none;background:#2A2018;color:#F6F1E8;cursor:pointer}'
+      + '.st{margin-top:10px;font-size:12px;color:#8a7f6c;height:16px}</style></head><body>'
+      + '<div id="poster">'+headerImg+'<div class="name">'+esc(cName)+'</div><div class="tag">Scan for our menu · امسح لعرض قائمتنا</div>'
+      + '<div class="qrwrap"><div id="qr"></div>'+centerImg+'</div>'+foot+'</div>'
+      + '<div class="bar"><button id="dl">Download PNG</button></div><div class="st" id="st">Preparing your poster…</div>'
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js">'+S
+      + '<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js">'+S
+      + '<script>(function(){'
+      + 'try{new QRCode(document.getElementById("qr"),{text:'+JSON.stringify(publicUrl)+',width:222,height:222,colorDark:"#2A2018",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.H});}catch(e){}'
+      + 'var fname='+JSON.stringify(fileName)+';var busy=false;'
+      + 'function save(){var st=document.getElementById("st");if(busy)return;if(!window.html2canvas){st.textContent="Loading — tap Download PNG.";return;}busy=true;st.textContent="Rendering…";html2canvas(document.getElementById("poster"),{useCORS:true,backgroundColor:null,scale:3}).then(function(c){var a=document.createElement("a");a.download=fname;a.href=c.toDataURL("image/png");document.body.appendChild(a);a.click();a.remove();st.textContent="Saved to your Downloads ✓";busy=false;}).catch(function(e){st.textContent="Tap Download PNG to save.";busy=false;});}'
+      + 'document.getElementById("dl").addEventListener("click",save);'
+      + 'window.addEventListener("load",function(){setTimeout(save,1100);});'
+      + '})();'+S+'</body></html>';
+    w.document.write(doc); w.document.close();
+  };
   const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
@@ -14744,8 +14790,12 @@ function MenuBuilderPage() {
           <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Menu","القائمة")}</h1>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("bilingual menu — shown on your bio link & QR","قائمة ثنائية اللغة — تظهر على رابط البايو ورمز QR")}</p>
         </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
+        <div style={{ display:"flex", gap:8, position:"relative" }}>
+          <button onClick={()=>setShareOpen(o=>!o)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Send size={13}/>{L("Share","مشاركة")}</button>
+          {shareOpen && <div onMouseLeave={()=>setShareOpen(false)} style={{ position:"absolute", top:"110%", insetInlineStart:0, zIndex:60, background:th.card, border:`1px solid ${th.border}`, borderRadius:11, padding:6, minWidth:190, boxShadow:"0 14px 40px rgba(0,0,0,0.4)" }}>
+            <div onClick={()=>{ copyUrl(); setShareOpen(false); }} style={{ display:"flex", alignItems:"center", gap:9, padding:"9px 10px", borderRadius:8, cursor:"pointer", color:th.text, fontSize:12.5 }}><Link size={14} color={th.accent}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</div>
+            <div onClick={shareWA} style={{ display:"flex", alignItems:"center", gap:9, padding:"9px 10px", borderRadius:8, cursor:"pointer", color:th.text, fontSize:12.5 }}><FaWhatsapp style={{ color:"#25D366", fontSize:14 }}/>{L("Share to WhatsApp","مشاركة عبر واتساب")}</div>
+          </div>}
           <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("View menu","عرض القائمة")}</a>
         </div>
       </div>
@@ -14757,10 +14807,22 @@ function MenuBuilderPage() {
             <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Table QR code","رمز QR للطاولة")}</div>
             <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Print it for your tables — customers scan to open the menu.","اطبعه لطاولاتك — يمسحه العملاء لفتح القائمة.")}</div>
           </div>
-          <a href={`https://api.qrserver.com/v1/create-qr-code/?size=600x600&margin=12&data=${encodeURIComponent(publicUrl)}`} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12, fontWeight:600, textDecoration:"none", flexShrink:0 }}><Download size={13}/>{L("Download","تنزيل")}</a>
+          <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+            <button onClick={openQrPoster} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:600, cursor:"pointer" }}><Download size={13}/>{L("Download poster","تنزيل الملصق")}</button>
+            <button onClick={copyDisplay} title={L("For in-house tablets — menu only, no chat","لأجهزتك اللوحية — القائمة فقط بدون دردشة")} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, fontWeight:600, cursor:"pointer" }}><Monitor size={13}/>{dcopied?L("Copied","تم النسخ"):L("Tablet link","رابط اللوحي")}</button>
+          </div>
         </div>
       )}
 
+      {menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Takes reservations","يقبل الحجوزات")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{bookingOn?L("Menu chat offers Chat & Book.","دردشة القائمة تتيح الحجز."):L("No booking — chat is Chat with us only.","بدون حجز — الدردشة فقط.")}</div>
+          </div>
+          <div onClick={()=>updateMenu({ booking_enabled: !bookingOn })} style={{ width:44, height:25, borderRadius:20, background:bookingOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:bookingOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+        </div>
+      )}
       {menu && (
         <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:14, flexWrap:"wrap" }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
