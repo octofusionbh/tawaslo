@@ -3766,7 +3766,11 @@ function CalendarRoomPage() {
   const go = (dir) => setCursor(new Date(y, m + dir, 1));
 
   const monthLabel = `${MONTHS[m]} ${y}`;
-  const shareLink = "tawaslo.com/a/" + shareToken;
+  // Use the real approval token carried on the posts (set by "Send for approval"),
+  // so the client link loads the actual calendar. Fall back to the random token only
+  // when nothing has been sent for approval yet.
+  const shareTokenReal = (monthPosts.find(p => p.appr_token && (p.appr_status==='pending'||p.appr_status==='revised')) || monthPosts.find(p => p.appr_token) || {}).appr_token || shareToken;
+  const shareLink = "tawaslo.com/a/" + shareTokenReal;
   const shareMsg = (selClient?.name || L("Your","")) + " " + L("content calendar for","تقويم المحتوى لـ") + " " + monthLabel + " — " + publishedN + " " + L("published","منشور") + ", " + approvedN + " " + L("approved","موافق عليه") + ". " + L("View:","عرض:") + " https://" + shareLink;
   const openWA = () => window.open("https://wa.me/?text=" + encodeURIComponent(shareMsg), "_blank");
   const openMail = () => { window.location.href = "mailto:?subject=" + encodeURIComponent(monthLabel + " " + L("content calendar","تقويم المحتوى")) + "&body=" + encodeURIComponent(shareMsg); };
