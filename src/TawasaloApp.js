@@ -1424,6 +1424,8 @@ function ClientsPage() {
   const [delClient,setDelClient]=useState(null);
   const [busy,setBusy]=useState(false);
   const [platsByClient,setPlatsByClient]=useState({});
+  const [newBizType,setNewBizType]=useState('restaurant');
+  const [editBizType,setEditBizType]=useState('restaurant');
 
   const PLAT = { ig:{Icon:FaInstagram,color:"#E1306C"}, fb:{Icon:FaFacebook,color:"#1877F2"}, li:{Icon:FaLinkedin,color:"#0A66C2"}, tt:{Icon:FaTiktok,color:th.text}, tw:{Icon:FaTwitter,color:th.text}, yt:{Icon:FaYoutube,color:"#FF0000"} };
 
