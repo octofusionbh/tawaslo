@@ -74,7 +74,9 @@ export default async function handler(req, res) {
         else return res.status(400).json({ error: 'A Story needs an image or video.' });
         const c = await post(`${igBase}/${accountId}/media`, body);
         if (c.error) return res.status(400).json({ error: c.error.message });
-        if (videoUrl) await waitReady(c.id);
+        // Poll image AND video story containers until FINISHED — publishing a story
+        // before its container is ready is what causes "Media ID is not available".
+        await waitReady(c.id);
         creationId = c.id;
 
       } else {
