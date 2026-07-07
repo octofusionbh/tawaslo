@@ -15004,7 +15004,8 @@ function MenuBuilderPage() {
 
 // ── Concierge — AI front desk on public pages. Reads menu + availability,
 // answers questions, and books a table straight into the bookings engine. ──
-function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChange, hideButton, dock }) {
+function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChange, hideButton, dock, booking }) {
+  const canBook = booking !== false;
   const [openS, setOpenS] = useState(false);
   const open = openProp !== undefined ? openProp : openS;
   const setOpen = (v) => { if (onOpenChange) onOpenChange(v); else setOpenS(v); };
@@ -15027,7 +15028,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
   }, [clientId, currency]);
 
   useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, open, busy]);
-  useEffect(() => { if (open && msgs.length===0) { const g = (ctx && ctx.settings && ctx.settings.hours && ctx.settings.hours.concierge_greeting) || `Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋`; setMsgs([{ role:'assistant', content:g }]); } }, [open, ctx]); // eslint-disable-line
+  useEffect(() => { if (open && msgs.length===0) { const g = (ctx && ctx.settings && ctx.settings.hours && ctx.settings.hours.concierge_greeting) || `Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu${canBook ? ", or tell me a day, time and how many — I'll book your table" : ""}. 👋`; setMsgs([{ role:'assistant', content:g }]); } }, [open, ctx]); // eslint-disable-line
   const openChat = () => setOpen(true);
 
   const send = async () => {
@@ -15038,11 +15039,11 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, booking:canBook, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
-      const b = d.booking;
+      const b = canBook ? d.booking : null;
       if (b && b.date && b.time && b.name) {
         const t = b.time.length===5 ? b.time : ('0'+b.time);
         const sd = new Date(b.date + 'T' + t + ':00');
@@ -15058,7 +15059,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
   if (!clientId) return null;
   return (
     <>
-      {!open && !hideButton && <button onClick={openChat} style={{ position:"fixed", insetInlineEnd:18, bottom:18, zIndex:9990, display:"inline-flex", alignItems:"center", gap:8, padding:"12px 16px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer", boxShadow:"0 8px 26px rgba(0,0,0,0.4)", fontFamily:"'Plus Jakarta Sans',sans-serif" }}><MessageCircle size={17}/>Chat &amp; book</button>}
+      {!open && !hideButton && <button onClick={openChat} style={{ position:"fixed", insetInlineEnd:18, bottom:18, zIndex:9990, display:"inline-flex", alignItems:"center", gap:8, padding:"12px 16px", borderRadius:30, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer", boxShadow:"0 8px 26px rgba(0,0,0,0.4)", fontFamily:"'Plus Jakarta Sans',sans-serif" }}><MessageCircle size={17}/>{canBook ? "Chat & book" : "Chat with us"}</button>}
       {open && (
         <div style={ dock
           ? { position:"fixed", insetInlineEnd:0, top:0, bottom:0, zIndex:9991, width:"min(400px, 100vw)", background:"#0E1013", borderInlineStart:"1px solid #20242b", display:"flex", flexDirection:"column", overflow:"hidden", boxShadow:"-18px 0 50px rgba(0,0,0,0.45)", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif", animation:"twPop .22s ease both" }
@@ -15428,7 +15429,7 @@ function MenuPublicPage({ slug }) {
   const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city,booking_enabled').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -15460,6 +15461,8 @@ function MenuPublicPage({ slug }) {
   const rtlDisp = isRTLLang(disp);
   const pickLang = (a, b) => secondary ? (b||a) : (a||b);
   const altLang = disp === lang1 ? lang2 : lang1;
+  const displayMode = typeof window!=="undefined" && /[?&]display=1/.test(window.location.search);
+  const canBook = !!(data && data.booking_enabled !== false);
   const toggleLang = () => { setDispLang(altLang); try { if (typeof window!=="undefined") window.localStorage.setItem('twmenu_lang_'+slug, altLang); } catch(e){} };
   const present = Array.from(new Set(items.map(i=>i.category||'General')));
   const ord = (data&&Array.isArray(data.cat_order))?data.cat_order:[];
@@ -15637,7 +15640,7 @@ function MenuPublicPage({ slug }) {
                 </button>
               ))}
             </div>
-            <button onClick={()=>setChatOpen(true)} style={{ marginTop:10, display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer" }}><MessageCircle size={16}/>{secondary?"الدردشة والحجز":"Chat & book"}</button>
+            {!displayMode && <button onClick={()=>setChatOpen(true)} style={{ marginTop:10, display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", color:"#fff", border:"none", fontSize:13.5, fontWeight:700, cursor:"pointer" }}><MessageCircle size={16}/>{canBook?(secondary?"الدردشة والحجز":"Chat & book"):(secondary?"تواصل معنا":"Chat with us")}</button>}
             {hasSecond && <div style={{ marginTop:9, display:"flex", border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden" }}>
               <button onClick={()=>{ if(secondary) toggleLang(); }} style={{ flex:1, padding:"8px 0", fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:!secondary?T.railActive:"transparent", color:!secondary?T.text:T.text2, fontFamily:isRTLLang(lang1)?"'Cairo',sans-serif":undefined }}>{langName(lang1)}</button>
               <button onClick={()=>{ if(!secondary) toggleLang(); }} style={{ flex:1, padding:"8px 0", fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:secondary?T.railActive:"transparent", color:secondary?T.text:T.text2, fontFamily:isRTLLang(lang2)?"'Cairo',sans-serif":undefined }}>{langName(lang2)}</button>
@@ -15756,7 +15759,7 @@ function MenuPublicPage({ slug }) {
         </div>
       ), document.body)}
 
-      <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur} {...(isDesktop ? { open:chatOpen, onOpenChange:setChatOpen, hideButton:true, dock:true } : {})}/>
+      {!displayMode && <ConciergeWidget clientId={data.client_id} name={data.name} currency={cur} booking={canBook} {...(isDesktop ? { open:chatOpen, onOpenChange:setChatOpen, hideButton:true, dock:true } : {})}/>}
     </div>
   );
 }
