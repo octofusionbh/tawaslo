@@ -6804,7 +6804,7 @@ function PublisherPage() {
         out.push({ account: acc.account_name, success: ok, error: lastErr });
       } else {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption: effCaption,
+          body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, refreshToken: acc.refresh_token || null, caption: effCaption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
             altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, slideCaptions: multiCap ? slideCaps : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
         const data = await res.json();
@@ -7934,6 +7934,7 @@ function SocialAccountsPage() {
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
     const { error: upsertErr } = await supabase.from('social_accounts').upsert({
       client_id: clientId, platform: 'yt', account_id: acc.account_id, account_name: acc.account_name,
+      refresh_token: acc.refresh_token || null,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
     }, { onConflict: 'client_id,account_id' });

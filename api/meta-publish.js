@@ -265,6 +265,41 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, postId: tweetId, permalink: xLink, platform: 'tw' });
     }
 
+    } else if (platform === 'yt') {
+      // YouTube — upload a video via the Data API v3 (resumable upload). Google access tokens
+      // expire in ~1h, so refresh first with the stored refresh token, then init + PUT the bytes.
+      const ytVideo = videoUrl || null;
+      if (!ytVideo) return res.status(400).json({ error: 'YouTube needs a video to post.' });
+      let ytToken = accessToken;
+      const rt = req.body.refreshToken || null;
+      if (rt && process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET) {
+        try {
+          const rf = await fetch('https://oauth2.googleapis.com/token', {
+            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ client_id: process.env.YOUTUBE_CLIENT_ID, client_secret: process.env.YOUTUBE_CLIENT_SECRET, refresh_token: rt, grant_type: 'refresh_token' }),
+          }).then(r => r.json());
+          if (rf && rf.access_token) ytToken = rf.access_token;
+        } catch (e) { /* fall back to the stored token */ }
+      }
+      const vResp = await fetch(ytVideo);
+      if (!vResp.ok) return res.status(400).json({ error: 'Could not fetch the video file to upload.' });
+      const vBuf = Buffer.from(await vResp.arrayBuffer());
+      const ytTitle = ((caption || '').split('\n')[0] || 'New video').slice(0, 95);
+      const meta = { snippet: { title: ytTitle, description: (caption || '').slice(0, 4900), categoryId: '22' }, status: { privacyStatus: process.env.YT_PRIVACY || 'public', selfDeclaredMadeForKids: false } };
+      const initRes = await fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${ytToken}`, 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'video/*', 'X-Upload-Content-Length': String(vBuf.length) },
+        body: JSON.stringify(meta),
+      });
+      if (!initRes.ok) { const e = await initRes.text(); return res.status(400).json({ error: 'YouTube upload init failed', details: e }); }
+      const uploadUrl = initRes.headers.get('location') || initRes.headers.get('Location');
+      if (!uploadUrl) return res.status(400).json({ error: 'YouTube did not return an upload URL.' });
+      const up = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'video/*', 'Content-Length': String(vBuf.length) }, body: vBuf });
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok || upData.error) return res.status(400).json({ error: 'YouTube publish failed: ' + ((upData.error && upData.error.message) || up.status), details: upData });
+      const vid = upData.id;
+      return res.status(200).json({ success: true, postId: vid, permalink: vid ? ('https://youtu.be/' + vid) : null, platform: 'yt' });
+
     return res.status(400).json({ error: 'Unsupported platform' });
   } catch (err) {
     return res.status(500).json({ error: 'Publish failed', details: err.message });
