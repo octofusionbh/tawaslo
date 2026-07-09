@@ -11827,6 +11827,50 @@ function TeamPage() {
   );
 }
 
+function PaymentOverlays({ payAnim, showWelcome, planName, onWelcomeClose }) {
+  useEffect(() => {
+    if (typeof document === 'undefined' || document.getElementById('tw-pay-kf')) return;
+    const st = document.createElement('style'); st.id = 'tw-pay-kf';
+    st.textContent = '@keyframes twpayspin{to{transform:rotate(360deg)}}@keyframes twpayfade{from{opacity:0}to{opacity:1}}@keyframes twpaypop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}@keyframes twpayrise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}';
+    document.head.appendChild(st);
+  }, []);
+  const [step, setStep] = useState(0);
+  const [secured, setSecured] = useState(false);
+  useEffect(() => {
+    if (!payAnim) { setStep(0); setSecured(false); return; }
+    let i = 0;
+    const iv = setInterval(() => { i++; if (i < 3) setStep(i); }, 800);
+    const done = setTimeout(() => setSecured(true), 1500);
+    return () => { clearInterval(iv); clearTimeout(done); };
+  }, [payAnim]);
+  if (!payAnim && !showWelcome) return null;
+  const steps = ['Encrypting your details', 'Connecting to secure checkout', 'Redirecting to Polar'];
+  const node = (
+    <div style={{ position:'fixed', inset:0, zIndex:100000, background:'rgba(8,10,16,0.93)', backdropFilter:'blur(6px)', display:'flex', alignItems:'center', justifyContent:'center', animation:'twpayfade .25s ease both', fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+      {payAnim ? (
+        <div style={{ textAlign:'center', color:'#ECEAE1' }}>
+          <div style={{ position:'relative', width:88, height:88, margin:'0 auto 22px' }}>
+            <svg width="88" height="88" viewBox="0 0 88 88" style={{ position:'absolute', inset:0, animation: secured ? 'none' : 'twpayspin 1s linear infinite' }}>
+              <circle cx="44" cy="44" r="38" fill="none" stroke="#20242b" strokeWidth="5"/>
+              <circle cx="44" cy="44" r="38" fill="none" stroke={secured ? '#3FB983' : '#5B8DEF'} strokeWidth="5" strokeLinecap="round" strokeDasharray={secured ? '240 260' : '72 260'}/>
+            </svg>
+            <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color: secured ? '#3FB983' : '#8FB3FF', animation: secured ? 'twpaypop .4s ease both' : 'none' }}>{secured ? <Check size={36}/> : <Lock size={30}/>}</div>
+          </div>
+          <div style={{ fontSize:14, fontWeight:600, color: secured ? '#3FB983' : '#ECEAE1' }}>{secured ? "Secured — opening payment" : steps[step]}</div>
+        </div>
+      ) : (
+        <div style={{ width:360, maxWidth:'92vw', textAlign:'center', color:'#ECEAE1', animation:'twpayrise .45s ease both' }}>
+          <div style={{ width:80, height:80, borderRadius:'50%', margin:'0 auto 18px', background:'rgba(63,185,131,0.14)', border:'1px solid rgba(63,185,131,0.4)', display:'flex', alignItems:'center', justifyContent:'center', animation:'twpaypop .5s ease both' }}><Check size={40} color="#3FB983"/></div>
+          <div style={{ fontSize:22, fontWeight:800 }}>You&rsquo;re on {planName || 'your new plan'}</div>
+          <div style={{ fontSize:13, color:'#9aa3b2', marginTop:8, lineHeight:1.6 }}>Payment confirmed. Everything is unlocked &mdash; your accounts, posts and analytics are ready.</div>
+          <button onClick={onWelcomeClose} style={{ marginTop:22, padding:'12px 28px', borderRadius:12, border:'none', background:'linear-gradient(135deg,#5B8DEF,#7C5CFF)', color:'#fff', fontSize:13.5, fontWeight:700, cursor:'pointer' }}>Go to dashboard</button>
+        </div>
+      )}
+    </div>
+  );
+  return createPortal(node, document.body);
+}
+
 function BillingPage() {
   const { dark, lang, userEmail, userCompany, userName } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -11846,6 +11890,8 @@ function BillingPage() {
   const [addon, setAddon] = useState("none");               // optional AI image pack at checkout
   const [showCancel, setShowCancel] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [payAnim, setPayAnim] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [liveSub, setLiveSub] = useState(null);   // the customer's real Polar subscription (synced by the webhook)
   const [, setImgTick] = useState(0);   // re-read image credits after a change
   const imgAcct = (userEmail || "").toLowerCase();
@@ -11856,11 +11902,13 @@ function BillingPage() {
 
   useEffect(() => {
     try {
-      if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); sessionStorage.removeItem('tw_pay');
+      if (sessionStorage.getItem('tw_pay') === 'success') { setPaid(true); setShowWelcome(true); sessionStorage.removeItem('tw_pay');
         const pk = sessionStorage.getItem('tw_pending_pack'); if (pk) { try { setImgPackOf(imgAcct, pk); } catch(e){} setImgTick(t=>t+1); sessionStorage.removeItem('tw_pending_pack'); } }
       if (localStorage.getItem('tw_sub_status') === 'cancelled') setCancelled(true);
     } catch (e) { /* ignore */ }
   }, []);
+
+  useEffect(() => { if (typeof window==='undefined') return; try { const q=new URLSearchParams(window.location.search); if (q.get('welcome')==='1' || q.get('checkout')==='success' || q.get('tw_pay')==='success') { setPaid(true); setShowWelcome(true); q.delete('welcome'); q.delete('checkout'); q.delete('tw_pay'); const qs=q.toString(); window.history.replaceState({}, '', window.location.pathname + (qs?'?'+qs:'')); } } catch(e){} }, []);
 
   // Read the live Polar subscription (kept in sync by the webhook) and reflect it in the UI.
   useEffect(() => {
@@ -11901,7 +11949,7 @@ function BillingPage() {
     const init = () => { try {
       window.Paddle.Environment.set(PADDLE_ENV);
       window.Paddle.Initialize({ token: PADDLE_TOKEN, eventCallback: (ev) => {
-        if (ev && ev.name === "checkout.completed") { try { sessionStorage.setItem("tw_pay", "success"); } catch (e) {} setPaid(true); setCheckoutPlan(null); }
+        if (ev && ev.name === "checkout.completed") { try { sessionStorage.setItem("tw_pay", "success"); } catch (e) {} setPaid(true); setShowWelcome(true); setCheckoutPlan(null); }
       } });
       paddleReady.current = true;
     } catch (e) {} };
@@ -11969,7 +12017,10 @@ function BillingPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         try { if (addonId && addonId !== "none") sessionStorage.setItem("tw_pending_pack", addonId); else sessionStorage.removeItem("tw_pending_pack"); } catch (e) {}
-        window.location.href = user?.email ? `${polarUrl}?customer_email=${encodeURIComponent(user.email)}` : polarUrl;
+        const dest = user?.email ? `${polarUrl}?customer_email=${encodeURIComponent(user.email)}` : polarUrl;
+        if (isMobile) { window.location.href = dest; return; }
+        setPayAnim(true);
+        setTimeout(() => { window.location.href = dest; }, 1700);
         return;
       } catch (e) { window.location.href = polarUrl; return; }
     }
@@ -12004,6 +12055,7 @@ function BillingPage() {
   };
 
   // ── Full checkout page (opens after choosing a plan) ────────────────
+  const ovl = <PaymentOverlays payAnim={payAnim} showWelcome={showWelcome} planName={checkoutPlan || (liveSub && liveSub.plan) || 'your new plan'} onWelcomeClose={()=>setShowWelcome(false)}/>;
   if (checkoutPlan) {
     const cp = plans.find(p => p.name === checkoutPlan) || plans[0];
     const base = period === "annual" ? cp.y : cp.m;
@@ -12017,6 +12069,7 @@ function BillingPage() {
     const ap = approxLabel(geo, cycleTotal);
     return (
       <div style={{ padding:"28px 32px", maxWidth:520, margin:"0 auto" }}>
+        {ovl}
         <button onClick={()=>{ setCheckoutPlan(null); setNotice(""); }} style={{ display:"flex", alignItems:"center", gap:6, background:"none", border:"none", color:th.text2, fontSize:12.5, cursor:"pointer", marginBottom:14, padding:0 }}>
           {isAR?<ChevronRight size={15}/>:<ChevronLeft size={15}/>}{L("Back to plans","العودة للخطط")}
         </button>
@@ -12094,6 +12147,7 @@ function BillingPage() {
 
   return (
     <div style={{padding:"28px 32px", maxWidth:960}}>
+      {ovl}
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:22, flexWrap:"wrap", gap:14}}>
         <div>
           <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Plans & billing","الخطط والفوترة")}</h2>
