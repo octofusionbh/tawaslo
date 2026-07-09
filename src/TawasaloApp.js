@@ -7560,7 +7560,7 @@ function SocialAccountsPage() {
       setError(friendlyConnectError(igError));
       window.history.replaceState({}, '', '/social');
     } else if (igCode && realClientId) {
-      handleInstagramCallback(igCode);
+      window.history.replaceState({}, '', '/social'); handleInstagramCallback(igCode);
     }
   }, [realClientId]);
 
@@ -7570,7 +7570,7 @@ function SocialAccountsPage() {
     const liCode = params.get('li_code');
     const liError = params.get('li_error');
     if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/social'); }
-    else if (liCode && realClientId) { handleLinkedinCallback(liCode); }
+    else if (liCode && realClientId) { window.history.replaceState({}, '', '/social'); handleLinkedinCallback(liCode); }
   }, [realClientId]);
 
   // Handle TikTok OAuth callback redirect
@@ -7579,7 +7579,7 @@ function SocialAccountsPage() {
     const ttCode = params.get('tt_code');
     const ttError = params.get('tt_error');
     if (ttError) { setError(friendlyConnectError(ttError)); window.history.replaceState({}, '', '/social'); }
-    else if (ttCode && realClientId) { handleTiktokCallback(ttCode); }
+    else if (ttCode && realClientId) { window.history.replaceState({}, '', '/social'); handleTiktokCallback(ttCode); }
   }, [realClientId]);
 
   // Handle X (Twitter) OAuth callback redirect — held until go-live
@@ -7588,7 +7588,7 @@ function SocialAccountsPage() {
     const twCode = params.get('tw_code');
     const twError = params.get('tw_error');
     if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/social'); }
-    else if (twCode && realClientId) { handleXCallback(twCode); }
+    else if (twCode && realClientId) { window.history.replaceState({}, '', '/social'); handleXCallback(twCode); }
   }, [realClientId]);
 
   // Handle YouTube (Google) OAuth callback redirect
@@ -7597,7 +7597,7 @@ function SocialAccountsPage() {
     const ytCode = params.get('yt_code');
     const ytError = params.get('yt_error');
     if (ytError) { setError(friendlyConnectError(ytError)); window.history.replaceState({}, '', '/social'); }
-    else if (ytCode && realClientId) { handleYoutubeCallback(ytCode); }
+    else if (ytCode && realClientId) { window.history.replaceState({}, '', '/social'); handleYoutubeCallback(ytCode); }
   }, [realClientId]);
 
   // Handle Google Business Profile OAuth callback redirect
@@ -7606,7 +7606,7 @@ function SocialAccountsPage() {
     const gbCode = params.get('gb_code');
     const gbError = params.get('gb_error');
     if (gbError) { setError(friendlyConnectError(gbError)); window.history.replaceState({}, '', '/social'); }
-    else if (gbCode && realClientId) { handleGbpCallback(gbCode); }
+    else if (gbCode && realClientId) { window.history.replaceState({}, '', '/social'); handleGbpCallback(gbCode); }
   }, [realClientId]);
 
   const loadAccounts = async (clientId) => {
