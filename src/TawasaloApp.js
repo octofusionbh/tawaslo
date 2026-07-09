@@ -8430,6 +8430,7 @@ function AnalyticsPage() {
   };
   const pct = (n,d) => d>0 ? Math.round((n/d)*1000)/10 : 0;
   const reachSeries = (data?.chartData||[]).map(d => d.reach||0);
+  const viewsSeries = (data?.chartData||[]).map(d => d.views||0);
   const imprSeries  = (data?.chartData||[]).map(d => d.impressions||0);
   const engRate = data?.summary?.engagementRate || 0;
   const engFrac = Math.min(engRate/20, 1);
@@ -8540,7 +8541,9 @@ function AnalyticsPage() {
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
             {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null, followerDelta!=null?{txt:followerDelta+"%",up:true}:null)}
             {metric(L("Reach · 30d","الوصول · 30 يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
-            {hasImpr
+            {(data.summary.totalViews||0) > 0
+              ? metric(L("Views · 30d","المشاهدات · 30 يوم"), (data.summary.totalViews||0).toLocaleString(), viewsSeries, "#2DD4BF", null)
+              : hasImpr
               ? metric(L("Impressions · 30d","الظهور · 30 يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
               : metric(L("Avg. likes","متوسط الإعجابات"), avgLikes.toLocaleString(), null, null, null)}
             {metric(L("Engagement","التفاعل"), engRate+"%", null, null, engPtsDelta!=null?{txt:engPtsDelta+"",up:true}:null)}

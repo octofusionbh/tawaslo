@@ -29,6 +29,14 @@ export default async function handler(req, res) {
       `${base}/${accountId}/insights?metric=reach&period=day&since=${since}&until=${until}&access_token=${accessToken}`
     );
     const insightsData = await insightsRes.json();
+    // Account "views" — Meta's unified metric that replaced impressions (2025). Separate call so a
+    // failure here never breaks the working reach call.
+    let viewsByDay = [];
+    try {
+      const vRes = await fetch(`${base}/${accountId}/insights?metric=views&period=day&since=${since}&until=${until}&access_token=${accessToken}`);
+      const vData = await vRes.json();
+      if (vData.data && vData.data[0]) viewsByDay = vData.data[0].values || [];
+    } catch (e) { /* views unsupported for this account — ignore */ }
 
     // 3. Recent media — valid fields only (reach/impressions/saved are NOT media fields; they live on /insights)
     const mediaRes = await fetch(
@@ -45,13 +53,16 @@ export default async function handler(req, res) {
     const totalLikes = posts.reduce((s, p) => s + (p.like_count || 0), 0);
     const totalComments = posts.reduce((s, p) => s + (p.comments_count || 0), 0);
     const totalReach = (insightsByMetric.reach || []).reduce((s, v) => s + (v.value || 0), 0);
+    const totalViews = viewsByDay.reduce((s, v) => s + (v.value || 0), 0);
     const engagementRate = (profile.followers_count > 0 && posts.length > 0)
       ? (((totalLikes + totalComments) / posts.length) / profile.followers_count * 100).toFixed(2)
       : 0;
 
-    const chartData = (insightsByMetric.reach || []).slice(-30).map(v => ({
+    const viewsSlice = viewsByDay.slice(-30);
+    const chartData = (insightsByMetric.reach || []).slice(-30).map((v, i) => ({
       date: new Date(v.end_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       reach: v.value || 0,
+      views: (viewsSlice[i] && viewsSlice[i].value) || 0,
       impressions: 0,
     }));
 
@@ -68,6 +79,7 @@ export default async function handler(req, res) {
       },
       summary: {
         totalReach,
+        totalViews,
         totalImpressions: 0, // deprecated by Meta — no longer available
         totalProfileViews: 0, // deprecated by Meta — no longer available
         totalLikes,
