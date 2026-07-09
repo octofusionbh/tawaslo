@@ -11463,8 +11463,10 @@ function InboxPage() {
     return `${Math.floor(diff/86400)}d ago`;
   };
 
+  const [acctFilter, setAcctFilter] = useState('all');
   const filtered = (filter === 'all' ? messages : messages.filter(m => m.type === filter))
-    .filter(m => triFilter === 'all' || (triage[String(m.id)] && triage[String(m.id)].category === triFilter));
+    .filter(m => triFilter === 'all' || (triage[String(m.id)] && triage[String(m.id)].category === triFilter))
+    .filter(m => acctFilter === 'all' || m.accountName === acctFilter);
   const unsave = (url) => { setSavedStream(list => { const n = list.filter(x => x.url !== url); try { localStorage.setItem('tw_inbox_saved', JSON.stringify(n)); const st = new Set(JSON.parse(localStorage.getItem('tw_streams_saved') || '[]')); st.delete(url); localStorage.setItem('tw_streams_saved', JSON.stringify([...st])); } catch (e) {} if (selected && selected.url === url) setSelected(null); return n; }); };
   const listItems = filter === 'saved' ? savedStream : filtered;
   const TRIAGE_CATS = {
@@ -11501,6 +11503,12 @@ function InboxPage() {
           <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("comments & messages","التعليقات والرسائل")}</p>
         </div>
         <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+          {accounts.filter(a=>a.platform==='ig').length>1 && (
+            <select value={acctFilter} onChange={e=>{ setAcctFilter(e.target.value); setSelected(null); }} style={{padding:"7px 12px", borderRadius:999, border:`1px solid ${th.border}`, background:"transparent", color:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", outline:"none"}}>
+              <option value="all">{L("All accounts","كل الحسابات")}</option>
+              {accounts.filter(a=>a.platform==='ig').map(a=> <option key={a.id} value={a.account_name}>@{a.account_name}</option>)}
+            </select>
+          )}
           {[['all',L("All","الكل"),messages.length],['comment',L("Comments","التعليقات"),commentCount],['dm',L("DMs","الرسائل"),dmCount],...(savedStream.length?[['saved',L("Saved","المحفوظة"),savedStream.length]]:[])].map(([f,lab,n]) => (
             <button key={f} onClick={()=>setFilter(f)} style={{padding:"7px 14px", borderRadius:999, border:`1px solid ${filter===f?th.accent:th.border}`, background:filter===f?th.accentSoft:"transparent", color:filter===f?th.accent:th.text2, fontSize:11.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:6}}>
               {lab}{n>0 && <span className="tw-num" style={{opacity:0.85}}>{n}</span>}
