@@ -19471,7 +19471,7 @@ export default function TawasloApp() {
   const [authPage,  setAuthPage]  = useState("login");
   const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && window.location.pathname.indexOf('reset-password') !== -1);
   const [mode,      setMode]      = useState("agency");
-  const [page,      setPage]      = useState(()=>sessionStorage.getItem('tw_page')||"overview");
+  const [page,      setPage]      = useState(()=>{ try { const _p=(typeof window!=='undefined'?window.location.pathname:'/').replace(/^\/+|\/+$/g,''); if(_p && /^[a-z]+$/.test(_p)) return _p; } catch(e){} try { return sessionStorage.getItem('tw_page')||"overview"; } catch(e){ return "overview"; } });
   const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
   const [userEmail, setUserEmail] = useState(null);
@@ -19626,6 +19626,8 @@ export default function TawasloApp() {
         setPage(st.twPage);
         try { sessionStorage.setItem('tw_page', st.twPage); } catch (_) {}
         if (st.twMode) { setMode(st.twMode); try { sessionStorage.setItem('tw_mode', st.twMode); } catch (_) {} }
+      } else if (inAppRef.current) {
+        try { const _p=window.location.pathname.replace(/^\/+|\/+$/g,''); const np=(_p && /^[a-z]+$/.test(_p))?_p:'overview'; setPage(np); sessionStorage.setItem('tw_page', np); } catch (_) {}
       }
     };
     window.addEventListener('popstate', onPop);
@@ -19634,14 +19636,15 @@ export default function TawasloApp() {
   // Seed a baseline history entry the first time we land inside the app.
   useEffect(() => {
     if (isAuthed && !showLanding) {
-      try { if (!(window.history.state && window.history.state.twApp)) window.history.replaceState({ twApp:1, twPage: page, twMode: mode }, ''); } catch (_) {}
+      try { if (!(window.history.state && window.history.state.twApp)) window.history.replaceState({ twApp:1, twPage: page, twMode: mode }, '', (!page||page==='overview'||page==='dashboard')?'/':'/'+page); } catch (_) {}
     }
   }, [isAuthed, showLanding]); // eslint-disable-line
 
+  const pathForPage = (p) => (!p || p === 'overview' || p === 'dashboard') ? '/' : '/' + p;
   const savePage = (p) => {
     sessionStorage.setItem('tw_page', p);
     setPage(p);
-    try { if (inAppRef.current && p !== page) window.history.pushState({ twApp:1, twPage:p, twMode: mode }, ''); } catch (_) {}
+    try { if (inAppRef.current && p !== page) window.history.pushState({ twApp:1, twPage:p, twMode: mode }, '', pathForPage(p)); } catch (_) {}
   };
   const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
 
