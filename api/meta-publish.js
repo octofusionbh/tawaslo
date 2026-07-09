@@ -186,7 +186,7 @@ export default async function handler(req, res) {
     } else if (platform === 'tt') {
       // TikTok — Content Posting API (video). Uploads the file bytes directly (FILE_UPLOAD) so it
       // works no matter where the video is hosted (no domain verification needed). Posts are
-      // SELF_ONLY until the app passes TikTok's audit (flip via the TIKTOK_PRIVACY env var).
+      // Posts default to PUBLIC_TO_EVERYONE (the app is approved). Override with TIKTOK_PRIVACY env var if needed.
       const ttVideo = videoUrl || null;
       if (!ttVideo) return res.status(400).json({ error: 'TikTok needs a video to post.' });
       // TikTok requires querying the creator's allowed settings before a direct post; posting with a
@@ -200,13 +200,14 @@ export default async function handler(req, res) {
       }
       const ci = (ciData && ciData.data) || {};
       const privOpts = ci.privacy_level_options || [];
-      const wantPriv = process.env.TIKTOK_PRIVACY || 'SELF_ONLY';
+      const wantPriv = process.env.TIKTOK_PRIVACY || 'PUBLIC_TO_EVERYONE';
       const privacy = privOpts.includes(wantPriv) ? wantPriv : (privOpts[0] || 'SELF_ONLY');
       // Pull the video bytes server-side (keep demo clips short — Vercel functions cap at ~10s).
       const vidResp = await fetch(ttVideo);
       if (!vidResp.ok) return res.status(400).json({ error: 'Could not fetch the video file to upload.' });
       const vidBuf = Buffer.from(await vidResp.arrayBuffer());
       const videoSize = vidBuf.length;
+      if (videoSize > 64 * 1024 * 1024) return res.status(400).json({ error: 'TikTok video is too large to post directly (max 64MB). Use a shorter or more compressed clip.' });
       const initRes = await fetch('https://open.tiktokapis.com/v2/post/publish/video/init/', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
@@ -230,7 +231,23 @@ export default async function handler(req, res) {
         });
         if (!put.ok && put.status !== 201) return res.status(400).json({ error: 'TikTok video upload failed', status: put.status });
       }
-      return res.status(200).json({ success: true, postId: publishId, permalink: null, platform: 'tt' });
+      let ttStatus = 'PROCESSING';
+      if (publishId) {
+        for (let i = 0; i < 4; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const sres = await fetch('https://open.tiktokapis.com/v2/post/publish/status/fetch/', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({ publish_id: publishId }),
+          });
+          const sdata = await sres.json().catch(() => ({}));
+          const st = sdata && sdata.data && sdata.data.status;
+          if (st) ttStatus = st;
+          if (st === 'PUBLISH_COMPLETE') break;
+          if (st === 'FAILED') return res.status(400).json({ error: 'TikTok could not publish this video: ' + ((sdata.data && sdata.data.fail_reason) || 'processing failed'), details: sdata });
+        }
+      }
+      return res.status(200).json({ success: true, postId: publishId, status: ttStatus, permalink: null, platform: 'tt' });
 
     } else if (platform === 'tw') {
       // X (Twitter) — text post via API v2. PAID: ~$0.015/post ($0.20 if it contains a link).
