@@ -10502,6 +10502,7 @@ function ReportsPage() {
   const scopeLabel = reportName + (rPlat !== "all" ? " · " + platLabel(rPlat) : "");
 
   const exportPDF = () => {
+    const escAi = (s) => String(s||'').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' }[c]));
 
     // The exported PDF follows the dashboard language toggle.
     const dir = isAR ? 'rtl' : 'ltr';
@@ -10654,6 +10655,7 @@ function ReportsPage() {
 <div class="page">
   <div class="ph"><div class="ph-l"><div class="mk"></div>${bName}</div><div class="ph-r">${reportName}<br/>${month} &middot; ${T.execSummary}</div></div>
   <div class="eyebrow">${T.glance}</div>
+  ${aiSummary && aiSummary.summary ? `<div style="background:#F5F7FB;border:1px solid #E6EBF2;border-radius:12px;padding:15px 17px;margin:4px 0 18px;font-size:13.5px;line-height:1.7;color:#2A3340">${escAi(aiSummary.summary)}${aiSummary.recommendation ? `<div style="margin-top:9px;padding-top:9px;border-top:1px solid #E6EBF2;font-size:12.5px;color:#4A5568"><b style="color:#4F6B8C">${isAR?'التوصية: ':'Recommendation: '}</b>${escAi(aiSummary.recommendation)}</div>` : ''}</div>` : ''}
   ${analyticsData ? `
     <div class="hero"><div class="hero-num">${analyticsData.summary.totalReach.toLocaleString()}</div><div class="hero-tag">${T.peopleReached}</div></div>
     <div class="hero-cap">${heroCapAnalytics}</div>
