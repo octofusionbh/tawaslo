@@ -14700,6 +14700,7 @@ function MenuBuilderPage() {
   const copyDisplay = () => { try { navigator.clipboard.writeText(displayUrl); setDcopied(true); setTimeout(()=>setDcopied(false),1500);}catch(e){} };
   const shareWA = () => { try { window.open('https://wa.me/?text='+encodeURIComponent(((selClient&&selClient.name)||'Menu')+' — '+publicUrl), '_blank'); } catch(e){} setShareOpen(false); };
   const bookingOn = !(menu && menu.booking_enabled === false);
+  const taxOn = !!(menu && menu.tax_enabled);
   const openQrPoster = async () => {
     if (!publicUrl) return;
     let wl = null; try { wl = await loadClientBranding(cid); } catch(e){}
@@ -14740,7 +14741,7 @@ function MenuBuilderPage() {
       + '})();'+S+'</body></html>';
     w.document.write(doc); w.document.close();
   };
-  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true, on_pickup:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
     const patch = st==="hidden" ? { hidden:true } : st==="sold_out" ? { hidden:false, available:false } : { hidden:false, available:true };
@@ -14754,7 +14755,7 @@ function MenuBuilderPage() {
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
     const variants = (Array.isArray(editing.variants)?editing.variants:[]).map(v=>({ name:(v.name||"").trim(), price: v.price===""||v.price==null?null:Number(v.price) })).filter(v=>v.name);
     const addons = (Array.isArray(editing.addons)?editing.addons:[]).map(a=>({ name:(a.name||"").trim(), price: a.price===""||a.price==null?null:Number(a.price) })).filter(a=>a.name);
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, margin_priority: editing.margin_priority||0, sort: editing.sort!=null?editing.sort:items.length };
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, on_pickup: editing.on_pickup!==false, margin_priority: editing.margin_priority||0, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -14821,6 +14822,18 @@ function MenuBuilderPage() {
             <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{bookingOn?L("Menu chat offers Chat & Book.","دردشة القائمة تتيح الحجز."):L("No booking — chat is Chat with us only.","بدون حجز — الدردشة فقط.")}</div>
           </div>
           <div onClick={()=>updateMenu({ booking_enabled: !bookingOn })} style={{ width:44, height:25, borderRadius:20, background:bookingOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:bookingOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+        </div>
+      )}
+      {menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Add tax at checkout","إضافة ضريبة عند الدفع")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{taxOn?L("Pickup adds this % on top of the subtotal; the menu notes it too.","الاستلام يضيف هذه النسبة فوق المجموع، والقائمة تنوّه بذلك."):L("Off — prices shown as-is, no tax added.","معطّل — تُعرض الأسعار كما هي بدون ضريبة.")}</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            {taxOn && <div style={{ display:"flex", alignItems:"center", gap:5 }}><input type="number" min="0" max="100" step="0.5" value={(menu&&menu.tax_pct)==null?"":menu.tax_pct} onChange={e=>updateMenu({ tax_pct: e.target.value===""?0:Number(e.target.value) })} style={{ width:62, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/><span style={{ fontSize:13, color:th.text2 }}>%</span></div>}
+            <div onClick={()=>updateMenu({ tax_enabled: !taxOn, tax_pct: (!taxOn && !(menu&&menu.tax_pct)) ? 10 : ((menu&&menu.tax_pct)||0) })} style={{ width:44, height:25, borderRadius:20, background:taxOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:taxOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+          </div>
         </div>
       )}
       {menu && (
@@ -15025,6 +15038,10 @@ function MenuBuilderPage() {
             <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
               <input type="checkbox" checked={editing.show_price!==false} onChange={e=>setEditing({...editing, show_price:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Show price on the public menu","إظهار السعر في القائمة العامة")}</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
+              <input type="checkbox" checked={editing.on_pickup!==false} onChange={e=>setEditing({...editing, on_pickup:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12, color:th.text2 }}>{L("Available for pickup orders","متاح لطلبات الاستلام")}</span>
             </label>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Status","الحالة")}</div>
             <select value={editing.hidden ? "hidden" : (editing.available===false ? "sold_out" : "available")} onChange={e=>{ const v=e.target.value; setEditing({...editing, hidden:v==="hidden", available:v!=="sold_out"}); }} style={{ ...inp, marginBottom:4, cursor:"pointer" }}>
@@ -15327,11 +15344,11 @@ function OrderPublicPage({ slug }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20;
+      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0;
       try {
-        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min').eq('slug', slug).limit(1);
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct').eq('slug', slug).limit(1);
         const m = md && md[0];
-        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20;
+        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0;
           const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true});
           const arr = (it||[]).filter(x=>!x.hidden && x.available!==false);
           const pick = arr.filter(x=>x.on_pickup===true);
@@ -15340,7 +15357,7 @@ function OrderPublicPage({ slug }) {
       } catch(e){}
       if (!cid) { if(live) setData(null); return; }
       try { if (!cname) { const { data:c } = await supabase.from('clients').select('name').eq('id',cid).limit(1); cname = c&&c[0]&&c[0].name; } } catch(e){}
-      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep });
+      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep, taxEnabled, taxPct });
     })();
     return () => { live = false; };
   }, [slug]);
@@ -15351,6 +15368,9 @@ function OrderPublicPage({ slug }) {
   const sub = (id)=> setCart(c=>{ const n={...c}; if(n[id]){ n[id]={...n[id],qty:n[id].qty-1}; if(n[id].qty<=0) delete n[id]; } return n; });
   const lines = Object.values(cart);
   const subtotal = lines.reduce((s,l)=> s + (Number(l.item.price)||0)*l.qty, 0);
+  const taxPct = (data && data.taxEnabled) ? (Number(data.taxPct)||0) : 0;
+  const taxAmt = subtotal * taxPct / 100;
+  const total = subtotal + taxAmt;
   const count = lines.reduce((s,l)=>s+l.qty,0);
   const cats = Array.from(new Set(items.map(i=>i.category||'Menu')));
   const place = async () => {
@@ -15360,7 +15380,7 @@ function OrderPublicPage({ slug }) {
     const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:Number(l.item.price)||0, line_total:(Number(l.item.price)||0)*l.qty }));
     let pickupAt=null; try { if(pickup) pickupAt=new Date(new Date().toDateString()+' '+pickup).toISOString(); } catch(e){}
     try {
-      await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, total:subtotal, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
+      await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
       setDone(order_no);
     } catch(e){}
     setPlacing(false);
@@ -15387,7 +15407,10 @@ function OrderPublicPage({ slug }) {
         ))}
         {count>0 && (
           <div style={{background:"#141923",border:"1px solid #20242b",borderRadius:14,padding:16,marginTop:6}}>
-            <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>Your order · {count} item{count>1?"s":""} · {money(subtotal)}</div>
+            <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Your order · {count} item{count>1?"s":""}</div>
+            {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>Subtotal</span><span>{money(subtotal)}</span></div>}
+            {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:8,display:"flex",justifyContent:"space-between"}}><span>VAT ({taxPct}%)</span><span>{money(taxAmt)}</span></div>}
+            <div style={{fontSize:13.5,fontWeight:700,marginBottom:12,display:"flex",justifyContent:"space-between"}}><span>Total</span><span>{money(total)}</span></div>
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
             <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
             <input value={pickup} onChange={e=>setPickup(e.target.value)} type="time" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:12}}/>
@@ -15491,7 +15514,7 @@ function MenuPublicPage({ slug }) {
   const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city,booking_enabled').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city,booking_enabled,tax_enabled,tax_pct').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -15667,7 +15690,8 @@ function MenuPublicPage({ slug }) {
             </div>
           ))
         )}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:14 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
+        {data.tax_enabled && data.tax_pct>0 && <div style={{ textAlign:"center", fontSize:11, color:"#7E8794", marginTop:14 }}>{secondary?("تُضاف ضريبة "+data.tax_pct+"% عند الطلب"):("Prices exclude "+data.tax_pct+"% VAT, added at checkout")}</div>}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:"#3f4954", marginTop:10 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>
       </div>
 
       </>)}
@@ -15763,7 +15787,8 @@ function MenuPublicPage({ slug }) {
                 </div>
               </div>
             ))}
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11.5, color:T.text3, marginTop:20 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain", opacity:0.7 }}/>Powered by Tawaslo</div>
+            {data.tax_enabled && data.tax_pct>0 && <div style={{ textAlign:"center", fontSize:11.5, color:T.text3, marginTop:20 }}>{secondary?("تُضاف ضريبة "+data.tax_pct+"% عند الطلب"):("Prices exclude "+data.tax_pct+"% VAT, added at checkout")}</div>}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11.5, color:T.text3, marginTop:14 }}><img src="/logo-transparent.png" alt="Tawaslo" style={{ width:14, height:14, objectFit:"contain", opacity:0.7 }}/>Powered by Tawaslo</div>
           </div>
         </div>
       )}
