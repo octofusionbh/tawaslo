@@ -1254,7 +1254,7 @@ function ContextBar() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data, error } = await supabase.from('clients').insert([{ owner_id: user.id, name, plan:'trial', status:'active', is_free:true }]).select();
+        let owner=user.id; try { const { data:ws } = await getMyWorkspace(user.id); if(ws&&ws.owner_id) owner=ws.owner_id; } catch(e){} const { data, error } = await supabase.from('clients').insert([{ owner_id: owner, name, plan:'trial', status:'active', is_free:true }]).select();
         if (!error && data && data[0]) {
           const nc = { ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 };
           if (setClients) setClients(prev => [...prev, nc]);
@@ -1442,7 +1442,7 @@ function ClientsPage() {
   const createClient = async () => {
     const name=newName.trim(); if(!name||busy) return; setBusy(true);
     try { const { data:{ user } } = await supabase.auth.getUser();
-      if(user){ const { data, error } = await supabase.from('clients').insert([{ owner_id:user.id, name, plan:'trial', status:'active', is_free:true, business_type:newBizType||'restaurant' }]).select();
+      if(user){ let owner=user.id; try { const { data:ws } = await getMyWorkspace(user.id); if(ws&&ws.owner_id) owner=ws.owner_id; } catch(e){} const { data, error } = await supabase.from('clients').insert([{ owner_id:owner, name, plan:'trial', status:'active', is_free:true, business_type:newBizType||'restaurant' }]).select();
         if(!error&&data&&data[0]){ const nc={ ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 }; setClients(prev=>[...prev,nc]); setSelClient(nc); setNewClientForVoice(nc); } }
     } catch(e){ /* ignore */ }
     setBusy(false); setAddOpen(false); setNewName("");
@@ -2916,7 +2916,7 @@ function AgencyDashboard() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data, error } = await supabase.from('clients').insert([{ owner_id: user.id, name, plan: 'trial', status: 'active', is_free: true }]).select();
+        let owner=user.id; try { const { data:ws } = await getMyWorkspace(user.id); if(ws&&ws.owner_id) owner=ws.owner_id; } catch(e){} const { data, error } = await supabase.from('clients').insert([{ owner_id: owner, name, plan: 'trial', status: 'active', is_free: true }]).select();
         if (!error && data && data[0]) {
           const nc = { ...data[0], free: true, accounts: 0, posts: 0, reach: 0, health: 100, spend: 0 };
           if (setClients) setClients(prev => [...prev, nc]);
@@ -11737,7 +11737,7 @@ function InboxPage() {
 }
 
 function TeamPage() {
-  const { dark, lang, userEmail, userName, userCompany } = useApp();
+  const { dark, lang, userEmail, userName, userCompany, userPlan, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const roleLabel = (r) => isAR ? ({ Owner:"المالك", Admin:"مشرف", Editor:"محرّر", Viewer:"مشاهد" }[r] || r) : r;
@@ -11749,7 +11749,9 @@ function TeamPage() {
   const [editId, setEditId] = useState(null);
   const [ownerId, setOwnerId] = useState(null);
   const [rows, setRows] = useState([]);
-  const SEATS = 5;
+  const _pk = String(userPlan||'').toLowerCase();
+  const SEATS = (userEmail===ADMIN_EMAIL) ? Infinity : (_pk.includes('studio')||_pk.includes('enter') ? 20 : _pk.includes('pro') ? 5 : 1);
+  const teamLocked = SEATS <= 1;
   const roleColor = (r) => r === "Owner" ? th.accent : r === "Admin" ? th.accent2 : r === "Editor" ? th.success : th.text2;
   const inp = { padding:"11px 14px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" };
   const reload = async (oid) => { const id = oid || ownerId; if (!id) return; const { data } = await getTeam(id); setRows(data || []); };
@@ -11759,6 +11761,7 @@ function TeamPage() {
   const avatarOf = (m) => (m.name || m.email || '?').trim().slice(0,1).toUpperCase();
   const sendInvite = async () => {
     const email = inviteEmail.trim().toLowerCase(); if (!email || !ownerId || busy) return;
+    if (members.length >= SEATS) { setShowInvite(false); try{ if(setPage) setPage('billing'); }catch(e){} return; }
     setBusy(true);
     try {
       await inviteTeamMember(ownerId, email, inviteRole);
@@ -11776,10 +11779,10 @@ function TeamPage() {
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
           <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Team","الفريق")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{L(`${members.length} of ${SEATS} seats used`,`${members.length} من ${SEATS} مقاعد مستخدمة`)}</span></p>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{isFinite(SEATS)?L(`${members.length} of ${SEATS} seats used`,`${members.length} من ${SEATS} مقاعد مستخدمة`):L(`${members.length} seats used`,`${members.length} مقاعد مستخدمة`)}</span></p>
         </div>
-        <button onClick={()=>setShowInvite(v=>!v)} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
-          <UserPlus size={15}/> {L("Invite member","دعوة عضو")}
+        <button onClick={()=>{ if(teamLocked||members.length>=SEATS){ try{ if(setPage) setPage("billing"); }catch(e){} } else setShowInvite(v=>!v); }} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
+          <UserPlus size={15}/> {teamLocked?L("Upgrade to add team","رقِّ لإضافة فريق"):members.length>=SEATS?L("Add seats","إضافة مقاعد"):L("Invite member","دعوة عضو")}
         </button>
       </div>
 
@@ -19487,6 +19490,8 @@ export default function TawasloApp() {
   const [userPlan,  setUserPlan]  = useState("");
   const [userCompany, setUserCompany] = useState("");
   const [clients,   setClients]   = useState([]);
+  const [workspaceOwner, setWorkspaceOwner] = useState(null);
+  const [myRole, setMyRole] = useState("Owner");
   const [accountType, setAccountType] = useState("agency");
   const [selPlatform, setSelPlatform] = useState("all"); // shared client/platform context-bar filter
   const isAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
@@ -19496,6 +19501,9 @@ export default function TawasloApp() {
   const loadWorkspace = async (user, fresh) => {
     setUserEmail(user.email || null);
     try { await claimInvites(user.id, user.email); } catch (e) {}
+    let effOwner = user.id, effRole = "Owner";
+    try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) { effOwner = ws.owner_id; effRole = ws.role || "Editor"; } } catch (e) {}
+    setWorkspaceOwner(effOwner); setMyRole(effRole);
     const { data: prof } = await getProfile(user.id);
     setAccountType(prof?.account_type || "agency");
     setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
@@ -19503,7 +19511,7 @@ export default function TawasloApp() {
     setUserCompany(prof?.company || prof?.company_name || prof?.agency_name || "");
     // Only the founder account gets the auto-created internal "Octo Fusion" workspace.
     if (user.email === ADMIN_EMAIL) await ensureOctoFusionClient(user.id);
-    const { data: rows } = await getClients(user.id);
+    const { data: rows } = await getClients(effOwner);
     // Count the real connected accounts per brand so the sidebar shows a true number, not 0.
     const ids = (rows || []).map(c => c.id).filter(Boolean);
     let countByClient = {};
@@ -19664,6 +19672,7 @@ export default function TawasloApp() {
     authPage, setAuthPage,
     mode, setMode: saveMode,
     page, setPage: savePage,
+    workspaceOwner, myRole,
     selClient, setSelClient,
     clients, setClients,
     accountType, userEmail,
