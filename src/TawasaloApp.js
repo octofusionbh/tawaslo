@@ -3352,6 +3352,7 @@ function AIStudioPage() {
   const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
   const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["hashtags",L("Hashtags","الوسوم"),TrendingUp],["images",L("Images","الصور"),Image],["graphics",L("Templates","قوالب"),LayoutDashboard]];
   const [imgMode, setImgMode] = useState("generate");   // generate | edit
+  const [realOn, setRealOn] = useState(true);           // photorealistic prompt boost
   const [imgPrompt, setImgPrompt] = useState("");
   const [imgPreset, setImgPreset] = useState("other");
   const [srcImage, setSrcImage] = useState(null);       // base64 source for an edit
@@ -3404,8 +3405,8 @@ function AIStudioPage() {
     try {
       const size = (SIZES.find(s=>s.id===imgPreset)||{}).size || "1024x1024";
       const body = (imgMode==="edit" && srcImage)
-        ? { mode:'image-edit', prompt:p, imageBase64:srcImage, size }
-        : { mode:'image', prompt:p, size, n:2 };
+        ? { mode:'image-edit', prompt:p, imageBase64:srcImage, size, realistic:realOn }
+        : { mode:'image', prompt:p, size, n:2, realistic:realOn };
       const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
       if (r.error==='image_engine_unconfigured') setImgErr('unconfigured');
       else if (r.error) setImgErr(typeof r.error==='string'?r.error:L('Could not generate.','تعذّر التوليد.'));
@@ -3549,6 +3550,13 @@ function AIStudioPage() {
 
           <div style={{ display:"inline-flex", gap:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:3, marginBottom:12 }}>
             {[["generate",L("Generate","توليد"),Sparkles],["edit",L("Edit a photo","تعديل صورة"),Edit3]].map(([k,l,Ic])=><button key={k} onClick={()=>{setImgMode(k);setImages([]);setImgErr("");}} style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:7, border:"none", background:imgMode===k?th.gradient:"transparent", color:imgMode===k?"#fff":th.text2, fontSize:11.5, fontWeight:imgMode===k?600:400, cursor:"pointer" }}><Ic size={12}/>{l}</button>)}
+          </div>
+          <div onClick={()=>setRealOn(v=>!v)} style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer", userSelect:"none", background:th.card2, border:`1px solid ${realOn?th.accent:th.border}`, borderRadius:10, padding:"9px 12px" }}>
+            <span style={{ width:38, height:22, borderRadius:20, background:realOn?th.accent:th.border, position:"relative", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:2, insetInlineStart:realOn?18:2, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></span>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("Photorealistic","واقعي")}</div>
+              <div style={{ fontSize:10.5, color:th.text2, marginTop:1, lineHeight:1.4 }}>{L("Real photo look — DSLR lighting and textures, no AI or 3D style.","مظهر صورة حقيقية — إضاءة ونسيج طبيعي بدون طابع الذكاء أو ثلاثي الأبعاد.")}</div>
+            </div>
           </div>
           {imgMode==="edit" && (
             <div style={{ marginBottom:12 }}>

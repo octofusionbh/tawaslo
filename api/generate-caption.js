@@ -97,7 +97,8 @@ export default async function handler(req, res) {
     const aspectRatio = sizeToAR[size] || '1:1';
     const n = Math.min(parseInt(req.body.n, 10) || 2, 4);
     const MODEL = 'gemini-2.5-flash-image';
-    const prompt = `${promptIn}\n\nProduce the image with a ${aspectRatio} aspect ratio.`;
+    const realStyle = req.body.realistic ? ' Render this as a realistic photograph: shot on a full-frame DSLR with a 50mm lens, natural lighting, true-to-life colors, real textures and natural skin with pores and subtle imperfections, shallow depth of field. Photojournalistic realism. It must NOT look like an illustration, 3D render, CGI, or digital art; no plastic or over-smoothed skin, no waxy AI look, no oversaturation, no cartoon style.' : '';
+    const prompt = `${promptIn}\n\nProduce the image with a ${aspectRatio} aspect ratio.${realStyle}`;
     try {
       const parts = [{ text: prompt }];
       if (theMode === 'image-edit' && req.body.imageBase64) {
