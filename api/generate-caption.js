@@ -254,7 +254,7 @@ ${extras}
 Return ONLY a JSON object in this exact format (no markdown, no extra text):
 { "ideas": ["idea 1", "idea 2", "idea 3"] }`;
   } else if (theMode === 'hashtags') {
-    messageContent = `You are a social media expert working with brands worldwide. Generate a pack of around 20 highly relevant ${platformName} hashtags for the topic below. Mix broad and niche tags.
+    messageContent = `You are a social media expert working with brands worldwide. Generate the 5 most relevant ${platformName} hashtags for the topic below. Mix broad and niche tags.
 
 Topic: ${topic}
 ${extras}

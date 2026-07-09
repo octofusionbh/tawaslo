@@ -3449,7 +3449,7 @@ function AIStudioPage() {
         if (r.ideas && r.ideas.length) setIdeas(r.ideas); else setError(r.error||L("Could not generate.","تعذّر التوليد."));
       } else {
         const r = await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,platform,mode:'hashtags',brand:selClient?.name})}).then(r=>r.json());
-        if (r.hashtags && r.hashtags.length) setHashtags(r.hashtags); else setError(r.error||L("Could not generate.","تعذّر التوليد."));
+        if (r.hashtags && r.hashtags.length) setHashtags(r.hashtags.slice(0,5)); else setError(r.error||L("Could not generate.","تعذّر التوليد."));
       }
     } catch (e) { setError(L("Something went wrong. Please try again.","حدث خطأ ما. حاول مرة أخرى.")); }
     setLoading(false);
@@ -6610,6 +6610,7 @@ function PublisherPage() {
   useEffect(() => { try { const r = localStorage.getItem(hgKey); setHashGroups(r ? JSON.parse(r) : []); } catch (e) { setHashGroups([]); } }, [hgKey]);
   const persistGroups = (gs) => { setHashGroups(gs); try { localStorage.setItem(hgKey, JSON.stringify(gs)); } catch (e) { /* ignore */ } };
   const captionTags = [...new Set(caption.match(/#[\p{L}\p{N}_]+/gu) || [])];
+  const trimHashtags = () => { const seen = new Set(); setCaption(c => c.replace(/#[\p{L}\p{N}_]+/gu, (m) => { if (seen.has(m)) return m; if (seen.size >= 5) return ''; seen.add(m); return m; }).replace(/  +/g, ' ').replace(/\n{3,}/g, '\n\n').trim()); };
   const saveHashGroup = () => {
     if (!captionTags.length) return;
     if (hashGroups.some(g => g.tags.join(' ') === captionTags.join(' '))) return;
@@ -6754,6 +6755,11 @@ function PublisherPage() {
   const handlePost = async (apprMode) => {
     if (selectedAccounts.length === 0) return;
     if (!caption.trim() && images.length === 0 && !video) return;
+    const igSel = selectedAccounts.some(id => { const a = accounts.find(x => x.id === id); return a && a.platform === 'ig'; });
+    if (igSel && captionTags.length > 5) {
+      setResults([{ account: 'Instagram', success: false, error: L('Instagram works best with 5 hashtags — remove ' + (captionTags.length - 5) + ' or tap "Keep 5".', 'إنستغرام يعمل بأفضل شكل مع 5 وسوم — احذف ' + (captionTags.length - 5) + ' أو اضغط "أبقِ 5".') }]);
+      return;
+    }
     if (trialEnded(userEmail)) {
       setUpgrade({ title:"Your free trial has ended", detail:"Upgrade to publish and schedule again. Your accounts, posts and analytics are all still here.", Icon:Lock });
       return;
@@ -7033,7 +7039,7 @@ function PublisherPage() {
             <div style={{ marginTop:10, borderTop:`1px solid ${th.border}`, paddingTop:10 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:7 }}>
                 <span style={{ fontSize:10.5, color:th.text2, display:"flex", alignItems:"center", gap:5 }}><span style={{ color:th.accent, fontWeight:700 }}>#</span>{L("Hashtag groups","مجموعات الهاشتاق")}</span>
-                {captionTags.length>0 && <button onClick={saveHashGroup} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10.5, fontWeight:600, color:th.accent, background:th.accentSoft, border:"none", borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Plus size={11}/>{L("Save these tags","احفظ هذه الوسوم")} <span className="tw-num">({captionTags.length})</span></button>}
+                <span style={{ display:"inline-flex", alignItems:"center", gap:9 }}>{captionTags.length>0 && <span title={captionTags.length>5?L("Instagram recommends 5 or fewer hashtags","يُفضّل إنستغرام 5 وسوم أو أقل"):""} style={{ fontSize:10.5, fontWeight:700, color:captionTags.length>5?th.warning:th.text3, display:"inline-flex", alignItems:"center", gap:4 }}><span className="tw-num">{captionTags.length}</span>/5{captionTags.length>5 && <AlertTriangle size={11}/>}</span>}{captionTags.length>5 && <button onClick={trimHashtags} style={{ fontSize:10, fontWeight:700, color:"#fff", background:th.warning, border:"none", borderRadius:8, padding:"4px 9px", cursor:"pointer" }}>{L("Keep 5","أبقِ 5")}</button>}{captionTags.length>0 && <button onClick={saveHashGroup} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10.5, fontWeight:600, color:th.accent, background:th.accentSoft, border:"none", borderRadius:8, padding:"4px 10px", cursor:"pointer" }}><Plus size={11}/>{L("Save these tags","احفظ هذه الوسوم")}</button>}</span>
               </div>
               {hashGroups.length===0 ? (
                 <div style={{ fontSize:10, color:th.text3, lineHeight:1.5 }}>{L("Add #hashtags to your caption, then save them as a reusable group to drop into any post.","أضف هاشتاقات إلى النص ثم احفظها كمجموعة قابلة لإعادة الاستخدام في أي منشور.")}</div>
