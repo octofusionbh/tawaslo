@@ -14775,6 +14775,7 @@ function MenuBuilderPage() {
   const shareWA = () => { try { window.open('https://wa.me/?text='+encodeURIComponent(((selClient&&selClient.name)||'Menu')+' — '+publicUrl), '_blank'); } catch(e){} setShareOpen(false); };
   const bookingOn = !(menu && menu.booking_enabled === false);
   const taxOn = !!(menu && menu.tax_enabled);
+  const pickupOn = !!(menu && menu.pickup_enabled);
   const openQrPoster = async () => {
     if (!publicUrl) return;
     let wl = null; try { wl = await loadClientBranding(cid); } catch(e){}
@@ -14896,6 +14897,15 @@ function MenuBuilderPage() {
             <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{bookingOn?L("Menu chat offers Chat & Book.","دردشة القائمة تتيح الحجز."):L("No booking — chat is Chat with us only.","بدون حجز — الدردشة فقط.")}</div>
           </div>
           <div onClick={()=>updateMenu({ booking_enabled: !bookingOn })} style={{ width:44, height:25, borderRadius:20, background:bookingOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:bookingOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+        </div>
+      )}
+      {menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Take pickup orders","استقبال طلبات الاستلام")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{pickupOn?L("Guests can order for pickup from the order link and the chat.","يمكن للضيوف الطلب للاستلام عبر الرابط والدردشة."):L("Off — the order link shows “Ordering not available”.","معطّل — رابط الطلب يعرض غير متاح.")}</div>
+          </div>
+          <div onClick={()=>updateMenu({ pickup_enabled: !pickupOn })} style={{ width:44, height:25, borderRadius:20, background:pickupOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:pickupOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
         </div>
       )}
       {menu && (
@@ -15172,10 +15182,10 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
     if (!clientId) return;
     let live = true;
     (async () => {
-      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null, menuUrl = null;
-      try { const { data: mn } = await supabase.from('menus').select('id,slug,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours,external_menu_url').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || ((m.slug && typeof window!=='undefined') ? `${window.location.origin}/menu/${m.slug}` : null); special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null, menuUrl = null, orderUrl = null;
+      try { const { data: mn } = await supabase.from('menus').select('id,slug,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours,external_menu_url,pickup_enabled').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || ((m.slug && typeof window!=='undefined') ? `${window.location.origin}/menu/${m.slug}` : null); orderUrl = (m.pickup_enabled && m.slug && typeof window!=='undefined') ? `${window.location.origin}/order/${m.slug}` : null; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
-      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl });
+      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl, orderUrl });
     })();
     return () => { live = false; };
   }, [clientId, currency]);
@@ -15192,7 +15202,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, booking:canBook, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, orderUrl:(ctx&&ctx.orderUrl)||null, booking:canBook, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -15413,23 +15423,24 @@ function OrderPublicPage({ slug }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [pickup, setPickup] = useState("");
+  const [orderErr, setOrderErr] = useState("");
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
-      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0;
+      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0, pickupEnabled=false, minOrder=0;
       try {
-        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct').eq('slug', slug).limit(1);
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order').eq('slug', slug).limit(1);
         const m = md && md[0];
-        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0;
+        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0; pickupEnabled=!!m.pickup_enabled; minOrder=Number(m.pickup_min_order)||0;
           const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true});
           const arr = (it||[]).filter(x=>!x.hidden && x.available!==false);
           const pick = arr.filter(x=>x.on_pickup===true);
           if (live) setItems(pick.length?pick:arr);
         }
       } catch(e){}
-      if (!cid) { if(live) setData(null); return; }
+      if (!cid || !pickupEnabled) { if(live) setData(null); return; }
       try { if (!cname) { const { data:c } = await supabase.from('clients').select('name').eq('id',cid).limit(1); cname = c&&c[0]&&c[0].name; } } catch(e){}
       if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep, taxEnabled, taxPct });
     })();
@@ -15437,11 +15448,12 @@ function OrderPublicPage({ slug }) {
   }, [slug]);
   const cur = (data&&data.currency)||'BHD';
   const money = (n)=> (Number(n)||0).toFixed(3)+' '+cur;
+  const unitPrice = (it)=>{ if(it && it.price!=null && it.price!=='') return Number(it.price)||0; const vs=(it&&Array.isArray(it.variants))?it.variants.filter(v=>v&&v.price!=null&&v.price!==''):[]; return vs.length?(Number(vs[0].price)||0):0; };
   const showPhoto = (it)=> data && (data.photoMode==='all' || (data.photoMode==='per_item' && it.show_photo!==false)) && it.photo_url;
   const add = (it)=> setCart(c=>({ ...c, [it.id]: { item:it, qty:(c[it.id]?c[it.id].qty:0)+1 } }));
   const sub = (id)=> setCart(c=>{ const n={...c}; if(n[id]){ n[id]={...n[id],qty:n[id].qty-1}; if(n[id].qty<=0) delete n[id]; } return n; });
   const lines = Object.values(cart);
-  const subtotal = lines.reduce((s,l)=> s + (Number(l.item.price)||0)*l.qty, 0);
+  const subtotal = lines.reduce((s,l)=> s + unitPrice(l.item)*l.qty, 0);
   const taxPct = (data && data.taxEnabled) ? (Number(data.taxPct)||0) : 0;
   const taxAmt = subtotal * taxPct / 100;
   const total = subtotal + taxAmt;
@@ -15449,12 +15461,13 @@ function OrderPublicPage({ slug }) {
   const cats = Array.from(new Set(items.map(i=>i.category||'Menu')));
   const place = async () => {
     if (!name.trim() || !phone.trim() || !count || placing) return;
-    setPlacing(true);
+    setPlacing(true); setOrderErr("");
     const order_no = '#'+Math.random().toString(36).slice(2,6).toUpperCase();
-    const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:Number(l.item.price)||0, line_total:(Number(l.item.price)||0)*l.qty }));
+    const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:unitPrice(l.item), line_total:unitPrice(l.item)*l.qty }));
     let pickupAt=null; try { if(pickup) pickupAt=new Date(new Date().toDateString()+' '+pickup).toISOString(); } catch(e){}
     try {
-      await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
+      const { error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
+      if (oErr) { setOrderErr('Could not place your order. Please try again or call the restaurant.'); setPlacing(false); return; }
       setDone(order_no);
     } catch(e){}
     setPlacing(false);
@@ -15473,7 +15486,7 @@ function OrderPublicPage({ slug }) {
             {items.filter(i=>(i.category||'Menu')===cat).map(it=>{ const q=cart[it.id]?cart[it.id].qty:0; return (
               <div key={it.id} style={{display:"flex",gap:11,alignItems:"center",background:"#141923",border:"1px solid #20242b",borderRadius:12,padding:10,marginBottom:8}}>
                 {showPhoto(it) ? <img src={it.photo_url} alt="" style={{width:52,height:52,borderRadius:9,objectFit:"cover",flexShrink:0}}/> : null}
-                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600}}>{it.name_en||it.name_ar}</div>{it.description?<div style={{fontSize:11,color:"#7E8794",marginTop:2,lineHeight:1.4}}>{String(it.description).slice(0,80)}</div>:null}<div style={{fontSize:12,color:"#9aa3b2",marginTop:3}}>{money(it.price)}</div></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600}}>{it.name_en||it.name_ar}</div>{it.description?<div style={{fontSize:11,color:"#7E8794",marginTop:2,lineHeight:1.4}}>{String(it.description).slice(0,80)}</div>:null}<div style={{fontSize:12,color:"#9aa3b2",marginTop:3}}>{money(unitPrice(it))}</div></div>
                 {q>0 ? <div style={{display:"flex",alignItems:"center",gap:9}}><button onClick={()=>sub(it.id)} style={{width:28,height:28,borderRadius:8,background:"#1a2230",border:"1px solid #20242b",color:"#fff",cursor:"pointer",fontSize:16}}>−</button><span style={{fontSize:13,minWidth:14,textAlign:"center"}}>{q}</span><button onClick={()=>add(it)} style={{width:28,height:28,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",fontSize:16}}>+</button></div> : <button onClick={()=>add(it)} style={{width:30,height:30,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Plus size={16}/></button>}
               </div>
             ); })}
@@ -15488,6 +15501,7 @@ function OrderPublicPage({ slug }) {
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
             <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
             <input value={pickup} onChange={e=>setPickup(e.target.value)} type="time" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:12}}/>
+            {orderErr && <div style={{fontSize:12,color:"#E2574B",marginBottom:8,lineHeight:1.45}}>{orderErr}</div>}
             <button onClick={place} disabled={placing||!name.trim()||!phone.trim()} style={{width:"100%",padding:"13px",borderRadius:12,background:(placing||!name.trim()||!phone.trim())?"#1a2230":"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{placing?"Placing…":"Place order · Pay at pickup"}</button>
           </div>
         )}
@@ -17494,7 +17508,7 @@ function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
       const s = (ctx && ctx.settings) || {}; const h = s.hours || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:cid, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:cid, preview:true, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "…" }]);

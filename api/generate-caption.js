@@ -200,7 +200,7 @@ export default async function handler(req, res) {
     if (!convo.length) return res.status(400).json({ error: 'messages required' });
     const out = await conciergeReply(ctx, convo);
     if (out.error) return res.status(500).json({ error: 'Concierge AI error', details: out.details });
-    bumpConcierge(ctx.client_id);
+    if (!ctx.preview) bumpConcierge(ctx.client_id);
     return res.status(200).json({ reply: out.reply, booking: out.booking });
   }
 
