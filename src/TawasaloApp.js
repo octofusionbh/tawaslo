@@ -595,6 +595,12 @@ const PLATFORMS = [
 
 const ADMIN_EMAIL = 'octofusionbh@gmail.com';
 const ADMIN_HOST_PREFIX = 'admin.';
+const ownerRoleAllows = (key, role) => {
+  const r = String(role || 'Owner').toLowerCase();
+  if (r === 'support') return ['overview','copilot','support','errors'].includes(key);
+  if (r === 'admin') return key !== 'team';
+  return true;
+};
 const ACCOUNT_LABELS = { agency: "Agency", freelancer: "Freelancer", corporate: "Corporate", enterprise: "Enterprise" };
 const accountLabelOf = (t) => ACCOUNT_LABELS[t] || "Agency";
 
@@ -1005,7 +1011,7 @@ function Sidebar() {
 
       <nav className="tw-noscroll" style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
-          <div>{OWNER_NAV.map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
+          <div>{OWNER_NAV.filter(({key})=>ownerRoleAllows(key,myRole)).map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
           AGENCY_NAV2.map((sec,si)=>{
             const secOpen = !collapsedSecs[sec.section];
@@ -1064,7 +1070,7 @@ function Sidebar() {
 }
 
 function Topbar() {
-  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, userCompany, setMobileNav, clients, setSelClient, setMode } = useApp();
+  const { mode, page, selClient, accountType, t, setPage, userEmail, userName, userCompany, setMobileNav, clients, setSelClient, setMode, myRole } = useApp();
   const th = useTheme();
   const [sq, setSq] = useState("");      // global search query
   const [sOpen, setSOpen] = useState(false);
@@ -2928,13 +2934,19 @@ function OwnerTeamPage() {
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [invEmail, setInvEmail] = useState("");
+  const [invName, setInvName] = useState("");
   const [invRole, setInvRole] = useState("Admin");
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState("");
 
   const load = () => {
     if (!workspaceOwner) { setLoading(false); return; }
-    getTeam(workspaceOwner).then(({ data }) => { setTeam(Array.isArray(data)?data:[]); setLoading(false); }, () => setLoading(false));
+    getTeam(workspaceOwner).then(async ({ data }) => {
+      let rows = Array.isArray(data) ? data : [];
+      const emails = rows.map(r=>(r.email||"").toLowerCase()).filter(Boolean);
+      if (emails.length) { try { const { data: profs } = await supabase.from("profiles").select("email,name").in("email", emails); const by={}; (profs||[]).forEach(p=>{ if(p.email) by[p.email.toLowerCase()]=p.name; }); rows = rows.map(r=>({ ...r, name: r.name || by[(r.email||"").toLowerCase()] || null })); } catch(e){} }
+      setTeam(rows); setLoading(false);
+    }, () => setLoading(false));
   };
   useEffect(() => { load(); }, [workspaceOwner]);
   useEffect(() => { if(!flash) return; const t=setTimeout(()=>setFlash(""),2600); return ()=>clearTimeout(t); }, [flash]);
@@ -2948,9 +2960,9 @@ function OwnerTeamPage() {
     if (!email || busy || !workspaceOwner) return;
     setBusy(true);
     try {
-      await inviteTeamMember(workspaceOwner, email, invRole);
+      await inviteTeamMember(workspaceOwner, email, invRole, invName.trim()||null, true);
       try { await fetch('/api/send-welcome-email', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ kind:'invite', email, inviterName: userName || 'Tawaslo HQ', workspaceName: 'Tawaslo HQ', role: invRole, acceptUrl: (typeof window!=='undefined'?window.location.origin:'https://tawaslo.com') + '/signup' }) }); } catch(e){}
-      setInvEmail(""); setShowInvite(false); setFlash("Invite sent to "+email); load();
+      setInvEmail(""); setInvName(""); setShowInvite(false); setFlash("Invite sent to "+email); load();
     } catch (e) { setFlash("Couldn't send the invite."); }
     setBusy(false);
   };
@@ -2972,6 +2984,10 @@ function OwnerTeamPage() {
 
       {showInvite && (
         <div style={{...card,padding:18,marginBottom:16,display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end"}}>
+          <div style={{flex:"1 1 170px"}}>
+            <label style={{fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block"}}>Name (optional)</label>
+            <input value={invName} onChange={e=>setInvName(e.target.value)} placeholder="Full name" style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          </div>
           <div style={{flex:"1 1 240px"}}>
             <label style={{fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block"}}>Email</label>
             <input value={invEmail} onChange={e=>setInvEmail(e.target.value)} placeholder="name@tawaslo.com" style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
@@ -19889,6 +19905,8 @@ export default function TawasloApp() {
   const [page,      setPage]      = useState(()=>{ try { const _p=(typeof window!=='undefined'?window.location.pathname:'/').replace(/^\/+|\/+$/g,''); if(_p && /^[a-z]+$/.test(_p)) return _p; } catch(e){} try { return sessionStorage.getItem('tw_page')||"overview"; } catch(e){ return "overview"; } });
   const [selClient, setSelClient] = useState({ id:null, name:"Workspace", plan:"", status:"active", free:false, accounts:0, posts:0, reach:"—", health:100, spend:0 });
   const [authReady, setAuthReady] = useState(false); // prevents flash of login screen
+  const [hqStaff, setHqStaff] = useState(false);
+  const [adminChecked, setAdminChecked] = useState(false);
   const [userEmail, setUserEmail] = useState(null);
   const [userName,  setUserName]  = useState("");
   const [userPlan,  setUserPlan]  = useState("");
@@ -19905,9 +19923,9 @@ export default function TawasloApp() {
   const loadWorkspace = async (user, fresh) => {
     setUserEmail(user.email || null);
     try { await claimInvites(user.id, user.email); } catch (e) {}
-    let effOwner = user.id, effRole = "Owner";
-    try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) { effOwner = ws.owner_id; effRole = ws.role || "Editor"; } } catch (e) {}
-    setWorkspaceOwner(effOwner); setMyRole(effRole);
+    let effOwner = user.id, effRole = "Owner", hqFlag = false;
+    try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) { effOwner = ws.owner_id; effRole = ws.role || "Editor"; hqFlag = !!ws.hq; } } catch (e) {}
+    setWorkspaceOwner(effOwner); setMyRole(effRole); setHqStaff(hqFlag); setAdminChecked(true);
     const { data: prof } = await getProfile(user.id);
     if (prof && prof.suspended && user.email !== ADMIN_EMAIL) { try { await signOut(); } catch(e){} try { window.alert("Your Tawaslo account has been suspended. Contact support@tawaslo.com."); } catch(e){} return; }
     setAccountType(prof?.account_type || "agency");
@@ -19948,7 +19966,7 @@ export default function TawasloApp() {
     });
     const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
     try { window.__twUserEmail = user.email; window.__twUserId = user.id; } catch(e){}
-    const owner = onAdminHost && user.email === ADMIN_EMAIL;
+    const owner = onAdminHost && (user.email === ADMIN_EMAIL || hqFlag);
     setMode(owner ? "owner" : "agency");
     // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
     // A page reload also fires a SIGNED_IN event, which would otherwise yank the user to the
@@ -20091,6 +20109,7 @@ export default function TawasloApp() {
 
   const renderPage = () => {
     if (mode==="owner") {
+      if (!ownerRoleAllows(page, myRole)) return <OwnerDashboard/>;
       if (page==="overview") return <OwnerDashboard/>;
       if (page==="copilot")  return <OwnerCopilotPage/>;
       if (page==="clients")  return <OwnerClientsPage/>;
@@ -20238,7 +20257,8 @@ export default function TawasloApp() {
   }
 
   // admin.tawaslo.com is the private Super Admin console — only the admin email may enter
-  if (isAdminHost && isAuthed && userEmail && !isAdminUser) {
+  if (isAdminHost && isAuthed && userEmail && !isAdminUser && !adminChecked) return null;
+  if (isAdminHost && isAuthed && userEmail && !isAdminUser && !hqStaff) {
     return (
       <AppCtx.Provider value={ctx}>
         <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:th.bg,color:th.text,fontFamily:"'Plus Jakarta Sans','Sora','Segoe UI',sans-serif",textAlign:"center",padding:24,direction:"ltr"}}>

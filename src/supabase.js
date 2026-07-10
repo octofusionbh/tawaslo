@@ -297,11 +297,11 @@ export const getTeam = async (ownerId) => {
   return { data, error };
 };
 
-export const inviteTeamMember = async (ownerId, email, role = 'Editor', name = null) => {
+export const inviteTeamMember = async (ownerId, email, role = 'Editor', name = null, hq = false) => {
   const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
   const { data, error } = await supabase
     .from('team_members')
-    .upsert([{ owner_id: ownerId, email: email.trim().toLowerCase(), role, name, status: 'pending', token, updated_at: new Date().toISOString() }], { onConflict: 'owner_id,email' })
+    .upsert([{ owner_id: ownerId, email: email.trim().toLowerCase(), role, name, hq, status: 'pending', token, updated_at: new Date().toISOString() }], { onConflict: 'owner_id,email' })
     .select()
     .single();
   return { data, error };
@@ -334,7 +334,7 @@ export const getMyWorkspace = async (userId) => {
   if (!userId) return { data: null };
   const { data, error } = await supabase
     .from('team_members')
-    .select('owner_id, role')
+    .select('owner_id, role, hq')
     .eq('member_id', userId).eq('status', 'active')
     .limit(1).maybeSingle();
   return { data, error };
