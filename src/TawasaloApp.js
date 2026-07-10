@@ -1851,7 +1851,7 @@ const ownerMonthFmt = (ts) => { try { return new Date(ts).toLocaleDateString("en
 // The founder reads these client-side because profiles and clients SELECT stay open.
 async function loadOwnerSubscribers() {
   const [profRes, subRes, cliRes] = await Promise.all([
-    supabase.from("profiles").select("id,name,email,plan,account_type,company_name,created_at").order("created_at", { ascending:false }),
+    supabase.from("profiles").select("id,name,email,plan,account_type,company_name,created_at,suspended,archived").order("created_at", { ascending:false }),
     supabase.from("subscriptions").select("email,plan,status,interval,current_period_end,updated_at"),
     supabase.from("clients").select("id,owner_id"),
   ]);
@@ -1867,13 +1867,14 @@ async function loadOwnerSubscribers() {
     if (!prev || new Date(s.updated_at||0) > new Date(prev.updated_at||0)) subByEmail[e] = s;
   });
   const statusMap = { active:"active", trialing:"trial", past_due:"past_due", canceled:"suspended", cancelled:"suspended" };
-  return profs.map(p => {
+  return profs.filter(p => !p.archived).map(p => {
     const email = (p.email||"").toLowerCase();
     const sub = subByEmail[email];
     const isInternal = email === ADMIN_EMAIL.toLowerCase();
     const plan = isInternal ? "Internal" : normPlanName(sub?.plan || p.plan);
     let status = sub ? (statusMap[sub.status] || "trial") : (String(p.plan||"").toLowerCase()==="trial" ? "trial" : "active");
     if (isInternal) status = "active";
+    if (p.suspended && !isInternal) status = "suspended";
     const yearly = sub?.interval === "year";
     const mrr = (status==="active" && !isInternal) ? (yearly ? (OWNER_PLAN_Y[plan]||0) : (OWNER_PLAN_M[plan]||0)) : 0;
     return {
@@ -1911,14 +1912,15 @@ function OwnerClientsPage() {
   }, []);
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
+  const reload = () => { setLoadingRows(true); loadOwnerSubscribers().then(list => { setRows(list); setLoadingRows(false); }, () => setLoadingRows(false)); };
   const openDetail = (r) => { setDetail(r); setEditing(false); setForm({ name:r.name, email:r.email, plan:r.plan, status:r.status }); setMenu(null); };
-  const saveEdit = () => { setRows(rs=>rs.map(x=>x.id===detail.id?{...x,...form}:x)); setDetail(d=>({...d,...form})); setEditing(false); pushLog(`Edited ${form.name}`, Edit3, th.accent); };
+  const saveEdit = async () => { setRows(rs=>rs.map(x=>x.id===detail.id?{...x,...form}:x)); setDetail(d=>({...d,...form})); setEditing(false); pushLog(`Edited ${form.name}`, Edit3, th.accent); try { await updateProfile(detail.id, { name: form.name, company_name: form.name, plan: form.plan }); } catch(e){} };
   const filtered = rows.filter(r =>
     (filter==="all" || r.status===filter) &&
     (r.name.toLowerCase().includes(q.toLowerCase()) || r.email.toLowerCase().includes(q.toLowerCase()))
   );
   const totalMrr = rows.filter(r=>r.status==="active").reduce((s,r)=>s+r.mrr,0);
-  const toggleStatus = (id) => setRows(rs => rs.map(r => r.id===id ? { ...r, status: r.status==="suspended"?"active":"suspended" } : r));
+  const toggleStatus = (id) => { const cur = rows.find(r=>r.id===id); const willSuspend = cur ? cur.status!=="suspended" : true; setRows(rs => rs.map(r => r.id===id ? { ...r, status: willSuspend?"suspended":"active" } : r)); updateProfile(id, { suspended: willSuspend }).catch(()=>{}); };
   const impersonate = (r) => { setSelClient({ id:r.id, name:r.name, plan:r.plan }); setMode("agency"); setPage("dashboard"); };
 
   const TABS = [["all","All"],["active","Active"],["trial","Trials"],["past_due","Past due"],["suspended","Suspended"]];
@@ -1926,7 +1928,7 @@ function OwnerClientsPage() {
   return (
     <div onClick={()=>setMenu(null)}>
       <OwnerPageHead Icon={Building2} title="All Clients" subtitle={`${rows.length} clients · $${totalMrr}/mo active revenue`}
-        action={<button style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}><Plus size={15}/>Add client</button>} />
+        action={<button onClick={reload} style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:"pointer"}}><RefreshCw size={14}/>Refresh</button>} />
 
       <div style={{display:"flex",gap:11,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"9px 13px",flex:"1 1 260px",maxWidth:340}}>
@@ -1963,7 +1965,7 @@ function OwnerClientsPage() {
                     { l:"Edit", Icon:Edit3, fn:()=>{ openDetail(r); setEditing(true); } },
                     { l:"Open dashboard", Icon:ArrowUpRight, fn:()=>impersonate(r) },
                     { l:r.status==="suspended"?"Reactivate":"Suspend", Icon:r.status==="suspended"?Play:Pause, fn:()=>{toggleStatus(r.id); pushLog(`${r.status==="suspended"?"Reactivated":"Suspended"} ${r.name}`, r.status==="suspended"?Play:Pause, r.status==="suspended"?th.success:th.danger);} },
-                    { l:"Delete", Icon:Trash2, danger:true, fn:()=>{setRows(rs=>rs.filter(x=>x.id!==r.id)); pushLog(`Deleted ${r.name}`, Trash2, th.danger);} },
+                    { l:"Archive", Icon:Trash2, danger:true, fn:()=>{ updateProfile(r.id,{archived:true}).catch(()=>{}); setRows(rs=>rs.filter(x=>x.id!==r.id)); pushLog(`Archived ${r.name}`, Trash2, th.danger);} },
                   ].map((it,k)=>(
                     <button key={k} onClick={()=>{it.fn();setMenu(null);}} style={{display:"flex",alignItems:"center",gap:9,width:"100%",padding:"9px 11px",borderRadius:8,background:"transparent",border:"none",color:it.danger?th.danger:th.text,fontSize:12.5,fontWeight:500,cursor:"pointer",textAlign:"left"}}><it.Icon size={14}/>{it.l}</button>
                   ))}
@@ -19664,6 +19666,7 @@ export default function TawasloApp() {
     try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) { effOwner = ws.owner_id; effRole = ws.role || "Editor"; } } catch (e) {}
     setWorkspaceOwner(effOwner); setMyRole(effRole);
     const { data: prof } = await getProfile(user.id);
+    if (prof && prof.suspended && user.email !== ADMIN_EMAIL) { try { await signOut(); } catch(e){} try { window.alert("Your Tawaslo account has been suspended. Contact support@tawaslo.com."); } catch(e){} return; }
     setAccountType(prof?.account_type || "agency");
     setUserName(prof?.name || (user.user_metadata && (user.user_metadata.name || user.user_metadata.full_name)) || "");
     setUserPlan(prof?.plan || "");
