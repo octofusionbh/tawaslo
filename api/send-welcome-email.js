@@ -49,6 +49,37 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── Fix-report email to a client (sent from the HQ AI Copilot) ──
+  if (req.body.kind === 'report') {
+    const to = req.body.to;
+    const subject = req.body.subject || 'An update from Tawaslo';
+    const bodyText = String(req.body.reportText || '').slice(0, 12000);
+    if (!to) return res.status(400).json({ error: 'Recipient email is required' });
+    const esc = (x) => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const reportHtml = `<!DOCTYPE html><html><body style="margin:0;background:#080B11;font-family:-apple-system,'Segoe UI',sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#080B11;padding:32px 16px;"><tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#0F141C;border-radius:16px;border:1px solid #1E2838;max-width:560px;width:100%;">
+  <tr><td style="padding:30px 40px 18px;text-align:center;border-bottom:1px solid #1E2838;">
+    <img src="https://tawaslo.com/logo-transparent.png" width="34" height="34" alt="Tawaslo" style="display:block;margin:0 auto 8px;"/>
+    <div style="font-size:18px;font-weight:800;color:#E8EFF8;letter-spacing:-0.5px;">Tawaslo</div>
+  </td></tr>
+  <tr><td style="padding:28px 40px;"><div style="font-size:14px;color:#C6D2E2;line-height:1.75;white-space:pre-wrap;">${esc(bodyText)}</div></td></tr>
+  <tr><td style="padding:18px 40px;text-align:center;border-top:1px solid #1E2838;"><div style="font-size:11px;color:#3D5068;">© 2026 Tawaslo &middot; <a href="mailto:support@tawaslo.com" style="color:#5A6B86;text-decoration:none;">support@tawaslo.com</a></div></td></tr>
+</table></td></tr></table></body></html>`;
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'Tawaslo <support@tawaslo.com>', to: [to], subject, html: reportHtml }),
+      });
+      const d = await r.json();
+      if (!r.ok) return res.status(400).json({ error: d.message || 'Failed to send report' });
+      return res.status(200).json({ success: true, id: d.id });
+    } catch (err) {
+      return res.status(500).json({ error: 'Failed to send report', details: err.message });
+    }
+  }
+
   const planLimits = {
     starter:      { accounts: 3,   members: 1, posts: 30  },
     professional: { accounts: 10,  members: 5, posts: 100 },

@@ -91,12 +91,18 @@ How to help:
       return blocks;
     };
     const aMsgs = inMsgs.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: toContent(m) }));
+    const reportKind = String(req.body.report || '').toLowerCase();
+    const reportExtra = reportKind === 'internal'
+      ? '\n\n[REPORT MODE] Based on the conversation above, output ONLY an INTERNAL FIX REPORT for team records / to close a support ticket, in exactly this layout:\nISSUE: (one line)\nSOURCE: (client name, or internal)\nDATE: (today)\nROOT CAUSE: (plain technical explanation)\nFIX APPLIED: (what resolves it, or the recommended fix if not yet applied)\nAREAS AFFECTED: (pages / tables / files)\nSTATUS: (Resolved or Pending)\nNOTES: (anything to watch)\nBe factual and concise. No greeting, no sign-off.'
+      : reportKind === 'client'
+      ? '\n\n[REPORT MODE] Based on the conversation above, write ONLY a warm, professional message the team can email to their CLIENT as-is. Rules: no code, no internal file or table names, no jargon, no blame. Briefly acknowledge the issue in plain language, confirm it is resolved (or actively being handled), tell them what they can now do, and close politely signed "The Tawaslo Team". Start with "Hi,". Output only the message.'
+      : '';
 
     try {
       const r = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1600, system: sys, messages: aMsgs }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1600, system: sys + reportExtra, messages: aMsgs }),
       });
       const j = await r.json();
       if (!r.ok) return res.status(200).json({ error: 'copilot_failed', message: (j && j.error && j.error.message) || 'Claude request failed.' });

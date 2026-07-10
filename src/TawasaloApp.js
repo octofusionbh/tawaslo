@@ -2419,8 +2419,7 @@ function OwnerSupportPage() {
     </div>
   );
 }
-
-function OwnerCopilotPage() {
+function OwnerCopilotPage() {
   const th = useTheme();
   const app = useApp();
   const userName = app.userName || "";
@@ -2429,10 +2428,15 @@ function OwnerCopilotPage() {
   const [imgs, setImgs] = useState([]);
   const [sending, setSending] = useState(false);
   const [ctxOn, setCtxOn] = useState(true);
+  const [flash, setFlash] = useState("");
+  const [emailFor, setEmailFor] = useState(null);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
   const scroller = useRef(null);
   const fileRef = useRef(null);
 
   useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [msgs, sending]);
+  useEffect(() => { if (!flash) return; const t = setTimeout(()=>setFlash(""), 2600); return ()=>clearTimeout(t); }, [flash]);
 
   const pickFiles = (e) => {
     const files = Array.from(e.target.files || []).slice(0, 4);
@@ -2478,27 +2482,60 @@ function OwnerCopilotPage() {
   const send = async () => {
     const text = input.trim();
     if ((!text && imgs.length===0) || sending) return;
-    const userMsg = { role:"user", text, images: imgs };
-    const next = [...msgs, userMsg];
+    const next = [...msgs, { role:"user", text, images: imgs }];
     setMsgs(next); setInput(""); setImgs([]); setSending(true);
     try {
       const context = await gatherContext();
       const payload = { mode:"copilot", context, messages: next.map(m => ({ role:m.role, text:m.text, images: m.images })) };
       const r = await fetch("/api/generate-caption", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
       const j = await r.json();
-      const reply = j.reply || j.message || "Sorry, something went wrong. Try again.";
-      setMsgs(m => [...m, { role:"assistant", text: reply, images: [] }]);
+      setMsgs(m => [...m, { role:"assistant", text: j.reply || j.message || "Sorry, something went wrong. Try again.", images: [] }]);
     } catch (e) {
       setMsgs(m => [...m, { role:"assistant", text: "I couldn't reach the copilot service. Check your connection and try again.", images: [] }]);
     }
     setSending(false);
   };
 
+  const makeReport = async (kind) => {
+    if (sending || msgs.length===0) return;
+    setSending(true);
+    try {
+      const context = await gatherContext();
+      const instr = kind==="internal" ? "Generate the internal fix report now." : "Generate the client-facing report now.";
+      const payload = { mode:"copilot", report:kind, context, messages: [...msgs.map(m=>({role:m.role,text:m.text,images:m.images})), { role:"user", text:instr }] };
+      const r = await fetch("/api/generate-caption", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
+      const j = await r.json();
+      setMsgs(m => [...m, { role:"assistant", text: j.reply || j.message || "Couldn't generate the report.", images: [], report: kind }]);
+    } catch (e) {
+      setMsgs(m => [...m, { role:"assistant", text: "Couldn't generate the report.", images: [], report: kind }]);
+    }
+    setSending(false);
+  };
+
+  const copyText = (t) => { try { navigator.clipboard.writeText(t); setFlash("Copied to clipboard"); } catch(e){ setFlash("Copy failed"); } };
+  const downloadText = (t, kind) => {
+    try { const blob=new Blob([t],{type:"text/plain"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=(kind==="client"?"tawaslo-client-report":"tawaslo-fix-report")+".txt"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); } catch(e){}
+  };
+  const sendReportEmail = async (i) => {
+    const to = emailTo.trim();
+    if (!to || emailBusy) return;
+    setEmailBusy(true);
+    try {
+      const r = await fetch("/api/send-welcome-email", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ kind:"report", to, subject:"An update from Tawaslo", reportText: msgs[i].text }) });
+      const j = await r.json();
+      if (j && j.success) { setFlash("Report emailed to "+to); setEmailFor(null); setEmailTo(""); }
+      else setFlash((j && j.error) || "Couldn't send — check the email.");
+    } catch (e) { setFlash("Couldn't send the email."); }
+    setEmailBusy(false);
+  };
+
   const onKey = (e) => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const starters = ["Why are menu orders failing for a client?", "Explain the latest error in plain English", "Draft a reply to the newest support ticket"];
+  const rBtn = { display:"flex",alignItems:"center",gap:6,padding:"6px 11px",borderRadius:8,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:11,fontWeight:600,cursor:"pointer" };
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",minHeight:420}}>
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",minHeight:420,position:"relative"}}>
+      {flash && <div style={{position:"absolute",top:56,left:"50%",transform:"translateX(-50%)",zIndex:30,background:th.text,color:th.bg,fontSize:12,fontWeight:600,padding:"8px 16px",borderRadius:9,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>{flash}</div>}
       <OwnerPageHead Icon={MessageCircle} title="AI Copilot" subtitle="Troubleshoot errors and tickets with Claude — attach screenshots"
         action={<button onClick={()=>setCtxOn(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 13px",borderRadius:9,background:ctxOn?th.accentSoft:th.card2,border:`1px solid ${ctxOn?th.accent:th.border}`,color:ctxOn?th.accent:th.text2,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{ctxOn?"Context: on":"Context: off"}</button>} />
 
@@ -2513,8 +2550,9 @@ function OwnerCopilotPage() {
             </div>
           </div>
         ) : msgs.map((m,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:12}}>
-            <div style={{maxWidth:"82%",background:m.role==="user"?th.gradient:th.card,color:m.role==="user"?"#fff":th.text,border:m.role==="user"?"none":`1px solid ${th.border}`,borderRadius:14,padding:"11px 14px",fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+          <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start",marginBottom:12}}>
+            <div style={{maxWidth:"82%",background:m.role==="user"?th.gradient:(m.report?th.card2:th.card),color:m.role==="user"?"#fff":th.text,border:m.role==="user"?"none":`1px solid ${m.report?th.accent:th.border}`,borderRadius:14,padding:"11px 14px",fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+              {m.report && <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,color:th.accent,marginBottom:7,display:"flex",alignItems:"center",gap:6}}><FileText size={12}/>{m.report==="client"?"Client report":"Internal fix report"}</div>}
               {m.images && m.images.length>0 && (
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:m.text?8:0}}>
                   {m.images.map((d,k)=><img key={k} src={d} alt="" style={{width:120,height:120,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.2)"}}/>)}
@@ -2522,10 +2560,34 @@ function OwnerCopilotPage() {
               )}
               {m.text}
             </div>
+            {m.report && (
+              <div style={{marginTop:7}}>
+                <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+                  <button onClick={()=>copyText(m.text)} style={rBtn}><Copy size={12}/>Copy</button>
+                  <button onClick={()=>downloadText(m.text, m.report)} style={rBtn}><Download size={12}/>Download</button>
+                  {m.report==="client" && <button onClick={()=>{ setEmailFor(emailFor===i?null:i); setEmailTo(""); }} style={{...rBtn,color:th.accent,borderColor:th.accent,background:th.accentSoft}}><Mail size={12}/>Email to client</button>}
+                </div>
+                {emailFor===i && (
+                  <div style={{display:"flex",gap:7,marginTop:8,flexWrap:"wrap",alignItems:"center"}}>
+                    <input value={emailTo} onChange={e=>setEmailTo(e.target.value)} placeholder="client@email.com" style={{flex:"1 1 200px",minWidth:180,background:th.card,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 11px",color:th.text,fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                    <button onClick={()=>sendReportEmail(i)} disabled={emailBusy || !emailTo.trim()} style={{display:"flex",alignItems:"center",gap:6,padding:"8px 14px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:(emailBusy||!emailTo.trim())?"not-allowed":"pointer",opacity:(emailBusy||!emailTo.trim())?0.5:1}}><Send size={13}/>{emailBusy?"Sending…":"Send"}</button>
+                    <button onClick={()=>setEmailFor(null)} style={rBtn}>Cancel</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {sending && <div style={{display:"flex",justifyContent:"flex-start",marginBottom:12}}><div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:14,padding:"11px 14px",fontSize:13,color:th.text3}}>Thinking…</div></div>}
       </div>
+
+      {msgs.length>0 && (
+        <div style={{display:"flex",gap:8,padding:"2px 0 8px",flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:10.5,color:th.text3,marginRight:2}}>Generate a report:</span>
+          <button onClick={()=>makeReport("internal")} disabled={sending} style={{...rBtn,opacity:sending?0.5:1}}><FileText size={12}/>Internal fix report</button>
+          <button onClick={()=>makeReport("client")} disabled={sending} style={{...rBtn,opacity:sending?0.5:1}}><Mail size={12}/>Client report</button>
+        </div>
+      )}
 
       {imgs.length>0 && (
         <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"8px 2px"}}>
@@ -2538,7 +2600,7 @@ function OwnerCopilotPage() {
         </div>
       )}
 
-      <div style={{display:"flex",alignItems:"flex-end",gap:9,padding:"10px 0 2px"}}>
+      <div style={{display:"flex",alignItems:"flex-end",gap:9,padding:"2px 0 2px"}}>
         <input ref={fileRef} type="file" accept="image/*" multiple onChange={pickFiles} style={{display:"none"}}/>
         <button onClick={()=>fileRef.current && fileRef.current.click()} title="Attach screenshot" style={{width:40,height:40,borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Image size={17}/></button>
         <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={onKey} rows={1} placeholder="Ask the copilot, or attach a screenshot…" style={{flex:1,resize:"none",maxHeight:120,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"11px 13px",color:th.text,fontSize:13,fontFamily:"inherit",outline:"none",lineHeight:1.5}}/>
