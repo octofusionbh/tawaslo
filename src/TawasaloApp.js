@@ -812,6 +812,7 @@ function Sidebar() {
 
   const OWNER_NAV = [
     {key:"overview", Icon:LayoutDashboard, label:"Overview"     },
+    {key:"copilot",  Icon:MessageCircle,   label:"AI Copilot"   },
     {key:"clients",  Icon:Building2,       label:"All Clients"  },
     {key:"revenue",  Icon:DollarSign,      label:"Revenue"      },
     {key:"promos",   Icon:Tag,             label:"Promo Codes"  },
@@ -1123,7 +1124,7 @@ function Topbar() {
     reports:"Reports", agencyteam:"Team", billing:"Billing", agencysets:"Settings",
   };
   // Global search — jumps to any page, or opens a client.
-  const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
+  const OWNER_PAGES = [["overview","Overview"],["copilot","AI Copilot"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
   const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
   const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isMobile && DESKTOP_ONLY.has(k))).slice(0,7) : [];
@@ -2415,6 +2416,135 @@ function OwnerSupportPage() {
           </div>
         ) : <div style={{...card,padding:60,textAlign:"center",fontSize:13,color:th.text3}}>Select a ticket to view the conversation.</div>}
       </div>
+    </div>
+  );
+}
+
+function OwnerCopilotPage() {
+  const th = useTheme();
+  const app = useApp();
+  const userName = app.userName || "";
+  const [msgs, setMsgs] = useState([]);
+  const [input, setInput] = useState("");
+  const [imgs, setImgs] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [ctxOn, setCtxOn] = useState(true);
+  const scroller = useRef(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => { if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight; }, [msgs, sending]);
+
+  const pickFiles = (e) => {
+    const files = Array.from(e.target.files || []).slice(0, 4);
+    files.forEach(f => {
+      if (!f.type || f.type.indexOf("image/") !== 0) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        const im = new window.Image();
+        im.onload = () => {
+          const max = 1400; let w = im.width, h = im.height;
+          if (w > max || h > max) { const sc = max/Math.max(w,h); w = Math.round(w*sc); h = Math.round(h*sc); }
+          let out;
+          try { const cv = document.createElement("canvas"); cv.width=w; cv.height=h; cv.getContext("2d").drawImage(im, 0, 0, w, h); out = cv.toDataURL("image/jpeg", 0.82); }
+          catch (e2) { out = rd.result; }
+          setImgs(prev => [...prev, out].slice(0, 4));
+        };
+        im.onerror = () => setImgs(prev => [...prev, rd.result].slice(0, 4));
+        im.src = rd.result;
+      };
+      rd.readAsDataURL(f);
+    });
+    e.target.value = "";
+  };
+
+  const gatherContext = async () => {
+    if (!ctxOn) return {};
+    const out = {};
+    try {
+      const { data } = await getErrorLogs(60);
+      if (Array.isArray(data)) {
+        const seen = {}; const list = [];
+        data.forEach(e => { const k=(e.message||"")+"|"+(e.page||""); if(seen[k]==null){seen[k]=list.length; list.push({...e,count:1});} else list[seen[k]].count++; });
+        out.errors = list.filter(e=>!e.resolved).slice(0,25);
+      }
+    } catch (e) {}
+    try {
+      const { data } = await getSupportTickets();
+      if (Array.isArray(data)) out.tickets = data.filter(t=>t.status!=="resolved" && t.status!=="closed").slice(0,25).map(t=>({ subject:t.subject, who:t.client_name||t.email, email:t.email, status:t.status, urgent:t.urgent }));
+    } catch (e) {}
+    return out;
+  };
+
+  const send = async () => {
+    const text = input.trim();
+    if ((!text && imgs.length===0) || sending) return;
+    const userMsg = { role:"user", text, images: imgs };
+    const next = [...msgs, userMsg];
+    setMsgs(next); setInput(""); setImgs([]); setSending(true);
+    try {
+      const context = await gatherContext();
+      const payload = { mode:"copilot", context, messages: next.map(m => ({ role:m.role, text:m.text, images: m.images })) };
+      const r = await fetch("/api/generate-caption", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(payload) });
+      const j = await r.json();
+      const reply = j.reply || j.message || "Sorry, something went wrong. Try again.";
+      setMsgs(m => [...m, { role:"assistant", text: reply, images: [] }]);
+    } catch (e) {
+      setMsgs(m => [...m, { role:"assistant", text: "I couldn't reach the copilot service. Check your connection and try again.", images: [] }]);
+    }
+    setSending(false);
+  };
+
+  const onKey = (e) => { if (e.key==="Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+  const starters = ["Why are menu orders failing for a client?", "Explain the latest error in plain English", "Draft a reply to the newest support ticket"];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 130px)",minHeight:420}}>
+      <OwnerPageHead Icon={MessageCircle} title="AI Copilot" subtitle="Troubleshoot errors and tickets with Claude — attach screenshots"
+        action={<button onClick={()=>setCtxOn(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 13px",borderRadius:9,background:ctxOn?th.accentSoft:th.card2,border:`1px solid ${ctxOn?th.accent:th.border}`,color:ctxOn?th.accent:th.text2,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{ctxOn?"Context: on":"Context: off"}</button>} />
+
+      <div ref={scroller} style={{flex:1,overflowY:"auto",padding:"4px 2px 10px"}}>
+        {msgs.length===0 ? (
+          <div style={{textAlign:"center",padding:"36px 16px",color:th.text3}}>
+            <div style={{width:52,height:52,borderRadius:14,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><MessageCircle size={24} color={th.accent}/></div>
+            <div style={{fontSize:15,fontWeight:700,color:th.text,marginBottom:6}}>How can I help{userName ? ", "+userName.split(" ")[0] : ""}?</div>
+            <div style={{fontSize:12.5,maxWidth:420,margin:"0 auto 18px",lineHeight:1.6}}>Ask about an error, paste a screenshot of a broken screen, or ask me to draft a reply to a client. {ctxOn?"I can see your recent errors and open tickets.":"Turn context on to let me see your errors and tickets."}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8,maxWidth:420,margin:"0 auto"}}>
+              {starters.map((s,i)=><button key={i} onClick={()=>setInput(s)} style={{textAlign:"left",padding:"10px 13px",borderRadius:10,background:th.card,border:`1px solid ${th.border}`,color:th.text2,fontSize:12.5,cursor:"pointer"}}>{s}</button>)}
+            </div>
+          </div>
+        ) : msgs.map((m,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start",marginBottom:12}}>
+            <div style={{maxWidth:"82%",background:m.role==="user"?th.gradient:th.card,color:m.role==="user"?"#fff":th.text,border:m.role==="user"?"none":`1px solid ${th.border}`,borderRadius:14,padding:"11px 14px",fontSize:13,lineHeight:1.6,whiteSpace:"pre-wrap",wordBreak:"break-word"}}>
+              {m.images && m.images.length>0 && (
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:m.text?8:0}}>
+                  {m.images.map((d,k)=><img key={k} src={d} alt="" style={{width:120,height:120,objectFit:"cover",borderRadius:9,border:"1px solid rgba(255,255,255,0.2)"}}/>)}
+                </div>
+              )}
+              {m.text}
+            </div>
+          </div>
+        ))}
+        {sending && <div style={{display:"flex",justifyContent:"flex-start",marginBottom:12}}><div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:14,padding:"11px 14px",fontSize:13,color:th.text3}}>Thinking…</div></div>}
+      </div>
+
+      {imgs.length>0 && (
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"8px 2px"}}>
+          {imgs.map((d,i)=>(
+            <div key={i} style={{position:"relative"}}>
+              <img src={d} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8,border:`1px solid ${th.border}`}}/>
+              <button onClick={()=>setImgs(prev=>prev.filter((_,k)=>k!==i))} style={{position:"absolute",top:-6,right:-6,width:18,height:18,borderRadius:"50%",background:th.danger,border:"none",color:"#fff",fontSize:11,lineHeight:"1",cursor:"pointer"}}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{display:"flex",alignItems:"flex-end",gap:9,padding:"10px 0 2px"}}>
+        <input ref={fileRef} type="file" accept="image/*" multiple onChange={pickFiles} style={{display:"none"}}/>
+        <button onClick={()=>fileRef.current && fileRef.current.click()} title="Attach screenshot" style={{width:40,height:40,borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Image size={17}/></button>
+        <textarea value={input} onChange={e=>setInput(e.target.value)} onKeyDown={onKey} rows={1} placeholder="Ask the copilot, or attach a screenshot…" style={{flex:1,resize:"none",maxHeight:120,background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"11px 13px",color:th.text,fontSize:13,fontFamily:"inherit",outline:"none",lineHeight:1.5}}/>
+        <button onClick={send} disabled={sending || (!input.trim() && imgs.length===0)} style={{width:40,height:40,borderRadius:11,background:th.gradient,border:"none",color:"#fff",cursor:sending?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,opacity:(sending||(!input.trim()&&imgs.length===0))?0.5:1}}><Send size={17}/></button>
+      </div>
+      <div style={{fontSize:10.5,color:th.text3,textAlign:"center",padding:"6px 0 2px"}}>Copilot suggests and guides — it never changes settings or sends messages on its own.</div>
     </div>
   );
 }
@@ -19849,6 +19979,7 @@ export default function TawasloApp() {
   const renderPage = () => {
     if (mode==="owner") {
       if (page==="overview") return <OwnerDashboard/>;
+      if (page==="copilot")  return <OwnerCopilotPage/>;
       if (page==="clients")  return <OwnerClientsPage/>;
       if (page==="promos")   return <OwnerPromosPage/>;
       if (page==="gifts")    return <OwnerGiftsPage/>;

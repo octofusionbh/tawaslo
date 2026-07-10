@@ -52,6 +52,61 @@ export default async function handler(req, res) {
   const language = (lang || 'both').toLowerCase(); // 'en' | 'ar' | 'both'
   const theMode = (mode || 'caption').toLowerCase(); // 'caption' | 'ideas' | 'hashtags' | 'vision' | 'alt' | 'image' | 'image-edit'
 
+  // ── HQ Support Copilot: founder/team troubleshooting with screenshots + live context. ──
+  if (theMode === 'copilot') {
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(200).json({ error: 'copilot_unconfigured', message: 'Add ANTHROPIC_API_KEY in Vercel to turn on the Support Copilot.' });
+    const inMsgs = Array.isArray(req.body.messages) ? req.body.messages.slice(-16) : [];
+    if (!inMsgs.length) return res.status(400).json({ error: 'A message is required.' });
+    const cx = req.body.context || {};
+    const errs = Array.isArray(cx.errors) ? cx.errors.slice(0, 25) : [];
+    const tix = Array.isArray(cx.tickets) ? cx.tickets.slice(0, 25) : [];
+    let ctxBlock = '';
+    if (errs.length) {
+      ctxBlock += '\n\nRECENT ERROR LOGS (most recent first):\n' + errs.map((e, i) => `${i + 1}. [${e.kind || 'error'}] "${String(e.message || '').slice(0, 200)}" on ${e.page || '?'} - user ${e.user_email || 'guest'} - ${e.count ? e.count + 'x, ' : ''}${e.created_at || ''}${e.resolved ? ' (resolved)' : ''}`).join('\n');
+    }
+    if (tix.length) {
+      ctxBlock += '\n\nOPEN SUPPORT TICKETS:\n' + tix.map((t, i) => `${i + 1}. ${t.subject || '(no subject)'} - from ${t.who || t.email || '?'} - status ${t.status || 'open'}${t.urgent ? ' (URGENT)' : ''}`).join('\n');
+    }
+    const sys = `You are the Tawaslo HQ Support Copilot - an expert engineer and product guide for Tawaslo, an Arabic-first social media management and restaurant (F&B) SaaS. You help the founder and their team diagnose errors, understand what is breaking for their clients, and answer support tickets.
+
+How to help:
+- Be concrete and practical. When shown an error or a screenshot, explain in plain language what is likely wrong and the most probable cause, then give clear step-by-step guidance to fix or investigate it.
+- When asked to answer a client, draft a warm, professional reply the team can copy, edit and send. Never claim to have sent anything.
+- You can see screenshots the user attaches - read them carefully (UI state, error text, console output) and reference exactly what you see.
+- You are a copilot, not an autopilot: you suggest and guide, you do not change code, settings, or send messages yourself. If a fix needs a code or database change, describe exactly what to change and where.
+- Keep answers focused and skimmable. Reply in the user's language (English or Arabic).${ctxBlock ? '\n\nHere is live context from the Tawaslo workspace you may reference when relevant:' + ctxBlock : ''}`;
+
+    const toContent = (m) => {
+      const blocks = [];
+      const imgs = Array.isArray(m.images) ? m.images.slice(0, 4) : [];
+      imgs.forEach((d) => {
+        try {
+          const mt = (String(d).match(/^data:(image\/[\w.+-]+);base64,/) || [])[1] || 'image/png';
+          const data = String(d).replace(/^data:image\/[\w.+-]+;base64,/, '');
+          if (data) blocks.push({ type: 'image', source: { type: 'base64', media_type: mt, data } });
+        } catch (e) {}
+      });
+      const text = String(m.text || '').slice(0, 6000);
+      blocks.push({ type: 'text', text: text || '(see attached image)' });
+      return blocks;
+    };
+    const aMsgs = inMsgs.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: toContent(m) }));
+
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 1600, system: sys, messages: aMsgs }),
+      });
+      const j = await r.json();
+      if (!r.ok) return res.status(200).json({ error: 'copilot_failed', message: (j && j.error && j.error.message) || 'Claude request failed.' });
+      const reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim();
+      return res.status(200).json({ reply: reply || 'Sorry, I could not generate a response.' });
+    } catch (e) {
+      return res.status(200).json({ error: 'copilot_failed', message: e.message });
+    }
+  }
+
   // ── Campaign Autopilot: a trend/topic in, five on-brand posts out (one AI call). ──
   if (theMode === 'campaign') {
     const plats = (Array.isArray(req.body.platforms) && req.body.platforms.length) ? req.body.platforms : ['Instagram', 'Facebook'];
