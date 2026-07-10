@@ -1884,6 +1884,8 @@ async function loadOwnerSubscribers() {
       accounts: brandByOwner[p.id] || 0,
       mrr,
       joined: ownerMonthFmt(p.created_at),
+      createdAt: p.created_at,
+      interval: yearly ? "year" : "month",
     };
   });
 }
@@ -2533,81 +2535,118 @@ function OwnerErrorsPage() {
     </div>
   );
 }
-
-function OwnerRevenuePage() {
+function OwnerRevenuePage() {
   const th = useTheme();
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
-  const rev = [620,710,690,820,910,880,1040,1180,1260,1410,1690,2180];
-  const max = Math.max(...rev), min = Math.min(...rev), W = 760, H = 180, rng = (max-min)||1;
-  const pts = rev.map((v,i)=>[ (i/(rev.length-1))*W, H - ((v-min)/rng)*(H-20) - 10 ]);
+  const [rows, setRows] = useState(null);
+  useEffect(() => { let on=true; loadOwnerSubscribers().then(list=>{ if(on) setRows(Array.isArray(list)?list:[]); }, ()=>{ if(on) setRows([]); }); return ()=>{on=false;}; }, []);
+
+  const all = rows || [];
+  const paying = all.filter(r => r.mrr > 0);
+  const mrr = paying.reduce((s,r)=>s+r.mrr, 0);
+  const arr = mrr * 12;
+  const trials = all.filter(r => r.status==="trial").length;
+  const pastDue = all.filter(r => r.status==="past_due").length;
+  const now = new Date();
+  const newThisMonth = paying.filter(r => { const d=new Date(r.createdAt); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth(); }).length;
+  const bhd = (usd) => "≈ " + Math.round(usd*0.376).toLocaleString() + " BHD";
+
+  const kpis = [
+    { label:"MRR", value:"$"+mrr.toLocaleString(), sub:bhd(mrr), Icon:RefreshCw, color:"accent" },
+    { label:"ARR (run-rate)", value:"$"+arr.toLocaleString(), sub:bhd(arr), Icon:TrendingUp, color:"accent2" },
+    { label:"Paying subscriptions", value:String(paying.length), sub:newThisMonth?("+"+newThisMonth+" this month"):"across all plans", Icon:DollarSign, color:"success" },
+    { label:"Trials · past-due", value:trials+" · "+pastDue, sub:"not yet billing", Icon:CreditCard, color:"warning" },
+  ];
+
+  const PLAN_ORDER = ["Essential","Professional","Enterprise","Studio"];
+  const byPlan = PLAN_ORDER.map(p => { const rs=paying.filter(r=>r.plan===p); return { plan:p, count:rs.length, mrr:rs.reduce((s,r)=>s+r.mrr,0) }; }).filter(x=>x.count>0);
+
+  const months = [];
+  for (let i=11;i>=0;i--){ months.push(new Date(now.getFullYear(), now.getMonth()-i, 1)); }
+  const series = months.map(m => { const end=new Date(m.getFullYear(), m.getMonth()+1, 0, 23,59,59); return paying.filter(r => new Date(r.createdAt) <= end).reduce((s,r)=>s+r.mrr,0); });
+  const maxV = Math.max(1, ...series), W=760, H=170;
+  const pts = series.map((v,i)=>[ (i/(series.length-1||1))*W, H - (v/maxV)*(H-24) - 10 ]);
   const line = "M" + pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" L");
   const area = line + ` L${W},${H} L0,${H} Z`;
-  const months = ["Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr","May","Jun"];
+  const mLabels = months.map(d=>d.toLocaleDateString("en",{month:"short"}));
 
-  const [txns, setTxns] = useState([
-    { id:"tx1", who:"Marina Cafe", plan:"Professional", amount:99, date:"Jun 6, 2026", status:"paid" },
-    { id:"tx2", who:"Gulf Auto", plan:"Enterprise", amount:199, date:"Jun 5, 2026", status:"paid" },
-    { id:"tx3", who:"Trio Restaurant", plan:"Essential", amount:49, date:"Jun 3, 2026", status:"paid" },
-    { id:"tx4", who:"Lulwa Events", plan:"Professional", amount:99, date:"Jun 1, 2026", status:"paid" },
-    { id:"tx5", who:"Noor Designs", plan:"Professional", amount:99, date:"May 28, 2026", status:"refunded" },
-  ]);
-  const refund = (id) => setTxns(ts=>ts.map(t=>t.id===id?{...t,status:"refunded"}:t));
-  const collected = txns.filter(t=>t.status==="paid").reduce((s,t)=>s+t.amount,0);
+  const exportCsv = () => {
+    const head = ["Client","Email","Plan","Interval","Status","MRR (USD)","Since"];
+    const body = paying.slice().sort((a,b)=>b.mrr-a.mrr).map(r=>[r.name,r.email,r.plan,r.interval||"month",r.status,r.mrr,r.joined].map(x=>`"${String(x==null?"":x).replace(/"/g,'""')}"`).join(","));
+    const csv = [head.join(","), ...body].join("\n");
+    try { const blob=new Blob([csv],{type:"text/csv"}); const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="tawaslo-revenue.csv"; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); } catch(e){}
+  };
 
-  // USD → BHD at the fixed peg (1 USD = 0.376 BHD).
-  const bhd = (usd) => "≈ " + Math.round(usd*0.376).toLocaleString() + " BHD";
-  const kpis = [
-    { label:"Collected this month", value:"$2,180", sub:bhd(2180), Icon:DollarSign, color:"success" },
-    { label:"MRR", value:"$2,180", sub:bhd(2180), Icon:RefreshCw, color:"accent" },
-    { label:"ARR (run-rate)", value:"$26,160", sub:bhd(26160), Icon:TrendingUp, color:"accent2" },
-    { label:"Refunded", value:"$99", sub:bhd(99), Icon:ArrowDownRight, color:"danger" },
-  ];
+  const sortedPaying = paying.slice().sort((a,b)=>b.mrr-a.mrr);
 
   return (
     <div>
-      <OwnerPageHead Icon={DollarSign} title="Revenue" subtitle="Money in, refunds, and run-rate across all clients"
-        action={<button style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:"pointer"}}><Download size={14}/>Export CSV</button>} />
+      <OwnerPageHead Icon={DollarSign} title="Revenue" subtitle="Live MRR and run-rate from active subscriptions"
+        action={<button onClick={exportCsv} disabled={!paying.length} style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.card,border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:paying.length?"pointer":"not-allowed",opacity:paying.length?1:0.5}}><Download size={14}/>Export CSV</button>} />
 
+      {rows===null ? (
+        <div style={{padding:"40px",textAlign:"center",color:th.text3,fontSize:13}}>Loading revenue…</div>
+      ) : (<>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:13,marginBottom:18}}>
         {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
 
       <div style={{...card,padding:22,marginBottom:18}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:13.5,fontWeight:700,display:"flex",alignItems:"center",gap:8}}><TrendingUp size={16} color={th.accent}/>Revenue · last 12 months</div>
-          <div style={{fontSize:11.5,color:th.success,fontWeight:700}}>▲ +251% YoY</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          <div style={{fontSize:13.5,fontWeight:700,display:"flex",alignItems:"center",gap:8}}><TrendingUp size={16} color={th.accent}/>MRR growth · last 12 months</div>
+          <div style={{fontSize:11,color:th.text3}}>from active subscription start dates</div>
         </div>
-        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:180,overflow:"visible"}}>
+        {mrr===0 ? (
+          <div style={{padding:"38px 0",textAlign:"center",color:th.text3,fontSize:12.5}}>No paid subscriptions yet — this chart fills in as clients subscribe.</div>
+        ) : (<>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:170,overflow:"visible"}}>
           <defs><linearGradient id="orevg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={th.accent} stopOpacity="0.32"/><stop offset="100%" stopColor={th.accent} stopOpacity="0"/></linearGradient></defs>
           <path d={area} fill="url(#orevg)"/>
           <path d={line} fill="none" stroke={th.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           {pts.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={i===pts.length-1?4:0} fill={th.accent}/>)}
         </svg>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:9.5,color:th.text3}}>{months.map(m=><span key={m}>{m}</span>)}</div>
+        <div style={{display:"flex",justifyContent:"space-between",marginTop:6,fontSize:9.5,color:th.text3}}>{mLabels.map((m,i)=><span key={i}>{m}</span>)}</div>
+        </>)}
       </div>
 
-      <div style={{...card,overflow:"hidden"}}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><CreditCard size={15} color={th.accent}/>Recent transactions <span style={{fontSize:11,color:th.text2,fontWeight:400}}>· ${collected} collected</span></div>
-        <div style={{display:"grid",gridTemplateColumns:"1.6fr 1.1fr 0.8fr 1fr 0.9fr",gap:12,padding:"11px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
-          <span>Client</span><span>Plan</span><span style={{textAlign:"right"}}>Amount</span><span style={{textAlign:"right"}}>Date</span><span style={{textAlign:"right"}}>Status</span>
+      {byPlan.length>0 && (
+        <div style={{...card,padding:20,marginBottom:18}}>
+          <div style={{fontSize:13,fontWeight:700,marginBottom:14}}>Revenue by plan</div>
+          {byPlan.map(b=>{ const pct=Math.round((b.mrr/mrr)*100); return (
+            <div key={b.plan} style={{marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:5}}>
+                <span style={{color:th.text2}}>{b.plan} <span style={{color:th.text3}}>· {b.count}</span></span>
+                <span style={{fontWeight:700}}>${b.mrr.toLocaleString()}/mo <span style={{color:th.text3,fontWeight:400}}>({pct}%)</span></span>
+              </div>
+              <div style={{height:7,background:th.card2,borderRadius:6,overflow:"hidden"}}><div style={{width:pct+"%",height:"100%",background:th.gradient}}/></div>
+            </div>
+          );})}
         </div>
-        {txns.map((t,i)=>(
-          <div key={t.id} style={{display:"grid",gridTemplateColumns:"1.6fr 1.1fr 0.8fr 1fr 0.9fr",gap:12,padding:"12px 20px",borderBottom:i<txns.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
+      )}
+
+      <div style={{...card,overflow:"hidden"}}>
+        <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:8}}><CreditCard size={15} color={th.accent}/>Paying customers <span style={{fontSize:11,color:th.text2,fontWeight:400}}>· ${mrr.toLocaleString()}/mo</span></div>
+        {sortedPaying.length===0 ? (
+          <div style={{padding:"36px 20px",textAlign:"center",color:th.text3,fontSize:12.5}}>No paying customers yet. Trials and new signups show here once they subscribe.</div>
+        ) : (<>
+        <div style={{display:"grid",gridTemplateColumns:"1.7fr 1.1fr 0.9fr 0.9fr 0.8fr",gap:12,padding:"11px 20px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,color:th.text2,fontWeight:600,textTransform:"uppercase",letterSpacing:0.4}}>
+          <span>Client</span><span>Plan</span><span style={{textAlign:"right"}}>Monthly</span><span style={{textAlign:"right"}}>Status</span><span style={{textAlign:"right"}}>Since</span>
+        </div>
+        {sortedPaying.map((t,i)=>(
+          <div key={t.id} style={{display:"grid",gridTemplateColumns:"1.7fr 1.1fr 0.9fr 0.9fr 0.8fr",gap:12,padding:"12px 20px",borderBottom:i<sortedPaying.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
             <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
-              <div style={{width:30,height:30,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{t.who.slice(0,2).toUpperCase()}</div>
-              <span style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.who}</span>
+              <div style={{width:30,height:30,borderRadius:9,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:"#fff",flexShrink:0}}>{(t.name||"?").slice(0,2).toUpperCase()}</div>
+              <span style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t.name}</span>
             </div>
-            <span style={{fontSize:11.5,color:th.text2}}>{t.plan}</span>
-            <span style={{fontSize:13,fontWeight:700,textAlign:"right"}}>${t.amount}</span>
-            <span style={{fontSize:11,color:th.text3,textAlign:"right"}}>{t.date}</span>
-            <div style={{display:"flex",justifyContent:"flex-end"}}>
-              {t.status==="paid"
-                ? <button onClick={()=>refund(t.id)} style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,border:"none",borderRadius:999,padding:"4px 11px",cursor:"pointer"}}>Paid</button>
-                : <span style={{fontSize:10.5,fontWeight:700,color:th.danger,background:th.dangerSoft,borderRadius:999,padding:"4px 11px"}}>Refunded</span>}
-            </div>
+            <span style={{fontSize:11.5,color:th.text2}}>{t.plan}{t.interval==="year"?" · yearly":""}</span>
+            <span style={{fontSize:13,fontWeight:700,textAlign:"right"}}>${t.mrr}</span>
+            <div style={{display:"flex",justifyContent:"flex-end"}}><span style={{fontSize:10.5,fontWeight:700,color:th.success,background:th.successSoft,borderRadius:999,padding:"4px 11px"}}>Active</span></div>
+            <span style={{fontSize:11,color:th.text3,textAlign:"right"}}>{t.joined}</span>
           </div>
         ))}
+        </>)}
       </div>
+      </>)}
     </div>
   );
 }
