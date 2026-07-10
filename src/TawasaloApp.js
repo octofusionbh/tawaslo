@@ -2844,89 +2844,130 @@ function OwnerErrorsPage() {
     </div>
   );
 }
-
-function OwnerApiUsagePage() {
+function OwnerApiUsagePage() {
   const th = useTheme();
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
+  const [data, setData] = useState(null);
 
-  const integrations = [
-    { name:"Meta · Instagram + Facebook", note:"Publishing live · comments/insights in review", status:"live" },
-    { name:"Tap Payments", note:"Test mode · add live key to go live", status:"test" },
-    { name:"Anthropic (AI captions)", note:"Connected", status:"live" },
-    { name:"EnsembleData (Trends)", note:"Free tier · 50 calls/day", status:"limited" },
-    { name:"LinkedIn", note:"Code ready · awaiting app + API review", status:"pending" },
-    { name:"TikTok", note:"Not connected yet", status:"off" },
-  ];
-  const sMeta = {
-    live:    { c:th.success, bg:th.successSoft, l:"Live" },
-    test:    { c:th.warning, bg:th.warningSoft, l:"Test" },
-    limited: { c:th.info,    bg:th.infoSoft,    l:"Limited" },
-    pending: { c:th.accent,  bg:th.accentSoft,  l:"Pending" },
-    off:     { c:th.text3,   bg:th.card2,       l:"Off" },
-  };
-  const usage = [
-    { label:"Posts published", value:128, cap:1000, unit:"this month" },
-    { label:"AI captions generated", value:342, cap:2000, unit:"this month" },
-    { label:"Trends lookups", value:46, cap:50, unit:"today" },
-    { label:"Media storage", value:1.8, cap:5, unit:"GB used" },
-  ];
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      const cnt = async (table, mod) => { try { let q = supabase.from(table).select('*', { count:'exact', head:true }); if (mod) q = mod(q); const { count } = await q; return count || 0; } catch (e) { return 0; } };
+      const weekAgo = new Date(Date.now()-7*86400*1000).toISOString();
+      let channels = [];
+      try {
+        const { data: accs } = await supabase.from('social_accounts').select('platform').neq('is_active', false);
+        const NAMES = { ig:'Instagram', instagram:'Instagram', fb:'Facebook', facebook:'Facebook', li:'LinkedIn', linkedin:'LinkedIn', tt:'TikTok', tiktok:'TikTok', yt:'YouTube', youtube:'YouTube' };
+        const agg = {};
+        (accs||[]).forEach(a => { const raw=String(a.platform||'other').toLowerCase(); const nm = NAMES[raw] || (raw.charAt(0).toUpperCase()+raw.slice(1)); agg[nm]=(agg[nm]||0)+1; });
+        const order = ['Instagram','Facebook','LinkedIn','TikTok','YouTube'];
+        order.forEach(nm => channels.push({ name:nm, count: agg[nm]||0 }));
+        Object.keys(agg).forEach(nm => { if (order.indexOf(nm)<0) channels.push({ name:nm, count:agg[nm] }); });
+      } catch (e) {}
+      const [agencies, brands, posts, menus, orders, tickets, errs] = await Promise.all([
+        cnt('profiles'),
+        cnt('clients'),
+        cnt('posts'),
+        cnt('menus'),
+        cnt('orders'),
+        cnt('support_tickets', q => q.neq('status','resolved')),
+        cnt('error_logs', q => q.eq('resolved', false).gte('created_at', weekAgo)),
+      ]);
+      if (on) setData({ channels, totals: { agencies, brands, posts, menus, orders, tickets, errs } });
+    })();
+    return () => { on = false; };
+  }, []);
+
+  const totalsList = data ? [
+    { label:"Agencies / accounts", value:data.totals.agencies, Icon:Building2 },
+    { label:"Brands managed", value:data.totals.brands, Icon:Users },
+    { label:"Posts", value:data.totals.posts, Icon:Send },
+    { label:"Menus", value:data.totals.menus, Icon:FileText },
+    { label:"Orders placed", value:data.totals.orders, Icon:ShoppingBag },
+    { label:"Open support tickets", value:data.totals.tickets, Icon:LifeBuoy },
+    { label:"Unresolved errors · 7d", value:data.totals.errs, Icon:AlertTriangle, hot:data.totals.errs>0 },
+  ] : [];
 
   return (
     <div>
-      <OwnerPageHead Icon={Activity} title="API & Usage" subtitle="Integration health and platform usage at a glance" />
+      <OwnerPageHead Icon={Activity} title="API & Usage" subtitle="Connected channels and live platform totals" />
+      {data===null ? (
+        <div style={{padding:"40px",textAlign:"center",color:th.text3,fontSize:13}}>Loading platform stats…</div>
+      ) : (
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,alignItems:"start"}}>
         <div style={{...card,overflow:"hidden"}}>
-          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Integrations</div>
-          {integrations.map((it,i)=>{ const m=sMeta[it.status]; return (
-            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:i<integrations.length-1?`1px solid ${th.border}`:"none"}}>
-              <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{it.name}</div><div style={{fontSize:10.5,color:th.text2,marginTop:2}}>{it.note}</div></div>
-              <span style={{fontSize:10,fontWeight:700,color:m.c,background:m.bg,borderRadius:999,padding:"3px 10px",flexShrink:0}}>{m.l}</span>
+          <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Connected channels</div>
+          {data.channels.map((it,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:i<data.channels.length-1?`1px solid ${th.border}`:"none"}}>
+              <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{it.name}</div><div style={{fontSize:10.5,color:th.text2,marginTop:2}}><span className="tw-num">{it.count}</span> {it.count===1?"account":"accounts"} connected</div></div>
+              <span style={{fontSize:10,fontWeight:700,color:it.count>0?th.success:th.text3,background:it.count>0?th.successSoft:th.card2,borderRadius:999,padding:"3px 10px",flexShrink:0}}>{it.count>0?"Live":"None"}</span>
             </div>
-          );})}
+          ))}
         </div>
         <div style={{...card,padding:20}}>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:18}}>Usage</div>
-          {usage.map((u,i)=>{ const pct=Math.min(100,Math.round(u.value/u.cap*100)); const hot=pct>=90; return (
-            <div key={i} style={{marginBottom:16}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:6}}><span style={{color:th.text}}>{u.label}</span><span style={{color:th.text2}}><span className="tw-num">{u.value}</span> / <span className="tw-num">{u.cap}</span> <span style={{color:th.text3}}>{u.unit}</span></span></div>
-              <div style={{height:7,background:th.card2,borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${pct}%`,background:hot?th.warning:th.accent,borderRadius:4}}/></div>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:16}}>Platform totals</div>
+          {totalsList.map((u,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",borderBottom:i<totalsList.length-1?`1px solid ${th.border}`:"none"}}>
+              <span style={{fontSize:12.5,color:th.text2,display:"flex",alignItems:"center",gap:9}}><u.Icon size={15} color={u.hot?th.warning:th.text3}/>{u.label}</span>
+              <span className="tw-num" style={{fontSize:16,fontWeight:800,color:u.hot?th.warning:th.text}}>{u.value.toLocaleString()}</span>
             </div>
-          );})}
-          <div style={{fontSize:11,color:th.text3,marginTop:6}}>Caps reflect your current plan limits.</div>
+          ))}
+          <div style={{fontSize:11,color:th.text3,marginTop:12}}>Live counts across every workspace on Tawaslo.</div>
         </div>
       </div>
+      )}
     </div>
   );
 }
 
 function OwnerTeamPage() {
   const th = useTheme();
+  const { workspaceOwner, userName, userEmail } = useApp();
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
-  const [team, setTeam] = useState([
-    { id:"u1", name:"Abdulla Al-Nahas", email:"octofusionbh@gmail.com", role:"Owner", initials:"AA" },
-    { id:"u2", name:"Support Desk", email:"support@tawaslo.com", role:"Support", initials:"SD" },
-  ]);
+  const [team, setTeam] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [invEmail, setInvEmail] = useState("");
-  const [invRole, setInvRole] = useState("Support");
+  const [invRole, setInvRole] = useState("Admin");
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState("");
 
-  const roleColor = (r) => r==="Owner"?th.accent : r==="Admin"?th.accent2 : th.success;
-  const invite = () => {
-    if (!invEmail.trim()) return;
-    const nm = invEmail.split("@")[0];
-    setTeam(t => [...t, { id:"u"+Date.now(), name:nm, email:invEmail, role:invRole, initials:nm.slice(0,2).toUpperCase() }]);
-    setInvEmail(""); setShowInvite(false);
+  const load = () => {
+    if (!workspaceOwner) { setLoading(false); return; }
+    getTeam(workspaceOwner).then(({ data }) => { setTeam(Array.isArray(data)?data:[]); setLoading(false); }, () => setLoading(false));
+  };
+  useEffect(() => { load(); }, [workspaceOwner]);
+  useEffect(() => { if(!flash) return; const t=setTimeout(()=>setFlash(""),2600); return ()=>clearTimeout(t); }, [flash]);
+
+  const roleColor = (r) => { const s=String(r||"").toLowerCase(); return s==="owner"?th.accent : s==="admin"?th.accent2 : s==="support"?th.success : th.info; };
+  const statusColor = (s) => s==="active"?th.success : s==="pending"?th.warning : th.text3;
+  const initialsOf = (m) => (m.name||m.email||"?").trim().slice(0,2).toUpperCase();
+
+  const invite = async () => {
+    const email = invEmail.trim().toLowerCase();
+    if (!email || busy || !workspaceOwner) return;
+    setBusy(true);
+    try {
+      await inviteTeamMember(workspaceOwner, email, invRole);
+      try { await fetch('/api/send-welcome-email', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ kind:'invite', email, inviterName: userName || 'Tawaslo HQ', workspaceName: 'Tawaslo HQ', role: invRole, acceptUrl: (typeof window!=='undefined'?window.location.origin:'https://tawaslo.com') + '/signup' }) }); } catch(e){}
+      setInvEmail(""); setShowInvite(false); setFlash("Invite sent to "+email); load();
+    } catch (e) { setFlash("Couldn't send the invite."); }
+    setBusy(false);
   };
 
+  const changeRole = async (id, role) => { setTeam(t=>t.map(m=>m.id===id?{...m,role}:m)); try { await updateTeamMemberRole(id, role); } catch(e){} };
+  const remove = async (id) => { setTeam(t=>t.filter(m=>m.id!==id)); try { await removeTeamMember(id); } catch(e){} };
+
   const PERMS = [
-    { role:"Owner", desc:"Full access — billing, team, all client data, settings." },
-    { role:"Admin", desc:"Manage clients, promos, gifts, and support. No billing/team changes." },
-    { role:"Support", desc:"Reply to and resolve support tickets only." },
+    { role:"Owner", desc:"You. Full access — billing, team, all client data, settings." },
+    { role:"Admin", desc:"Manage clients, promos, gifts, support and the copilot." },
+    { role:"Support", desc:"Handle support tickets and use the copilot." },
   ];
 
   return (
-    <div>
-      <OwnerPageHead Icon={Users} title="Team" subtitle="Tawaslo staff and their access levels"
+    <div style={{position:"relative"}}>
+      {flash && <div style={{position:"absolute",top:56,left:"50%",transform:"translateX(-50%)",zIndex:30,background:th.text,color:th.bg,fontSize:12,fontWeight:600,padding:"8px 16px",borderRadius:9,boxShadow:"0 8px 24px rgba(0,0,0,0.4)"}}>{flash}</div>}
+      <OwnerPageHead Icon={Users} title="Team" subtitle="Tawaslo HQ staff and their access"
         action={<button onClick={()=>setShowInvite(s=>!s)} style={{display:"flex",alignItems:"center",gap:7,padding:"10px 16px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}><UserPlus size={15}/>Invite member</button>} />
 
       {showInvite && (
@@ -2939,22 +2980,31 @@ function OwnerTeamPage() {
             <label style={{fontSize:11,color:th.text2,fontWeight:600,marginBottom:6,display:"block"}}>Role</label>
             <select value={invRole} onChange={e=>setInvRole(e.target.value)} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"10px 12px",color:th.text,fontSize:12.5,outline:"none",fontFamily:"inherit"}}><option>Admin</option><option>Support</option></select>
           </div>
-          <button onClick={invite} style={{padding:"11px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer"}}>Send invite</button>
+          <button onClick={invite} disabled={busy || !invEmail.trim()} style={{padding:"11px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:(busy||!invEmail.trim())?"not-allowed":"pointer",opacity:(busy||!invEmail.trim())?0.6:1}}>{busy?"Sending…":"Send invite"}</button>
         </div>
       )}
 
       <div style={{display:"grid",gridTemplateColumns:"1.4fr 1fr",gap:16,alignItems:"start"}}>
         <div style={{...card,overflow:"hidden"}}>
           <div style={{padding:"14px 20px",borderBottom:`1px solid ${th.border}`,fontWeight:600,fontSize:13}}>Members</div>
-          {team.map((u,i)=>(
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:`1px solid ${th.border}`}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+              <div style={{width:38,height:38,borderRadius:11,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12.5,fontWeight:700,color:"#fff",flexShrink:0}}>{(userName||"You").slice(0,2).toUpperCase()}</div>
+              <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{userName||"You"}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{userEmail||""}</div></div>
+            </div>
+            <span style={{fontSize:10.5,fontWeight:700,color:th.accent,background:`${th.accent}1c`,borderRadius:999,padding:"3px 11px",flexShrink:0}}>Owner</span>
+          </div>
+          {loading ? <div style={{padding:"22px",textAlign:"center",color:th.text3,fontSize:12.5}}>Loading team…</div>
+            : team.length===0 ? <div style={{padding:"22px",textAlign:"center",color:th.text3,fontSize:12.5}}>No staff yet. Invite a teammate to help run support.</div>
+            : team.map((u,i)=>(
             <div key={u.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"13px 20px",borderBottom:i<team.length-1?`1px solid ${th.border}`:"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
-                <div style={{width:38,height:38,borderRadius:11,background:th.gradient,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12.5,fontWeight:700,color:"#fff",flexShrink:0}}>{u.initials}</div>
-                <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.name}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email}</div></div>
+                <div style={{width:38,height:38,borderRadius:11,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12.5,fontWeight:700,color:th.text2,flexShrink:0}}>{initialsOf(u)}</div>
+                <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.name||u.email}</div><div style={{fontSize:10.5,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{u.email} · <span style={{color:statusColor(u.status)}}>{u.status==="pending"?"invite pending":u.status}</span></div></div>
               </div>
-              <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-                <span style={{fontSize:10.5,fontWeight:700,color:roleColor(u.role),background:`${roleColor(u.role)}1c`,borderRadius:999,padding:"3px 11px"}}>{u.role}</span>
-                {u.role!=="Owner" && <button onClick={()=>setTeam(t=>t.filter(x=>x.id!==u.id))} style={{width:30,height:30,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={14}/></button>}
+              <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                <select value={u.role||"Support"} onChange={e=>changeRole(u.id, e.target.value)} style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,padding:"5px 8px",color:roleColor(u.role),fontSize:11,fontWeight:700,outline:"none",fontFamily:"inherit",cursor:"pointer"}}><option>Admin</option><option>Support</option><option>Editor</option><option>Viewer</option></select>
+                <button onClick={()=>remove(u.id)} title="Remove" style={{width:30,height:30,borderRadius:8,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Trash2 size={14}/></button>
               </div>
             </div>
           ))}
@@ -2967,6 +3017,7 @@ function OwnerTeamPage() {
               <div style={{fontSize:11,color:th.text2,lineHeight:1.5}}>{p.desc}</div>
             </div>
           ))}
+          <div style={{fontSize:10.5,color:th.text3,lineHeight:1.5,marginTop:6,paddingTop:12,borderTop:`1px solid ${th.border}`}}>Invites are real and persist. Fine-grained role enforcement inside HQ lands with the admin-roles update.</div>
         </div>
       </div>
     </div>
