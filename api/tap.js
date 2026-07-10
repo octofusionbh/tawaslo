@@ -311,10 +311,60 @@ export default async function handler(req, res) {
     return res.status(out.ok ? 200 : 400).json(out);
   }
 
+
+  // ── Menu order payment (Tap marketplace split → restaurant destination) ──
+  if (body.action === 'order_charge') {
+    const orderId = body.order_id;
+    if (!orderId) return res.status(400).json({ error: 'order_id required' });
+    if (!KEY) return res.status(200).json({ error: 'Payments not connected yet. Add TAP_SECRET_KEY in Vercel.' });
+    try {
+      const oR = await sbq(`orders?id=eq.${encodeURIComponent(orderId)}&select=id,menu_id,client_id,total,currency,order_no,customer_name,pay_status`);
+      const orders = await oR.json();
+      const o = Array.isArray(orders) && orders[0];
+      if (!o) return res.status(404).json({ error: 'Order not found' });
+      if (o.pay_status === 'paid') return res.status(400).json({ error: 'This order is already paid' });
+      const mR = await sbq(`menus?id=eq.${encodeURIComponent(o.menu_id)}&select=tap_destination_id,commission_pct,online_pay_enabled,pay_currency`);
+      const menus = await mR.json();
+      const m = Array.isArray(menus) && menus[0];
+      if (!m || !m.online_pay_enabled) return res.status(400).json({ error: 'Online payment is not enabled for this menu' });
+      if (!m.tap_destination_id) return res.status(400).json({ error: 'This restaurant is not connected for payouts yet' });
+      const currency = m.pay_currency || o.currency || 'BHD';
+      const amount = Math.round((Number(o.total) || 0) * 1000) / 1000;
+      if (amount <= 0) return res.status(400).json({ error: 'Invalid order amount' });
+      const pct = Math.max(0, Math.min(50, Number(m.commission_pct) || 0));
+      const commission = Math.round(amount * pct) / 100;                 // pct is a percentage
+      const destAmount = Math.round((amount - commission) * 1000) / 1000; // restaurant's share
+      const charge = {
+        amount, currency, customer_initiated: true, threeDSecure: true,
+        description: `Order ${o.order_no || orderId}`,
+        metadata: { kind: 'order', order_id: String(orderId), client_id: String(o.client_id || '') },
+        reference: { transaction: `tw_order_${orderId}` },
+        customer: { first_name: String(o.customer_name || 'Customer').split(' ')[0] || 'Customer', email: 'orders@tawaslo.com' },
+        source: { id: 'src_all' },
+        destinations: { destination: [ { id: String(m.tap_destination_id), amount: destAmount, currency } ] },
+        redirect: { url: `https://tawaslo.com/order?paid=${encodeURIComponent(orderId)}` },
+        post: { url: 'https://tawaslo.com/api/tap' },
+      };
+      const r = await fetch('https://api.tap.company/v2/charges/', { method: 'POST', headers: { Authorization: `Bearer ${KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify(charge) });
+      const d = await r.json();
+      if (d && d.transaction && d.transaction.url) {
+        try { await sbq(`orders?id=eq.${encodeURIComponent(orderId)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ charge_id: d.id, commission, net_to_host: destAmount }) }); } catch (e) {}
+        return res.status(200).json({ url: d.transaction.url, id: d.id });
+      }
+      const msg = (d && d.errors && d.errors[0] && d.errors[0].description) || 'Could not start checkout';
+      return res.status(400).json({ error: msg, details: d });
+    } catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+
   // Tap webhooks POST the charge object (no plan field).
   if (!body || !body.plan) {
     try {
       const c = body || {};
+      if (c.metadata && c.metadata.kind === 'order' && c.metadata.order_id) {
+        if (c.status === 'CAPTURED') { try { await sbq(`orders?id=eq.${encodeURIComponent(c.metadata.order_id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ pay_status: 'paid', charge_id: c.id, paid_at: new Date().toISOString() }) }); } catch (e) {} }
+        else if (c.status === 'DECLINED' || c.status === 'FAILED' || c.status === 'CANCELLED') { try { await sbq(`orders?id=eq.${encodeURIComponent(c.metadata.order_id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ pay_status: 'failed' }) }); } catch (e) {} }
+        return res.status(200).json({ received: true });
+      }
       const cur = c.currency || 'USD';
       const email = c.customer && c.customer.email;
       const firstName = (c.customer && c.customer.first_name) || 'there';

@@ -594,8 +594,10 @@ const PLATFORMS = [
 ];
 
 const ADMIN_EMAIL = 'octofusionbh@gmail.com';
+const PAYMENTS_LIVE = false; // menu online payments — hidden until Tap marketplace onboarding is live
 const ADMIN_HOST_PREFIX = 'admin.';
 const ownerRoleAllows = (key, role) => {
+  if (key === 'payouts' && !PAYMENTS_LIVE) return false;
   const r = String(role || 'Owner').toLowerCase();
   if (r === 'support') return ['overview','copilot','support','errors'].includes(key);
   if (r === 'admin') return key !== 'team';
@@ -826,6 +828,7 @@ function Sidebar() {
     {key:"support",  Icon:LifeBuoy,        label:"Support"      },
     {key:"errors",   Icon:AlertTriangle,   label:"Errors"       },
     {key:"apiusage", Icon:Activity,        label:"API & Usage"  },
+    {key:"payouts",  Icon:CreditCard,      label:"Payouts"     },
     {key:"team",     Icon:Users,           label:"Team"         },
     {key:"settings", Icon:Settings,        label:"Settings"     },
   ];
@@ -1130,7 +1133,7 @@ function Topbar() {
     reports:"Reports", agencyteam:"Team", billing:"Billing", agencysets:"Settings",
   };
   // Global search — jumps to any page, or opens a client.
-  const OWNER_PAGES = [["overview","Overview"],["copilot","AI Copilot"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
+  const OWNER_PAGES = [["overview","Overview"],["copilot","AI Copilot"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["payouts","Payouts"],["team","Team"],["settings","Settings"]];
   const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
   const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isMobile && DESKTOP_ONLY.has(k))).slice(0,7) : [];
@@ -2613,6 +2616,62 @@ function OwnerSupportPage() {
         <button onClick={send} disabled={sending || (!input.trim() && imgs.length===0)} style={{width:40,height:40,borderRadius:11,background:th.gradient,border:"none",color:"#fff",cursor:sending?"not-allowed":"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,opacity:(sending||(!input.trim()&&imgs.length===0))?0.5:1}}><Send size={17}/></button>
       </div>
       <div style={{fontSize:10.5,color:th.text3,textAlign:"center",padding:"6px 0 2px"}}>Copilot suggests and guides — it never changes settings or sends messages on its own.</div>
+    </div>
+  );
+}
+
+function OwnerPayoutsPage() {
+  const th = useTheme();
+  const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const { data: orders } = await supabase.from('orders').select('client_id,total,commission,net_to_host,currency,pay_status,paid_at').eq('pay_status','paid').order('paid_at',{ascending:false}).limit(1000);
+        const os = Array.isArray(orders) ? orders : [];
+        const ids = Array.from(new Set(os.map(o=>o.client_id).filter(Boolean)));
+        let names = {};
+        if (ids.length) { try { const { data: cs } = await supabase.from('clients').select('id,name').in('id', ids); (cs||[]).forEach(c=>{ names[c.id]=c.name; }); } catch(e){} }
+        const g = {};
+        os.forEach(o => { const k=o.client_id||'?'; if(!g[k]) g[k]={ client_id:k, name:names[k]||'—', currency:o.currency||'BHD', orders:0, gross:0, commission:0, net:0 }; const gg=g[k]; gg.orders++; gg.gross+=Number(o.total)||0; gg.commission+=Number(o.commission)||0; gg.net+=(o.net_to_host!=null?Number(o.net_to_host):(Number(o.total)||0)-(Number(o.commission)||0)); });
+        if (on) setRows(Object.values(g).sort((a,b)=>b.gross-a.gross));
+      } catch(e){ if(on) setRows([]); }
+    })();
+    return () => { on = false; };
+  }, []);
+  const all = rows || [];
+  const totalGross = all.reduce((s,r)=>s+r.gross,0);
+  const totalComm = all.reduce((s,r)=>s+r.commission,0);
+  const totalNet = all.reduce((s,r)=>s+r.net,0);
+  const fmt = (n,c)=> (Number(n)||0).toFixed(3)+' '+(c||'BHD');
+  return (
+    <div>
+      <OwnerPageHead Icon={CreditCard} title="Payouts" subtitle="Paid orders, your commission, and what each restaurant is owed" />
+      {rows===null ? <div style={{padding:40,textAlign:"center",color:th.text3,fontSize:13}}>Loading payouts…</div> :
+       all.length===0 ? <div style={{...card,padding:"48px 24px",textAlign:"center"}}><div style={{fontSize:15,fontWeight:700,marginBottom:6}}>No paid orders yet</div><div style={{fontSize:12.5,color:th.text3,maxWidth:400,margin:"0 auto",lineHeight:1.6}}>Once online payments are live and orders are paid, each restaurant's settlement shows here.</div></div> :
+      (<>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:13,marginBottom:18}}>
+        <StatCard label="Gross paid" value={fmt(totalGross)} Icon={DollarSign} color="accent"/>
+        <StatCard label="Your commission" value={fmt(totalComm)} Icon={TrendingUp} color="success"/>
+        <StatCard label="Owed to restaurants" value={fmt(totalNet)} Icon={Building2} color="accent2"/>
+      </div>
+      <div style={{...card,overflow:"hidden"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1.8fr 0.7fr 1fr 1fr 1fr",gap:10,padding:"11px 18px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,textTransform:"uppercase",letterSpacing:0.4,color:th.text3}}>
+          <div>Restaurant</div><div style={{textAlign:"right"}}>Orders</div><div style={{textAlign:"right"}}>Gross</div><div style={{textAlign:"right"}}>Commission</div><div style={{textAlign:"right"}}>Net to them</div>
+        </div>
+        {all.map((r,i)=>(
+          <div key={r.client_id} style={{display:"grid",gridTemplateColumns:"1.8fr 0.7fr 1fr 1fr 1fr",gap:10,padding:"12px 18px",borderBottom:i<all.length-1?`1px solid ${th.border}`:"none",alignItems:"center"}}>
+            <div style={{fontSize:12.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.name}</div>
+            <div className="tw-num" style={{fontSize:12.5,textAlign:"right",color:th.text2}}>{r.orders}</div>
+            <div className="tw-num" style={{fontSize:12.5,textAlign:"right"}}>{fmt(r.gross,r.currency)}</div>
+            <div className="tw-num" style={{fontSize:12.5,textAlign:"right",color:th.success}}>{fmt(r.commission,r.currency)}</div>
+            <div className="tw-num" style={{fontSize:12.5,textAlign:"right",fontWeight:700}}>{fmt(r.net,r.currency)}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{fontSize:11,color:th.text3,marginTop:12,lineHeight:1.5}}>Tap settles each restaurant's net directly to their account on your marketplace payout schedule. This ledger is your record of the split.</div>
+      </>)}
     </div>
   );
 }
@@ -15207,6 +15266,7 @@ function MenuBuilderPage() {
   const bookingOn = !(menu && menu.booking_enabled === false);
   const taxOn = !!(menu && menu.tax_enabled);
   const pickupOn = !!(menu && menu.pickup_enabled);
+  const onlinePayOn = !!(menu && menu.online_pay_enabled);
   const openQrPoster = async () => {
     if (!publicUrl) return;
     let wl = null; try { wl = await loadClientBranding(cid); } catch(e){}
@@ -15349,6 +15409,30 @@ function MenuBuilderPage() {
             {taxOn && <div style={{ display:"flex", alignItems:"center", gap:5 }}><input type="number" min="0" max="100" step="0.5" value={(menu&&menu.tax_pct)==null?"":menu.tax_pct} onChange={e=>updateMenu({ tax_pct: e.target.value===""?0:Number(e.target.value) })} style={{ width:62, boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/><span style={{ fontSize:13, color:th.text2 }}>%</span></div>}
             <div onClick={()=>updateMenu({ tax_enabled: !taxOn, tax_pct: (!taxOn && !(menu&&menu.tax_pct)) ? 10 : ((menu&&menu.tax_pct)||0) })} style={{ width:44, height:25, borderRadius:20, background:taxOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:taxOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
           </div>
+        </div>
+      )}
+      {PAYMENTS_LIVE && menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Online payments","الدفع الإلكتروني")}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{onlinePayOn?L("Guests can pay by card; Tap settles the money to the restaurant.","يمكن للضيوف الدفع بالبطاقة، وتُحوّل الأموال للمطعم عبر تاب."):L("Off — pickup orders are pay-at-counter only.","معطّل — الدفع عند الاستلام فقط.")}</div>
+            </div>
+            <div onClick={()=>updateMenu({ online_pay_enabled: !onlinePayOn })} style={{ width:44, height:25, borderRadius:20, background:onlinePayOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:onlinePayOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+          </div>
+          {onlinePayOn && (
+            <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${th.border}`, display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:11.5, color:th.text2, minWidth:140 }}>{L("Tap destination ID","معرّف وجهة تاب")}</span>
+                <input value={(menu&&menu.tap_destination_id)||""} onChange={e=>updateMenu({ tap_destination_id:e.target.value.trim()||null })} placeholder="e.g. 123456" style={{ flex:"1 1 170px", background:th.card2, border:`1px solid ${(menu&&menu.tap_destination_id)?th.border:th.warning}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <span style={{ fontSize:11.5, color:th.text2, minWidth:140 }}>{L("Tawaslo commission","عمولة تواصلو")}</span>
+                <input type="number" min="0" max="50" step="0.5" value={(menu&&menu.commission_pct)==null?"":menu.commission_pct} onChange={e=>updateMenu({ commission_pct: e.target.value===""?0:Number(e.target.value) })} style={{ width:70, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/><span style={{ fontSize:13, color:th.text2 }}>%</span>
+              </div>
+              {!(menu&&menu.tap_destination_id) && <div style={{ fontSize:11, color:th.warning, lineHeight:1.5 }}>{L("Add the restaurant's Tap destination ID (from Tap onboarding) to accept card payments.","أضف معرّف وجهة تاب للمطعم لقبول المدفوعات.")}</div>}
+            </div>
+          )}
         </div>
       )}
       {menu && (
@@ -15860,11 +15944,11 @@ function OrderPublicPage({ slug }) {
   useEffect(() => {
     let live = true;
     (async () => {
-      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0, pickupEnabled=false, minOrder=0;
+      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0, pickupEnabled=false, minOrder=0, onlinePay=false, destId=null, payCur=null;
       try {
-        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order').eq('slug', slug).limit(1);
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order,online_pay_enabled,tap_destination_id,pay_currency').eq('slug', slug).limit(1);
         const m = md && md[0];
-        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0; pickupEnabled=!!m.pickup_enabled; minOrder=Number(m.pickup_min_order)||0;
+        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0; pickupEnabled=!!m.pickup_enabled; minOrder=Number(m.pickup_min_order)||0; onlinePay=!!m.online_pay_enabled; destId=m.tap_destination_id||null; payCur=m.pay_currency||null;
           const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true});
           const arr = (it||[]).filter(x=>!x.hidden && x.available!==false);
           const pick = arr.filter(x=>x.on_pickup===true);
@@ -15873,7 +15957,7 @@ function OrderPublicPage({ slug }) {
       } catch(e){}
       if (!cid || !pickupEnabled) { if(live) setData(null); return; }
       try { if (!cname) { const { data:c } = await supabase.from('clients').select('name').eq('id',cid).limit(1); cname = c&&c[0]&&c[0].name; } } catch(e){}
-      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep, taxEnabled, taxPct });
+      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep, taxEnabled, taxPct, onlinePay, destId, payCur });
     })();
     return () => { live = false; };
   }, [slug]);
@@ -15897,8 +15981,12 @@ function OrderPublicPage({ slug }) {
     const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:unitPrice(l.item), line_total:unitPrice(l.item)*l.qty }));
     let pickupAt=null; try { if(pickup) pickupAt=new Date(new Date().toDateString()+' '+pickup).toISOString(); } catch(e){}
     try {
-      const { error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]);
+      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]).select();
       if (oErr) { setOrderErr('Could not place your order. Please try again or call the restaurant.'); setPlacing(false); return; }
+      const newOrder = oIns && oIns[0];
+      if (PAYMENTS_LIVE && data.onlinePay && data.destId && newOrder && newOrder.id) {
+        try { const rr = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'order_charge', order_id:newOrder.id }) }); const jj = await rr.json(); if (jj && jj.url) { window.location.href = jj.url; return; } } catch(e){}
+      }
       setDone(order_no);
     } catch(e){}
     setPlacing(false);
@@ -20119,6 +20207,7 @@ export default function TawasloApp() {
       if (page==="errors")   return <OwnerErrorsPage/>;
       if (page==="revenue")  return <OwnerRevenuePage/>;
       if (page==="apiusage") return <OwnerApiUsagePage/>;
+      if (page==="payouts")  return <OwnerPayoutsPage/>;
       if (page==="team")     return <OwnerTeamPage/>;
       if (page==="settings") return <SettingsPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
