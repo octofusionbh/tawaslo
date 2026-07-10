@@ -5,7 +5,7 @@ import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, 
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
   getSupportTickets, createSupportTicket, updateSupportTicket, getSupportMessages, addSupportMessage,
-  getTeam, inviteTeamMember, updateTeamMemberRole, removeTeamMember, claimInvites, getMyWorkspace } from './supabase';
+  getTeam, inviteTeamMember, updateTeamMemberRole, removeTeamMember, claimInvites, getMyWorkspace, getErrorLogs, resolveErrorLog } from './supabase';
 import {
   LayoutDashboard, Calendar, ShoppingBag, BarChart2, Megaphone, Users,
   Settings, Plus, Search, Bell, Globe, Image, Clock, Send,
@@ -817,6 +817,7 @@ function Sidebar() {
     {key:"promos",   Icon:Tag,             label:"Promo Codes"  },
     {key:"gifts",    Icon:Gift,            label:"Gift Cards"   },
     {key:"support",  Icon:LifeBuoy,        label:"Support"      },
+    {key:"errors",   Icon:AlertTriangle,   label:"Errors"       },
     {key:"apiusage", Icon:Activity,        label:"API & Usage"  },
     {key:"team",     Icon:Users,           label:"Team"         },
     {key:"settings", Icon:Settings,        label:"Settings"     },
@@ -1122,7 +1123,7 @@ function Topbar() {
     reports:"Reports", agencyteam:"Team", billing:"Billing", agencysets:"Settings",
   };
   // Global search — jumps to any page, or opens a client.
-  const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
+  const OWNER_PAGES = [["overview","Overview"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["team","Team"],["settings","Settings"]];
   const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
   const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isMobile && DESKTOP_ONLY.has(k))).slice(0,7) : [];
@@ -2410,6 +2411,125 @@ function OwnerSupportPage() {
           </div>
         ) : <div style={{...card,padding:60,textAlign:"center",fontSize:13,color:th.text3}}>Select a ticket to view the conversation.</div>}
       </div>
+    </div>
+  );
+}
+
+function OwnerErrorsPage() {
+  const th = useTheme();
+  const [rows, setRows] = useState(null);        // null = loading, [] = loaded empty
+  const [filter, setFilter] = useState("open");  // open | all | resolved
+  const [openId, setOpenId] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try { const { data } = await getErrorLogs(400); setRows(Array.isArray(data) ? data : []); }
+    catch (e) { setRows([]); }
+  };
+  useEffect(() => { load(); }, []);
+
+  const fmtAgo = (ts) => {
+    if (!ts) return "";
+    const d = (Date.now() - new Date(ts).getTime()) / 1000;
+    if (d < 60) return "just now";
+    if (d < 3600) return Math.floor(d/60) + "m ago";
+    if (d < 86400) return Math.floor(d/3600) + "h ago";
+    return Math.floor(d/86400) + "d ago";
+  };
+
+  const all = rows || [];
+  const unresolved = all.filter(r => !r.resolved);
+  const resolved = all.filter(r => r.resolved);
+  const last7 = all.filter(r => (Date.now() - new Date(r.created_at).getTime()) < 7*86400*1000).length;
+  const shown = filter==="open" ? unresolved : filter==="resolved" ? resolved : all;
+
+  // Collapse identical crashes (same message + page) into one row with a count.
+  const groups = []; const idx = {};
+  shown.forEach(r => {
+    const key = (r.message||"") + "|" + (r.page||"");
+    if (idx[key]==null) { idx[key] = groups.length; groups.push({ ...r, count:1, ids:[r.id] }); }
+    else { const g = groups[idx[key]]; g.count++; g.ids.push(r.id); if (new Date(r.created_at) > new Date(g.created_at)) { g.created_at = r.created_at; g.stack = r.stack; } }
+  });
+
+  const resolveGroup = async (g) => {
+    setBusy(true);
+    try { for (const id of g.ids) { await resolveErrorLog(id, true); } } catch (e) {}
+    setBusy(false); setOpenId(null); load();
+  };
+
+  const kindMeta = (k) => ({
+    crash:   { label:"Render error", c:th.danger },
+    promise: { label:"Async error",  c:th.warning },
+    window:  { label:"Script error", c:th.orange },
+    manual:  { label:"Logged",       c:th.info },
+  }[k] || { label:k||"Error", c:th.text2 });
+
+  return (
+    <div>
+      <OwnerPageHead Icon={AlertTriangle} title="Errors"
+        subtitle={rows===null ? "Loading…" : (unresolved.length + " unresolved · " + last7 + " in last 7 days")}
+        action={<button onClick={load} style={{background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,padding:"8px 14px",borderRadius:9,cursor:"pointer"}}>Refresh</button>}
+      />
+
+      <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+        {[["open","Unresolved ("+unresolved.length+")"],["all","All ("+all.length+")"],["resolved","Resolved ("+resolved.length+")"]].map(([k,l])=>(
+          <button key={k} onClick={()=>{setFilter(k);setOpenId(null);}} style={{fontSize:12,fontWeight:filter===k?700:500,padding:"6px 13px",borderRadius:8,border:filter===k?"none":`1px solid ${th.border}`,background:filter===k?th.gradient:th.card2,color:filter===k?"#fff":th.text2,cursor:"pointer"}}>{l}</button>
+        ))}
+      </div>
+
+      {rows===null ? (
+        <div style={{padding:"40px",textAlign:"center",color:th.text3,fontSize:13}}>Loading errors…</div>
+      ) : groups.length===0 ? (
+        <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,padding:"48px 24px",textAlign:"center"}}>
+          <div style={{width:52,height:52,borderRadius:14,background:th.successSoft,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><CheckCircle size={24} color={th.success}/></div>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>{filter==="open" ? "No unresolved errors" : filter==="resolved" ? "Nothing resolved yet" : "No errors logged"}</div>
+          <div style={{fontSize:12.5,color:th.text3,maxWidth:380,margin:"0 auto",lineHeight:1.6}}>{filter==="open" ? "Everything's running clean. Any new crash from any user — agency or menu guest — shows up here automatically." : "When a crash is captured it appears here."}</div>
+        </div>
+      ) : (
+        <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:12,overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1.3fr 0.7fr 0.9fr",gap:10,padding:"11px 16px",borderBottom:`1px solid ${th.border}`,fontSize:10.5,letterSpacing:0.4,textTransform:"uppercase",color:th.text3}}>
+            <div>Error</div><div>Page</div><div>User</div><div>Count</div><div>Last seen</div>
+          </div>
+          {groups.map((g)=>{
+            const km = kindMeta(g.kind);
+            const isOpen = openId===g.ids[0];
+            return (
+              <div key={g.ids[0]} style={{borderBottom:`1px solid ${th.border}`}}>
+                <div onClick={()=>setOpenId(isOpen?null:g.ids[0])} style={{display:"grid",gridTemplateColumns:"2.4fr 1fr 1.3fr 0.7fr 0.9fr",gap:10,padding:"13px 16px",alignItems:"center",cursor:"pointer",opacity:g.resolved?0.55:1}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:12.5,color:g.resolved?th.success:th.danger,fontFamily:"ui-monospace,Menlo,monospace",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textDecoration:g.resolved?"line-through":"none"}}>{g.message||"Unknown error"}</div>
+                    <div style={{fontSize:11,color:th.text3,marginTop:3}}><span style={{color:km.c,fontWeight:600}}>{km.label}</span></div>
+                  </div>
+                  <div style={{fontSize:12,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g.page||"—"}</div>
+                  <div style={{fontSize:12,color:th.text2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{g.user_email||"guest"}</div>
+                  <div><span style={{fontSize:11,fontWeight:600,background:g.resolved?th.successSoft:th.dangerSoft,color:g.resolved?th.success:th.danger,padding:"2px 8px",borderRadius:20}}>{g.count}×</span></div>
+                  <div style={{fontSize:11.5,color:th.text3}}>{fmtAgo(g.created_at)}</div>
+                </div>
+                {isOpen && (
+                  <div style={{padding:"0 16px 16px",background:th.bg}}>
+                    <div style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:12,fontFamily:"ui-monospace,Menlo,monospace",fontSize:11,color:th.text2,whiteSpace:"pre-wrap",wordBreak:"break-word",maxHeight:260,overflow:"auto"}}>
+                      <div style={{color:th.danger,marginBottom:8}}>{g.message}</div>
+                      {g.stack || "(no stack trace captured)"}
+                      {g.component_stack ? ("\n\n— component —\n" + g.component_stack) : ""}
+                    </div>
+                    <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:11,color:th.text3,margin:"10px 2px 0"}}>
+                      <span>URL: {g.url||"—"}</span>
+                      <span>User: {g.user_email||"guest"}</span>
+                      <span>Last seen: {g.created_at ? new Date(g.created_at).toLocaleString() : "—"}</span>
+                    </div>
+                    {g.user_agent ? <div style={{fontSize:10.5,color:th.text3,margin:"6px 2px 0",wordBreak:"break-word"}}>{g.user_agent}</div> : null}
+                    {!g.resolved && (
+                      <div style={{marginTop:12}}>
+                        <button disabled={busy} onClick={()=>resolveGroup(g)} style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11.5,fontWeight:600,background:th.successSoft,color:th.success,border:`1px solid ${th.success}`,padding:"7px 14px",borderRadius:8,cursor:busy?"not-allowed":"pointer",opacity:busy?0.6:1}}><CheckCircle size={13}/>Mark resolved{g.count>1?(" ("+g.count+")"):""}</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -19542,6 +19662,7 @@ export default function TawasloApp() {
       return stored || norm[0];
     });
     const onAdminHost = typeof window !== "undefined" && window.location.hostname.indexOf(ADMIN_HOST_PREFIX) === 0;
+    try { window.__twUserEmail = user.email; window.__twUserId = user.id; } catch(e){}
     const owner = onAdminHost && user.email === ADMIN_EMAIL;
     setMode(owner ? "owner" : "agency");
     // On a genuine sign-in (not a reload), always land on the home page, never the last page from a previous session.
@@ -19690,6 +19811,7 @@ export default function TawasloApp() {
       if (page==="promos")   return <OwnerPromosPage/>;
       if (page==="gifts")    return <OwnerGiftsPage/>;
       if (page==="support")  return <OwnerSupportPage/>;
+      if (page==="errors")   return <OwnerErrorsPage/>;
       if (page==="revenue")  return <OwnerRevenuePage/>;
       if (page==="apiusage") return <OwnerApiUsagePage/>;
       if (page==="team")     return <OwnerTeamPage/>;

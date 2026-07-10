@@ -3,6 +3,51 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { logError } from './supabase';
+
+// ── Persistent crash capture ──────────────────────────────────────────
+// Every client error (agencies AND public menu/order guests) is saved to the
+// error_logs table so the founder can see it in the HQ "Errors" page.
+// Best-effort: this must NEVER throw or it would mask the original error.
+const _recent = {};
+function logCrash(kind, message, stack, componentStack) {
+  try {
+    var msg = (message || 'Unknown error').toString().slice(0, 1000);
+    var sig = kind + '|' + msg.slice(0, 120);
+    var now = Date.now();
+    // Throttle identical crashes to at most one row per 15s (avoids flooding).
+    if (_recent[sig] && (now - _recent[sig]) < 15000) return;
+    _recent[sig] = now;
+    var row = {
+      kind: kind,
+      message: msg,
+      stack: (stack || '').toString().slice(0, 6000),
+      component_stack: (componentStack || '').toString().slice(0, 6000),
+      page: (typeof location !== 'undefined' ? location.pathname : '') || '',
+      url: (typeof location !== 'undefined' ? location.href : '') || '',
+      user_email: (typeof window !== 'undefined' && window.__twUserEmail) || null,
+      user_id: (typeof window !== 'undefined' && window.__twUserId) || null,
+      user_agent: (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '',
+    };
+    logError(row);
+  } catch (e) { /* swallow — never break the error path */ }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('error', function (e) {
+    try {
+      var err = e && e.error;
+      logCrash('window', (err && err.message) || e.message, err && err.stack, '');
+    } catch (x) {}
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    try {
+      var r = e && e.reason;
+      var m = (r && (r.message || r)) || 'Unhandled promise rejection';
+      logCrash('promise', m, r && r.stack, '');
+    } catch (x) {}
+  });
+}
 
 // Root-level safety net: if any page throws during render, show a recoverable
 // card instead of a blank white screen. Also lets the user reset to a safe page
@@ -17,6 +62,7 @@ class RootErrorBoundary extends React.Component {
   }
   componentDidCatch(error, info) {
     try { console.error('Tawaslo crash:', error, info && info.componentStack); } catch (e) {}
+    try { logCrash('crash', error && (error.message || String(error)), error && error.stack, info && info.componentStack); } catch (e) {}
   }
   handleReset() {
     try { sessionStorage.removeItem('tw_page'); } catch (e) {}

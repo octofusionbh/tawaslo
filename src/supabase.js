@@ -339,3 +339,29 @@ export const getMyWorkspace = async (userId) => {
     .limit(1).maybeSingle();
   return { data, error };
 };
+// ───────────────────────── ERROR LOGS (HQ) ─────────────────────────
+// Best-effort crash capture. Never throws (must not break the error path).
+export const logError = async (row) => {
+  try {
+    await supabase.from('error_logs').insert([row]);
+    return { ok: true };
+  } catch (e) { return { ok: false }; }
+};
+
+export const getErrorLogs = async (limit = 300) => {
+  const { data, error } = await supabase
+    .from('error_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  return { data, error };
+};
+
+export const resolveErrorLog = async (id, resolved = true) => {
+  const { data, error } = await supabase
+    .from('error_logs')
+    .update({ resolved, resolved_at: resolved ? new Date().toISOString() : null })
+    .eq('id', id)
+    .select();
+  return { data, error };
+};
