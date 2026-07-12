@@ -1,6 +1,6 @@
 // api/meta-publish.js — Publish posts to Instagram, Facebook, LinkedIn & TikTok
 // Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image, TikTok video.
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // === WhatsApp Cloud API (folded in here to stay under Vercel's 12-function limit) ===
   // Webhook verification — Meta calls this once (GET) when you set the callback URL.
   if (req.method === 'GET' && req.query && req.query['hub.mode']) {
@@ -264,7 +264,6 @@ export default async function handler(req, res) {
       const tweetId = xData.data && xData.data.id;
       const xLink = tweetId ? `https://twitter.com/i/web/status/${tweetId}` : null;
       return res.status(200).json({ success: true, postId: tweetId, permalink: xLink, platform: 'tw' });
-    }
 
     } else if (platform === 'yt') {
       // YouTube — upload a video via the Data API v3 (resumable upload). Google access tokens
@@ -300,6 +299,7 @@ export default async function handler(req, res) {
       if (!up.ok || upData.error) return res.status(400).json({ error: 'YouTube publish failed: ' + ((upData.error && upData.error.message) || up.status), details: upData });
       const vid = upData.id;
       return res.status(200).json({ success: true, postId: vid, permalink: vid ? ('https://youtu.be/' + vid) : null, platform: 'yt' });
+    }
 
     return res.status(400).json({ error: 'Unsupported platform' });
   } catch (err) {

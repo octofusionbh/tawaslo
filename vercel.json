@@ -1,6 +1,1 @@
-{
-  "functions": {
-    "api/meta-publish.js": { "maxDuration": 60 },
-    "api/generate-caption.js": { "maxDuration": 60 }
-  }
-}
+{}
