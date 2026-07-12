@@ -6280,7 +6280,7 @@ function CalendarPage() {
       if (!acc) { setBusy("noacc"); return; }
       const res = await fetch('/api/meta-publish', { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, caption: p.caption, imageUrl: p.image_url }) });
-      const data = await res.json();
+      let data; try { data = await res.json(); } catch (_) { data = { success:false, error: res.status>=500 ? 'The publishing service hit a server error (a large image or a timeout). Please try again in a moment.' : ('Publish service returned an unexpected response (HTTP '+res.status+').') }; }
       if (data.success) { await supabase.from('posts').delete().eq('id', p.id); setSelected(null); loadPosts(); setBusy(""); }
       else setBusy("err:" + (data.error || "failed"));
     } catch (e) { setBusy("err:" + e.message); }
@@ -7294,7 +7294,7 @@ function PublisherPage() {
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, refreshToken: acc.refresh_token || null, caption: effCaption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
             altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, slideCaptions: multiCap ? slideCaps : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
-        const data = await res.json();
+        let data; try { data = await res.json(); } catch (_) { data = { success:false, error: res.status>=500 ? 'The publishing service hit a server error (a large image or a timeout). Please try again in a moment.' : ('Publish service returned an unexpected response (HTTP '+res.status+').') }; }
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
           try {

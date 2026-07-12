@@ -1,5 +1,7 @@
 // api/meta-publish.js — Publish posts to Instagram, Facebook, LinkedIn & TikTok
 // Supports: single image/video (Feed/Reel), carousel (multi-image), Story (media-only), first comment, LinkedIn text+image, TikTok video.
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   // === WhatsApp Cloud API (folded in here to stay under Vercel's 12-function limit) ===
   // Webhook verification — Meta calls this once (GET) when you set the callback URL.
@@ -15,6 +17,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'Invalid or missing request body' });
 
   const { platform, accountId, accessToken, caption } = req.body;
   const imageUrl = req.body.imageUrl || null;
