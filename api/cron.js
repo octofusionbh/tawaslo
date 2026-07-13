@@ -213,7 +213,21 @@ export default async function handler(req, res) {
     try {
       if (action === 'load') {
         const r = await sb(`posts?appr_token=eq.${encodeURIComponent(token)}&select=*&order=scheduled_at.asc`);
-        const rows = r.ok ? await r.json() : [];
+        let rows = r.ok ? await r.json() : [];
+        let readonly = false, shareMode = 'approve', shareClientId = null;
+        if (!rows.length) {
+          try {
+            const sr = await sb(`calendar_shares?token=eq.${encodeURIComponent(token)}&select=client_id,ym,mode&limit=1`);
+            const share = (sr.ok ? await sr.json() : [])[0];
+            if (share) {
+              shareMode = share.mode || 'view'; readonly = shareMode === 'view'; shareClientId = share.client_id;
+              let q = `posts?client_id=eq.${encodeURIComponent(share.client_id)}&select=*&order=scheduled_at.asc`;
+              if (share.ym) { const pp = String(share.ym).split('-'); const yy = Number(pp[0]), mm = Number(pp[1]); if (yy && mm) { const st = new Date(Date.UTC(yy, mm-1, 1)).toISOString(); const en = new Date(Date.UTC(yy, mm, 1)).toISOString(); q += `&scheduled_at=gte.${st}&scheduled_at=lt.${en}`; } }
+              const pr = await sb(q);
+              rows = pr.ok ? await pr.json() : [];
+            }
+          } catch (e) {}
+        }
         const posts = (rows || []).map((row) => {
           const d = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
           let media = [];
@@ -222,7 +236,7 @@ export default async function handler(req, res) {
           return {
             id: row.id, caption: row.caption || '', platform: row.platform || 'ig',
             type: row.post_type || 'Single', media,
-            status: row.appr_status || 'pending', comment: row.appr_comment || '',
+            status: row.status === 'published' ? 'approved' : (row.appr_status || (readonly ? 'scheduled' : 'pending')), comment: row.appr_comment || '',
             date: d.getDate(), day: d.toLocaleDateString('en-US', { weekday: 'short' }),
             time: d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           };
@@ -230,7 +244,7 @@ export default async function handler(req, res) {
         // White-label: resolve the owning agency's brand so the client page can wear it.
         let agency = null, client = null, brand = null;
         try {
-          const cid = rows[0] && rows[0].client_id;
+          const cid = (rows[0] && rows[0].client_id) || shareClientId;
           if (cid) {
             const cr = await sb(`clients?id=eq.${encodeURIComponent(cid)}&select=name,owner_id,logo_url&limit=1`);
             const c = (cr.ok ? await cr.json() : [])[0];
@@ -252,7 +266,7 @@ export default async function handler(req, res) {
           }
         } catch (e) { /* branding is best-effort */ }
         const now = new Date();
-        return res.status(200).json({ posts, agency, client, brand, month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), expires: 7, firstDow: new Date(now.getFullYear(), now.getMonth(), 1).getDay(), days: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() });
+        return res.status(200).json({ posts, readonly, mode: shareMode, agency, client, brand, month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }), expires: 7, firstDow: new Date(now.getFullYear(), now.getMonth(), 1).getDay(), days: new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() });
       }
       if (action === 'respond') {
         const { postId, decision, comment } = req.body;

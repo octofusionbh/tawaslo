@@ -16,6 +16,18 @@ module.exports = async function handler(req, res) {
 
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   if (!req.body || typeof req.body !== 'object') return res.status(400).json({ error: 'Invalid or missing request body' });
+  if (req.body.action === 'search_location') {
+    try {
+      const q = String(req.body.q || '').trim();
+      const token = req.body.accessToken;
+      if (!q || !token) return res.status(200).json({ places: [] });
+      const r = await fetch(`https://graph.facebook.com/v19.0/pages/search?q=${encodeURIComponent(q)}&type=place&fields=id,name,location&limit=8&access_token=${encodeURIComponent(token)}`);
+      const d = await r.json();
+      if (d && d.error) return res.status(200).json({ places: [], error: d.error.message });
+      const places = (d.data || []).filter(p => p.location).map(p => ({ id: p.id, name: p.name, city: (p.location && (p.location.city || p.location.country)) || '' }));
+      return res.status(200).json({ places });
+    } catch (e) { return res.status(200).json({ places: [], error: e.message }); }
+  }
 
   const { platform, accountId, accessToken, caption } = req.body;
   const imageUrl = req.body.imageUrl || null;
@@ -26,6 +38,9 @@ module.exports = async function handler(req, res) {
   const firstComment = req.body.firstComment || null;
   const coverUrl = req.body.coverUrl || null; // optional custom cover for Reels
   const igFormat = (req.body.igFormat || 'feed').toLowerCase(); // feed | reel | story
+  const userTags = Array.isArray(req.body.userTags) ? req.body.userTags.filter(Boolean).slice(0, 20).map(u => String(u).replace(/^@/, '').trim()).filter(Boolean) : [];
+  const locationId = req.body.locationId || null;
+  const fmtTags = (isImage) => userTags.map((u, i) => isImage ? ({ username: u, x: 0.5, y: Math.min(0.9, 0.28 + i * 0.16) }) : ({ username: u }));
 
   if (!platform || !accountId || !accessToken || (!caption && !imageUrl && !videoUrl && !(imageUrls && imageUrls.length))) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -62,7 +77,7 @@ module.exports = async function handler(req, res) {
           if (c.error) return res.status(400).json({ error: c.error.message });
           childIds.push(c.id);
         }
-        const parent = await post(`${igBase}/${accountId}/media`, { media_type: 'CAROUSEL', children: childIds, caption, access_token: accessToken });
+        const parent = await post(`${igBase}/${accountId}/media`, { media_type: 'CAROUSEL', children: childIds, caption, access_token: accessToken, ...(locationId ? { location_id: locationId } : {}) });
         if (parent.error) return res.status(400).json({ error: parent.error.message });
         await waitReady(parent.id);
         creationId = parent.id;
@@ -73,6 +88,7 @@ module.exports = async function handler(req, res) {
         if (videoUrl) body.video_url = videoUrl;
         else if (imageUrl || (imageUrls && imageUrls[0])) body.image_url = imageUrl || imageUrls[0];
         else return res.status(400).json({ error: 'A Story needs an image or video.' });
+        if (userTags.length) body.user_tags = fmtTags(false);
         const c = await post(`${igBase}/${accountId}/media`, body);
         if (c.error) return res.status(400).json({ error: c.error.message });
         // Poll image AND video story containers until FINISHED — publishing a story
@@ -87,6 +103,8 @@ module.exports = async function handler(req, res) {
         const body = { caption, access_token: accessToken };
         if (videoUrl) { body.video_url = videoUrl; body.media_type = 'REELS'; if (coverUrl) body.cover_url = coverUrl; }
         else { body.image_url = single; if (altText) body.alt_text = altText; }
+        if (locationId) body.location_id = locationId;
+        if (userTags.length) body.user_tags = fmtTags(!videoUrl);
         const c = await post(`${igBase}/${accountId}/media`, body);
         if (c.error) return res.status(400).json({ error: c.error.message });
         if (videoUrl) await waitReady(c.id); else await new Promise(r => setTimeout(r, 3000));

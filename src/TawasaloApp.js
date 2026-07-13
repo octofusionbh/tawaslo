@@ -595,6 +595,8 @@ const PLATFORMS = [
 
 const ADMIN_EMAIL = 'octofusionbh@gmail.com';
 const PAYMENTS_LIVE = false; // menu online payments — hidden until Tap marketplace onboarding is live
+const HIDDEN_PAGES = new Set(['streams']); // agency pages hidden from the sidebar (code stays; toggle here)
+const APP_PAGES = [['dashboard','Dashboard'],['publisher','Publisher'],['planner','Planner'],['inbox','Inbox'],['analytics','Analytics'],['listening','Trending'],['streams','Streams'],['campaigns','Campaigns'],['aistudio','AI Studio'],['media','Media'],['ads','Ads'],['reports','Reports'],['clients','Clients'],['social','Social Accounts'],['agencyteam','Team'],['billing','Billing'],['agencysets','Settings']];
 const ADMIN_HOST_PREFIX = 'admin.';
 const ownerRoleAllows = (key, role) => {
   if (key === 'payouts' && !PAYMENTS_LIVE) return false;
@@ -1014,7 +1016,7 @@ function Sidebar() {
 
       <nav className="tw-noscroll" style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
-          <div>{OWNER_NAV.filter(({key})=>ownerRoleAllows(key,myRole)).map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
+          <div>{OWNER_NAV.filter(({key})=>ownerRoleAllows(key,myRole) && !HIDDEN_PAGES.has(key)).map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
           AGENCY_NAV2.map((sec,si)=>{
             const secOpen = !collapsedSecs[sec.section];
@@ -1027,7 +1029,7 @@ function Sidebar() {
                 </div>
               )}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {(col||secOpen)&&sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key))).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
+              {(col||secOpen)&&sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key)) && !HIDDEN_PAGES.has(it.key)).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
             );
           })
@@ -2956,6 +2958,18 @@ function OwnerErrorsPage() {
   return (
     <div>
       <OwnerPageHead Icon={Activity} title="API & Usage" subtitle="Connected channels and live platform totals" />
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:20, marginBottom:18 }}>
+        <div style={{ fontSize:13, fontWeight:700, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Eye size={15} color={th.accent}/>Page visibility</div>
+        <div style={{ fontSize:11.5, color:th.text3, marginBottom:14 }}>Which agency pages show in the sidebar. Hidden pages stay in the code and can be switched back on.</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
+          {APP_PAGES.map(([k,l])=>{ const hid = HIDDEN_PAGES.has(k); return (
+            <div key={k} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 11px", borderRadius:9, background:th.card2, border:`1px solid ${hid?th.warning:th.border}` }}>
+              <span style={{ fontSize:12, color:hid?th.text3:th.text }}>{l}</span>
+              <span style={{ fontSize:10, fontWeight:700, color:hid?th.warning:th.success }}>{hid?"Hidden":"Live"}</span>
+            </div>
+          );})}
+        </div>
+      </div>
       {data===null ? (
         <div style={{padding:"40px",textAlign:"center",color:th.text3,fontSize:13}}>Loading platform stats…</div>
       ) : (
@@ -4210,6 +4224,7 @@ function CalendarRoomPage() {
   const [slide, setSlide] = useState(null); // { posts:[...], i }
   const touchX = useRef(0);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareMode, setShareMode] = useState("view");
   const [copied, setCopied] = useState(false);
   const [shareToken] = useState(() => Math.random().toString(36).slice(2, 10));
   const [loadingC, setLoadingC] = useState(true);
@@ -4257,12 +4272,13 @@ function CalendarRoomPage() {
   // so the client link loads the actual calendar. Fall back to the random token only
   // when nothing has been sent for approval yet.
   const shareTokenReal = (monthPosts.find(p => p.appr_token && (p.appr_status==='pending'||p.appr_status==='revised')) || monthPosts.find(p => p.appr_token) || {}).appr_token || shareToken;
-  const shareLink = "tawaslo.com/a/" + shareTokenReal;
+  const shareLink = "tawaslo.com/a/" + (shareMode==="view" ? shareToken : shareTokenReal);
   const shareMsg = (selClient?.name || L("Your","")) + " " + L("content calendar for","تقويم المحتوى لـ") + " " + monthLabel + " — " + publishedN + " " + L("published","منشور") + ", " + approvedN + " " + L("approved","موافق عليه") + ". " + L("View:","عرض:") + " https://" + shareLink;
   const openWA = () => window.open("https://wa.me/?text=" + encodeURIComponent(shareMsg), "_blank");
   const openMail = () => { window.location.href = "mailto:?subject=" + encodeURIComponent(monthLabel + " " + L("content calendar","تقويم المحتوى")) + "&body=" + encodeURIComponent(shareMsg); };
   const copyLink = () => { try { navigator.clipboard.writeText("https://" + shareLink); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
   const copyLinkLight = () => { try { navigator.clipboard.writeText("https://" + shareLink + "?t=light"); setCopied(true); setTimeout(()=>setCopied(false), 1600); } catch (e) { /* ignore */ } };
+  const shareTokenize = async (md) => { try { if (!realClientId) return; const mode = md || shareMode; const ym = y + "-" + String(m+1).padStart(2,"0"); if (mode === "view") { await supabase.from("calendar_shares").upsert({ token: shareToken, client_id: realClientId, ym, mode: "view" }, { onConflict: "token" }); } else { const ids = monthPosts.filter(p => p.status !== "published" && !p.appr_token).map(p => p.id); if (ids.length) await supabase.from("posts").update({ appr_token: shareTokenReal, appr_status: "pending" }).in("id", ids); } } catch (e) {} };
   const downloadPDF = () => {
     const w = window.open('', '_blank', 'width=1040,height=1320'); if (!w) return;
     const esc = (s) => (s || "").replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
@@ -4321,7 +4337,7 @@ function CalendarRoomPage() {
           </div>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {monthLabel} &middot; {L("everything approved & published","كل ما تمت الموافقة عليه ونشره")}</p>
         </div>
-        <button onClick={()=>setShareOpen(true)} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer", boxShadow:"0 8px 22px rgba(110,140,171,0.3)" }}><Send size={14}/>{L("Share to client","مشاركة مع العميل")}</button>
+        <button onClick={()=>{ setShareOpen(true); setShareMode("view"); shareTokenize("view"); }} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 16px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer", boxShadow:"0 8px 22px rgba(110,140,171,0.3)" }}><Send size={14}/>{L("Share to client","مشاركة مع العميل")}</button>
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, marginBottom:14 }}>
@@ -4462,6 +4478,11 @@ function CalendarRoomPage() {
               <button onClick={()=>setShareOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
             <p style={{ margin:"0 0 16px", fontSize:12.5, color:th.text2, lineHeight:1.55 }}>{monthLabel} &middot; <span className="tw-num">{publishedN}</span> {L("published","منشور")}, <span className="tw-num">{approvedN}</span> {L("approved","موافق عليه")}.</p>
+            <div style={{ display:"flex", gap:8, marginBottom:12, background:th.card2, borderRadius:11, padding:4 }}>
+              <button onClick={()=>{ setShareMode("view"); shareTokenize("view"); }} style={{ flex:1, padding:"9px", borderRadius:9, border:"none", cursor:"pointer", fontSize:12, fontWeight:600, background: shareMode==="view" ? th.gradient : "transparent", color: shareMode==="view" ? "#fff" : th.text2 }}>{L("View only","للعرض فقط")}</button>
+              <button onClick={()=>{ setShareMode("approve"); shareTokenize("approve"); }} style={{ flex:1, padding:"9px", borderRadius:9, border:"none", cursor:"pointer", fontSize:12, fontWeight:600, background: shareMode==="approve" ? th.gradient : "transparent", color: shareMode==="approve" ? "#fff" : th.text2 }}>{L("For approval","للموافقة")}</button>
+            </div>
+            <p style={{ margin:"0 0 14px", fontSize:11, color:th.text3, lineHeight:1.5 }}>{shareMode==="view" ? L("Client sees this month read-only — nothing to click.","يرى العميل الشهر للعرض فقط دون أي إجراء.") : L("Client can approve or request changes on each post.","يمكن للعميل الموافقة أو طلب تعديلات على كل منشور.")}</p>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
               <button onClick={openWA} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:"rgba(37,211,102,0.12)", border:"1px solid rgba(37,211,102,0.4)", color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><FaWhatsapp style={{ fontSize:17, color:"#25D366" }}/>WhatsApp</button>
               <button onClick={openMail} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:12, background:th.card, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Mail size={16} color={th.accent}/>{L("Email","البريد")}</button>
@@ -4471,7 +4492,7 @@ function CalendarRoomPage() {
               <Link size={13} color={th.text3}/>
               <span style={{ flex:1, fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{shareLink}</span>
               <button onClick={copyLink} style={{ display:"flex", alignItems:"center", gap:5, background:"none", border:"none", cursor:"pointer", color:copied?th.success:th.accent, fontSize:11.5, fontWeight:600 }}>{copied?<><Check size={13}/>{L("Copied","تم النسخ")}</>:<><Copy size={13}/>{L("Copy","نسخ")}</>}</button>
-              <button onClick={copyLinkLight} title={L("Copy a light-mode link to send","انسخ رابط الوضع الفاتح")} style={{ display:"flex", alignItems:"center", gap:4, background:"none", border:`1px solid ${th.border}`, borderRadius:8, padding:"4px 9px", cursor:"pointer", color:th.text3, fontSize:11, fontWeight:600 }}><Sun size={12}/>{L("Light","فاتح")}</button>
+
             </div>
           </div>
         </div>, document.body)}
@@ -6931,6 +6952,12 @@ function PublisherPage() {
   const [shortening, setShortening] = useState(false);
   const [postLabel, setPostLabel] = useState("");     // campaign label/category for this post
   const [firstComment, setFirstComment] = useState(""); // auto-posted as the first comment
+  const [tagAccounts, setTagAccounts] = useState("");
+  const [locName, setLocName] = useState("");
+  const [locId, setLocId] = useState("");
+  const [locResults, setLocResults] = useState([]);
+  const [locBusy, setLocBusy] = useState(false);
+  const searchLoc = async (q) => { setLocName(q); setLocId(""); if (!q || q.trim().length < 2) { setLocResults([]); return; } setLocBusy(true); try { const ig = accounts.find(a => a.platform === "ig"); const r = await fetch("/api/meta-publish", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ action:"search_location", q, accessToken: ig && ig.access_token }) }); const d = await r.json().catch(()=>({})); setLocResults(Array.isArray(d.places) ? d.places : []); } catch (e) { setLocResults([]); } setLocBusy(false); };
   const [scoreOpen, setScoreOpen] = useState(false);  // Post Score & Optimizer modal
   const [coverModal, setCoverModal] = useState(false); // video cover picker
   const [watermark, setWatermark] = useState(false);  // overlay client logo on images at publish
@@ -7293,7 +7320,7 @@ function PublisherPage() {
         const res = await fetch('/api/meta-publish', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ platform: acc.platform, accountId: acc.account_id, accessToken: acc.access_token, refreshToken: acc.refresh_token || null, caption: effCaption,
             imageUrl: imgs.length === 1 ? imgs[0] : null, imageUrls: imgs.length > 1 ? imgs : null, videoUrl: video?.url || null,
-            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, slideCaptions: multiCap ? slideCaps : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null }) });
+            altText: imgAlts[0] || null, altTexts: imgs.length > 1 ? imgAlts : null, slideCaptions: multiCap ? slideCaps : null, igFormat, firstComment: firstComment || null, coverUrl: video?.cover || null, userTags: (tagAccounts||"").split(",").join(" ").split(" ").map(x=>x.replace("@","").trim()).filter(Boolean), locationId: locId || null }) });
         let data; try { data = await res.json(); } catch (_) { data = { success:false, error: res.status>=500 ? 'The publishing service hit a server error (a large image or a timeout). Please try again in a moment.' : ('Publish service returned an unexpected response (HTTP '+res.status+').') }; }
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
@@ -7647,6 +7674,20 @@ function PublisherPage() {
             <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Keeps your caption clean — hashtags land in the first comment instead.","يبقي النص نظيفاً — الوسوم تذهب لأول تعليق بدلاً من ذلك.")}</div>
           </div>
 
+          {igSelected && (<div style={card}>
+            <div style={lbl}>{L("Tag accounts","الإشارة إلى حسابات")}</div>
+            <input value={tagAccounts} onChange={e=>setTagAccounts(e.target.value)} placeholder={L("@username, @username","@حساب، @حساب")} style={{ ...inp }}/>
+            <div style={{ fontSize:9.5, color:th.text3, marginTop:7, display:"flex", alignItems:"center", gap:5 }}><Info size={11}/>{L("Tags accounts on the post — photos tag centered, reels & stories mention.","يشير إلى الحسابات في المنشور.")}</div>
+            <div style={{ marginTop:14, position:"relative" }}>
+              <div style={lbl}>{L("Location","الموقع")}</div>
+              <input value={locName} onChange={e=>searchLoc(e.target.value)} placeholder={L("Search a place…","ابحث عن مكان…")} style={{ ...inp }}/>
+              {locId && <div style={{ fontSize:10, color:th.success, marginTop:6, display:"flex", alignItems:"center", gap:5 }}><CheckCircle size={11}/>{L("Location set","تم تحديد الموقع")}</div>}
+              {!locId && locResults.length>0 && (<div style={{ position:"absolute", top:"100%", left:0, right:0, zIndex:20, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, marginTop:4, overflow:"hidden", boxShadow:"0 12px 30px rgba(0,0,0,0.35)" }}>
+                {locResults.map(p=>(<div key={p.id} onClick={()=>{ setLocId(p.id); setLocName(p.name); setLocResults([]); }} style={{ padding:"9px 12px", cursor:"pointer", fontSize:12, color:th.text, borderBottom:`1px solid ${th.border}` }}>{p.name}{p.city?<span style={{ color:th.text3 }}> · {p.city}</span>:""}</div>))}
+              </div>)}
+              {!locId && locBusy && <div style={{ fontSize:10, color:th.text3, marginTop:6 }}>{L("Searching…","جارٍ البحث…")}</div>}
+            </div>
+          </div>)}
           <div style={card}>
             <div style={lbl}>When to post</div>
             <div style={{ display:"flex", gap:6, marginBottom:(scheduleType==="schedule"||scheduleType==="approval")?12:0 }}>
@@ -8110,7 +8151,10 @@ function SocialAccountsPage() {
       .from('social_accounts')
       .select('*')
       .eq('client_id', cid);
-    if (!error && data) setAccounts(data);
+    if (!error && data) {
+      setAccounts(data);
+      try { (data || []).forEach(async (a) => { if ((a.platform === 'ig' || a.platform === 'instagram') && a.account_id && a.access_token) { try { const rr = await fetch('/api/instagram-analytics', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ accountId: a.account_id, accessToken: a.access_token }) }); const dd = await rr.json().catch(()=>null); if (dd && dd.picture && dd.picture !== a.picture) { setAccounts(prev => prev.map(x => x.id===a.id ? { ...x, picture: dd.picture } : x)); try { await supabase.from('social_accounts').update({ picture: dd.picture }).eq('id', a.id); } catch(e){} } } catch(e){} } }); } catch(e){}
+    }
     setLoading(false);
   };
 
@@ -8594,7 +8638,7 @@ function SocialAccountsPage() {
             <div key={acc.id} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none", borderLeft:`3px solid ${info.color}` }}>
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
                 <div style={{ position:"relative" }}>
-                  {acc.picture ? <img src={acc.picture} alt="" style={{ width:46, height:46, borderRadius:13, objectFit:"cover", border:`2px solid ${info.color}55` }}/> : <div style={{ width:46, height:46, borderRadius:13, background:`linear-gradient(135deg, ${info.color}38, ${info.color}12)`, border:`2px solid ${info.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ color:info.color, fontSize:22 }}/></div>}
+                  <div style={{ width:46, height:46, borderRadius:13, background:`linear-gradient(135deg, ${info.color}38, ${info.color}12)`, border:`2px solid ${info.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ color:info.color, fontSize:22 }}/></div>{acc.picture && <img src={acc.picture} alt="" onError={e=>{ e.currentTarget.style.display="none"; }} style={{ position:"absolute", inset:0, width:46, height:46, borderRadius:13, objectFit:"cover", border:`2px solid ${info.color}55` }}/>}
                   <div style={{ position:"absolute", bottom:-4, right:-4, width:20, height:20, borderRadius:"50%", background:th.card, display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${th.card}` }}><info.Icon style={{ color:info.color, fontSize:10 }}/></div>
                 </div>
                 <div>
@@ -12471,7 +12515,7 @@ function BillingPage() {
   // and yearly at 20% off (rounded). The yearly figure is the per-month rate;
   // Polar bills it once a year (×12) at checkout.
   const plans = [
-    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For small businesses","للأعمال الصغيرة") },
+    { name:"Essential", m:49, y:39, accounts:"3", users:"1", posts:"30", popular:false, tag:L("For freelancers & SMEs","للمستقلين والشركات الصغيرة") },
     { name:"Professional", m:99, y:79, accounts:"10", users:"5", posts:"100", popular:true, tag:L("For growing brands","للعلامات المتنامية") },
     { name:"Enterprise", m:199, y:159, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("For agencies","للوكالات") },
     { name:"Studio", m:459, y:367, accounts:L("Unlimited","غير محدود"), users:"20", posts:L("Unlimited","غير محدود"), popular:false, tag:L("White-label for agencies","علامة بيضاء للوكالات") },
@@ -14049,7 +14093,7 @@ ${[0,1,2,3,4,5].map(i=>{const g=56+i*4;return `@keyframes apkDot${i}{0%,${g}%{ba
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(4,1fr)",gap:14,marginBottom:48}}>
-        <PlanCard name="Essential" planKey="starter" desc="For small businesses" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
+        <PlanCard name="Essential" planKey="starter" desc="For freelancers & SMEs" price={p.starter} features={["3 social accounts","1 team member","30 posts/month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"]}/>
         <PlanCard name="Professional" planKey="pro" desc="For growing brands" price={p.pro} popular features={["10 social accounts","5 team members","100 posts/month","AI captions (EN + AR)","Analytics dashboard","Priority support"]}/>
         <PlanCard name="Enterprise" planKey="agency" desc="For agencies" price={p.agency} features={["Unlimited accounts","20 team members","Unlimited posts","AI captions (EN + AR)","White-label reports","Dedicated support"]}/>
         <PlanCard name="Studio" planKey="studio" desc="For white-label agencies" price={p.studio} best features={["Everything in Enterprise","White-label dashboard","Your logo & brand colors","Branded client pages","Branded reports & exports","Priority onboarding"]}/>
@@ -19375,7 +19419,7 @@ function PublicInfoPage({ kind }) {
 
   if (kind === "pricing") {
     const plans = [
-      { n:"Essential", m:49, y:39, tag:"For small businesses", f:["3 social accounts","1 team member","30 posts / month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"] },
+      { n:"Essential", m:49, y:39, tag:"For freelancers & SMEs", f:["3 social accounts","1 team member","30 posts / month","AI captions (EN + AR)","Analytics dashboard","Monthly reports"] },
       { n:"Professional", m:99, y:79, tag:"For growing brands", pop:true, f:["10 social accounts","5 team members","100 posts / month","AI captions (EN + AR)","Analytics dashboard","Priority support"] },
       { n:"Enterprise", m:199, y:159, tag:"For agencies", f:["Unlimited accounts","20 team members","Unlimited posts","White-label reports","Dedicated support"] },
       { n:"Studio", m:459, y:367, tag:"For white-label agencies", f:["Everything in Enterprise","White-label dashboard","Your logo & brand colors","Branded client pages","Priority onboarding"] },
@@ -19814,7 +19858,7 @@ function ClientApprovalPage({ token }) {
   }, [token]); // eslint-disable-line
 
   const PC = { ig:"#C13584", fb:"#1877F2" }, PN = { ig:"Instagram", fb:"Facebook" };
-  const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E" };
+  const SC = { approved:"#5FBF92", pending:"#E0B973", changes:"#D98A6A", revised:"#C9A24E", scheduled:"#6E8CAB" };
   const isVid = (m) => /\.(mp4|mov|webm|m4v)(\?|#|$)/i.test(m || "");
   const mediaBg = (m) => (isVid(m) ? "#0C1420" : (/^(https?:|data:)/.test(m || "") ? `center/cover url(${m})` : (m || "#1B2A3A")));
   // Renders a video frame (so reels/clips show a real cover) or an image background.
@@ -19823,6 +19867,7 @@ function ClientApprovalPage({ token }) {
   if (!data) return <div style={{ minHeight:"100vh", background:T.bg, display:"flex", alignItems:"center", justifyContent:"center", color:T.mut, fontFamily:"'Plus Jakarta Sans',sans-serif", fontSize:13 }}>Loading…</div>;
 
   const posts = data.posts || [];
+  const readonly = !!(data && data.readonly);
   const byDate = {}; posts.forEach(p => { byDate[p.date] = p; });
   const pendingN = posts.filter(p => p.status === "pending" || p.status === "revised").length;
   const approvedN = posts.filter(p => p.status === "approved").length;
@@ -19896,7 +19941,7 @@ function ClientApprovalPage({ token }) {
           <div style={{ padding:"2px 13px 14px", fontSize:13, color:"#111", lineHeight:1.5 }}><span style={{ fontWeight:600 }}>{(cl.name||"brand").toLowerCase().replace(/\s+/g,"")}</span> {P.caption} <span style={{ color:"#385185" }}>{P.tags}</span></div>
         </div>
         <div style={{ marginTop:14 }}>
-          {done ? (
+          {readonly ? null : done ? (
             <div style={{ textAlign:"center", padding:12, borderRadius:11, background: P.status==="approved"?"rgba(95,191,146,0.12)":"rgba(217,138,106,0.12)", border:`0.5px solid ${P.status==="approved"?"rgba(95,191,146,0.4)":"rgba(217,138,106,0.4)"}`, color:P.status==="approved"?"#7FCFA6":"#D98A6A", fontSize:13, fontWeight:600 }}>{P.status==="approved" ? "Approved — thank you" : "Changes requested"}</div>
           ) : commenting ? (
             <div>
@@ -19957,12 +20002,12 @@ function ClientApprovalPage({ token }) {
         <div style={{ padding: phone?"16px 16px 13px":"18px 20px 15px", borderBottom:`0.5px solid ${T.line2}` }}>
           <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
             <div><div style={{ fontSize: phone?17:19, fontWeight:600 }}>{data.month || "Content calendar"}</div><div style={{ fontSize:12, color:T.mut, marginTop:3 }}>{cl.name}{" · "}{approvedN>0 ? <><span style={{ color:"#5FBF92" }}>{approvedN} approved</span>{pendingN>0 && <> &middot; <span style={{ color:"#E0B973" }}>{pendingN} to review</span></>}</> : <>{posts.length} posts awaiting you</>}</div></div>
-            {pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
+            {!readonly && pendingN>0 && !bulkOpen && <div style={{ display:"flex", gap:9 }}>
               <button onClick={()=>setBulkOpen(true)} style={{ padding:"9px 14px", borderRadius:10, background:"transparent", border:`0.5px solid ${T.line}`, color:T.text, fontSize:12.5, cursor:"pointer" }}>Request changes</button>
               <button onClick={()=>respondAll("approved")} style={{ padding:"9px 16px", borderRadius:10, background:"#2F6E54", border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:6 }}><CheckCircle size={14}/>Approve all</button>
             </div>}
           </div>
-          {pendingN>0 && bulkOpen && (
+          {!readonly && pendingN>0 && bulkOpen && (
             <div style={{ marginTop:13 }}>
               <div style={{ fontSize:12, color:T.mut, marginBottom:7 }}>Tell us what you'd like changed — this note goes to the team for the posts under review.</div>
               <textarea value={bulkNote} onChange={e=>setBulkNote(e.target.value)} placeholder="e.g. Please use brighter photos and add the price on each post." style={{ width:"100%", minHeight:74, background:T.field, border:`0.5px solid ${T.line}`, borderRadius:11, padding:"11px 13px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", boxSizing:"border-box", resize:"vertical" }}/>
@@ -20196,6 +20241,7 @@ export default function TawasloApp() {
   };
 
   const renderPage = () => {
+    if (mode !== "owner" && HIDDEN_PAGES.has(page)) return <Placeholder icon={Eye} badge="Hidden" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is currently hidden."/>;
     if (mode==="owner") {
       if (!ownerRoleAllows(page, myRole)) return <OwnerDashboard/>;
       if (page==="overview") return <OwnerDashboard/>;
