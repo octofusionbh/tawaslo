@@ -5622,6 +5622,37 @@ function WhatsAppPage() {
   // ---- Click-to-chat link builder (fully functional, no API) ----
   const [num, setNum] = useState("");
   const [msg, setMsg] = useState(L("Hi! I saw you on Instagram and I'd like to know more about", "مرحباً! شفتكم على إنستغرام وحاب أعرف أكثر عن") + " ");
+  const [bcTemplate, setBcTemplate] = useState("");
+  const [bcLang, setBcLang] = useState("en_US");
+  const [bcRecipients, setBcRecipients] = useState([]);
+  const [bcSending, setBcSending] = useState(false);
+  const [bcResult, setBcResult] = useState("");
+  useEffect(() => {
+    if (tab!=="broadcast" || !waFull) return;
+    let on=true;
+    (async () => {
+      let cid = selClient && selClient.id;
+      if (!cid && selClient && selClient.name) { try { const { data } = await supabase.from("clients").select("id").eq("name", selClient.name).limit(1); cid = data && data[0] && data[0].id; } catch(e){} }
+      if (!cid) { if(on) setBcRecipients([]); return; }
+      const phones = new Set();
+      try { const { data } = await supabase.from("orders").select("customer_phone").eq("client_id", cid).limit(2000); (data||[]).forEach(o=>{ const p=String(o.customer_phone||"").replace(/[^0-9]/g,""); if(p.length>=8) phones.add(p); }); } catch(e){}
+      try { const { data } = await supabase.from("bookings").select("customer_phone").eq("client_id", cid).limit(2000); (data||[]).forEach(o=>{ const p=String(o.customer_phone||"").replace(/[^0-9]/g,""); if(p.length>=8) phones.add(p); }); } catch(e){}
+      if (on) setBcRecipients([...phones]);
+    })();
+    return ()=>{on=false;};
+  }, [tab, waFull, selClient && selClient.id, selClient && selClient.name]);
+  const sendBroadcast = async () => {
+    if (bcSending || !bcTemplate.trim() || !bcRecipients.length) return;
+    if (!window.confirm(L("Send template to ","إرسال القالب إلى ")+bcRecipients.length+L(" customers on WhatsApp?"," عميلاً على واتساب؟"))) return;
+    setBcSending(true); setBcResult("");
+    try {
+      const r = await fetch("/api/meta-publish", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ channel:"whatsapp", action:"wa_broadcast", recipients: bcRecipients, template: bcTemplate.trim(), lang: bcLang }) });
+      const d = await r.json();
+      if (d && d.ok) setBcResult(L("Sent to ","تم الإرسال إلى ")+(d.sent||0)+" / "+(d.total||bcRecipients.length)+(d.failed?(" · "+d.failed+L(" failed"," فشل")):""));
+      else setBcResult((d&&(d.message||d.error))||L("Couldn't send — check the template name and WhatsApp connection.","تعذّر الإرسال — تحقق من اسم القالب واتصال واتساب."));
+    } catch(e){ setBcResult(L("Something went wrong.","حدث خطأ.")); }
+    setBcSending(false);
+  };
   const cleanNum = String(num).replace(/[^0-9]/g, "");
   const waLink = cleanNum ? `https://wa.me/${cleanNum}${msg ? "?text=" + encodeURIComponent(msg) : ""}` : "";
   const qrSrc = waLink ? `https://api.qrserver.com/v1/create-qr-code/?size=190x190&margin=0&data=${encodeURIComponent(waLink)}` : "";
@@ -5799,33 +5830,19 @@ function WhatsAppPage() {
 
       {tab === "broadcast" && waFull && (
         <div>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-            <div style={{ flex:1, ...card, padding:"12px 15px" }}>
-              <div style={{ fontSize:11, color:th.text2 }}>{L("Broadcast credits this month", "رصيد الحملات هذا الشهر")}</div>
-              {waUnlimited ? (
-                <>
-                  <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span style={{ fontSize:20, fontWeight:700, color:th.text }}>{L("Unlimited", "غير محدود")}</span><span style={{ fontSize:11.5, color:th.text3 }}>{L("demo account", "حساب عرض")}</span></div>
-                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div style={{ width:"100%", height:"100%", background:WA }}/></div>
-                </>
-              ) : (
-                <>
-                  <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:2 }}><span className="tw-num" style={{ fontSize:20, fontWeight:700, color:th.text }}>{(waIncluded-1240).toLocaleString()}</span><span style={{ fontSize:11.5, color:th.text3 }}>/ {waIncluded.toLocaleString()} {L("left", "متبقّي")}</span></div>
-                  <div style={{ height:6, background:th.card2, borderRadius:20, marginTop:8, overflow:"hidden" }}><div className="tw-bar-grow" style={{ width:`${(1240/waIncluded)*100}%`, height:"100%", background:WA }}/></div>
-                </>
-              )}
-            </div>
-            <button style={{ ...card, padding:"12px 16px", color:th.text, fontSize:12.5, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Plus size={14}/>{L("Buy more credits", "شراء رصيد")}</button>
-          </div>
-          <div style={{ ...card, padding:18 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:12 }}>{L("New broadcast", "حملة جديدة")}</div>
-            <div style={{ fontSize:11, color:th.text3, marginBottom:5 }}>{L("Approved template", "قالب معتمد")}</div>
-            <div style={{ background:th.card2, borderRadius:10, padding:"11px 13px", fontSize:13, color:th.text, lineHeight:1.5, marginBottom:14 }}>🌿 {L("Weekend offer — 20% off everything. Order now!", "عرض نهاية الأسبوع — خصم ٢٠٪ على كل شي. اطلب الآن!")}<span style={{ marginInlineStart:8, fontSize:10.5, background:th.success+"22", color:th.success, padding:"1px 8px", borderRadius:20 }}>{L("approved", "معتمد")}</span></div>
+          <div style={{ ...card, padding:18, marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:5 }}>{L("New broadcast","حملة جديدة")}</div>
+            <div style={{ fontSize:11, color:th.text3, marginBottom:14, lineHeight:1.55 }}>{L("Send an approved WhatsApp template to customers who ordered or booked. Templates must be approved in your Meta WhatsApp account, and recipients must have opted in.","أرسل قالباً معتمداً للعملاء الذين طلبوا أو حجزوا. يجب أن يكون القالب معتمداً في حساب واتساب لديك.")}</div>
+            <div style={{ fontSize:11, color:th.text3, marginBottom:5 }}>{L("Approved template name","اسم القالب المعتمد")}</div>
+            <input value={bcTemplate} onChange={e=>setBcTemplate(e.target.value)} placeholder="weekend_offer" style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit", marginBottom:12 }}/>
+            <div style={{ fontSize:11, color:th.text3, marginBottom:5 }}>{L("Language","اللغة")}</div>
+            <select value={bcLang} onChange={e=>setBcLang(e.target.value)} style={{ width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:13, outline:"none", marginBottom:14 }}><option value="en_US">English</option><option value="ar">Arabic</option><option value="ar_SA">Arabic (Saudi)</option></select>
             <div style={{ display:"flex", gap:10, marginBottom:16, flexWrap:"wrap" }}>
-              {[[L("Audience","الجمهور"),"1,240",L("opted-in","موافقون")],[L("Est. cost","التكلفة"),"$14.88","Saudi rate"],[L("Send","الإرسال"),L("Now","الآن"),L("or schedule","أو جدوِل")]].map(([a,b,c],i)=>(
-                <div key={i} style={{ flex:1, minWidth:120, background:th.card2, borderRadius:10, padding:"10px 12px" }}><div style={{ fontSize:11, color:th.text2 }}>{a}</div><div style={{ fontSize:15, fontWeight:600, color:th.text }}>{b}</div><div style={{ fontSize:10.5, color:th.text3 }}>{c}</div></div>
-              ))}
+              <div style={{ flex:1, minWidth:120, background:th.card2, borderRadius:10, padding:"10px 12px" }}><div style={{ fontSize:11, color:th.text2 }}>{L("Recipients","المستلمون")}</div><div className="tw-num" style={{ fontSize:16, fontWeight:700, color:th.text }}>{bcRecipients.length}</div><div style={{ fontSize:10.5, color:th.text3 }}>{L("customers with a number","عملاء لديهم رقم")}</div></div>
+              <div style={{ flex:1, minWidth:120, background:th.card2, borderRadius:10, padding:"10px 12px" }}><div style={{ fontSize:11, color:th.text2 }}>{L("Est. cost","التكلفة التقديرية")}</div><div style={{ fontSize:16, fontWeight:700, color:th.text }}>~${(bcRecipients.length*0.012).toFixed(2)}</div><div style={{ fontSize:10.5, color:th.text3 }}>{L("marketing rate","سعر التسويق")}</div></div>
             </div>
-            <button style={{ width:"100%", background:WA, border:"none", color:"#04342C", fontSize:13, fontWeight:700, padding:"12px", borderRadius:11, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Send size={15}/>{L("Schedule broadcast", "جدولة الحملة")}</button>
+            <button onClick={sendBroadcast} disabled={bcSending||!bcTemplate.trim()||!bcRecipients.length} style={{ width:"100%", background:WA, border:"none", color:"#04342C", fontSize:13, fontWeight:700, padding:"12px", borderRadius:11, cursor:(bcSending||!bcTemplate.trim()||!bcRecipients.length)?"not-allowed":"pointer", opacity:(bcSending||!bcTemplate.trim()||!bcRecipients.length)?0.55:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}><Send size={15}/>{bcSending?L("Sending…","جارٍ الإرسال…"):(L("Send to ","إرسال إلى ")+bcRecipients.length+L(" customers"," عميلاً"))}</button>
+            {bcResult && <div style={{ marginTop:12, fontSize:12, color:th.text2, textAlign:"center" }}>{bcResult}</div>}
           </div>
         </div>
       )}
@@ -15351,6 +15368,63 @@ function MenuBuilderPage() {
       + '})();'+S+'</body></html>';
     w.document.write(doc); w.document.close();
   };
+  const [impOpen, setImpOpen] = useState(false);
+  const [impMsgs, setImpMsgs] = useState([]);
+  const [impInput, setImpInput] = useState("");
+  const [impFile, setImpFile] = useState(null);
+  const [impBusy, setImpBusy] = useState(false);
+  const [impDrag, setImpDrag] = useState(false);
+  const impB64 = (f) => new Promise((res,rej)=>{ const rd=new FileReader(); rd.onload=()=>res(rd.result); rd.onerror=rej; rd.readAsDataURL(f); });
+  const impLoadXLSX = () => new Promise((res,rej)=>{ if (typeof window!=="undefined" && window.XLSX) return res(window.XLSX); const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload=()=>res(window.XLSX); sc.onerror=()=>rej(new Error("xlsx")); document.body.appendChild(sc); });
+  const impAttach = async (file) => { if (!file) return; const nm=(file.name||"").toLowerCase(); try { if (nm.endsWith(".csv")) { const text=await file.text(); setImpFile({ text, name:file.name }); } else if (nm.endsWith(".xlsx")||nm.endsWith(".xls")) { const X=await impLoadXLSX(); const buf=await file.arrayBuffer(); const wb=X.read(buf,{type:"array"}); let text=""; wb.SheetNames.forEach(sn=>{ text += "# "+sn+"\n"+X.utils.sheet_to_csv(wb.Sheets[sn])+"\n\n"; }); setImpFile({ text, name:file.name }); } else if ((file.type||"").indexOf("image/")===0 || nm.endsWith(".pdf")) { const b64=await impB64(file); setImpFile({ fileBase64:b64, mediaType: nm.endsWith(".pdf")?"application/pdf":file.type, name:file.name }); } else { const text=await file.text().catch(()=>""); if(text) setImpFile({ text, name:file.name }); } } catch(e){} };
+  const impSend = async () => { const text=impInput.trim(); if ((!text && !impFile) || impBusy) return; const um={ role:"user", text, fileBase64:(impFile&&impFile.fileBase64)||null, mediaType:(impFile&&impFile.mediaType)||null, fileText:(impFile&&impFile.text)||null, fileName:(impFile&&impFile.name)||null }; const next=[...impMsgs, um]; setImpMsgs(next); setImpInput(""); setImpFile(null); setImpBusy(true); try { const msgs=next.map(m=>({ role:m.role, text:(m.text||"")+(m.fileText?("\n\n"+m.fileText):""), fileBase64:m.fileBase64||undefined, mediaType:m.mediaType||undefined })); const r=await fetch("/api/generate-caption",{ method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ mode:"menu_import", messages: msgs }) }); const d=await r.json(); const reply=d.reply||d.message||L("Sorry, I couldn't read that.","تعذّرت القراءة."); let added=0; if (Array.isArray(d.categories) && d.categories.length && menu && menu.id) { const rows=[]; let sort=items.length; d.categories.forEach(c=>{ const cat=((c.name||"General")+"").trim()||"General"; (Array.isArray(c.items)?c.items:[]).forEach(it=>{ const nm2=((it.name_en||it.name_ar||"")+"").trim(); if(!nm2) return; rows.push({ menu_id:menu.id, category:cat, name_en:((it.name_en||"")+"").trim(), name_ar:((it.name_ar||"")+"").trim(), description:((it.description||"")+"").trim()||null, price:(it.price===0||it.price)?(Number(it.price)||null):null, available:true, hidden:false, show_price:true, on_pickup:true, sort:sort++ }); }); }); if (rows.length){ try { const ins=await supabase.from("menu_items").insert(rows).select(); if(ins.data){ setItems(its=>[...its,...ins.data]); added=ins.data.length; } } catch(e){} } } setImpMsgs(m=>[...m,{ role:"assistant", text: reply + (added?("\n\n✓ "+L("Added ","أُضيف ")+added+L(" items — review and edit below."," صنفاً — راجعها وعدّلها بالأسفل.")):"") }]); } catch(e){ setImpMsgs(m=>[...m,{ role:"assistant", text:L("Something went wrong. Try again.","حدث خطأ، حاول مجدداً.") }]); } setImpBusy(false); };
+  const { setPage } = useApp();
+  const [promoting, setPromoting] = useState("");
+  const dataUrlToBlob = (durl) => { try { const parts=String(durl).split(","); const mime=(parts[0].match(/data:([^;]+)/)||[])[1]||"image/png"; const bin=atob(parts[1]); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i); return new Blob([arr],{type:mime}); } catch(e){ return null; } };
+  const promoteItem = async (it) => {
+    if (promoting) return;
+    let img = (it.photo_url) || (Array.isArray(it.photos)&&it.photos[0]) || null;
+    let doGen = false;
+    if (!img) { doGen = window.confirm(L("This dish has no photo. Generate one with AI?","لا توجد صورة لهذا الصنف. أنشئ صورة بالذكاء الاصطناعي؟")); }
+    setPromoting(it.id);
+    try {
+      const bilingual = !!(menu && (menu.lang1==="ar" || menu.lang2==="ar"));
+      const nm = (it.name_en || it.name_ar || "our dish");
+      const details = [it.description, (it.price!=null&&it.price!=="")?("Price: "+it.price):""].filter(Boolean).join(". ");
+      let cap = "";
+      try { const r = await fetch("/api/generate-caption", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ topic: nm, details, lang: bilingual?"both":"en", platform:"ig", brand:(selClient&&selClient.name)||"" }) }); const d = await r.json(); cap = [d.english, d.arabic].filter(Boolean).join("\n\n"); } catch(e){}
+      if (!img && doGen) {
+        try { const r = await fetch("/api/generate-caption", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ mode:"image", prompt: nm + (it.description?(" — "+it.description):"") + ", professional food photography, appetizing, natural light, on a plate", realistic:true, n:1 }) }); const d = await r.json(); const dataUrl=(Array.isArray(d.images)&&d.images[0])||null; if (dataUrl){ const b=dataUrlToBlob(dataUrl); if(b){ const up=await uploadBlob(b,"png"); if(up) img=up; } } } catch(e){}
+      }
+      try { if (cap) sessionStorage.setItem("tw_studio_caption", cap); if (img) sessionStorage.setItem("tw_studio_media", img); else sessionStorage.removeItem("tw_studio_media"); } catch(e){}
+      setPage("publisher");
+    } catch(e){}
+    setPromoting("");
+  };
+  const [planning, setPlanning] = useState(false);
+  const [planMsg, setPlanMsg] = useState("");
+  const planWeek = async () => {
+    if (planning || !menu || !menu.id) return;
+    const pool = items.filter(it => (it.name_en||it.name_ar) && it.available!==false && it.hidden!==true).slice(0, 7);
+    if (!pool.length) { setPlanMsg(L("Add some menu items first.","أضف بعض الأصناف أولاً.")); return; }
+    if (!window.confirm(L("Create "+pool.length+" scheduled posts from your menu (one a day)? Review and adjust them in the Planner before they go out.","إنشاء "+pool.length+" منشوراً مجدولاً من قائمتك؟ يمكنك مراجعتها في المخطط."))) return;
+    setPlanning(true); setPlanMsg(L("Writing your week…","جارٍ إعداد أسبوعك…"));
+    let acc = null;
+    try { const { data } = await supabase.from("social_accounts").select("account_id").eq("client_id", menu.client_id).eq("platform","ig").limit(1); acc = data && data[0] && data[0].account_id; } catch(e){}
+    const bilingual = !!(menu && (menu.lang1==="ar" || menu.lang2==="ar"));
+    let ok = 0;
+    for (let i=0;i<pool.length;i++){
+      const it = pool[i];
+      let cap = "";
+      try { const r = await fetch("/api/generate-caption", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ topic:(it.name_en||it.name_ar), details:[it.description,(it.price!=null&&it.price!=="")?("Price: "+it.price):""].filter(Boolean).join(". "), lang:bilingual?"both":"en", platform:"ig", brand:(selClient&&selClient.name)||"" }) }); const d = await r.json(); cap = [d.english,d.arabic].filter(Boolean).join("\n\n"); } catch(e){}
+      if (!cap) cap = (it.name_en||it.name_ar||"");
+      const dt = new Date(); dt.setDate(dt.getDate()+i+1); dt.setHours(20,0,0,0);
+      const row = { client_id: menu.client_id, platform:"ig", account_id: acc||null, caption: cap, image_url: it.photo_url || (Array.isArray(it.photos)&&it.photos[0]) || null, status:"scheduled", scheduled_at: dt.toISOString() };
+      try { const { error } = await supabase.from("posts").insert([row]); if (!error) ok++; } catch(e){}
+    }
+    setPlanning(false); setPlanMsg("");
+    setPage("planner");
+  };
   const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true, on_pickup:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
@@ -15621,11 +15695,48 @@ function MenuBuilderPage() {
               <option value="sold_out">{L("Sold out","نفد")}</option>
               <option value="hidden">{L("Hidden","مخفي")}</option>
             </select>
+            <button onClick={()=>promoteItem(it)} disabled={promoting===it.id} title={L("Create post","إنشاء منشور")} style={{ width:32, height:32, borderRadius:8, background:th.gradient, border:"none", color:"#fff", cursor:promoting===it.id?"wait":"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, opacity:promoting===it.id?0.55:1 }}><Wand2 size={15}/></button>
             <button onClick={()=>setEditing({ ...it })} title={L("Edit","تعديل")} style={{ background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex" }}><Edit3 size={14}/></button>
             <button onClick={()=>delItem(it.id)} title={L("Delete","حذف")} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", display:"flex" }}><Trash2 size={14}/></button>
           </div>
           );
         })}
+        {menu && <button onClick={()=>setImpOpen(true)} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, border:"none", background:th.gradient, color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", marginBottom:10 }}><FileText size={15}/>{L("Import menu with AI","استيراد القائمة بالذكاء الاصطناعي")}</button>}
+        {menu && <button onClick={planWeek} disabled={planning} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:12.5, fontWeight:600, cursor:planning?"wait":"pointer", marginBottom:10, opacity:planning?0.6:1 }}><Calendar size={15}/>{planning?L("Planning your week…","جارٍ التخطيط…"):L("Plan a week of posts from menu","خطّط أسبوعاً من المنشورات من القائمة")}</button>}        {planMsg && <div style={{ fontSize:11.5, color:th.text3, marginBottom:10, textAlign:"center" }}>{planMsg}</div>}
+        {impOpen && createPortal(<div onClick={()=>setImpOpen(false)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", zIndex:90, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:460, height:"72vh", maxHeight:620, background:th.card, border:`1px solid ${th.border}`, borderRadius:18, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom:`1px solid ${th.border}` }}>
+              <div style={{ fontSize:14, fontWeight:700, color:th.text, display:"flex", alignItems:"center", gap:8 }}><FileText size={16} color={th.accent}/>{L("Import menu with AI","استيراد القائمة")}</div>
+              <button onClick={()=>setImpOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={19}/></button>
+            </div>
+            <div style={{ flex:1, overflowY:"auto", padding:16 }}>
+              {impMsgs.length===0 ? (
+                <div onDragOver={e=>{e.preventDefault(); setImpDrag(true);}} onDragLeave={()=>setImpDrag(false)} onDrop={e=>{ e.preventDefault(); setImpDrag(false); const f=e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) impAttach(f); }} style={{ border:`2px dashed ${impDrag?th.accent:th.border}`, borderRadius:14, padding:"34px 18px", textAlign:"center", background:impDrag?th.accentSoft:"transparent" }}>
+                  <div style={{ width:46, height:46, borderRadius:12, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 12px" }}><FileText size={22} color={th.accent}/></div>
+                  <div style={{ fontSize:13.5, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Drop your menu here","أفلت قائمتك هنا")}</div>
+                  <div style={{ fontSize:11.5, color:th.text3, lineHeight:1.6, marginBottom:14 }}>{L("PDF, photo, or Excel/CSV. I'll read it and ask if anything's unclear.","PDF أو صورة أو Excel/CSV. سأقرأها وأسألك إن كان هناك غموض.")}</div>
+                  <label style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}><input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" style={{ display:"none" }} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) impAttach(f); e.target.value=""; }}/>{L("Choose a file","اختر ملفاً")}</label>
+                </div>
+              ) : impMsgs.map((m,i)=>(
+                <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:10 }}>
+                  <div style={{ maxWidth:"85%", background:m.role==="user"?th.gradient:th.card2, color:m.role==="user"?"#fff":th.text, borderRadius:13, padding:"10px 13px", fontSize:12.5, lineHeight:1.55, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                    {m.fileName && <div style={{ fontSize:10.5, opacity:0.85, marginBottom:m.text?6:0, display:"flex", alignItems:"center", gap:5 }}><FileText size={11}/>{m.fileName}</div>}
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {impBusy && <div style={{ display:"flex", justifyContent:"flex-start", marginBottom:10 }}><div style={{ background:th.card2, borderRadius:13, padding:"10px 13px", fontSize:12.5, color:th.text3 }}>{L("Reading…","جارٍ القراءة…")}</div></div>}
+            </div>
+            <div style={{ padding:12, borderTop:`1px solid ${th.border}` }}>
+              {impFile && <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:11, color:th.accent, marginBottom:8 }}><FileText size={12}/>{impFile.name}<button onClick={()=>setImpFile(null)} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", marginInlineStart:"auto" }}>✕</button></div>}
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                <label style={{ width:38, height:38, borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, color:th.text2 }}><input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" style={{ display:"none" }} onChange={e=>{ const f=e.target.files&&e.target.files[0]; if(f) impAttach(f); e.target.value=""; }}/><Plus size={16}/></label>
+                <textarea value={impInput} onChange={e=>setImpInput(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); impSend(); } }} rows={1} placeholder={impMsgs.length?L("Answer or ask…","أجب أو اسأل…"):L("Add a note (optional)…","أضف ملاحظة (اختياري)…")} style={{ flex:1, resize:"none", maxHeight:100, background:th.card2, border:`1px solid ${th.border}`, borderRadius:11, padding:"9px 12px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit" }}/>
+                <button onClick={impSend} disabled={impBusy||(!impInput.trim()&&!impFile)} style={{ width:38, height:38, borderRadius:10, background:th.gradient, border:"none", color:"#fff", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, opacity:(impBusy||(!impInput.trim()&&!impFile))?0.5:1 }}><Send size={16}/></button>
+              </div>
+            </div>
+          </div>
+        </div>, document.body)}
         <button onClick={()=>setEditing(blankItem())} style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:7, padding:"12px", borderRadius:11, border:`1px dashed ${th.border}`, background:"transparent", color:th.accent, fontSize:12.5, fontWeight:600, cursor:"pointer" }}><Plus size={15}/>{L("Add item","إضافة صنف")}</button>
       </div>
 

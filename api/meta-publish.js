@@ -377,6 +377,24 @@ async function handleWhatsApp(req, res) {
     return res.status(200).json({ ok: false, configured: false, message: 'WhatsApp is not connected yet. Add WA_TOKEN and WA_PHONE_ID (or connect a number) to start sending.' });
   }
 
+  // --- Marketing broadcast: send an approved template to a list of recipients. ---
+  if (b.action === 'wa_broadcast') {
+    const recips = Array.isArray(b.recipients) ? b.recipients.map(x => String(x).replace(/[^0-9]/g, '')).filter(x => x.length >= 8) : [];
+    const uniq = [...new Set(recips)].slice(0, 500);
+    if (!uniq.length) return res.status(200).json({ error: 'No valid recipients' });
+    if (!b.template) return res.status(400).json({ error: 'A template name is required' });
+    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+    let sent = 0, failed = 0;
+    for (let i = 0; i < uniq.length; i += 20) {
+      const batch = uniq.slice(i, i + 20);
+      const results = await Promise.allSettled(batch.map(num =>
+        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ messaging_product: 'whatsapp', to: num, type: 'template', template: { name: b.template, language: { code: b.lang || 'en_US' } } }) })
+          .then(r => r.json()).then(d => { if (d && d.error) throw new Error(d.error.message || 'send failed'); })
+      ));
+      results.forEach(r => { if (r.status === 'fulfilled') sent++; else failed++; });
+    }
+    return res.status(200).json({ ok: true, sent, failed, total: uniq.length });
+  }
   const GRAPH = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
   const to = String(b.to || '').replace(/[^0-9]/g, '');
   const action = b.action || 'send';

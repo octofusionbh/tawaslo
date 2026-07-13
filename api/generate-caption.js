@@ -53,6 +53,53 @@ export default async function handler(req, res) {
   const theMode = (mode || 'caption').toLowerCase(); // 'caption' | 'ideas' | 'hashtags' | 'vision' | 'alt' | 'image' | 'image-edit'
 
   // ── HQ Support Copilot: founder/team troubleshooting with screenshots + live context. ──
+  // ── AI Menu Importer (chat): reads a PDF/image/spreadsheet menu, asks if unsure, returns items. ──
+  if (theMode === 'menu_import') {
+    if (!process.env.ANTHROPIC_API_KEY) return res.status(200).json({ error: 'menu_import_unconfigured', message: 'Add ANTHROPIC_API_KEY in Vercel to turn on menu import.' });
+    const inMsgs = Array.isArray(req.body.messages) ? req.body.messages.slice(-14) : null;
+    const sys = `You are a friendly menu-import assistant for a restaurant platform. The user gives you their existing menu (a PDF, a photo, or a spreadsheet/text export) and you turn it into structured items.
+
+Behaviour:
+- Read the menu carefully. If something is genuinely ambiguous — the currency is not clear, prices are missing, you cannot tell if a line is a category or an item, or the text is garbled — ask ONE short specific question and wait.
+- Do not ask about things you can reasonably infer. Prefer proceeding.
+- When you have what you need (or the user says go ahead), reply with a one-line summary (e.g. "Done — 24 items across 5 categories. Review and edit below.") followed by the final menu as JSON inside <menu></menu> tags.
+- The JSON shape MUST be exactly: {"categories":[{"name":"","items":[{"name_en":"","name_ar":"","description":"","price":0}]}]}
+- name_en = Latin/English name; name_ar = Arabic name if present else ""; description short or ""; price a number (0 if none, ignore currency symbols). Keep original order; never invent or drop items.
+- Keep chat replies short. Reply in the user's language.`;
+    const toContent = (m) => {
+      const blocks = [];
+      if (m.fileBase64 && m.mediaType) {
+        const mt = String(m.mediaType); const data = String(m.fileBase64).replace(/^data:[^;]+;base64,/, '');
+        if (data) { if (mt === 'application/pdf') blocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }); else blocks.push({ type: 'image', source: { type: 'base64', media_type: mt, data } }); }
+      }
+      blocks.push({ type: 'text', text: String(m.text || '').slice(0, 40000) || '(see attached menu)' });
+      return blocks;
+    };
+    let aMsgs;
+    if (inMsgs && inMsgs.length) { aMsgs = inMsgs.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: toContent(m) })); }
+    else {
+      const m = {};
+      if (req.body.fileBase64) { m.fileBase64 = req.body.fileBase64; m.mediaType = req.body.mediaType; m.text = 'Import this menu.'; }
+      else if (req.body.text) { m.text = 'Import this menu (spreadsheet/text export):\n\n' + req.body.text; }
+      else return res.status(400).json({ error: 'No file, text or messages provided' });
+      aMsgs = [{ role: 'user', content: toContent(m) }];
+    }
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' }, body: JSON.stringify({ model: 'claude-sonnet-4-5', max_tokens: 6000, system: sys, messages: aMsgs }) });
+      const j = await r.json();
+      if (!r.ok) return res.status(200).json({ error: 'parse_failed', message: (j && j.error && j.error.message) || 'Could not read the menu.' });
+      let reply = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+      let categories = null;
+      const mm = reply.match(/<menu>([\s\S]*?)<\/menu>/i);
+      if (mm) {
+        let jsonTxt = mm[1].replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+        try { const p = JSON.parse(jsonTxt); if (p && Array.isArray(p.categories)) categories = p.categories; } catch (e) {}
+        reply = reply.replace(/<menu>[\s\S]*?<\/menu>/i, '').trim();
+      }
+      return res.status(200).json({ reply: reply || (categories ? 'Here is your menu — review and edit below.' : 'Sorry, I could not read that.'), categories });
+    } catch (e) { return res.status(200).json({ error: 'parse_failed', message: e.message }); }
+  }
+
   if (theMode === 'copilot') {
     if (!process.env.ANTHROPIC_API_KEY) return res.status(200).json({ error: 'copilot_unconfigured', message: 'Add ANTHROPIC_API_KEY in Vercel to turn on the Support Copilot.' });
     const inMsgs = Array.isArray(req.body.messages) ? req.body.messages.slice(-16) : [];
