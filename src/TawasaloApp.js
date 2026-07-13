@@ -764,7 +764,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent", spark, sub
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
           selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav,
-          userName, userEmail, accountType, userPlan, userCompany } = useApp();
+          userName, userEmail, accountType, userPlan, userCompany, myRole } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
   const L = (en, ar) => isAR ? ar : en;
