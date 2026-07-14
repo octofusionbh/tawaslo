@@ -639,8 +639,8 @@ function useIsMobile(bp = 820) {
 
 // Heavy "build & configure" tools — hidden from the phone menu and gated with a
 // friendly note if reached, but fully available on desktop. (Hootsuite's model.)
-const DESKTOP_ONLY = new Set(["publisher", "planner", "calendar", "campaigns", "ads", "aistudio", "reelstudio", "reports"]);
-const DESKTOP_ONLY_LABEL = { publisher: "Publisher", planner: "Planner", calendar: "Calendar", campaigns: "Campaigns", ads: "Ads", aistudio: "AI Studio", reelstudio: "Reel Studio", reports: "Reports" };
+const DESKTOP_ONLY = new Set(["publisher", "planner", "aistudio", "reelstudio", "autopilot"]);
+const DESKTOP_ONLY_LABEL = { publisher: "Publisher", autopilot: "Campaign Autopilot", planner: "Planner", calendar: "Calendar", campaigns: "Campaigns", ads: "Ads", aistudio: "AI Studio", reelstudio: "Reel Studio", reports: "Reports" };
 
 // Level 2 white-label (custom domain) stays hidden in the UI until we turn it on.
 const WL_DOMAIN_VISIBLE = false;
@@ -771,6 +771,7 @@ function Sidebar() {
   const isAR = lang==="ar";
   const L = (en, ar) => isAR ? ar : en;
   const isMobile = useIsMobile();
+  const isPhone = useIsMobile(640);
   const [acctOpen, setAcctOpen] = useState(false);   // account dropdown (settings / log out)
   // On mobile, navigating closes the slide-out drawer.
   useEffect(() => { if (isMobile && setMobileNav) setMobileNav(false); }, [page]); // eslint-disable-line
@@ -1029,7 +1030,7 @@ function Sidebar() {
                 </div>
               )}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {(col||secOpen)&&sec.items.filter(it=>!(isMobile&&DESKTOP_ONLY.has(it.key)) && !HIDDEN_PAGES.has(it.key)).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
+              {(col||secOpen)&&sec.items.filter(it=>!(isPhone&&DESKTOP_ONLY.has(it.key)) && !HIDDEN_PAGES.has(it.key)).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
             );
           })
@@ -1080,6 +1081,7 @@ function Topbar() {
   const [sq, setSq] = useState("");      // global search query
   const [sOpen, setSOpen] = useState(false);
   const isMobile = useIsMobile();
+  const isPhone = useIsMobile(640);
   const uName = (userName && userName.trim())
     ? userName.replace(/\b\w/g, c=>c.toUpperCase())
     : (userEmail ? userEmail.split('@')[0].replace(/[._]/g,' ').replace(/\b\w/g, c=>c.toUpperCase()) : "User");
@@ -1138,7 +1140,7 @@ function Topbar() {
   const OWNER_PAGES = [["overview","Overview"],["copilot","AI Copilot"],["clients","All Clients"],["revenue","Revenue"],["promos","Promo Codes"],["gifts","Gift Cards"],["support","Support"],["errors","Errors"],["apiusage","API & Usage"],["payouts","Payouts"],["team","Team"],["settings","Settings"]];
   const AGENCY_PAGES = [["dashboard","Dashboard"],["publisher","Publisher"],["planner","Planner"],["inbox","Inbox"],["analytics","Analytics"],["listening","Trending"],["streams","Streams"],["campaigns","Campaigns"],["aistudio","AI Studio"],["media","Media"],["ads","Ads"],["reports","Reports"],["clients","Clients"],["social","Social Accounts"],["agencyteam","Team"],["billing","Billing"],["agencysets","Settings"]];
   const ql = sq.trim().toLowerCase();
-  const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isMobile && DESKTOP_ONLY.has(k))).slice(0,7) : [];
+  const pageHits = ql ? (mode==="owner"?OWNER_PAGES:AGENCY_PAGES).filter(([k,l])=>l.toLowerCase().includes(ql) && !(isPhone && DESKTOP_ONLY.has(k))).slice(0,7) : [];
   const clientHits = ql ? (clients||[]).filter(c=>(c.name||"").toLowerCase().includes(ql)).slice(0,5) : [];
   const goPage = (k)=>{ setPage(k); setSq(""); setSOpen(false); };
   const goClient = (c)=>{ setSelClient&&setSelClient(c); setMode&&setMode("agency"); setPage("dashboard"); setSq(""); setSOpen(false); };
@@ -20369,7 +20371,7 @@ export default function TawasloApp() {
       if (page==="settings") return <SettingsPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
-    if (typeof window !== "undefined" && window.innerWidth < 820 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
+    if (typeof window !== "undefined" && window.innerWidth < 640 && DESKTOP_ONLY.has(page)) return <DesktopOnlyNotice pageKey={page}/>;
     if (page==="command") return <CommandCenterPage/>;
     if (page==="pilot") return <AutopilotPage/>;
     if (page==="autopilot") return <CampaignAutopilotPage/>;
