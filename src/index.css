@@ -149,6 +149,19 @@ svg[class*="fa-"], .platform-glyph svg {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
+/* Preview drawer slide-in (Planner) — gentle, so it doesn't feel jarring. */
+@keyframes twDrawerIn {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Smoother content scrolling: reserve the scrollbar gutter so the layout
+   doesn't jump when images finish loading, keep momentum on trackpads/touch,
+   and stop scroll chaining to the page behind. */
+.tw-scroll-area {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
 
 input:-webkit-autofill,
 input:-webkit-autofill:hover,

@@ -6537,7 +6537,7 @@ function CalendarPage() {
                         onDrop={t.scheduled && gridDrag ? (e)=>{ e.preventDefault(); regridSchedule(gridDrag, t.post.id); setGridDrag(null); } : undefined}
                         onDragEnd={()=>setGridDrag(null)}
                         onClick={()=>{ if (t.post) setSelected(t.post); else if (t.permalink) window.open(t.permalink, '_blank', 'noopener'); }}
-                        style={{ position:"relative", aspectRatio:"1/1", background:`center/cover url(${t.url})`, cursor:t.scheduled?"grab":"pointer", overflow:"hidden", opacity:dragging?0.35:1, boxShadow:(t.scheduled && gridDrag && !dragging)?`inset 0 0 0 2px ${th.accent}`:"none" }}>
+                        style={{ position:"relative", aspectRatio:"1/1", background:`center/cover url(${t.url})`, cursor:t.scheduled?"grab":"pointer", overflow:"hidden", opacity:dragging?0.35:1, boxShadow:(selected && t.post && selected.id===t.post.id)?`inset 0 0 0 3px ${th.accent}`:(t.scheduled && gridDrag && !dragging)?`inset 0 0 0 2px ${th.accent}`:"none" }}>
                         {t.scheduled && <div style={{ position:"absolute", inset:0, background:"rgba(8,12,20,0.34)", display:"flex", alignItems:"flex-start", justifyContent:"flex-end", padding:6 }}><span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:8.5, fontWeight:600, color:"#fff", background:"rgba(8,12,20,0.6)", padding:"2px 6px", borderRadius:20 }}><Clock size={9}/>{new Date(t.post.scheduled_at).toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" })}</span></div>}
                         {t.post && t.post.label && <span style={{ position:"absolute", bottom:6, left:6, width:9, height:9, borderRadius:"50%", background:labelColor(t.post.label), border:"1.5px solid rgba(255,255,255,0.9)" }}/>}
                       </div>
@@ -6562,7 +6562,7 @@ function CalendarPage() {
               </div>
               {g.items.map((p,pi) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe };
                 return (
-                <div key={p.id} onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer" }}>
+                <div key={p.id} onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer", background: selected&&selected.id===p.id ? th.accentSoft : "transparent", boxShadow: selected&&selected.id===p.id ? `inset 3px 0 0 ${th.accent}` : "none", transition:"background .15s ease" }}>
                   <div style={{ width:40, height:40, borderRadius:11, background:info.color+"1e", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><info.Icon style={{ color:info.color, fontSize:18 }}/></div>
                   <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, overflow:"hidden", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{p.image_url ? <Cover url={p.image_url} style={{ width:"100%", height:"100%" }}/> : <Image size={15} color={th.text3}/>}</div>
                   <div style={{ flex:1, minWidth:0 }}>
@@ -6571,7 +6571,7 @@ function CalendarPage() {
                   </div>
                   {p.label && <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:600, borderRadius:999, padding:"3px 9px", background:labelColor(p.label)+"22", color:th.text, flexShrink:0 }}><span style={{ width:6, height:6, borderRadius:"50%", background:labelColor(p.label) }}/>{p.label}</span>}
                   <span style={{ fontSize:10, fontWeight:700, borderRadius:999, padding:"3px 10px", background:p.status==="scheduled"?th.successSoft:th.warningSoft, color:p.status==="scheduled"?th.success:th.warning, flexShrink:0 }}>{p.status==="scheduled"?L("scheduled","مجدول"):L("draft","مسودة")}</span>
-                  <button title={L("Preview","معاينة")} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Eye size={16}/></button>
+                  <button title={L("Preview","معاينة")} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ background:"none", border:"none", cursor:"pointer", color: selected&&selected.id===p.id ? th.accent : th.text3, display:"flex", padding:4 }}><Eye size={16}/></button>
                   <button title={L("Edit","تعديل")} onClick={(e)=>{e.stopPropagation();setPage("publisher");}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Edit3 size={15}/></button>
                 </div>
               ); })}
@@ -6619,8 +6619,8 @@ function CalendarPage() {
       )}
 
       {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; return (
-        <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.55)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)" }}>
+        <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.32)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)", animation:"twDrawerIn .26s cubic-bezier(0.2,0.7,0.2,1) both" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
               <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
               <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
@@ -7328,6 +7328,7 @@ function PublisherPage() {
           else if (repeatType === "weekly") d.setDate(d.getDate() + n * 7);
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
           const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption: effCaption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
+          if (acc.platform === 'ig') srow.post_type = igFormat === 'story' ? 'Story' : igFormat === 'reel' ? 'Reel' : (imgs.length > 1 ? 'Carousel' : 'Single');
           if (postLabel) srow.label = postLabel;
           if (firstComment) srow.first_comment = firstComment;
           if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }

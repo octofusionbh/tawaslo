@@ -359,6 +359,9 @@ export default async function handler(req, res) {
 
         const media = post.image_url || '';
         const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(media);
+        // Preserve the Instagram format chosen at schedule time (Story / Reel / feed).
+        // Without this, a scheduled Story or Reel would publish as a normal feed post.
+        const igFmt = post.post_type === 'Story' ? 'story' : post.post_type === 'Reel' ? 'reel' : 'feed';
 
         // Publish through the existing publisher (handles IG/FB/LinkedIn).
         const pubRes = await fetch(`${SITE}/api/meta-publish`, {
@@ -371,6 +374,7 @@ export default async function handler(req, res) {
             caption: post.caption || '',
             imageUrl: media && !isVideo ? media : null,
             videoUrl: isVideo ? media : null,
+            igFormat: igFmt,
             firstComment: post.first_comment || null,
           }),
         });
