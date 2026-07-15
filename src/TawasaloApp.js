@@ -7841,9 +7841,12 @@ function PublisherPage() {
             const capCol = hasCap ? "#1a1a1a" : "#aab2bd";
             const grey = "#65676b";
             const isStory = (igFormat === "story" || igFormat === "reel") && effPreviewPlat === "ig";
-            const avatar = (s) => pic
-              ? <img src={pic} alt="" style={{ width:s, height:s, borderRadius:"50%", objectFit:"cover", flexShrink:0 }}/>
-              : <div style={{ width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0 }}>{av}</div>;
+            const avatar = (s) => (
+              <div style={{ position:"relative", width:s, height:s, borderRadius:"50%", background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", fontSize:s*0.42, fontWeight:700, flexShrink:0, overflow:"hidden" }}>
+                {av}
+                {pic && <img src={pic} alt="" onError={(e)=>{e.currentTarget.style.display="none";}} style={{ position:"absolute", inset:0, width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }}/>}
+              </div>
+            );
             const media = (radius) => (
               <div style={{ position:"relative", width:"100%", ...(hasMedia ? { aspectRatio:isStory?"9 / 16":String(pvAR), maxHeight:isStory?300:"none" } : { height:240 }), background:hasMedia?"#000":"#eef0f3", display:"flex", alignItems:"center", justifyContent:"center", color:"#9aa3ad", borderRadius:radius||0, overflow:"hidden" }}>
                 {firstImg ? <img src={firstImg.url} alt="" onLoad={e=>{ const ar = e.target.naturalWidth / e.target.naturalHeight; if (ar && !isStory) setPvAR(Math.min(1.91, Math.max(0.8, ar))); }} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
