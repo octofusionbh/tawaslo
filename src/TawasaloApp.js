@@ -15442,7 +15442,7 @@ function MenuBuilderPage() {
     setPlanning(false); setPlanMsg("");
     setPage("planner");
   };
-  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true, on_pickup:true });
+  const blankItem = () => ({ name_en:"", name_ar:"", description:"", description_ar:"", price:"", category: cat==="All" ? (cats[1]||"General") : cat, photo_url:"", photos:[], tags:[], variants:[], addons:[], available:true, hidden:false, show_price:true, on_pickup:true, lead_hours:0, allow_note:false, dine_in:true });
   const itemStatus = (it) => it.hidden ? "hidden" : (it.available===false ? "sold_out" : "available");
   const setItemStatus = async (it, st) => {
     const patch = st==="hidden" ? { hidden:true } : st==="sold_out" ? { hidden:false, available:false } : { hidden:false, available:true };
@@ -15456,7 +15456,7 @@ function MenuBuilderPage() {
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
     const variants = (Array.isArray(editing.variants)?editing.variants:[]).map(v=>({ name:(v.name||"").trim(), price: v.price===""||v.price==null?null:Number(v.price) })).filter(v=>v.name);
     const addons = (Array.isArray(editing.addons)?editing.addons:[]).map(a=>({ name:(a.name||"").trim(), price: a.price===""||a.price==null?null:Number(a.price) })).filter(a=>a.name);
-    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, on_pickup: editing.on_pickup!==false, margin_priority: editing.margin_priority||0, sort: editing.sort!=null?editing.sort:items.length };
+    const row = { menu_id:menu.id, category:(editing.category||"General").trim(), name_en:editing.name_en.trim(), name_ar:(editing.name_ar||"").trim(), description:(editing.description||"").trim()||null, description_ar:(editing.description_ar||"").trim()||null, price: editing.price===""?null:Number(editing.price), photos, photo_url: photos[0] || editing.photo_url || null, tags: Array.isArray(editing.tags)?editing.tags:[], variants, addons, available: editing.available!==false, hidden: !!editing.hidden, show_price: editing.show_price!==false, on_pickup: editing.on_pickup!==false, lead_hours: Number(editing.lead_hours)||0, allow_note: !!editing.allow_note, dine_in: editing.dine_in!==false, margin_priority: editing.margin_priority||0, sort: editing.sort!=null?editing.sort:items.length };
     if (editing.id) { await supabase.from('menu_items').update(row).eq('id', editing.id); setItems(its=>its.map(i=>i.id===editing.id?{...i,...row}:i)); }
     else { const ins = await supabase.from('menu_items').insert([row]).select(); const ni = ins.data && ins.data[0]; if (ni) setItems(its=>[...its, ni]); }
     setEditing(null);
@@ -15532,6 +15532,29 @@ function MenuBuilderPage() {
             <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{pickupOn?L("Guests can order for pickup from the order link and the chat.","يمكن للضيوف الطلب للاستلام عبر الرابط والدردشة."):L("Off — the order link shows “Ordering not available”.","معطّل — رابط الطلب يعرض غير متاح.")}</div>
           </div>
           <div onClick={()=>updateMenu({ pickup_enabled: !pickupOn })} style={{ width:44, height:25, borderRadius:20, background:pickupOn?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:pickupOn?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+        </div>
+      )}
+      {menu && pickupOn && (
+        <div style={{ ...card, padding:"14px 16px", marginBottom:14 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:th.text, marginBottom:12 }}>{L("Pickup settings","إعدادات الاستلام")}</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:14, alignItems:"flex-end", marginBottom:14 }}>
+            <label style={{ fontSize:11.5, color:th.text2 }}>{L("Opens","يفتح")}<br/><input type="time" value={menu.pickup_open||"08:00"} onChange={e=>updateMenu({ pickup_open:e.target.value })} style={{ marginTop:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+            <label style={{ fontSize:11.5, color:th.text2 }}>{L("Closes","يغلق")}<br/><input type="time" value={menu.pickup_close||"23:00"} onChange={e=>updateMenu({ pickup_close:e.target.value })} style={{ marginTop:4, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+            <label style={{ fontSize:11.5, color:th.text2 }}>{L("Order up to (days ahead)","الطلب مسبقاً (أيام)")}<br/><input type="number" min="0" max="60" value={menu.pickup_days_ahead!=null?menu.pickup_days_ahead:7} onChange={e=>updateMenu({ pickup_days_ahead:e.target.value===""?0:Number(e.target.value) })} style={{ marginTop:4, width:80, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+          </div>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:7 }}>{L("Pickup methods","طرق الاستلام")}</div>
+          <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+            {[["inside",L("Pick up inside","استلام بالداخل")],["carhop",L("Car Hop","كار هوب")]].map(([k,lbl])=>{ const cur=Array.isArray(menu.pickup_methods)?menu.pickup_methods:["inside"]; const on=cur.includes(k); return (
+              <button key={k} onClick={()=>{ let next=on?cur.filter(x=>x!==k):[...cur,k]; if(!next.length) next=[k]; updateMenu({ pickup_methods:next }); }} style={{ padding:"7px 14px", borderRadius:20, fontSize:12, cursor:"pointer", border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accent+"22":"transparent", color:on?th.text:th.text2 }}>{lbl}</button>
+            ); })}
+          </div>
+          <div style={{ fontSize:11.5, color:th.text2, marginBottom:7 }}>{L("Payment","الدفع")}</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {[["cash",L("Cash only","نقداً فقط")],["online",L("Online only","إلكتروني فقط")],["both",L("Both","كلاهما")]].map(([k,lbl])=>{ const on=(menu.pickup_pay||"cash")===k; return (
+              <button key={k} onClick={()=>updateMenu({ pickup_pay:k })} style={{ padding:"7px 14px", borderRadius:20, fontSize:12, cursor:"pointer", border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accent+"22":"transparent", color:on?th.text:th.text2 }}>{lbl}</button>
+            ); })}
+          </div>
+          {(menu.pickup_pay||"cash")!=="cash" && <div style={{ fontSize:10.5, color:th.text3, marginTop:9, lineHeight:1.5 }}>{L("Online payment activates once your Tap merchant account is connected. Until then, orders come through as pay-at-pickup.","يُفعّل الدفع الإلكتروني بعد ربط حساب تاب. حتى ذلك الحين تصل الطلبات كدفع عند الاستلام.")}</div>}
         </div>
       )}
       {menu && (
@@ -15814,6 +15837,23 @@ function MenuBuilderPage() {
               <input type="checkbox" checked={editing.on_pickup!==false} onChange={e=>setEditing({...editing, on_pickup:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
               <span style={{ fontSize:12, color:th.text2 }}>{L("Available for pickup orders","متاح لطلبات الاستلام")}</span>
             </label>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
+              <input type="checkbox" checked={editing.dine_in!==false} onChange={e=>setEditing({...editing, dine_in:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12, color:th.text2 }}>{L("Show on the dine-in menu","إظهار في قائمة الطعام بالمطعم")}</span>
+            </label>
+            <label style={{ display:"flex", alignItems:"center", gap:9, marginBottom:12, cursor:"pointer" }}>
+              <input type="checkbox" checked={!!editing.allow_note} onChange={e=>setEditing({...editing, allow_note:e.target.checked})} style={{ width:16, height:16, accentColor:th.accent }}/>
+              <span style={{ fontSize:12, color:th.text2 }}>{L("Let the customer add a note (e.g. cake message)","السماح للعميل بكتابة ملاحظة (مثل رسالة على الكيك)")}</span>
+            </label>
+            <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Advance notice for pickup","مهلة الطلب المسبق")}</div>
+            <select value={String(editing.lead_hours||0)} onChange={e=>setEditing({...editing, lead_hours:Number(e.target.value)})} style={{ ...inp, marginBottom:12, cursor:"pointer" }}>
+              <option value="0">{L("None — same-day pickup","بدون — استلام في نفس اليوم")}</option>
+              <option value="3">{L("3 hours","3 ساعات")}</option>
+              <option value="12">{L("12 hours","12 ساعة")}</option>
+              <option value="24">{L("24 hours (pre-order)","24 ساعة (طلب مسبق)")}</option>
+              <option value="48">{L("48 hours (pre-order)","48 ساعة (طلب مسبق)")}</option>
+              <option value="72">{L("72 hours (pre-order)","72 ساعة (طلب مسبق)")}</option>
+            </select>
             <div style={{ fontSize:10.5, color:th.text2, margin:"0 0 5px" }}>{L("Status","الحالة")}</div>
             <select value={editing.hidden ? "hidden" : (editing.available===false ? "sold_out" : "available")} onChange={e=>{ const v=e.target.value; setEditing({...editing, hidden:v==="hidden", available:v!=="sold_out"}); }} style={{ ...inp, marginBottom:4, cursor:"pointer" }}>
               <option value="available">{L("Available — shown on the menu","متاح — يظهر في القائمة")}</option>
@@ -16109,27 +16149,44 @@ function OrderPublicPage({ slug }) {
   const [cart, setCart] = useState({});
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [pickup, setPickup] = useState("");
+  const [selDay, setSelDay] = useState(null);
+  const [selSlot, setSelSlot] = useState(null);
+  const [itemNotes, setItemNotes] = useState({});
+  const [orderNote, setOrderNote] = useState("");
+  const [method, setMethod] = useState("");
+  const [car, setCar] = useState({ color:"", model:"", plate:"" });
+  const [payM, setPayM] = useState("");
   const [orderErr, setOrderErr] = useState("");
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(null);
   useEffect(() => {
     let live = true;
     (async () => {
-      let cid=null, cname=null, menuId=null, cur='BHD', photoMode='all', payMode='at_pickup', prep=20, taxEnabled=false, taxPct=0, pickupEnabled=false, minOrder=0, onlinePay=false, destId=null, payCur=null;
+      let m0=null, cid=null, cname=null, menuId=null;
       try {
-        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_pay_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order,online_pay_enabled,tap_destination_id,pay_currency').eq('slug', slug).limit(1);
-        const m = md && md[0];
-        if (m) { menuId=m.id; cid=m.client_id; cname=m.title; cur=m.currency||'BHD'; photoMode=m.photo_mode||'all'; payMode=m.pickup_pay_mode||'at_pickup'; prep=m.pickup_prep_min||20; taxEnabled=!!m.tax_enabled; taxPct=Number(m.tax_pct)||0; pickupEnabled=!!m.pickup_enabled; minOrder=Number(m.pickup_min_order)||0; onlinePay=!!m.online_pay_enabled; destId=m.tap_destination_id||null; payCur=m.pay_currency||null;
-          const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m.id).order('sort',{ascending:true});
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order,online_pay_enabled,tap_destination_id,pay_currency,pickup_open,pickup_close,pickup_days_ahead,pickup_methods,pickup_pay').eq('slug', slug).limit(1);
+        m0 = md && md[0];
+        if (m0) { menuId=m0.id; cid=m0.client_id; cname=m0.title;
+          const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m0.id).order('sort',{ascending:true});
           const arr = (it||[]).filter(x=>!x.hidden && x.available!==false);
           const pick = arr.filter(x=>x.on_pickup===true);
           if (live) setItems(pick.length?pick:arr);
         }
       } catch(e){}
-      if (!cid || !pickupEnabled) { if(live) setData(null); return; }
+      if (!m0 || !cid || !m0.pickup_enabled) { if(live) setData(null); return; }
       try { if (!cname) { const { data:c } = await supabase.from('clients').select('name').eq('id',cid).limit(1); cname = c&&c[0]&&c[0].name; } } catch(e){}
-      if (live) setData({ client_id:cid, menu_id:menuId, name:cname||'', currency:cur, photoMode, payMode, prep, taxEnabled, taxPct, onlinePay, destId, payCur });
+      let methods = Array.isArray(m0.pickup_methods) ? m0.pickup_methods : (m0.pickup_methods ? String(m0.pickup_methods).split(',').map(s=>s.trim()).filter(Boolean) : []);
+      if (!methods.length) methods = ['inside'];
+      if (live) setData({
+        client_id:cid, menu_id:menuId, name:cname||'', currency:m0.currency||'BHD',
+        photoMode:m0.photo_mode||'all', prep:m0.pickup_prep_min||20,
+        taxEnabled:!!m0.tax_enabled, taxPct:Number(m0.tax_pct)||0,
+        minOrder:Number(m0.pickup_min_order)||0,
+        onlinePay:!!m0.online_pay_enabled, destId:m0.tap_destination_id||null,
+        open:m0.pickup_open||'08:00', close:m0.pickup_close||'23:00',
+        daysAhead:(m0.pickup_days_ahead!=null?Number(m0.pickup_days_ahead):7),
+        methods, payChoice:(m0.pickup_pay||'cash')
+      });
     })();
     return () => { live = false; };
   }, [slug]);
@@ -16146,27 +16203,64 @@ function OrderPublicPage({ slug }) {
   const total = subtotal + taxAmt;
   const count = lines.reduce((s,l)=>s+l.qty,0);
   const cats = Array.from(new Set(items.map(i=>i.category||'Menu')));
+  const H = (hhmm)=>{ const p=String(hhmm||'0:0').split(':'); return (Number(p[0])||0)*60+(Number(p[1])||0); };
+  const maxLeadH = lines.reduce((mx,l)=> Math.max(mx, Number(l.item.lead_hours)||0), 0);
+  const leadWho = (()=>{ let w=null,mx=0; lines.forEach(l=>{ const v=Number(l.item.lead_hours)||0; if(v>mx){mx=v; w=l.item.name_en||l.item.name_ar;} }); return w; })();
+  const earliest = data ? new Date(Date.now() + Math.max((data.prep||20), maxLeadH*60)*60000) : new Date();
+  const dayLabel = (i)=>{ const d=new Date(); d.setDate(d.getDate()+i); return i===0?'Today':i===1?'Tomorrow':d.toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'short'}); };
+  const fmtSlot = (min)=>{ let h=Math.floor(min/60),mm=min%60,ap=h>=12?'PM':'AM',hh=h%12||12; return hh+':'+(mm<10?'0':'')+mm+' '+ap; };
+  const slotDate = (i,min)=>{ const d=new Date(); d.setDate(d.getDate()+i); d.setHours(Math.floor(min/60),min%60,0,0); return d; };
+  const dayEnabled = (i)=>{ if(!data) return false; return slotDate(i, H(data.close))>=earliest; };
+  const daySlots = (i)=>{ if(!data) return []; const o=H(data.open),c=H(data.close),out=[]; for(let t=o;t<=c;t+=30){ if(slotDate(i,t)>=earliest) out.push(t); } return out; };
+  const payOptions = (()=>{ if(!data) return ['cash']; const pc=data.payChoice; if(pc==='online') return ['online']; if(pc==='cash') return ['cash']; return ['online','cash']; })();
+  const noteItems = lines.filter(l=> l.item.allow_note);
   const place = async () => {
-    if (!name.trim() || !phone.trim() || !count || placing) return;
+    if (placing || !data) return;
+    if (!name.trim() || !phone.trim() || !count) { setOrderErr('Add items and your name and phone.'); return; }
+    if (data.minOrder && subtotal < data.minOrder) { setOrderErr('Minimum order is '+money(data.minOrder)+'.'); return; }
+    if (selDay===null || selSlot===null) { setOrderErr('Choose a pickup day and time.'); return; }
+    const meth = data.methods.length>1 ? method : data.methods[0];
+    if (!meth) { setOrderErr('Choose how you will pick up.'); return; }
+    if (meth==='carhop' && (!car.color.trim()||!car.model.trim()||!car.plate.trim())) { setOrderErr('Add your car colour, model and plate for Car Hop.'); return; }
+    const pay = payOptions.length>1 ? payM : payOptions[0];
+    if (!pay) { setOrderErr('Choose a payment method.'); return; }
     setPlacing(true); setOrderErr("");
     const order_no = '#'+Math.random().toString(36).slice(2,6).toUpperCase();
-    const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:unitPrice(l.item), line_total:unitPrice(l.item)*l.qty }));
-    let pickupAt=null; try { if(pickup) pickupAt=new Date(new Date().toDateString()+' '+pickup).toISOString(); } catch(e){}
+    const rows = lines.map(l=>({ name:l.item.name_en||l.item.name_ar||'Item', qty:l.qty, price:unitPrice(l.item), line_total:unitPrice(l.item)*l.qty, note:(itemNotes[l.item.id]||'').trim()||null }));
+    const pickupAt = slotDate(selDay, selSlot).toISOString();
+    const carStr = meth==='carhop' ? (car.color.trim()+' '+car.model.trim()+' · '+car.plate.trim()) : null;
     try {
-      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status:'unpaid', pickup_at:pickupAt }]).select();
+      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status: pay==='online'?'pending':'unpaid', pickup_at:pickupAt, note:orderNote.trim()||null, pickup_method:meth, car_details:carStr }]).select();
       if (oErr) { setOrderErr('Could not place your order. Please try again or call the restaurant.'); setPlacing(false); return; }
       const newOrder = oIns && oIns[0];
-      if (PAYMENTS_LIVE && data.onlinePay && data.destId && newOrder && newOrder.id) {
+      if (pay==='online' && PAYMENTS_LIVE && data.destId && newOrder && newOrder.id) {
         try { const rr = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'order_charge', order_id:newOrder.id }) }); const jj = await rr.json(); if (jj && jj.url) { window.location.href = jj.url; return; } } catch(e){}
       }
-      setDone(order_no);
-    } catch(e){}
+      setDone({ no:order_no, at:pickupAt, method:meth, pay });
+    } catch(e){ setOrderErr('Something went wrong. Please try again.'); }
     setPlacing(false);
   };
   const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"24px 14px 120px", boxSizing:"border-box" };
+  const fieldS = { width:"100%", boxSizing:"border-box", background:"#0E1013", border:"1px solid #20242b", borderRadius:10, padding:"11px 12px", color:"#ECEAE1", fontSize:15, outline:"none" };
+  const ACC="#6E8CAB", ACCBG="rgba(110,140,171,0.18)";
   if (data===undefined) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:13,color:"#7E8794"}}>Loading…</div></div>;
   if (data===null) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:15,fontWeight:600}}>Ordering not available</div><div style={{fontSize:12.5,color:"#7E8794",marginTop:6}}>Powered by Tawaslo</div></div></div>;
-  if (done) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center",maxWidth:340}}><div style={{width:56,height:56,borderRadius:"50%",background:"rgba(63,185,131,0.15)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px"}}><Check size={28} color="#3FB983"/></div><div style={{fontSize:18,fontWeight:700}}>Order placed!</div><div style={{fontSize:13,color:"#9aa3b2",marginTop:8,lineHeight:1.6}}>Your order {done} is in. {data.name} will have it ready in about {data.prep} minutes. Pay at pickup.</div></div></div>;
+  if (done) { const d=new Date(done.at); const t0=new Date(); t0.setHours(0,0,0,0); const dd=new Date(d); dd.setHours(0,0,0,0); const diff=Math.round((dd-t0)/86400000); const dl=diff===0?'Today':diff===1?'Tomorrow':d.toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'short'}); const tl=d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+    return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center",maxWidth:360,width:"100%"}}>
+      <div style={{width:56,height:56,borderRadius:"50%",background:"rgba(63,185,131,0.15)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px"}}><Check size={28} color="#3FB983"/></div>
+      <div style={{fontSize:19,fontWeight:700,marginBottom:4}}>Order confirmed</div>
+      <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:18}}>Show this code at pickup</div>
+      <div style={{background:"#141923",border:"1px solid #20242b",borderRadius:16,padding:"22px 18px"}}>
+        <div style={{fontSize:11,color:"#7E8794",textTransform:"uppercase",letterSpacing:1.5,marginBottom:6}}>Order code</div>
+        <div style={{fontSize:38,fontWeight:800,letterSpacing:2,color:"#ECEAE1"}}>{done.no}</div>
+        <div style={{height:1,background:"#20242b",margin:"16px 0"}}/>
+        <div style={{fontSize:14,fontWeight:600}}>{data.name}</div>
+        <div style={{fontSize:13,color:"#9aa3b2",marginTop:5}}>Pick up {dl} at {tl}</div>
+        <div style={{fontSize:12.5,color:"#7E8794",marginTop:4}}>{done.method==='carhop'?'Car Hop (curbside)':'Pick up inside'} · {done.pay==='online'?'Paid online':'Pay at pickup'}</div>
+      </div>
+      <div style={{fontSize:11,color:"#5A6B86",marginTop:16}}>Powered by Tawaslo</div>
+    </div></div>;
+  }
   return (
     <div style={wrap}>
       <div style={{maxWidth:520,margin:"0 auto"}}>
@@ -16174,10 +16268,10 @@ function OrderPublicPage({ slug }) {
         {cats.map(cat=>(
           <div key={cat} style={{marginBottom:20}}>
             <div style={{fontSize:11,color:"#7E8794",textTransform:"uppercase",letterSpacing:1,fontWeight:700,marginBottom:8}}>{cat}</div>
-            {items.filter(i=>(i.category||'Menu')===cat).map(it=>{ const q=cart[it.id]?cart[it.id].qty:0; return (
+            {items.filter(i=>(i.category||'Menu')===cat).map(it=>{ const q=cart[it.id]?cart[it.id].qty:0; const lead=Number(it.lead_hours)||0; return (
               <div key={it.id} style={{display:"flex",gap:11,alignItems:"center",background:"#141923",border:"1px solid #20242b",borderRadius:12,padding:10,marginBottom:8}}>
                 {showPhoto(it) ? <img src={it.photo_url} alt="" style={{width:52,height:52,borderRadius:9,objectFit:"cover",flexShrink:0}}/> : null}
-                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600}}>{it.name_en||it.name_ar}</div>{it.description?<div style={{fontSize:11,color:"#7E8794",marginTop:2,lineHeight:1.4}}>{String(it.description).slice(0,80)}</div>:null}<div style={{fontSize:12,color:"#9aa3b2",marginTop:3}}>{money(unitPrice(it))}</div></div>
+                <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600}}>{it.name_en||it.name_ar}{lead>0 && <span style={{fontSize:9.5,fontWeight:600,color:"#E7B96B",background:"rgba(231,185,107,0.14)",borderRadius:20,padding:"2px 7px",marginLeft:7,whiteSpace:"nowrap"}}>Pre-order · {lead}h</span>}</div>{it.description?<div style={{fontSize:11,color:"#7E8794",marginTop:2,lineHeight:1.4}}>{String(it.description).slice(0,80)}</div>:null}<div style={{fontSize:12,color:"#9aa3b2",marginTop:3}}>{money(unitPrice(it))}</div></div>
                 {q>0 ? <div style={{display:"flex",alignItems:"center",gap:9}}><button onClick={()=>sub(it.id)} style={{width:28,height:28,borderRadius:8,background:"#1a2230",border:"1px solid #20242b",color:"#fff",cursor:"pointer",fontSize:16}}>−</button><span style={{fontSize:13,minWidth:14,textAlign:"center"}}>{q}</span><button onClick={()=>add(it)} style={{width:28,height:28,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",fontSize:16}}>+</button></div> : <button onClick={()=>add(it)} style={{width:30,height:30,borderRadius:8,background:"#4F6B8C",border:"none",color:"#fff",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}><Plus size={16}/></button>}
               </div>
             ); })}
@@ -16188,12 +16282,50 @@ function OrderPublicPage({ slug }) {
             <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Your order · {count} item{count>1?"s":""}</div>
             {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>Subtotal</span><span>{money(subtotal)}</span></div>}
             {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:8,display:"flex",justifyContent:"space-between"}}><span>VAT ({taxPct}%)</span><span>{money(taxAmt)}</span></div>}
-            <div style={{fontSize:13.5,fontWeight:700,marginBottom:12,display:"flex",justifyContent:"space-between"}}><span>Total</span><span>{money(total)}</span></div>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
-            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:8}}/>
-            <input value={pickup} onChange={e=>setPickup(e.target.value)} type="time" style={{width:"100%",boxSizing:"border-box",background:"#0E1013",border:"1px solid #20242b",borderRadius:10,padding:"11px 12px",color:"#ECEAE1",fontSize:15,outline:"none",marginBottom:12}}/>
-            {orderErr && <div style={{fontSize:12,color:"#E2574B",marginBottom:8,lineHeight:1.45}}>{orderErr}</div>}
-            <button onClick={place} disabled={placing||!name.trim()||!phone.trim()} style={{width:"100%",padding:"13px",borderRadius:12,background:(placing||!name.trim()||!phone.trim())?"#1a2230":"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{placing?"Placing…":"Place order · Pay at pickup"}</button>
+            <div style={{fontSize:13.5,fontWeight:700,marginBottom:14,display:"flex",justifyContent:"space-between"}}><span>Total</span><span>{money(total)}</span></div>
+            {noteItems.length>0 && <div style={{marginBottom:14}}>{noteItems.map(l=>(
+              <div key={l.item.id} style={{marginBottom:8}}><div style={{fontSize:11.5,color:"#9aa3b2",marginBottom:4}}>Note for {l.item.name_en||l.item.name_ar}</div><input value={itemNotes[l.item.id]||""} onChange={e=>setItemNotes(n=>({...n,[l.item.id]:e.target.value}))} placeholder="e.g. Happy Birthday Sara" style={fieldS}/></div>
+            ))}</div>}
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{...fieldS,marginBottom:8}}/>
+            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{...fieldS,marginBottom:14}}/>
+            <div style={{fontSize:11.5,color:"#7E8794",marginBottom:7}}>1 · Choose a day</div>
+            <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+              {Array.from({length:(data.daysAhead||0)+1}).map((_,i)=>{ const en=dayEnabled(i); const on=selDay===i; return (
+                <button key={i} disabled={!en} onClick={()=>{setSelDay(i);setSelSlot(null);}} style={{flex:"0 0 auto",padding:"9px 14px",borderRadius:10,cursor:en?"pointer":"not-allowed",fontSize:12.5,whiteSpace:"nowrap",opacity:en?1:0.3,border:on?("1.5px solid "+ACC):"1px solid #262b33",background:on?ACCBG:"#0E1013",color:on?"#BFD3EC":"#ECEAE1"}}>{dayLabel(i)}</button>
+              ); })}
+            </div>
+            {maxLeadH>0 && <div style={{fontSize:11,color:"#E7B96B",marginTop:8}}>Earliest pickup reflects {leadWho} — needs {maxLeadH}h notice.</div>}
+            {selDay!=null && <div style={{marginTop:14}}>
+              <div style={{fontSize:11.5,color:"#7E8794",marginBottom:8}}>2 · Choose a time · {fmtSlot(H(data.open))}–{fmtSlot(H(data.close))}</div>
+              {daySlots(selDay).length? <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7}}>
+                {daySlots(selDay).map(t=>{ const on=selSlot===t; return <button key={t} onClick={()=>setSelSlot(t)} style={{padding:"10px 4px",borderRadius:10,fontSize:12,cursor:"pointer",border:on?("1.5px solid "+ACC):"1px solid #262b33",background:on?ACCBG:"#0E1013",color:on?"#BFD3EC":"#ECEAE1"}}>{fmtSlot(t)}</button>; })}
+              </div> : <div style={{fontSize:12.5,color:"#7E8794"}}>No times left this day — pick another.</div>}
+            </div>}
+            <div style={{marginTop:14}}>
+              <div style={{fontSize:11.5,color:"#7E8794",marginBottom:6}}>Note for the kitchen (optional)</div>
+              <textarea value={orderNote} onChange={e=>setOrderNote(e.target.value)} rows={2} placeholder="Allergies, extra napkins…" style={{...fieldS,resize:"vertical",fontFamily:"inherit"}}/>
+            </div>
+            {data.methods.length>1 && <div style={{marginTop:14}}>
+              <div style={{fontSize:11.5,color:"#7E8794",marginBottom:7}}>How will you pick up?</div>
+              <div style={{display:"flex",gap:7}}>
+                {data.methods.includes('inside') && <button onClick={()=>setMethod('inside')} style={{flex:1,padding:"10px",borderRadius:10,fontSize:12.5,cursor:"pointer",border:method==='inside'?("1.5px solid "+ACC):"1px solid #262b33",background:method==='inside'?ACCBG:"#0E1013",color:method==='inside'?"#BFD3EC":"#ECEAE1"}}>Pick up inside</button>}
+                {data.methods.includes('carhop') && <button onClick={()=>setMethod('carhop')} style={{flex:1,padding:"10px",borderRadius:10,fontSize:12.5,cursor:"pointer",border:method==='carhop'?("1.5px solid "+ACC):"1px solid #262b33",background:method==='carhop'?ACCBG:"#0E1013",color:method==='carhop'?"#BFD3EC":"#ECEAE1"}}>Car Hop (curbside)</button>}
+              </div>
+            </div>}
+            {((data.methods.length>1&&method==='carhop')||(data.methods.length===1&&data.methods[0]==='carhop')) && <div style={{marginTop:10,display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+              <input value={car.color} onChange={e=>setCar(c=>({...c,color:e.target.value}))} placeholder="Car colour" style={fieldS}/>
+              <input value={car.model} onChange={e=>setCar(c=>({...c,model:e.target.value}))} placeholder="Car model" style={fieldS}/>
+              <input value={car.plate} onChange={e=>setCar(c=>({...c,plate:e.target.value}))} placeholder="Plate number" style={{...fieldS,gridColumn:"1/-1"}}/>
+            </div>}
+            {payOptions.length>1 && <div style={{marginTop:14}}>
+              <div style={{fontSize:11.5,color:"#7E8794",marginBottom:7}}>Payment</div>
+              <div style={{display:"flex",gap:7}}>
+                {payOptions.includes('online') && <button onClick={()=>setPayM('online')} style={{flex:1,padding:"10px",borderRadius:10,fontSize:12.5,cursor:"pointer",border:payM==='online'?("1.5px solid "+ACC):"1px solid #262b33",background:payM==='online'?ACCBG:"#0E1013",color:payM==='online'?"#BFD3EC":"#ECEAE1"}}>Pay online</button>}
+                {payOptions.includes('cash') && <button onClick={()=>setPayM('cash')} style={{flex:1,padding:"10px",borderRadius:10,fontSize:12.5,cursor:"pointer",border:payM==='cash'?("1.5px solid "+ACC):"1px solid #262b33",background:payM==='cash'?ACCBG:"#0E1013",color:payM==='cash'?"#BFD3EC":"#ECEAE1"}}>Pay at pickup</button>}
+              </div>
+            </div>}
+            {orderErr && <div style={{fontSize:12,color:"#E2574B",margin:"12px 0 0",lineHeight:1.45}}>{orderErr}</div>}
+            <button onClick={place} disabled={placing} style={{width:"100%",marginTop:14,padding:"13px",borderRadius:12,background:placing?"#1a2230":"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{placing?"Placing…":"Place order"}</button>
           </div>
         )}
       </div>
@@ -16258,6 +16390,10 @@ function OrdersPage() {
                 <span style={{fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:20,background:(SC[o.status]||th.text3)+"22",color:SC[o.status]||th.text3}}>{o.status}</span>
               </div>
               <div style={{fontSize:11.5,color:th.text2,lineHeight:1.5,marginBottom:10}}>{(o.items||[]).map((it,i)=><div key={i}>{it.qty}× {it.name}</div>)}<div style={{marginTop:4,color:th.text,fontWeight:600}}>{money(o.total,curOf(o))} · {o.pay_status}</div>{o.customer_phone?<div style={{marginTop:2}}>{o.customer_phone}</div>:null}</div>
+              {o.pickup_at && <div style={{fontSize:11,color:th.accent,marginBottom:6,display:"flex",alignItems:"center",gap:5}}><Clock size={12}/>{new Date(o.pickup_at).toLocaleString([], {weekday:"short",day:"numeric",month:"short",hour:"numeric",minute:"2-digit"})}</div>}
+              {o.pickup_method && <div style={{fontSize:11,color:th.text2,marginBottom:4}}>{o.pickup_method==='carhop'?L("Car Hop","كار هوب"):L("Pick up inside","استلام بالداخل")}{o.car_details?" · "+o.car_details:""}</div>}
+              {o.note && <div style={{fontSize:11,color:th.text,marginBottom:6,background:th.card2,borderRadius:8,padding:"6px 9px"}}><b>{L("Note","ملاحظة")}:</b> {o.note}</div>}
+              {(o.items||[]).some(it=>it&&it.note) && <div style={{fontSize:10.5,color:th.text2,marginBottom:6}}>{(o.items||[]).filter(it=>it&&it.note).map((it,i)=><div key={i}>• {it.name}: {it.note}</div>)}</div>}
               <div style={{display:"flex",gap:7}}>
                 {nextSt[o.status] && <button onClick={()=>setStatus(o,nextSt[o.status])} style={{flex:1,padding:"8px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{nextLbl[o.status]}</button>}
                 <button onClick={()=>setStatus(o,'cancelled')} style={{padding:"8px 11px",borderRadius:9,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,fontSize:11.5,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
