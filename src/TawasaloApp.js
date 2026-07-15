@@ -7019,7 +7019,18 @@ function PublisherPage() {
   useEffect(() => {
     if (!realClientId) return;
     supabase.from('social_accounts').select('*').eq('client_id', realClientId).neq('is_active', false)
-      .then(({ data }) => { if (data) setAccounts(data.filter(a => a.platform !== 'gb')); });
+      .then(({ data }) => {
+        if (!data) return;
+        const list = data.filter(a => a.platform !== 'gb');
+        setAccounts(list);
+        // IG/FB profile-photo URLs expire; refresh so the live preview shows the real logo (and persist it).
+        list.forEach(a => {
+          if ((a.platform === 'ig' || a.platform === 'fb') && a.account_id && a.access_token) {
+            fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId:a.account_id, accessToken:a.access_token, platform:a.platform, profileOnly:true }) })
+              .then(r=>r.json()).then(d => { const pic = d && d.profile && d.profile.picture; if (pic && pic !== a.picture) { setAccounts(prev => prev.map(x => x.id===a.id ? { ...x, picture:pic } : x)); try { supabase.from('social_accounts').update({ picture:pic }).eq('id', a.id); } catch(e){} } }).catch(()=>{});
+          }
+        });
+      });
     loadDrafts(realClientId);
   }, [realClientId]);
 

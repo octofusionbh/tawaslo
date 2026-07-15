@@ -14,6 +14,25 @@ export default async function handler(req, res) {
     ? 'https://graph.instagram.com/v21.0'
     : 'https://graph.facebook.com/v19.0';
 
+  // Fast path: fetch ONLY a fresh profile photo (+ name/username). Instagram &
+  // Facebook profile-picture URLs are time-signed and expire, so a stored link
+  // eventually 403s and the avatar breaks. Callers use this to refresh the URL
+  // without paying for the full media/insights pull.
+  if (req.body.profileOnly) {
+    try {
+      if ((req.body.platform || '') === 'fb') {
+        const r = await fetch(`https://graph.facebook.com/v19.0/${accountId}?fields=name,picture.width(160).height(160)&access_token=${accessToken}`);
+        const p = await r.json();
+        if (p.error) return res.status(400).json({ error: p.error.message });
+        return res.status(200).json({ profile: { name: p.name || null, picture: (p.picture && p.picture.data && p.picture.data.url) || null } });
+      }
+      const r = await fetch(`${base}/${accountId}?fields=id,username,name,followers_count,profile_picture_url&access_token=${accessToken}`);
+      const p = await r.json();
+      if (p.error) return res.status(400).json({ error: p.error.message });
+      return res.status(200).json({ profile: { username: p.username || null, name: p.name || null, followers: p.followers_count || 0, picture: p.profile_picture_url || null } });
+    } catch (e) { return res.status(200).json({ error: e.message }); }
+  }
+
   try {
     // 1. Account info + follower count
     const profileRes = await fetch(
