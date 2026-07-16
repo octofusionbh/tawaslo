@@ -962,7 +962,7 @@ function Sidebar() {
 
       {mode==="agency"&&(
         <div style={{padding:col?"0 0 10px":"0 14px 10px"}}>
-          <div onClick={()=>setPage("command")} title={col?"Command Center":undefined} style={{display:"flex",alignItems:"center",justifyContent:col?"center":"flex-start",gap:9,padding:col?"9px 0":"9px 11px",borderRadius:9,cursor:"pointer",background:page==="command"?th.accentSoft:th.card2,border:`1px solid ${page==="command"?th.accent:th.border}`,color:page==="command"?th.accent:th.text,transition:"all 0.15s"}}>
+          <div onClick={()=>setPage("command")} title={col?"Command Center":undefined} style={{display:"flex",alignItems:"center",justifyContent:col?"center":"flex-start",gap:9,padding:col?0:"9px 11px",borderRadius:9,cursor:"pointer",...(col?{width:40,height:40,margin:"0 auto",boxSizing:"border-box"}:{}),background:page==="command"?th.accentSoft:th.card2,border:`1px solid ${page==="command"?th.accent:th.border}`,color:page==="command"?th.accent:th.text,transition:"all 0.15s"}}>
             <Activity size={16} style={{flexShrink:0}}/>
             {!col&&<span style={{fontSize:12,fontWeight:700}}>Command Center</span>}
             {!col&&<span style={{marginLeft:"auto",fontSize:8,color:th.text3,letterSpacing:0.6,textTransform:"uppercase"}}>Agency</span>}
