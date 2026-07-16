@@ -16612,7 +16612,7 @@ function MenuPublicPage({ slug }) {
       </>)}
 
       {isDesktop && (
-        <div dir={rtlDisp?"rtl":"ltr"} style={{ position:"fixed", inset:0, background:T.bg, color:T.text, display:"flex", overflow:"hidden", fontFamily: rtlDisp?"'Cairo',sans-serif":"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif" }}>
+        <div dir={rtlDisp?"rtl":"ltr"} style={{ position:"fixed", inset:0, background:T.bg, color:T.text, colorScheme:(data.theme==="light"?"light":"dark"), display:"flex", overflow:"hidden", fontFamily: rtlDisp?"'Cairo',sans-serif":"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif" }}>
 
           <div className={"twm-cover"+(entered?" twm-out":"")} style={{ background:T.cover }}>
             {hasSecond && <button onClick={toggleLang} aria-label="Switch language" style={{ position:"absolute", top:26, insetInlineEnd:26, ...dpToggle, background:T.card }}><Globe size={14}/>{langName(altLang)}</button>}
@@ -16684,13 +16684,12 @@ function MenuPublicPage({ slug }) {
                     const soldOut = it.available===false;
                     const tgs = itemTags(it).map(resolveTag);
                     return (
-                      <div className="twm-dish" key={it.id} onClick={()=>openDetail(it)} style={{ cursor:"pointer", opacity:soldOut?0.6:1, textAlign:rtlDisp?"right":"left" }}>
-                        <div className="twm-dishphoto" style={{ width:"100%", aspectRatio:"1/1", borderRadius:15, overflow:"hidden", position:"relative", background: ph[0]?`center/cover url(${ph[0]})`:T.photo, border:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", filter:soldOut?"grayscale(0.7)":undefined }}>
-                          {!ph[0] && <Image size={26} color={T.placeholderIcon}/>}
-                          {ph[0] && ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:7, insetInlineEnd:7, fontSize:9.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.55)", borderRadius:6, padding:"2px 7px" }}>{ph.length}</span>}
+                      <div className="twm-dish" key={it.id} onClick={()=>openDetail(it)} style={{ cursor:"pointer", opacity:soldOut?0.6:1, textAlign:rtlDisp?"right":"left", ...(ph[0]?{}:{ background:T.photo, border:`1px solid ${T.border}`, borderRadius:15, padding:"14px 15px" }) }}>
+                        {ph[0] && <div className="twm-dishphoto" style={{ width:"100%", aspectRatio:"1/1", borderRadius:15, overflow:"hidden", position:"relative", background:`center/cover url(${ph[0]})`, border:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", filter:soldOut?"grayscale(0.7)":undefined }}>
+                          {ph.length>1 && !soldOut && <span style={{ position:"absolute", bottom:7, insetInlineEnd:7, fontSize:9.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.55)", borderRadius:6, padding:"2px 7px" }}>{ph.length}</span>}
                           {soldOut && <span style={{ position:"absolute", top:8, insetInlineStart:8, fontSize:9.5, fontWeight:700, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:6, padding:"3px 8px", letterSpacing:".05em" }}>SOLD OUT</span>}
-                        </div>
-                        <div style={{ marginTop:10, display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
+                        </div>}
+                        <div style={{ marginTop:ph[0]?10:0, display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:8 }}>
                           <div style={{ fontSize:14.5, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.name_en,it.name_ar)}</div>
                           <div style={{ fontSize:14, fontWeight:700, color:T.price, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", flexShrink:0, textDecoration:soldOut?"line-through":undefined }}>{priceOf(it)}</div>
                         </div>
@@ -16709,7 +16708,7 @@ function MenuPublicPage({ slug }) {
       )}
 
       {detail && createPortal((
-        <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, display:"flex", alignItems:"flex-end", justifyContent:"center", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+        <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, color:"#ECEAE1", display:"flex", alignItems:"flex-end", justifyContent:"center", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
           <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", background:"#0E1013", border:"1px solid #20242b", borderBottom:"none", borderRadius:"22px 22px 0 0", boxShadow:"0 -16px 50px rgba(0,0,0,0.6)" }}>
             <div style={{ position:"sticky", top:0, display:"flex", justifyContent:"center", padding:"9px 0 4px", background:"#0E1013", zIndex:2 }}>
               <div style={{ width:40, height:4, borderRadius:4, background:"#2b313b" }}/>
@@ -16729,8 +16728,8 @@ function MenuPublicPage({ slug }) {
               </div>
             )}
             <div style={{ padding:"18px 20px 30px" }}>
-              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:14 }}>
-                <div style={{ flex:1, minWidth:0, textAlign:rtlDisp?"right":"left" }}>
+              <div style={{ display:"flex", alignItems:detailPhotos.length===0?"center":"flex-start", flexDirection:detailPhotos.length===0?"column":"row", justifyContent:detailPhotos.length===0?"center":"space-between", gap:detailPhotos.length===0?8:14, textAlign:detailPhotos.length===0?"center":undefined, paddingTop:detailPhotos.length===0?12:0 }}>
+                <div style={{ flex:detailPhotos.length===0?"0 0 auto":1, minWidth:0, textAlign:detailPhotos.length===0?"center":(rtlDisp?"right":"left") }}>
                   <div style={{ fontSize:19, fontWeight:700, direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(detail.name_en,detail.name_ar)}</div>
                 </div>
                 {priceOf(detail) && <div style={{ fontSize:17, fontWeight:800, color:"#9DB6D6", fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{priceOf(detail)}</div>}
@@ -16755,7 +16754,7 @@ function MenuPublicPage({ slug }) {
                 ))}
               </div>}
               {(detail.description||detail.description_ar) && <div style={{ height:1, background:"#20242b", margin:"16px 0" }}/>}
-              {pickLang(detail.description,detail.description_ar) && <div style={{ fontSize:13.5, lineHeight:1.65, color:"#c4ccd6", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined, textAlign:rtlDisp?"right":"left" }}>{pickLang(detail.description,detail.description_ar)}</div>}
+              {pickLang(detail.description,detail.description_ar) && <div style={{ fontSize:13.5, lineHeight:1.65, color:"#c4ccd6", direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined, textAlign:detailPhotos.length===0?"center":(rtlDisp?"right":"left") }}>{pickLang(detail.description,detail.description_ar)}</div>}
             </div>
           </div>
         </div>
