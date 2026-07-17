@@ -293,6 +293,26 @@ export default async function handler(req, res) {
         if (!rows.length) return res.status(200).json({ notfound: true });
         return res.status(200).json({ html: rows[0].html, clientName: rows[0].client_name });
       }
+      // ── Staff order board (tawaslo.com/k/<token>) — login-free live pickup board ──
+      if (action === 'kitchen_load') {
+        const mr = await sb(`menus?kitchen_token=eq.${encodeURIComponent(token)}&select=client_id,title&limit=1`);
+        const menu = (mr.ok ? await mr.json() : [])[0];
+        if (!menu) return res.status(200).json({ notfound: true });
+        let name = menu.title || '';
+        if (!name) { try { const cr = await sb(`clients?id=eq.${encodeURIComponent(menu.client_id)}&select=name&limit=1`); name = (cr.ok ? await cr.json() : [])[0]?.name || ''; } catch (e) {} }
+        const or = await sb(`orders?client_id=eq.${encodeURIComponent(menu.client_id)}&select=*&order=created_at.desc&limit=80`);
+        const orders = or.ok ? await or.json() : [];
+        return res.status(200).json({ name, orders });
+      }
+      if (action === 'kitchen_status') {
+        const { orderId, status } = req.body;
+        if (!orderId || !status) return res.status(400).json({ error: 'orderId and status required' });
+        const mr = await sb(`menus?kitchen_token=eq.${encodeURIComponent(token)}&select=client_id&limit=1`);
+        const menu = (mr.ok ? await mr.json() : [])[0];
+        if (!menu) return res.status(200).json({ error: 'bad token' });
+        await sb(`orders?id=eq.${encodeURIComponent(orderId)}&client_id=eq.${encodeURIComponent(menu.client_id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status }) });
+        return res.status(200).json({ ok: true });
+      }
       return res.status(400).json({ error: 'unknown action' });
     } catch (e) { return res.status(200).json({ error: e.message, posts: [] }); }
   }

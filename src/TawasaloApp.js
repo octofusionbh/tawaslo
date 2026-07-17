@@ -16357,6 +16357,66 @@ function OrderPublicPage({ slug }) {
   );
 }
 
+function KitchenBoardPage({ token }) {
+  const [data, setData] = useState(undefined);
+  const load = async () => {
+    try {
+      const r = await fetch('/api/cron', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'kitchen_load', token }) });
+      const d = await r.json();
+      if (d && d.notfound) { setData(null); return; }
+      if (d && Array.isArray(d.orders)) setData({ name:d.name||'', orders:d.orders });
+    } catch(e){}
+  };
+  useEffect(() => { load(); const iv = setInterval(load, 15000); return () => clearInterval(iv); }, [token]);
+  const setStatus = async (o, status) => {
+    setData(dd => dd ? { ...dd, orders: dd.orders.map(x=>x.id===o.id?{...x,status}:x) } : dd);
+    try { await fetch('/api/cron', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'kitchen_status', token, orderId:o.id, status }) }); } catch(e){}
+    load();
+  };
+  const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"20px 16px 60px", boxSizing:"border-box" };
+  if (data===undefined) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{fontSize:13,color:"#7E8794"}}>Loading…</div></div>;
+  if (data===null) return <div style={{...wrap,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{textAlign:"center"}}><div style={{fontSize:15,fontWeight:600}}>Board not found</div><div style={{fontSize:12.5,color:"#7E8794",marginTop:6}}>This staff link is invalid or was reset.</div></div></div>;
+  const money = (n,c)=> (Number(n)||0).toFixed(3)+' '+(c||'BHD');
+  const active = data.orders.filter(o=> o.status!=='collected' && o.status!=='cancelled' && o.status!=='done');
+  const fmtT = (iso)=> iso ? new Date(iso).toLocaleString([], { weekday:'short', hour:'numeric', minute:'2-digit' }) : 'ASAP';
+  const NEXT = { new:['preparing','Start'], preparing:['ready','Mark ready'], ready:['collected','Collected'] };
+  const SC = { new:'#E0B973', preparing:'#6E8CAB', ready:'#3FB983' };
+  return (
+    <div style={wrap}>
+      <div style={{maxWidth:1100, margin:"0 auto"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,flexWrap:"wrap",gap:10}}>
+          <div><div style={{fontSize:20,fontWeight:800}}>{data.name}</div><div style={{fontSize:12,color:"#7E8794"}}>Live pickup orders · updates automatically</div></div>
+          <button onClick={load} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:10,background:"#161b23",border:"1px solid #262c36",color:"#9aa6b3",fontSize:12.5,cursor:"pointer"}}><RefreshCw size={14}/>Refresh</button>
+        </div>
+        {active.length===0 ? <div style={{textAlign:"center",padding:"80px 0",color:"#7E8794"}}><div style={{fontSize:15,fontWeight:600,color:"#ECEAE1"}}>No active orders</div><div style={{fontSize:12.5,marginTop:6}}>New pickup orders appear here automatically.</div></div> : (
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:14}}>
+            {active.map(o=>{ const nx=NEXT[o.status||'new']; const sc=SC[o.status||'new']||"#7E8794"; return (
+              <div key={o.id} style={{background:"#141923",border:"1px solid #20242b",borderRadius:14,padding:16}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <span style={{fontSize:20,fontWeight:800,letterSpacing:1}}>{o.order_no}</span>
+                  <span style={{fontSize:10.5,fontWeight:700,padding:"3px 10px",borderRadius:20,background:sc+"22",color:sc,textTransform:"capitalize"}}>{o.status||'new'}</span>
+                </div>
+                <div style={{fontSize:12.5,color:"#9DB6D6",marginBottom:8,display:"flex",alignItems:"center",gap:6}}><Clock size={13}/>{fmtT(o.pickup_at)}</div>
+                <div style={{fontSize:12.5,color:"#c4ccd6",marginBottom:6}}>{o.customer_name}{o.customer_phone?" · "+o.customer_phone:""}</div>
+                {o.pickup_method && <div style={{fontSize:12,color:"#9aa3b2",marginBottom:6}}>{o.pickup_method==='carhop'?'Car Hop':'Pick up inside'}{o.car_details?" · "+o.car_details:""}</div>}
+                <div style={{borderTop:"1px solid #20242b",paddingTop:8,marginBottom:8}}>{(o.items||[]).map((it,i)=><div key={i} style={{fontSize:12.5,color:"#ECEAE1",padding:"2px 0"}}>{it.qty}× {it.name}{it.note?<span style={{color:"#E7B96B"}}> — {it.note}</span>:""}</div>)}</div>
+                {o.note && <div style={{fontSize:12,color:"#E7B96B",background:"rgba(231,185,107,0.1)",borderRadius:8,padding:"7px 10px",marginBottom:10}}>Note: {o.note}</div>}
+                <div style={{fontSize:13,fontWeight:700,marginBottom:12}}>{money(o.total,o.currency)} · {o.pay_status==='paid'?'Paid':'Pay at pickup'}</div>
+                <div style={{display:"flex",gap:8}}>
+                  {nx && <button onClick={()=>setStatus(o,nx[0])} style={{flex:1,padding:"11px",borderRadius:10,background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer"}}>{nx[1]}</button>}
+                  <button onClick={()=>setStatus(o,'cancelled')} style={{padding:"11px 13px",borderRadius:10,background:"transparent",border:"1px solid #3a2020",color:"#E2574B",fontSize:12.5,cursor:"pointer"}}>Cancel</button>
+                </div>
+              </div>
+            ); })}
+          </div>
+        )}
+        <div style={{textAlign:"center",fontSize:11,color:"#5A6B86",marginTop:24}}>Powered by Tawaslo</div>
+      </div>
+    </div>
+  );
+}
+
+
 // ── Orders (owner) — live pickup-order board + the shareable order link. ──
 function OrdersPage() {
   const { selClient, dark, lang } = useApp();
@@ -16369,7 +16429,9 @@ function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [rcopied,setRcopied]=useState(false);
+  const [klink, setKlink] = useState("");
   const load = async (id) => { try { const { data } = await supabase.from('orders').select('*').eq('client_id', id).order('created_at',{ascending:false}).limit(60); setOrders(data||[]); } catch(e){} };
+  const staffBoard = async () => { if(!cid) return; try { const { data: mn } = await supabase.from('menus').select('id,kitchen_token').eq('client_id', cid).limit(1); let m=mn&&mn[0]; let tok=m&&m.kitchen_token; if(m&&!tok){ tok='k'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6); await supabase.from('menus').update({ kitchen_token: tok }).eq('id', m.id); } if(tok){ const url=origin+'/k/'+tok; try { await navigator.clipboard.writeText(url); } catch(e){} setKlink(url); } } catch(e){} };
   useEffect(() => {
     let active=true; setLoading(true);
     if (!selClient?.name) { setLoading(false); return; }
@@ -16402,6 +16464,7 @@ function OrdersPage() {
           <button onClick={()=>{ try{ navigator.clipboard.writeText(origin+"/rreport/"+slug); setRcopied(true); setTimeout(()=>setRcopied(false),1500);}catch(e){} }} disabled={!slug} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,cursor:slug?"pointer":"default"}}><FileText size={13}/>{rcopied?L("Copied","تم"):L("Report link","رابط التقرير")}</button>
           <a href={slug?("https://wa.me/?text="+encodeURIComponent(origin+"/rreport/"+slug)):undefined} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"9px 12px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,textDecoration:"none"}}><FaWhatsapp/></a>
           <a href={slug?("mailto:?subject=Monthly%20report&body="+encodeURIComponent(origin+"/rreport/"+slug)):undefined} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"9px 12px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,textDecoration:"none"}}><Send size={13}/></a>
+          <button onClick={staffBoard} title={L("Copy the staff order-board link","انسخ رابط شاشة الطلبات")} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:"pointer"}}><Link size={13}/>{klink?L("Link copied!","نُسخ الرابط!"):L("Staff board","شاشة الطاقم")}</button>
           <button onClick={()=>load(cid)} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:"pointer"}}><RefreshCw size={13}/>{L("Refresh","تحديث")}</button>
         </div>
       </div>
@@ -20638,6 +20701,8 @@ export default function TawasloApp() {
   if (rreportMatch) return <RreportPublicPage slug={rreportMatch[1]} host={typeof window!=="undefined" && window.location.search.indexOf("host=1")!==-1}/>;
   const orderMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/order\/([A-Za-z0-9_-]+)/);
   if (orderMatch) return <OrderPublicPage slug={orderMatch[1]}/>;
+  const kitchenMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/k\/([A-Za-z0-9_-]+)/);
+  if (kitchenMatch) return <KitchenBoardPage token={kitchenMatch[1]}/>;
 
   // Public reservation page (tawaslo.com/reserve/<slug>) — no login.
   const resMatch = typeof window !== "undefined" && window.location.pathname.match(/^\/reserve\/([A-Za-z0-9_-]+)/);
