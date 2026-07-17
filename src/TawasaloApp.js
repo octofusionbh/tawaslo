@@ -16180,6 +16180,7 @@ function OrderPublicPage({ slug }) {
   const [method, setMethod] = useState("");
   const [car, setCar] = useState({ color:"", model:"", plate:"" });
   const [payM, setPayM] = useState("");
+  const [notifyOptin, setNotifyOptin] = useState(true);
   const [orderErr, setOrderErr] = useState("");
   const [placing, setPlacing] = useState(false);
   const [done, setDone] = useState(null);
@@ -16254,9 +16255,10 @@ function OrderPublicPage({ slug }) {
     const pickupAt = slotDate(selDay, selSlot).toISOString();
     const carStr = meth==='carhop' ? (car.color.trim()+' '+car.model.trim()+' · '+car.plate.trim()) : null;
     try {
-      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status: pay==='online'?'pending':'unpaid', pickup_at:pickupAt, note:orderNote.trim()||null, pickup_method:meth, car_details:carStr }]).select();
+      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status: pay==='online'?'pending':'unpaid', pickup_at:pickupAt, note:orderNote.trim()||null, pickup_method:meth, car_details:carStr, notify_optin: notifyOptin }]).select();
       if (oErr) { setOrderErr('Could not place your order. Please try again or call the restaurant.'); setPlacing(false); return; }
       const newOrder = oIns && oIns[0];
+      if (newOrder && newOrder.id) { const fn=(ev)=>{ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:newOrder.id,event:ev})}).catch(()=>{}); }catch(e){} }; fn('placed'); fn('new'); }
       if (pay==='online' && PAYMENTS_LIVE && data.destId && newOrder && newOrder.id) {
         try { const rr = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'order_charge', order_id:newOrder.id }) }); const jj = await rr.json(); if (jj && jj.url) { window.location.href = jj.url; return; } } catch(e){}
       }
@@ -16348,6 +16350,7 @@ function OrderPublicPage({ slug }) {
                 {payOptions.includes('cash') && <button onClick={()=>setPayM('cash')} style={{flex:1,padding:"10px",borderRadius:10,fontSize:12.5,cursor:"pointer",border:payM==='cash'?("1.5px solid "+ACC):"1px solid #262b33",background:payM==='cash'?ACCBG:"#0E1013",color:payM==='cash'?"#BFD3EC":"#ECEAE1"}}>Pay at pickup</button>}
               </div>
             </div>}
+            <label style={{display:"flex",alignItems:"center",gap:9,marginTop:14,cursor:"pointer"}}><input type="checkbox" checked={notifyOptin} onChange={e=>setNotifyOptin(e.target.checked)} style={{width:16,height:16,accentColor:"#6E8CAB"}}/><span style={{fontSize:12,color:"#9aa3b2"}}>Get order updates on WhatsApp</span></label>
             {orderErr && <div style={{fontSize:12,color:"#E2574B",margin:"12px 0 0",lineHeight:1.45}}>{orderErr}</div>}
             <button onClick={place} disabled={placing} style={{width:"100%",marginTop:14,padding:"13px",borderRadius:12,background:placing?"#1a2230":"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer"}}>{placing?"Placing…":"Place order"}</button>
           </div>
@@ -16371,6 +16374,7 @@ function KitchenBoardPage({ token }) {
   const setStatus = async (o, status) => {
     setData(dd => dd ? { ...dd, orders: dd.orders.map(x=>x.id===o.id?{...x,status}:x) } : dd);
     try { await fetch('/api/cron', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'kitchen_status', token, orderId:o.id, status }) }); } catch(e){}
+    if (status==='ready' || status==='collected') { try { fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:o.id,event:status})}).catch(()=>{}); } catch(e){} }
     load();
   };
   const wrap = { minHeight:"100vh", background:"#0E1013", color:"#ECEAE1", fontFamily:"'Plus Jakarta Sans',-apple-system,'Segoe UI',sans-serif", padding:"20px 16px 60px", boxSizing:"border-box" };
@@ -16443,7 +16447,7 @@ function OrdersPage() {
     })();
     return ()=>{ active=false; };
   }, [selClient]);
-  const setStatus = async (o, st) => { setOrders(os=>os.map(x=>x.id===o.id?{...x,status:st}:x)); try { await supabase.from('orders').update({ status:st }).eq('id', o.id); } catch(e){} };
+  const setStatus = async (o, st) => { setOrders(os=>os.map(x=>x.id===o.id?{...x,status:st}:x)); try { await supabase.from('orders').update({ status:st }).eq('id', o.id); } catch(e){} if (st==='ready'||st==='collected') { try { fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:o.id,event:st})}).catch(()=>{}); } catch(e){} } };
   const orderUrl = slug ? origin+'/order/'+slug : "";
   const copy = () => { try { navigator.clipboard.writeText(orderUrl); setCopied(true); setTimeout(()=>setCopied(false),1500); } catch(e){} };
   const curOf = (o)=> o.currency||'BHD';

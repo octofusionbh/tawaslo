@@ -313,6 +313,58 @@ export default async function handler(req, res) {
         await sb(`orders?id=eq.${encodeURIComponent(orderId)}&client_id=eq.${encodeURIComponent(menu.client_id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status }) });
         return res.status(200).json({ ok: true });
       }
+      // ── WhatsApp lifecycle notifications (dormant until WA_TOKEN + templates exist) ──
+      // { action:'notify', kind:'order'|'booking', id, event }
+      if (action === 'notify') {
+        const { kind, id, event } = req.body;
+        if (!kind || !id || !event) return res.status(400).json({ error: 'kind, id, event required' });
+        const WA_TOKEN = process.env.WA_TOKEN || process.env.WHATSAPP_TOKEN;
+        const WA_PHONE = process.env.WA_PHONE_ID || process.env.WHATSAPP_PHONE_ID;
+        const tbl = kind === 'booking' ? 'bookings' : 'orders';
+        const rr = await sb(`${tbl}?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+        const rec = (rr.ok ? await rr.json() : [])[0];
+        if (!rec) return res.status(200).json({ skipped: 'no record' });
+        if (rec.notify_optin === false) return res.status(200).json({ skipped: 'opted out' });
+        const mr = await sb(`menus?client_id=eq.${encodeURIComponent(rec.client_id)}&select=title,notify&limit=1`);
+        const menu = (mr.ok ? await mr.json() : [])[0] || {};
+        const n = menu.notify || {};
+        if (n.events && n.events[event] === false) return res.status(200).json({ skipped: 'event off' });
+        let venue = menu.title || '';
+        if (!venue) { try { const cr = await sb(`clients?id=eq.${encodeURIComponent(rec.client_id)}&select=name&limit=1`); venue = (cr.ok ? await cr.json() : [])[0]?.name || 'your order'; } catch (e) {} }
+        if (!WA_TOKEN || !WA_PHONE) return res.status(200).json({ ok: false, dormant: true });
+        const lang = n.lang || 'en';
+        const contact = n.contact || '';
+        const reviewLink = n.review_link || '';
+        const rebookLink = n.rebook_link || '';
+        const fmtWhen = (iso) => iso ? new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        const M = {
+          order_placed:      { t: 'order_received',       to: rec.customer_phone, p: [venue, rec.order_no, fmtWhen(rec.pickup_at), contact] },
+          order_ready:       { t: 'order_ready',          to: rec.customer_phone, p: [venue, rec.order_no] },
+          order_collected:   { t: 'order_thanks',         to: rec.customer_phone, p: [venue, reviewLink] },
+          order_new:         { t: 'order_new_host',       to: n.host_phone,       p: [venue, rec.order_no, rec.customer_name || '', rec.customer_phone || ''] },
+          booking_created:   { t: 'reservation_confirmed', to: rec.customer_phone, p: [venue, fmtWhen(rec.starts_at), String(rec.party_size || ''), String(rec.id).slice(0, 8).toUpperCase(), contact] },
+          booking_updated:   { t: 'reservation_updated',   to: rec.customer_phone, p: [venue, fmtWhen(rec.starts_at), String(rec.party_size || ''), String(rec.id).slice(0, 8).toUpperCase(), contact] },
+          booking_cancelled: { t: 'reservation_cancelled', to: rec.customer_phone, p: [venue, rebookLink] },
+          booking_noshow:    { t: 'reservation_noshow',    to: rec.customer_phone, p: [venue, rebookLink] },
+          booking_reminder:  { t: 'reservation_reminder',  to: rec.customer_phone, p: [venue, fmtWhen(rec.starts_at), String(rec.party_size || '')] },
+          booking_thanks:    { t: 'reservation_thanks',    to: rec.customer_phone, p: [venue, reviewLink] },
+          booking_new:       { t: 'reservation_new_host',  to: n.host_phone,       p: [venue, fmtWhen(rec.starts_at), String(rec.party_size || ''), rec.customer_name || '', rec.customer_phone || ''] },
+        };
+        const m = M[kind === 'booking' ? ('booking_' + event) : ('order_' + event)];
+        if (!m || !m.to) return res.status(200).json({ skipped: 'no recipient' });
+        const to = String(m.to).replace(/[^0-9]/g, '');
+        if (to.length < 8) return res.status(200).json({ skipped: 'bad number' });
+        try {
+          const wr = await fetch(`https://graph.facebook.com/v21.0/${WA_PHONE}/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WA_TOKEN}` },
+            body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'template', template: { name: m.t, language: { code: lang }, components: [{ type: 'body', parameters: m.p.map((x) => ({ type: 'text', text: String(x == null ? '' : x) })) }] } }),
+          });
+          const wd = await wr.json();
+          if (wd && wd.error) return res.status(200).json({ ok: false, error: wd.error.message });
+          return res.status(200).json({ ok: true, sent: to, template: m.t });
+        } catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
+      }
       return res.status(400).json({ error: 'unknown action' });
     } catch (e) { return res.status(200).json({ error: e.message, posts: [] }); }
   }
