@@ -328,6 +328,7 @@ export default async function handler(req, res) {
         const mr = await sb(`menus?client_id=eq.${encodeURIComponent(rec.client_id)}&select=title,notify&limit=1`);
         const menu = (mr.ok ? await mr.json() : [])[0] || {};
         const n = menu.notify || {};
+        if (!n.enabled) return res.status(200).json({ skipped: 'notifications off' });
         if (n.events && n.events[event] === false) return res.status(200).json({ skipped: 'event off' });
         let venue = menu.title || '';
         if (!venue) { try { const cr = await sb(`clients?id=eq.${encodeURIComponent(rec.client_id)}&select=name&limit=1`); venue = (cr.ok ? await cr.json() : [])[0]?.name || 'your order'; } catch (e) {} }
@@ -383,6 +384,30 @@ export default async function handler(req, res) {
   if (req.query && req.query.task === 'monthly_reports') {
     try { return await runMonthlyReports(res); }
     catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
+  }
+
+  // ── Timed reservation notifications: reminders, no-shows, post-visit thank-you.
+  //    Call /api/cron?key=SECRET&task=notify_scheduled every ~10 min from your cron.
+  if (req.query && req.query.task === 'notify_scheduled') {
+    try {
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
+      const soonIso = new Date(nowMs + 3 * 3600000).toISOString();
+      const graceIso = new Date(nowMs - 20 * 60000).toISOString();
+      const endedIso = new Date(nowMs - 2 * 3600000).toISOString();
+      let fired = 0;
+      const fire = async (b, event) => {
+        try { const r = await fetch(`${SITE}/api/cron`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'notify', kind: 'booking', id: b.id, event }) }); const j = await r.json(); return !!(j && j.ok); } catch (e) { return false; }
+      };
+      const mark = async (b, key) => { const nn = { ...(b.notified || {}), [key]: true }; try { await sb(`bookings?id=eq.${b.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ notified: nn }) }); } catch (e) {} };
+      const rr = await sb(`bookings?status=eq.confirmed&starts_at=gte.${encodeURIComponent(nowIso)}&starts_at=lte.${encodeURIComponent(soonIso)}&select=*&limit=40`);
+      for (const b of (rr.ok ? await rr.json() : [])) { if (b.notified && b.notified.reminder) continue; if (await fire(b, 'reminder')) { await mark(b, 'reminder'); fired++; } }
+      const nr = await sb(`bookings?status=eq.confirmed&starts_at=lte.${encodeURIComponent(graceIso)}&select=*&limit=40`);
+      for (const b of (nr.ok ? await nr.json() : [])) { if (b.notified && b.notified.noshow) continue; if (await fire(b, 'noshow')) { await mark(b, 'noshow'); fired++; } }
+      const tr = await sb(`bookings?status=eq.seated&starts_at=lte.${encodeURIComponent(endedIso)}&select=*&limit=40`);
+      for (const b of (tr.ok ? await tr.json() : [])) { if (b.notified && b.notified.thanks) continue; if (await fire(b, 'thanks')) { await mark(b, 'thanks'); fired++; } }
+      return res.status(200).json({ ok: true, fired });
+    } catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
   }
 
   // ── SAFETY GATE ──────────────────────────────────────────────────────

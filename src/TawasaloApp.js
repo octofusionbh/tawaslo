@@ -15285,7 +15285,7 @@ const DEFAULT_DAYPART_HOURS = { breakfast:[7,11], brunch:[11,15], lunch:[12,16],
 const daypartName = (k) => { const d = DAYPARTS.find(x=>x.k===k); return d ? d.en : k; };
 const activeDaypart = (hours) => { const h = (typeof window!=="undefined") ? new Date().getHours() : 12; const H = { ...DEFAULT_DAYPART_HOURS, ...(hours||{}) }; for (const k of DAYPART_KEYS) { const r = H[k]; if (Array.isArray(r) && r.length===2 && h>=r[0] && h<r[1]) return k; } return null; };
 function MenuBuilderPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, userPlan } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
@@ -15565,6 +15565,26 @@ function MenuBuilderPage() {
             ); })}
           </div>
           {(menu.pickup_pay||"cash")!=="cash" && <div style={{ fontSize:10.5, color:th.text3, marginTop:9, lineHeight:1.5 }}>{L("Online payment activates once your Tap merchant account is connected. Until then, orders come through as pay-at-pickup.","يُفعّل الدفع الإلكتروني بعد ربط حساب تاب. حتى ذلك الحين تصل الطلبات كدفع عند الاستلام.")}</div>}
+        </div>
+      )}
+      {menu && planHas(userPlan, 'whatsapp') && (
+        <div style={{ ...card, padding:"14px 16px", marginBottom:14 }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12 }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("WhatsApp notifications","إشعارات واتساب")}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Auto-message guests for orders & reservations — confirmations, ready, reminders, thank-you.","رسائل تلقائية للضيوف عن الطلبات والحجوزات.")}</div>
+            </div>
+            <div onClick={()=>updateMenu({ notify: { ...(menu.notify||{}), enabled: !(menu.notify&&menu.notify.enabled) } })} style={{ width:44, height:25, borderRadius:20, background:(menu.notify&&menu.notify.enabled)?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:(menu.notify&&menu.notify.enabled)?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+          </div>
+          {menu.notify && menu.notify.enabled && (
+            <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${th.border}`, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <label style={{ fontSize:11, color:th.text2 }}>{L("Contact number (shown to guests)","رقم التواصل (يظهر للضيوف)")}<br/><input value={(menu.notify.contact)||""} onChange={e=>updateMenu({ notify:{ ...menu.notify, contact:e.target.value } })} placeholder="+973…" style={{ marginTop:4, width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+              <label style={{ fontSize:11, color:th.text2 }}>{L("Staff WhatsApp (order/booking alerts)","واتساب الطاقم (تنبيهات)")}<br/><input value={(menu.notify.host_phone)||""} onChange={e=>updateMenu({ notify:{ ...menu.notify, host_phone:e.target.value } })} placeholder="+973…" style={{ marginTop:4, width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+              <label style={{ fontSize:11, color:th.text2 }}>{L("Reviews link","رابط التقييم")}<br/><input value={(menu.notify.review_link)||""} onChange={e=>updateMenu({ notify:{ ...menu.notify, review_link:e.target.value } })} placeholder="https://…" style={{ marginTop:4, width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+              <label style={{ fontSize:11, color:th.text2 }}>{L("Re-book link","رابط إعادة الحجز")}<br/><input value={(menu.notify.rebook_link)||""} onChange={e=>updateMenu({ notify:{ ...menu.notify, rebook_link:e.target.value } })} placeholder="https://…" style={{ marginTop:4, width:"100%", boxSizing:"border-box", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+              <div style={{ gridColumn:"1/-1", fontSize:10.5, color:th.text3, lineHeight:1.5 }}>{L("Messages send from the Tawaslo WhatsApp once your number and templates are approved. Guests can opt out at checkout.","تُرسل الرسائل من واتساب توصلو بعد اعتماد الرقم والقوالب.")}</div>
+            </div>
+          )}
         </div>
       )}
       {menu && (
@@ -15962,7 +15982,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
         const t = b.time.length===5 ? b.time : ('0'+b.time);
         const sd = new Date(b.date + 'T' + t + ':00');
         if (!isNaN(sd.getTime())) {
-          await supabase.from('bookings').insert([{ client_id:clientId, customer_name:b.name, customer_phone:b.phone||null, party_size:Number(b.party)||2, starts_at:sd.toISOString(), source:'concierge', status:'confirmed', note:b.occasion||null }]);
+          { const _bi = await supabase.from('bookings').insert([{ client_id:clientId, customer_name:b.name, customer_phone:b.phone||null, party_size:Number(b.party)||2, starts_at:sd.toISOString(), source:'concierge', status:'confirmed', note:b.occasion||null }]).select(); const _bid=_bi&&_bi.data&&_bi.data[0]&&_bi.data[0].id; if(_bid){ ['created','new'].forEach(ev=>{ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:_bid,event:ev})}).catch(()=>{}); }catch(e){} }); } }
           setMsgs(m => [...m, { role:'system', content:`Booked — ${sd.toLocaleDateString([], { weekday:'long', day:'numeric', month:'long' })} at ${sd.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })} for ${b.party} ${Number(b.party)>1?'guests':'guest'}.` }]);
         }
       }
@@ -18529,7 +18549,7 @@ function ReservationsPage() {
       else setWaMsg((d&&d.error)||L("Couldn't send — the guest must message you first, or WhatsApp isn't connected.","تعذّر الإرسال — يجب أن يراسلك الضيف أولاً أو أن واتساب غير متصل."));
     } catch(e){ setWaMsg(L("Network error.","خطأ في الشبكة.")); }
   };
-  const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); };
+  const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); const _ev = st==='cancelled'?'cancelled':st==='no_show'?'noshow':null; if(_ev){ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:b.id,event:_ev})}).catch(()=>{}); }catch(e){} } };
   const notifyCancel = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if(!ph) return; const when = `${fmtD(b.starts_at)} ${fmtT(b.starts_at)}`; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, we're sorry — your reservation at ${selClient?.name||'us'} for ${when} has been cancelled. Please contact us to rebook. Apologies for the inconvenience.`); if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); };
 
   const reserveUrl = pubSlug ? `${origin}/reserve/${pubSlug}` : "";
@@ -18745,7 +18765,7 @@ function ReservePublicPage({ slug }) {
     setBusy(true);
     const m = Number(time);
     const sd = new Date(date); sd.setHours(Math.floor(m/60), m%60, 0, 0);
-    try { await supabase.from('bookings').insert([{ client_id:info.client_id, customer_name:name.trim(), customer_phone:phone.trim()||null, party_size:Number(party)||1, starts_at:sd.toISOString(), source:'bio', status:'confirmed', note:occasion.trim()||null }]); setDone({ when:sd }); } catch(e){}
+    try { const _bi = await supabase.from('bookings').insert([{ client_id:info.client_id, customer_name:name.trim(), customer_phone:phone.trim()||null, party_size:Number(party)||1, starts_at:sd.toISOString(), source:'bio', status:'confirmed', note:occasion.trim()||null }]).select(); const _bid=_bi&&_bi.data&&_bi.data[0]&&_bi.data[0].id; if(_bid){ ['created','new'].forEach(ev=>{ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:_bid,event:ev})}).catch(()=>{}); }catch(e){} }); } setDone({ when:sd }); } catch(e){}
     setBusy(false);
   };
 
