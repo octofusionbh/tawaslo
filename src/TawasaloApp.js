@@ -15300,6 +15300,7 @@ function MenuBuilderPage() {
   const [uploading, setUploading] = useState(false);
   const [cropFile, setCropFile] = useState(null);
   const [dragCat, setDragCat] = useState(null);
+  const [dragItem, setDragItem] = useState(null);
   const [tagInput, setTagInput] = useState("");
 
   useEffect(() => {
@@ -15451,6 +15452,15 @@ function MenuBuilderPage() {
   };
   const updateMenu = async (patch) => { setMenu(m => ({ ...m, ...patch })); if (menu && menu.id) { try { await supabase.from('menus').update(patch).eq('id', menu.id); } catch(e){} } };
   const moveCat = async (from, to) => { const arr = orderedCats(); const i=arr.indexOf(from), j=arr.indexOf(to); if(i<0||j<0||i===j) return; arr.splice(j,0,arr.splice(i,1)[0]); await updateMenu({ cat_order: arr }); };
+  const moveItem = async (fromId, toId) => {
+    if (!fromId || fromId===toId) return;
+    const list=[...shown]; const fi=list.findIndex(x=>x.id===fromId), ti=list.findIndex(x=>x.id===toId);
+    if (fi<0||ti<0) return;
+    const [m0]=list.splice(fi,1); list.splice(ti,0,m0);
+    const updates=list.map((x,idx)=>({ id:x.id, sort:idx }));
+    setItems(its=>its.map(i=>{ const u=updates.find(u=>u.id===i.id); return u?{...i,sort:u.sort}:i; }));
+    for (const u of updates){ try { await supabase.from("menu_items").update({ sort:u.sort }).eq("id", u.id); } catch(e){} }
+  };
   const saveItem = async () => {
     if (!editing || !menu) return;
     const photos = Array.isArray(editing.photos) ? editing.photos.filter(Boolean) : [];
@@ -15555,6 +15565,19 @@ function MenuBuilderPage() {
             ); })}
           </div>
           {(menu.pickup_pay||"cash")!=="cash" && <div style={{ fontSize:10.5, color:th.text3, marginTop:9, lineHeight:1.5 }}>{L("Online payment activates once your Tap merchant account is connected. Until then, orders come through as pay-at-pickup.","يُفعّل الدفع الإلكتروني بعد ربط حساب تاب. حتى ذلك الحين تصل الطلبات كدفع عند الاستلام.")}</div>}
+        </div>
+      )}
+      {menu && (
+        <div style={{ ...card, padding:"11px 14px", marginBottom:14, display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Menu layout","تخطيط القائمة")}</div>
+            <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("How dishes look on your public menu — photo cards or a clean list.","كيف تظهر الأصناف في قائمتك — بطاقات بالصور أو قائمة أنيقة.")}</div>
+          </div>
+          <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+            {[["grid",L("Grid","شبكة")],["list",L("List","قائمة")]].map(([k,lbl])=>{ const on=(menu.menu_layout||"grid")===k; return (
+              <button key={k} onClick={()=>updateMenu({ menu_layout:k })} style={{ padding:"7px 16px", borderRadius:20, fontSize:12, cursor:"pointer", border:`1.5px solid ${on?th.accent:th.border}`, background:on?th.accent+"22":"transparent", color:on?th.text:th.text2 }}>{lbl}</button>
+            ); })}
+          </div>
         </div>
       )}
       {menu && (
@@ -15720,7 +15743,8 @@ function MenuBuilderPage() {
         {shown.map(it=>{
           const stt = itemStatus(it);
           return (
-          <div key={it.id} style={{ ...card, padding:11, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", opacity: stt==="available"?1:0.6 }}>
+          <div key={it.id} draggable onDragStart={()=>setDragItem(it.id)} onDragEnd={()=>setDragItem(null)} onDragOver={e=>{ if(dragItem&&dragItem!==it.id) e.preventDefault(); }} onDrop={()=>{ if(dragItem&&dragItem!==it.id) moveItem(dragItem,it.id); setDragItem(null); }} style={{ ...card, padding:11, display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", opacity: dragItem===it.id?0.4:(stt==="available"?1:0.6), boxShadow:(dragItem&&dragItem!==it.id)?`inset 0 2px 0 ${th.accent}`:undefined }}>
+            <GripVertical size={15} color={th.text3} style={{ flexShrink:0, cursor:"grab" }}/>
             <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, background: it.photo_url?`center/cover url(${it.photo_url})`:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{!it.photo_url && <Image size={16} color={th.text3}/>}</div>
             <div style={{ flex:1, minWidth:120 }}>
               <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}
@@ -16429,7 +16453,7 @@ function MenuPublicPage({ slug }) {
   const clicking = useRef(false);
   useEffect(() => {
     let live = true;
-    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city,booking_enabled,tax_enabled,tax_pct').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
+    supabase.from('menus').select('id,title,currency,client_id,hide_prices,lang1,lang2,cat_order,special,special_on,cat_dayparts,daypart_hours,theme,cover_url,living_on,city,booking_enabled,tax_enabled,tax_pct,menu_layout').eq('slug', slug).limit(1).then(async ({ data: md, error }) => {
       if (!live) return;
       const m = md && md[0];
       if (error || !m) { setData(null); return; }
@@ -16509,6 +16533,7 @@ function MenuPublicPage({ slug }) {
   const priceOf = (it) => { if (data.hide_prices || it.show_price===false) return ""; const vs = itemVariants(it); if (vs.length) { const m = itemMinPrice(it); return (m!=null && isFinite(m)) ? "from "+fmtMoney(m, cur) : ""; } return it.price!=null ? fmtMoney(it.price, cur) : ""; };
   const detailPhotos = detail ? itemPhotos(detail) : [];
   const T = menuPalette(data.theme);
+  const listMode = (data.menu_layout||"grid")==="list";
   const coverUrl = data.cover_url || null;
   const dpToggle = { display:"inline-flex", alignItems:"center", gap:5, border:`1px solid ${T.border}`, background:"transparent", color:T.text2, cursor:"pointer", fontSize:12, fontWeight:600, padding:"6px 11px", borderRadius:14, fontFamily: isRTLLang(altLang)?"'Cairo',sans-serif":undefined };
   const livingStrip = (P) => (living && (weather || trendingItem)) ? (
@@ -16678,11 +16703,24 @@ function MenuPublicPage({ slug }) {
             ) : sections.map(sec=>(
               <div key={sec} ref={el=>{ sectionRefs.current[sec]=el; }} data-cat={sec} style={{ scrollMarginTop:18, marginBottom:36 }}>
                 <div style={{ fontSize:19, fontWeight:800, letterSpacing:"0.01em", marginBottom:16, textAlign:rtlDisp?"right":"left", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{sec}</div>
-                <div className="twm-grid">
-                  {secItems(sec).map(it=>{
+                <div className={listMode?"twm-list":"twm-grid"}>
+                  {secItems(sec).map((it,ri)=>{
                     const ph = itemPhotos(it);
                     const soldOut = it.available===false;
                     const tgs = itemTags(it).map(resolveTag);
+                    if (listMode) return (
+                      <div key={it.id} onClick={()=>openDetail(it)} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 2px", borderTop:ri===0?"none":`1px solid ${T.railBorder}`, cursor:"pointer", opacity:soldOut?0.6:1, direction:rtlDisp?"rtl":"ltr" }}>
+                        <div style={{ flex:1, minWidth:0, textAlign:rtlDisp?"right":"left" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", gap:12, alignItems:"baseline" }}>
+                            <span style={{ fontSize:15, fontWeight:600, color:T.text, fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.name_en,it.name_ar)}{soldOut && <span style={{ fontSize:9, fontWeight:700, color:T.text3, border:`1px solid ${T.border}`, borderRadius:5, padding:"1px 6px", marginInlineStart:8 }}>SOLD OUT</span>}</span>
+                            <span style={{ fontSize:14, fontWeight:700, color:T.price, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap", flexShrink:0, textDecoration:soldOut?"line-through":undefined }}>{priceOf(it)}</span>
+                          </div>
+                          {pickLang(it.description,it.description_ar) && <div style={{ fontSize:12.5, color:T.text2, marginTop:4, lineHeight:1.5, direction:rtlDisp?"rtl":"ltr", fontFamily:rtlDisp?"'Cairo',sans-serif":undefined }}>{pickLang(it.description,it.description_ar)}</div>}
+                          {tgs.length>0 && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginTop:7, justifyContent:rtlDisp?"flex-end":"flex-start" }}>{tgs.map(tg=> <span key={tg.k} title={tg.en} style={{ fontSize:9.5, fontWeight:600, padding:"2px 7px", borderRadius:6, background:tg.color+"22", color:tg.color, display:"inline-flex", alignItems:"center", gap:3, fontFamily:secondary?"'Cairo',sans-serif":undefined }}>{tg.icon && <span>{tg.icon}</span>}{secondary?tg.ar:tg.en}</span>)}</div>}
+                        </div>
+                        {ph[0] && <div style={{ width:64, height:64, borderRadius:11, flexShrink:0, background:`center/cover url(${ph[0]})`, border:`1px solid ${T.border}`, filter:soldOut?"grayscale(0.7)":undefined }}/>}
+                      </div>
+                    );
                     return (
                       <div className="twm-dish" key={it.id} onClick={()=>openDetail(it)} style={{ cursor:"pointer", opacity:soldOut?0.6:1, textAlign:rtlDisp?"right":"left", ...(ph[0]?{}:{ background:T.photo, border:`1px solid ${T.border}`, borderRadius:15, padding:"14px 15px" }) }}>
                         {ph[0] && <div className="twm-dishphoto" style={{ width:"100%", aspectRatio:"1/1", borderRadius:15, overflow:"hidden", position:"relative", background:`center/cover url(${ph[0]})`, border:`1px solid ${T.border}`, display:"flex", alignItems:"center", justifyContent:"center", filter:soldOut?"grayscale(0.7)":undefined }}>
@@ -16708,10 +16746,10 @@ function MenuPublicPage({ slug }) {
       )}
 
       {detail && createPortal((
-        <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, color:"#ECEAE1", display:"flex", alignItems:"flex-end", justifyContent:"center", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", background:"#0E1013", border:"1px solid #20242b", borderBottom:"none", borderRadius:"22px 22px 0 0", boxShadow:"0 -16px 50px rgba(0,0,0,0.6)" }}>
+        <div onClick={()=>setDetail(null)} style={{ position:"fixed", inset:0, background:"rgba(4,6,12,0.78)", backdropFilter:"blur(4px)", zIndex:9995, color:"#ECEAE1", display:"flex", alignItems:isDesktop?"center":"flex-end", justifyContent:"center", padding:isDesktop?"24px":0, boxSizing:"border-box", fontFamily:"'Plus Jakarta Sans',-apple-system,sans-serif" }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:"100%", maxWidth:520, maxHeight:"92vh", overflowY:"auto", background:"#0E1013", border:"1px solid #20242b", borderBottom:isDesktop?"1px solid #20242b":"none", borderRadius:isDesktop?22:"22px 22px 0 0", boxShadow:isDesktop?"0 24px 70px rgba(0,0,0,0.6)":"0 -16px 50px rgba(0,0,0,0.6)" }}>
             <div style={{ position:"sticky", top:0, display:"flex", justifyContent:"center", padding:"9px 0 4px", background:"#0E1013", zIndex:2 }}>
-              <div style={{ width:40, height:4, borderRadius:4, background:"#2b313b" }}/>
+              {!isDesktop && <div style={{ width:40, height:4, borderRadius:4, background:"#2b313b" }}/>}
               <button onClick={()=>setDetail(null)} style={{ position:"absolute", insetInlineEnd:12, top:8, width:30, height:30, borderRadius:"50%", background:"#161b23", border:"1px solid #262c36", color:"#9aa6b3", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={16}/></button>
             </div>
             {detailPhotos.length>0 && (
