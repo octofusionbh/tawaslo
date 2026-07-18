@@ -313,6 +313,41 @@ How to help:
     return res.status(200).json({ reply: out.reply, booking: out.booking, order: out.order });
   }
 
+
+  if (theMode === 'help') {
+    const convo = Array.isArray(req.body.messages) ? req.body.messages.slice(-10) : [];
+    if (!convo.length) return res.status(400).json({ error: 'messages required' });
+    const sys = `You are Tawaslo's in-app support assistant, helping a Tawaslo customer (an agency or business owner) use the product. Reply in the SAME language the user writes in — English or natural Arabic. Be warm, concise and practical (2-5 short sentences, or a short numbered list of steps). Only answer about using Tawaslo; never invent features, prices, or policies. If you are unsure, or the issue is account-specific (a billing charge, a suspected bug, a connection still failing after the steps), tell them to tap "Talk to a human" to reach the team.
+
+What Tawaslo is: an Arabic-first social media management + restaurant/F&B platform. Agencies manage multiple clients; each client is its own workspace.
+
+How-to knowledge:
+- Connect a social account: open Social Accounts, pick the network, press Connect, then approve on the provider. Instagram must be a Business or Creator account linked to a Facebook Page. Facebook, Instagram, TikTok, LinkedIn and YouTube can be connected; X is coming soon.
+- Publish or schedule a post: press Create Post, choose the accounts, write the caption, add media, then Publish now or pick a date and time to schedule.
+- Switch between clients: use the client picker at the top-left, or click a client row on the Clients page.
+- Reports: the Reports page pulls live data — a social report and, for restaurants, an operations report. You can export a PDF or share a live link with the client.
+- Team: open Team, press Invite member, enter an email and a role (Admin, Editor, Viewer). They get an email invite.
+- Billing and plan: Settings then Billing & plan (or the Billing page) to change plan, update payment and download invoices.
+- White-label (Studio plan): Settings then White-label to put your own logo, colours, font and name on every client page.
+- Concierge: an AI front-desk for a venue's own customers on the venue's website and WhatsApp — answers menu questions and, for restaurants, books tables or takes pickup orders. It adapts to the client's business type.
+- WhatsApp messages: the WhatsApp engine is built but dormant; order and booking messages start once the venue's number and message templates are approved by Meta and connected.
+- Restaurant tools (Menu, Reservations, Pickup orders, Loyalty, Reviews, Guests, Fill My Tables) are in the client's Restaurant section.
+- Data safety: each account's data is isolated with row-level security and is never sold.
+
+If the user just greets you, greet them back and ask what they need help with. If something is not in this knowledge, say you are not sure and suggest talking to a human.`;
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 500, system: [{ type: 'text', text: sys, cache_control: { type: 'ephemeral' } }], messages: convo.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 900) })) }),
+      });
+      if (!r.ok) { const e = await r.text(); return res.status(500).json({ error: 'AI error', details: e }); }
+      const d = await r.json();
+      const text = ((d.content && d.content[0] && d.content[0].text) || '').trim();
+      return res.status(200).json({ reply: text || '…' });
+    } catch (e) { return res.status(500).json({ error: 'AI error', details: e.message }); }
+  }
+
   // Vision modes need an image; reply needs a message; everything else needs a topic.
   if ((theMode === 'vision' || theMode === 'alt')) {
     if (!imageUrl) return res.status(400).json({ error: 'An image is required.' });

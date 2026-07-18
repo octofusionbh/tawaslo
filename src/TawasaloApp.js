@@ -1389,17 +1389,8 @@ function ContextBar() {
 function ClientMonogram({ name, logo, size=38, radius=11 }) {
   const th = useTheme();
   const initials = (name||"?").replace(/[^A-Za-z0-9 ]/g,"").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase() || "?";
-  const tints = [
-    ["rgba(110,140,171,0.14)","rgba(110,140,171,0.34)","#9DB6D6"],
-    ["rgba(111,191,155,0.12)","rgba(111,191,155,0.32)","#7FC9A8"],
-    ["rgba(224,164,92,0.12)","rgba(224,164,92,0.32)","#D9A45C"],
-    ["rgba(196,107,150,0.12)","rgba(196,107,150,0.32)","#D58BB0"],
-    ["rgba(138,160,190,0.14)","rgba(138,160,190,0.34)","#A6B8CF"],
-  ];
-  let h=0; const s=name||""; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0;
-  const [bg,br,fg]=tints[h%tints.length];
   if (logo) return <span style={{width:size,height:size,borderRadius:radius,background:"#fff",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",flexShrink:0}}><img src={logo} alt="" style={{width:"100%",height:"100%",objectFit:"contain"}}/></span>;
-  return <span style={{width:size,height:size,borderRadius:radius,background:bg,border:`1px solid ${br}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span className="tw-num" style={{fontSize:Math.round(size*0.4),fontWeight:600,color:fg}}>{initials}</span></span>;
+  return <span style={{width:size,height:size,borderRadius:radius,background:th.accentSoft,boxShadow:`inset 0 0 0 1px ${th.accent}44`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><span style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:Math.round(size*0.42),fontWeight:600,color:th.accent}}>{initials}</span></span>;
 }
 
 // Instagram-style crop: drag to position, slide to zoom, square output.
@@ -1475,6 +1466,9 @@ function ClientsPage() {
   const [delClient,setDelClient]=useState(null);
   const [busy,setBusy]=useState(false);
   const [platsByClient,setPlatsByClient]=useState({});
+  const [q,setQ]=useState("");
+  const [typeF,setTypeF]=useState('all');
+  const [sortBy,setSortBy]=useState('name');
   const [newBizType,setNewBizType]=useState('restaurant');
   const [editBizType,setEditBizType]=useState('restaurant');
 
@@ -1489,6 +1483,10 @@ function ClientsPage() {
   },[clients]);
 
   const totalAccounts = clients.reduce((s,c)=>s+(c.accounts||0),0);
+  const needSetup = clients.filter(c=>(c.accounts||0)===0).length;
+  const CTYPES = [['all',L('All','الكل')],['restaurant',L('Restaurant','مطعم')],['shop',L('Shop','متجر')],['services',L('Services','خدمات')]];
+  const ctypeCount = (t)=> t==='all'?clients.length:clients.filter(c=>((c.business_type||'restaurant'))===t).length;
+  const shownClients = clients.filter(c=> typeF==='all' || (c.business_type||'restaurant')===typeF).filter(c=> !q.trim() || String(c.name||'').toLowerCase().indexOf(q.trim().toLowerCase())!==-1).slice().sort((a,b)=> sortBy==='accounts' ? ((b.accounts||0)-(a.accounts||0)) : sortBy==='newest' ? String(b.created_at||'').localeCompare(String(a.created_at||'')) : String(a.name||'').localeCompare(String(b.name||'')) );
 
   const createClient = async () => {
     const name=newName.trim(); if(!name||busy) return; setBusy(true);
@@ -1537,42 +1535,74 @@ function ClientsPage() {
         <div>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em",textTransform:"uppercase",fontSize:10.5,fontWeight:600,color:th.accent}}>{L("Clients","العملاء")}</span></div>
           <h1 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{L("All clients","كل العملاء")}</h1>
-          <div style={{fontSize:12.5,color:th.text2,marginTop:3}}><span className="tw-num">{clients.length}</span> {clients.length===1?L("client","عميل"):L("clients","عملاء")} · <span className="tw-num">{totalAccounts}</span> {L("connected accounts","حسابات مرتبطة")}</div>
         </div>
         <button onClick={()=>setAddOpen(true)} style={{background:th.gradient,color:"#fff",fontSize:12.5,fontWeight:600,border:"none",borderRadius:10,padding:"10px 16px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Plus size={15}/>{L("Add client","إضافة عميل")}</button>
       </div>
 
-      <div style={{marginTop:20}}>
-        {clients.map(c=>{
+      <div style={{marginTop:18}}>
+        <div style={{display:"flex",alignItems:"center",gap:26,flexWrap:"wrap",borderTop:`1px solid ${th.border}`,borderBottom:`1px solid ${th.border}`,padding:"16px 2px",marginBottom:18}}>
+          <div><div style={{fontSize:10,letterSpacing:".1em",textTransform:"uppercase",color:th.text3,marginBottom:4}}>{L("Clients","العملاء")}</div><div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:24,fontWeight:600,color:th.text}}>{clients.length}</div></div>
+          <div style={{borderInlineStart:`1px solid ${th.border}`,paddingInlineStart:26}}><div style={{fontSize:10,letterSpacing:".1em",textTransform:"uppercase",color:th.text3,marginBottom:4}}>{L("Connected accounts","حسابات مرتبطة")}</div><div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:24,fontWeight:600,color:th.text}}>{totalAccounts}</div></div>
+          <div style={{borderInlineStart:`1px solid ${th.border}`,paddingInlineStart:26}}><div style={{fontSize:10,letterSpacing:".1em",textTransform:"uppercase",color:needSetup?th.warning:th.text3,marginBottom:4}}>{L("Need setup","بحاجة إعداد")}</div><div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:24,fontWeight:600,color:needSetup?th.warning:th.text}}>{needSetup}</div></div>
+        </div>
+
+        <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:14}}>
+          <div style={{flex:1,minWidth:180,display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:"9px 12px"}}><Search size={14} color={th.text3}/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={L("Search clients…","ابحث عن عميل…")} style={{flex:1,background:"transparent",border:"none",outline:"none",color:th.text,fontSize:13,minWidth:0}}/></div>
+          <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:"9px 12px",color:th.text2,fontSize:12.5,outline:"none",cursor:"pointer",fontFamily:"inherit"}}>
+            <option value="name">{L("Sort: Name","ترتيب: الاسم")}</option>
+            <option value="accounts">{L("Sort: Most accounts","ترتيب: الأكثر حسابات")}</option>
+            <option value="newest">{L("Sort: Newest","ترتيب: الأحدث")}</option>
+          </select>
+        </div>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:16}}>
+          {CTYPES.map(([k,lbl])=>(<button key={k} onClick={()=>setTypeF(k)} style={{padding:"7px 13px",borderRadius:9,fontSize:12,cursor:"pointer",border:`1px solid ${typeF===k?th.accent:th.border}`,background:typeF===k?th.accentSoft:"transparent",color:typeF===k?th.accent:th.text2}}>{lbl} <span className="tw-num" style={{opacity:.7}}>{ctypeCount(k)}</span></button>))}
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 116px 78px 120px 92px",gap:12,padding:"0 2px 9px",borderBottom:`1px solid ${th.border}`,fontSize:9.5,letterSpacing:".12em",textTransform:"uppercase",color:th.text3,fontWeight:600}}>
+          <span>{L("Client","العميل")}</span><span>{L("Channels","القنوات")}</span><span style={{textAlign:"end"}}>{L("Accounts","الحسابات")}</span><span>{L("Status","الحالة")}</span><span/>
+        </div>
+
+        {shownClients.map(c=>{
           const plats = platsByClient[c.id]||[];
+          const bt = c.business_type||'restaurant';
+          const btLabel = bt==='shop'?L("Shop","متجر"):bt==='services'?L("Services","خدمات"):L("Restaurant","مطعم");
+          const noAcc = (c.accounts||0)===0;
           return (
-          <div key={c.id} style={{position:"relative",display:"flex",alignItems:"center",gap:14,padding:"15px 6px",borderBottom:`1px solid ${th.border}`}}>
-            <ClientMonogram name={c.name} logo={c.logo_url} size={40}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:15,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginTop:5,color:th.text3,fontSize:11}}>
-                {plats.map(p=>{ const m=PLAT[p]; if(!m) return null; const PI=m.Icon; return <PI key={p} style={{color:m.color,fontSize:14}}/>; })}
-                <span className="tw-num" style={{color:th.text2,marginInlineStart:plats.length?3:0}}>{c.accounts||0}</span> {L("accounts","حسابات")} · {c.status==="active"?L("active","نشط"):c.status}
+          <div key={c.id} onClick={()=>{ setSelClient(c); setPage("dashboard"); }} style={{position:"relative",display:"grid",gridTemplateColumns:"1fr 116px 78px 120px 92px",gap:12,alignItems:"center",padding:"13px 2px",borderBottom:`1px solid ${th.border}`,cursor:"pointer"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12,minWidth:0}}>
+              <ClientMonogram name={c.name} logo={c.logo_url} size={38}/>
+              <div style={{minWidth:0}}>
+                <div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:15,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
+                <div style={{fontSize:10.5,color:th.text3,marginTop:1}}>{btLabel}</div>
               </div>
             </div>
-            <button onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant');}} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 13px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
-            <button onClick={()=>setMenuFor(menuFor===c.id?null:c.id)} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4}}><MoreHorizontal size={18}/></button>
-            {menuFor===c.id&&(<>
-              <div onClick={()=>setMenuFor(null)} style={{position:"fixed",inset:0,zIndex:49}}/>
-              <div style={{position:"absolute",[isAR?"left":"right"]:6,top:54,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:5,width:170,boxShadow:"0 16px 36px rgba(0,0,0,0.4)"}}>
-                <div onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant');setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
-                <div onClick={()=>{setSelClient(c);setPage("social");}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Link size={14}/>{L("Connections","الحسابات")}</div>
-                <div style={{height:1,background:th.border,margin:"3px 0"}}/>
-                <div onClick={()=>{setDelClient(c);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.danger,fontSize:12}}><Trash2 size={14}/>{L("Delete client","حذف العميل")}</div>
-              </div>
-            </>)}
+            <div style={{display:"flex",gap:7,alignItems:"center"}}>{plats.length?plats.map(p=>{ const m=PLAT[p]; if(!m) return null; const PI=m.Icon; return <PI key={p} style={{color:m.color,fontSize:15}}/>; }):<span style={{color:th.text3,fontSize:12}}>—</span>}</div>
+            <div className="tw-num" style={{textAlign:"end",fontFamily:"'Fraunces',Georgia,serif",fontSize:15,color:noAcc?th.text3:th.text}}>{c.accounts||0}</div>
+            <div>{noAcc ? (
+              <span onClick={e=>{ e.stopPropagation(); setSelClient(c); setPage("social"); }} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:th.warning,border:`1px solid ${th.warning}44`,borderRadius:8,padding:"4px 9px",cursor:"pointer"}}><Plus size={12}/>{L("Connect","ربط")}</span>
+            ) : (
+              <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,color:th.text2}}><span style={{width:5,height:5,borderRadius:"50%",background:c.status==="active"?th.success:th.warning}}/>{c.status==="active"?L("Active","نشط"):c.status}</span>
+            )}</div>
+            <div style={{display:"flex",gap:7,justifyContent:"flex-end",alignItems:"center"}}>
+              <button onClick={e=>{ e.stopPropagation(); setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant'); }} style={{fontSize:11.5,fontWeight:600,color:th.text2,border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 12px",cursor:"pointer",background:"transparent"}}>{L("Edit","تعديل")}</button>
+              <button onClick={e=>{ e.stopPropagation(); setMenuFor(menuFor===c.id?null:c.id); }} style={{background:"transparent",border:"none",cursor:"pointer",color:th.text2,display:"flex",padding:4}}><MoreHorizontal size={18}/></button>
+              {menuFor===c.id&&(<>
+                <div onClick={e=>{ e.stopPropagation(); setMenuFor(null); }} style={{position:"fixed",inset:0,zIndex:49}}/>
+                <div onClick={e=>e.stopPropagation()} style={{position:"absolute",[isAR?"left":"right"]:6,top:50,zIndex:50,background:th.card,border:`1px solid ${th.border}`,borderRadius:10,padding:5,width:170,boxShadow:"0 16px 36px rgba(0,0,0,0.4)"}}>
+                  <div onClick={()=>{setEditClient(c);setEditName(c.name);setEditLogo(c.logo_url||"");setEditBizType(c.business_type||'restaurant');setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Edit3 size={14}/>{L("Edit details","تعديل التفاصيل")}</div>
+                  <div onClick={()=>{setSelClient(c);setPage("social");}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.text,fontSize:12}}><Link size={14}/>{L("Connections","الحسابات")}</div>
+                  <div style={{height:1,background:th.border,margin:"3px 0"}}/>
+                  <div onClick={()=>{setDelClient(c);setMenuFor(null);}} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,cursor:"pointer",color:th.danger,fontSize:12}}><Trash2 size={14}/>{L("Delete client","حذف العميل")}</div>
+                </div>
+              </>)}
+            </div>
           </div>
           );
         })}
-        <div onClick={()=>setAddOpen(true)} style={{display:"flex",alignItems:"center",gap:12,padding:"16px 6px",color:th.text2,cursor:"pointer"}}>
-          <span style={{width:40,height:40,borderRadius:11,border:`1px dashed ${th.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={16} color={th.text3}/></span>
+        {shownClients.length===0 && <div style={{padding:"28px 2px",color:th.text3,fontSize:12.5}}>{L("No clients match your search.","لا يوجد عملاء مطابقون.")}</div>}
+
+        <div onClick={()=>setAddOpen(true)} style={{display:"flex",alignItems:"center",gap:12,padding:"16px 2px",color:th.text2,cursor:"pointer"}}>
+          <span style={{width:38,height:38,borderRadius:11,border:`1px dashed ${th.border}`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Plus size={16} color={th.text3}/></span>
           <span style={{fontSize:12.5}}>{L("Add another client workspace","إضافة مساحة عمل لعميل آخر")}</span>
         </div>
       </div>
@@ -8656,73 +8686,64 @@ function SocialAccountsPage() {
         .tw-cta{transition:transform .12s ease, filter .15s ease;}
         .tw-cta:hover{transform:translateY(-1px); filter:brightness(1.08);}
       `}</style>
-      <div style={{ position:"absolute", top:-40, left:"30%", width:520, height:280, background:"radial-gradient(ellipse at center, rgba(110,140,171,0.18), transparent 70%)", filter:"blur(20px)", pointerEvents:"none", zIndex:0 }}/>
 
       <div style={{ position:"relative", zIndex:1 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:24 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Social accounts","الحسابات الاجتماعية")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Connect and manage the networks for","اربط وأدر الشبكات لـ")} {selClient?.name || L("your brand","علامتك")}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Social accounts","الحسابات الاجتماعية")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{L("Social accounts","الحسابات الاجتماعية")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("Connect and manage the networks for","اربط وأدر الشبكات لـ")} {selClient?.name || L("your brand","علامتك")}</p>
         </div>
-        <div style={{ display:"flex", gap:10 }}>
-          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize:24, fontWeight:800, ...gradText }}>{accounts.length}</div>
-            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{L("Connected","مرتبط")}</div>
-          </div>
-          <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:"12px 18px", textAlign:"center", minWidth:90, boxShadow:"0 8px 22px rgba(0,0,0,0.25)" }}>
-            <div style={{ fontSize:24, fontWeight:800 }}>{platformsConnected}</div>
-            <div style={{ fontSize:10.5, color:th.text2, marginTop:2 }}>{L("Networks","الشبكات")}</div>
-          </div>
+        <div style={{ display:"flex", gap:28, alignItems:"flex-end", paddingBottom:2 }}>
+          <div style={{ textAlign:"center" }}><div className="tw-num" style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:26, fontWeight:600, color:th.text, lineHeight:1 }}>{accounts.length}</div><div style={{ fontSize:10, color:th.text3, textTransform:"uppercase", letterSpacing:".1em", marginTop:6 }}>{L("Connected","مرتبط")}</div></div>
+          <div style={{ textAlign:"center" }}><div className="tw-num" style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:26, fontWeight:600, color:th.text, lineHeight:1 }}>{platformsConnected}</div><div style={{ fontSize:10, color:th.text3, textTransform:"uppercase", letterSpacing:".1em", marginTop:6 }}>{L("Networks","الشبكات")}</div></div>
         </div>
       </div>
 
       {error && <div style={{ padding:"12px 16px", borderRadius:11, background:th.dangerSoft, color:th.danger, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><XCircle size={15} style={{flexShrink:0}}/><span style={{flex:1}}>{error}</span><button onClick={()=>setError("")} title={L("Dismiss","إغلاق")} style={{ background:"none", border:"none", color:th.danger, cursor:"pointer", display:"flex", padding:2, opacity:0.8, flexShrink:0 }}><X size={15}/></button></div>}
       {success && <div style={{ padding:"12px 16px", borderRadius:11, background:th.successSoft, color:th.success, fontSize:13, marginBottom:14, display:"flex", alignItems:"center", gap:8 }}><CheckCircle size={15} style={{flexShrink:0}}/><span style={{flex:1}}>{success}</span><button onClick={()=>setSuccess("")} title={L("Dismiss","إغلاق")} style={{ background:"none", border:"none", color:th.success, cursor:"pointer", display:"flex", padding:2, opacity:0.8, flexShrink:0 }}><X size={15}/></button></div>}
 
-      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>{L("Add a network","أضف شبكة")}</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(188px,1fr))", gap:15, marginBottom:32 }}>
+      <div style={{ fontSize:10.5, fontWeight:600, color:th.text3, textTransform:"uppercase", letterSpacing:".12em", marginBottom:13 }}>{L("Add a network","أضف شبكة")}</div>
+      <div style={{ borderTop:`1px solid ${th.border}`, marginBottom:32 }}>
         {NETWORKS.map(net => {
           const n = countOf(net.key);
           return (
-            <div key={net.key} className="tw-net" style={{ background:net.live?`linear-gradient(160deg, ${net.color}10, ${th.card} 60%)`:th.card, border:`1px solid ${net.live?net.color+'40':th.border}`, borderRadius:18, padding:19, boxShadow:"0 10px 26px rgba(0,0,0,0.26)", opacity:net.live?1:0.62, position:"relative", overflow:"hidden" }}>
-              {net.live && <div style={{ position:"absolute", top:-28, left:-12, width:130, height:96, background:`radial-gradient(circle, ${net.color}4d, transparent 70%)`, filter:"blur(9px)", pointerEvents:"none", zIndex:0 }}/>}
-              <div style={{ position:"relative", zIndex:1 }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:15 }}>
-                  <div style={{ width:52, height:52, borderRadius:15, background:`linear-gradient(135deg, ${net.color}38, ${net.color}10)`, border:`1px solid ${net.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><net.Icon style={{ color:net.color, fontSize:24 }}/></div>
-                  {n>0 && <span style={{ fontSize:10, fontWeight:700, color:th.success, background:th.successSoft, border:`1px solid ${th.success}40`, borderRadius:999, padding:"4px 10px", display:"flex", alignItems:"center", gap:5 }}><span style={{ width:5, height:5, borderRadius:"50%", background:th.success, boxShadow:`0 0 6px ${th.success}` }}/><span className="tw-num">{n}</span></span>}
-                </div>
-                <div style={{ fontSize:15, fontWeight:700 }}>{net.name}</div>
-                <div style={{ fontSize:11.5, color:th.text2, marginTop:3, marginBottom:15, minHeight:16 }}>{net.desc}</div>
-                {net.live ? (
-                  <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ width:"100%", padding:"10px", borderRadius:11, background:n>0?"rgba(255,255,255,0.04)":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"flex", alignItems:"center", justifyContent:"center", gap:6, boxShadow:n>0?"none":`0 6px 18px ${th.accent}55` }}>
-                    {connecting?L("Connecting…","جارٍ الربط…"):(<><Plus size={13}/>{n>0?L("Add another","أضف آخر"):L("Connect","ربط")}</>)}
-                  </button>
-                ) : (
-                  <div style={{ width:"100%", padding:"10px", borderRadius:11, background:th.card2, border:`1px dashed ${th.border}`, color:th.text3, fontSize:12, fontWeight:600, textAlign:"center", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Lock size={12}/>{L("Coming soon","قريباً")}</div>
-                )}
+            <div key={net.key} style={{ display:"flex", alignItems:"center", gap:14, padding:"15px 2px", borderBottom:`1px solid ${th.border}`, opacity:net.live?1:0.55, flexWrap:"wrap" }}>
+              <div style={{ width:42, height:42, borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><net.Icon style={{ color:net.color, fontSize:21 }}/></div>
+              <div style={{ flex:1, minWidth:120 }}>
+                <div style={{ fontSize:14.5, fontWeight:600, color:th.text }}>{net.name}</div>
+                <div style={{ fontSize:11.5, color:th.text3, marginTop:1 }}>{net.desc}</div>
               </div>
+              {n>0 && <span style={{ fontSize:10.5, color:th.success, display:"inline-flex", alignItems:"center", gap:5, marginInlineEnd:4 }}><span style={{ width:5, height:5, borderRadius:"50%", background:th.success }}/><span className="tw-num">{n}</span>&nbsp;{L("connected","مرتبط")}</span>}
+              {net.live ? (
+                <button className="tw-cta" onClick={net.onConnect} disabled={connecting} style={{ padding:"8px 15px", borderRadius:9, background:n>0?"transparent":th.gradient, border:n>0?`1px solid ${th.border}`:"none", color:n>0?th.text2:"#fff", fontSize:12, fontWeight:600, cursor:connecting?"not-allowed":"pointer", opacity:connecting?0.7:1, display:"inline-flex", alignItems:"center", gap:6, flexShrink:0, whiteSpace:"nowrap" }}>
+                  {connecting?L("Connecting…","جارٍ الربط…"):(<><Plus size={13}/>{n>0?L("Add another","أضف آخر"):L("Connect","ربط")}</>)}
+                </button>
+              ) : (
+                <span style={{ fontSize:11.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:6, flexShrink:0 }}><Lock size={12}/>{L("Coming soon","قريباً")}</span>
+              )}
             </div>
           );
         })}
       </div>
 
-      <div style={{ fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1.4, marginBottom:13 }}>{L("Connected accounts","الحسابات المرتبطة")} {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
-      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, overflow:"hidden", boxShadow:"0 14px 36px rgba(0,0,0,0.32)" }}>
+      <div style={{ fontSize:10.5, fontWeight:600, color:th.text3, textTransform:"uppercase", letterSpacing:".12em", marginBottom:13 }}>{L("Connected accounts","الحسابات المرتبطة")} {accounts.length>0 && <span style={{color:th.text3}}>&middot; {accounts.length}</span>}</div>
+      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, overflow:"hidden" }}>
         {loading ? (
           <SkList th={th} rows={3}/>
         ) : accounts.length===0 ? (
           <div style={{ padding:"52px 24px", textAlign:"center" }}>
-            <div style={{ width:58, height:58, borderRadius:17, background:th.accentSoft, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 15px" }}><Link size={26} color={th.accent}/></div>
-            <div style={{ fontSize:15, fontWeight:600, marginBottom:5 }}>{L("No accounts connected yet","لا توجد حسابات مرتبطة بعد")}</div>
-            <div style={{ fontSize:12.5, color:th.text2 }}>{L("Pick a network above to connect your first account.","اختر شبكة بالأعلى لربط أول حساب لك.")}</div>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ opacity:.5, marginBottom:14 }}><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/></svg>
+            <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:17, color:th.text, marginBottom:5 }}>{L("No accounts connected yet","لا توجد حسابات مرتبطة بعد")}</div>
+            <div style={{ fontSize:12.5, color:th.text3 }}>{L("Pick a network above to connect your first account.","اختر شبكة بالأعلى لربط أول حساب لك.")}</div>
           </div>
         ) : accounts.map((acc,i) => {
           const info = platformInfo[acc.platform] || { name:acc.platform, color:th.accent, bg:th.accentSoft, Icon:Globe };
           return (
-            <div key={acc.id} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none", borderLeft:`3px solid ${info.color}` }}>
+            <div key={acc.id} className="tw-acct" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<accounts.length-1?`1px solid ${th.border}`:"none" }}>
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
                 <div style={{ position:"relative" }}>
-                  <div style={{ width:46, height:46, borderRadius:13, background:`linear-gradient(135deg, ${info.color}38, ${info.color}12)`, border:`2px solid ${info.color}40`, display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ color:info.color, fontSize:22 }}/></div>{acc.picture && <img src={acc.picture} alt="" onError={e=>{ e.currentTarget.style.display="none"; }} style={{ position:"absolute", inset:0, width:46, height:46, borderRadius:13, objectFit:"cover", border:`2px solid ${info.color}55` }}/>}
+                  <div style={{ width:46, height:46, borderRadius:13, background:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center" }}><info.Icon style={{ color:info.color, fontSize:22 }}/></div>{acc.picture && <img src={acc.picture} alt="" onError={e=>{ e.currentTarget.style.display="none"; }} style={{ position:"absolute", inset:0, width:46, height:46, borderRadius:13, objectFit:"cover", border:`1px solid ${th.border}` }}/>}
                   <div style={{ position:"absolute", bottom:-4, right:-4, width:20, height:20, borderRadius:"50%", background:th.card, display:"flex", alignItems:"center", justifyContent:"center", border:`2px solid ${th.card}` }}><info.Icon style={{ color:info.color, fontSize:10 }}/></div>
                 </div>
                 <div>
@@ -8766,8 +8787,8 @@ function SocialAccountsPage() {
         </div>
       )}
 
-      <div style={{ marginTop:18, padding:"14px 18px", borderRadius:13, background:th.accentSoft, border:`1px solid ${th.border}`, fontSize:12, color:th.text2, lineHeight:1.6 }}>
-        <strong style={{ color:th.accent }}>{L("Note:","ملاحظة:")}</strong> {L("Instagram must be a Business/Creator account linked to a Facebook Page. LinkedIn company Pages require admin access. X, TikTok & YouTube are coming soon.","يجب أن يكون حساب إنستغرام حساب أعمال/منشئ مرتبطاً بصفحة فيسبوك. وتتطلب صفحات شركات لينكدإن صلاحية مشرف. منصات X وتيك توك ويوتيوب قريباً.")}
+      <div style={{ marginTop:22, paddingTop:16, borderTop:`1px solid ${th.border}`, fontSize:12, color:th.text3, lineHeight:1.7, maxWidth:660 }}>
+        <span style={{ color:th.text2, fontWeight:600 }}>{L("Note","ملاحظة")}</span> — {L("Instagram must be a Business/Creator account linked to a Facebook Page. LinkedIn company Pages require admin access. X, TikTok & YouTube are coming soon.","يجب أن يكون حساب إنستغرام حساب أعمال/منشئ مرتبطاً بصفحة فيسبوك. وتتطلب صفحات شركات لينكدإن صلاحية مشرف. منصات X وتيك توك ويوتيوب قريباً.")}
       </div>
       </div>
     </div>
@@ -12718,20 +12739,32 @@ function TeamPage() {
     <div style={{ padding:"28px 32px", maxWidth:880 }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:14, marginBottom:22 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Team","الفريق")}</h2>
-          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")} &middot; <span style={{ color:th.text }}>{isFinite(SEATS)?L(`${members.length} of ${SEATS} seats used`,`${members.length} من ${SEATS} مقاعد مستخدمة`):L(`${members.length} seats used`,`${members.length} مقاعد مستخدمة`)}</span></p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Team","الفريق")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{L("Team","الفريق")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("Invite teammates and manage access","ادعُ زملاءك وأدر الصلاحيات")}</p>
         </div>
-        <button onClick={()=>{ if(teamLocked||members.length>=SEATS){ try{ if(setPage) setPage("billing"); }catch(e){} } else setShowInvite(v=>!v); }} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"0 8px 22px rgba(110,140,171,0.4)" }}>
+        <button onClick={()=>{ if(teamLocked||members.length>=SEATS){ try{ if(setPage) setPage("billing"); }catch(e){} } else setShowInvite(v=>!v); }} style={{ padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}>
           <UserPlus size={15}/> {teamLocked?L("Upgrade to add team","رقِّ لإضافة فريق"):members.length>=SEATS?L("Add seats","إضافة مقاعد"):L("Invite member","دعوة عضو")}
         </button>
       </div>
 
-      <div style={{ height:6, borderRadius:999, background:th.card2, border:`1px solid ${th.border}`, overflow:"hidden", marginBottom:22 }}>
-        <div style={{ width:`${Math.min(100, members.length/SEATS*100)}%`, height:"100%", background:th.gradient }}/>
+      <div style={{ display:"flex", alignItems:"center", gap:18, flexWrap:"wrap", borderTop:`1px solid ${th.border}`, borderBottom:`1px solid ${th.border}`, padding:"18px 2px", marginBottom:24 }}>
+        <div style={{ display:"flex", alignItems:"baseline", gap:7 }}>
+          <span className="tw-num" style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:34, fontWeight:600, color:th.text, lineHeight:1 }}>{members.length}</span>
+          <span style={{ fontSize:12.5, color:th.text3 }}>/ {isFinite(SEATS)?SEATS:"∞"} {L("seats used","مقعد مستخدم")}</span>
+        </div>
+        {isFinite(SEATS) && (
+          <div style={{ display:"flex", gap:5, flexWrap:"wrap", flex:1, minWidth:120 }}>
+            {Array.from({length: Math.min(SEATS, 16)}).map((_,i)=>(
+              <span key={i} style={{ width:22, height:6, borderRadius:6, background:i<members.length?th.accent:"transparent", border:i<members.length?"none":`1px solid ${th.border}` }}/>
+            ))}
+          </div>
+        )}
+        {isFinite(SEATS) && SEATS>members.length && <span style={{ fontSize:11.5, color:th.text3 }}><span className="tw-num" style={{ color:th.text2 }}>{SEATS-members.length}</span> {L("open","شاغر")}</span>}
       </div>
 
       {showInvite && (
-        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:20, marginBottom:18, boxShadow:"none" }}>
+        <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:14, padding:20, marginBottom:22 }}>
           <div style={{ fontSize:13, fontWeight:700, marginBottom:13, display:"flex", alignItems:"center", gap:8 }}><UserPlus size={15} color={th.accent}/>{L("Invite a team member","دعوة عضو للفريق")}</div>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
             <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="name@company.com" style={{ ...inp, flex:1, minWidth:200 }}/>
@@ -12744,26 +12777,26 @@ function TeamPage() {
         </div>
       )}
 
-      <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, overflow:"hidden", boxShadow:"none" }}>
-        <div style={{ padding:"13px 20px", borderBottom:`1px solid ${th.border}`, fontSize:11.5, fontWeight:700, color:th.text2, textTransform:"uppercase", letterSpacing:1 }}>{L("Members","الأعضاء")} &middot; {members.length}</div>
+      <div style={{ borderTop:`1px solid ${th.border}` }}>
+        <div style={{ padding:"14px 2px 11px", fontSize:10.5, fontWeight:600, color:th.text3, textTransform:"uppercase", letterSpacing:".12em" }}>{L("Members","الأعضاء")} &middot; <span className="tw-num">{members.length}</span></div>
         {members.map((m,i) => (
-          <div key={m.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 20px", borderBottom:i<members.length-1?`1px solid ${th.border}`:"none" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:13 }}>
-              <div style={{ width:42, height:42, borderRadius:13, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:700, color:"#fff", boxShadow:"0 6px 16px rgba(110,140,171,0.35)" }}>{avatarOf(m)}</div>
-              <div>
-                <div style={{ fontSize:13.5, fontWeight:600 }}>{m.name}</div>
-                <div style={{ fontSize:11.5, color:th.text2, marginTop:2 }}>{m.email}</div>
+          <div key={m.id} className="tw-team-row" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 2px", borderTop:`1px solid ${th.border}`, gap:12, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:13, minWidth:0 }}>
+              <div style={{ width:42, height:42, borderRadius:"50%", background:th.accentSoft, boxShadow:`inset 0 0 0 1px ${th.accent}44`, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'Fraunces',Georgia,serif", fontSize:16, fontWeight:600, color:th.accent, flexShrink:0 }}>{avatarOf(m)}</div>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:15.5, fontWeight:600, color:th.text }}>{m.name}</div>
+                <div style={{ fontSize:11.5, color:th.text3, marginTop:1 }}>{m.email}</div>
               </div>
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:13 }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:11, color:th.text3, minWidth:74, justifyContent:isAR?"flex-start":"flex-end" }}>{m.isOwner?null:<span style={{ width:6, height:6, borderRadius:"50%", background:m.status==='pending'?th.warning:th.success, display:"inline-block" }}/>}{m.isOwner?"":(m.status==='pending'?L("Invited","مدعو"):L("Active","نشط"))}</span>
               {editId===m.id && !m.isOwner ? (
                 <select value={m.role} onChange={e=>changeRole(m.id, e.target.value)} style={{ fontSize:11.5, fontWeight:600, padding:"5px 9px", borderRadius:9, border:`1px solid ${th.accent}`, background:th.card2, color:th.text, outline:"none", fontFamily:"inherit", cursor:"pointer" }}>
                   <option value="Admin">{L("Admin","مشرف")}</option><option value="Editor">{L("Editor","محرّر")}</option><option value="Viewer">{L("Viewer","مشاهد")}</option>
                 </select>
               ) : (
-                <span style={{ fontSize:10.5, fontWeight:700, padding:"4px 12px", borderRadius:999, background:roleColor(m.role)+"22", color:roleColor(m.role) }}>{roleLabel(m.role)}</span>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:10, fontWeight:600, padding:"4px 11px", borderRadius:999, textTransform:"uppercase", letterSpacing:".08em", border:`1px solid ${roleColor(m.role)}44`, color:roleColor(m.role) }}><span style={{ width:5, height:5, borderRadius:"50%", background:roleColor(m.role) }}/>{roleLabel(m.role)}</span>
               )}
-              <span style={{ fontSize:11, color:m.status==='pending'?th.warning:th.text2, minWidth:74, textAlign:isAR?"left":"right" }}>{m.isOwner?"":(m.status==='pending'?L("Invited","مدعو"):L("Active","نشط"))}</span>
               {!m.isOwner ? (
                 <div style={{ display:"flex", gap:7 }}>
                   <button onClick={()=>setEditId(editId===m.id?null:m.id)} style={{ fontSize:11.5, fontWeight:600, color:editId===m.id?th.success:th.accent, background:"none", border:`1px solid ${editId===m.id?th.success+"55":th.border}`, borderRadius:9, padding:"6px 11px", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>{editId===m.id?<><CheckCircle size={13}/>{L("Done","تم")}</>:<><Edit3 size={13}/>{L("Edit","تعديل")}</>}</button>
@@ -12773,6 +12806,13 @@ function TeamPage() {
             </div>
           </div>
         ))}
+        {isFinite(SEATS) && !teamLocked && Array.from({length: Math.max(0, SEATS - members.length)}).slice(0,5).map((_,i) => (
+          <div key={"open"+i} onClick={()=>setShowInvite(true)} className="tw-team-open" style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 2px", borderTop:`1px solid ${th.border}`, cursor:"pointer" }}>
+            <div style={{ width:42, height:42, borderRadius:"50%", border:`1px dashed ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", color:th.text3, flexShrink:0 }}><UserPlus size={15}/></div>
+            <div style={{ fontSize:12.5, color:th.text3 }}>{L("Open seat","مقعد شاغر")} · <span style={{ color:th.accent, fontWeight:600 }}>{L("Invite someone","ادعُ أحدهم")}</span></div>
+          </div>
+        ))}
+        <div style={{ borderTop:`1px solid ${th.border}` }}/>
       </div>
     </div>
   );
@@ -13268,6 +13308,14 @@ function SettingsPage() {
   const [tkSending, setTkSending] = useState(false);
   const [tkSent, setTkSent] = useState(false);
   const [tkErr, setTkErr] = useState("");
+  const [tab, setTab] = useState('profile');
+  const [pwMsg, setPwMsg] = useState("");
+  const [faqOpen, setFaqOpen] = useState(0);
+  const [tz, setTz] = useState(() => { try { return localStorage.getItem('tw_tz') || (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Asia/Bahrain'; } catch(e) { return 'Asia/Bahrain'; } });
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiMsgs, setAiMsgs] = useState([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
 
   const submitTicket = async () => {
     if (!tkSubject.trim() || !tkMessage.trim()) { setTkErr("Add a subject and a message."); return; }
@@ -13288,6 +13336,13 @@ function SettingsPage() {
       setTkErr("Couldn't send right now — please email support@tawaslo.com.");
     } finally { setTkSending(false); }
   };
+
+  const sendReset = async () => { setPwMsg(""); try { const { error } = await supabase.auth.resetPasswordForEmail(loginEmail||origEmail); setPwMsg(error ? L("Couldn't send right now.","تعذّر الإرسال الآن.") : L("Password reset link sent — check your email.","تم إرسال رابط إعادة التعيين — تفقّد بريدك.")); } catch(e) { setPwMsg(L("Couldn't send right now.","تعذّر الإرسال الآن.")); } };
+  const signOutAll = async () => { try { await supabase.auth.signOut({ scope:'global' }); } catch(e) { try{ await signOut(); }catch(_){} } setIsAuthed(false); };
+  const saveTz = (v) => { setTz(v); try { localStorage.setItem('tw_tz', v); } catch(e){} };
+  const openAi = () => { setAiOpen(true); if (aiMsgs.length === 0) setAiMsgs([{ role:'assistant', content: L("Hi! I'm the Tawaslo assistant. Ask me anything about using Tawaslo — connecting accounts, publishing, reports, WhatsApp, billing…","مرحباً! أنا مساعد تواصلو. اسألني أي شيء عن استخدام تواصلو — ربط الحسابات، النشر، التقارير، واتساب، الفوترة…") }]); };
+  const askAi = async (text) => { const q = String(text != null ? text : aiInput).trim(); if (!q || aiBusy) return; const next = [...aiMsgs, { role:'user', content:q }]; setAiMsgs(next); setAiInput(""); setAiBusy(true); try { const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ mode:'help', messages: next.map(m=>({ role:m.role, content:m.content })) }) }); const d = await r.json(); setAiMsgs(m => [...m, { role:'assistant', content: d.reply || L("Sorry, I couldn't answer that one — try Talk to a human.","عذراً، لم أستطع الإجابة — جرّب التحدّث مع أحد الفريق.") }]); } catch (e) { setAiMsgs(m => [...m, { role:'assistant', content: L("Network error — please try again.","خطأ في الشبكة، حاول مجدداً.") }]); } setAiBusy(false); };
+  const escalateAi = () => { const qs = aiMsgs.filter(m=>m.role==='user').map(m=>m.content).join('\n'); setTkSubject(L("Help needed","بحاجة مساعدة")); setTkMessage(qs); setAiOpen(false); };
 
   useEffect(() => {
     let active = true;
@@ -13368,209 +13423,221 @@ function SettingsPage() {
     ["weekly",L("Weekly report","التقرير الأسبوعي"),L("A performance summary every Monday","ملخص أداء كل يوم اثنين")],
   ];
 
+  const paneT = (t,sub) => (<div style={{marginBottom:18}}><div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:19,fontWeight:600,color:th.text}}>{t}</div>{sub&&<div style={{fontSize:12,color:th.text3,marginTop:3}}>{sub}</div>}</div>);
+  const lblS = { fontSize:11, color:th.text2, marginBottom:5 };
+  const TZS = ['Asia/Bahrain','Asia/Riyadh','Asia/Dubai','Asia/Kuwait','Asia/Qatar','Asia/Muscat','Asia/Baghdad','Africa/Cairo','Europe/London','Europe/Paris','America/New_York','America/Los_Angeles','Asia/Karachi','Asia/Kolkata','Asia/Singapore'];
+  const FAQS = [
+    [L("How do I connect a social account?","كيف أربط حساباً اجتماعياً؟"), L("Go to Social Accounts, pick the network and press Connect, then approve on the provider. Instagram must be a Business or Creator account linked to a Facebook Page.","اذهب إلى الحسابات الاجتماعية، اختر الشبكة واضغط ربط ثم وافق لدى المزوّد. يجب أن يكون إنستغرام حساب أعمال أو منشئ مرتبطاً بصفحة فيسبوك.")],
+    [L("How do I schedule or publish a post?","كيف أجدول أو أنشر منشوراً؟"), L("Press Create Post, choose the accounts, write your caption and add media, then Publish now or pick a date to schedule.","اضغط إنشاء منشور، اختر الحسابات، اكتب التعليق وأضف الوسائط، ثم انشر الآن أو اختر تاريخاً للجدولة.")],
+    [L("When will WhatsApp messages start sending?","متى تبدأ رسائل واتساب بالإرسال؟"), L("The WhatsApp engine is built and dormant. Messages start once your number and templates are approved by Meta and connected in your workspace.","محرّك واتساب جاهز وخامل. تبدأ الرسائل بعد اعتماد رقمك وقوالبك من Meta وربطها بمساحتك.")],
+    [L("How do reports work?","كيف تعمل التقارير؟"), L("Reports pull your live data — a social report and, for restaurants, an operations report. You can export a PDF or share a live link with your client.","تسحب التقارير بياناتك المباشرة — تقرير اجتماعي وتقرير تشغيلي للمطاعم. يمكنك تصدير PDF أو مشاركة رابط مباشر مع عميلك.")],
+    [L("How do I add a teammate?","كيف أضيف عضواً للفريق؟"), L("Open Team, press Invite member, enter their email and a role. They get an email invite to join your workspace.","افتح الفريق، اضغط دعوة عضو، أدخل بريده ودوره. يصله بريد دعوة للانضمام إلى مساحتك.")],
+    [L("Is my data safe?","هل بياناتي آمنة؟"), L("Your data is isolated per account with row-level security and is never sold. See our Privacy Policy for the full details.","بياناتك معزولة لكل حساب بأمان على مستوى الصفوف ولا تُباع أبداً. راجع سياسة الخصوصية للتفاصيل.")],
+  ];
+
   return (
-    <div style={{padding:"28px 32px", maxWidth:720}}>
-      <div style={{marginBottom:22}}>
-        <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Settings","الإعدادات")}</h2>
-        <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Manage your account, preferences and support","إدارة حسابك وتفضيلاتك والدعم")}</p>
+    <div style={{padding:"28px 32px", maxWidth:960}}>
+      <div style={{marginBottom:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em",textTransform:"uppercase",fontSize:10.5,fontWeight:600,color:th.accent}}>{L("Settings","الإعدادات")}</span></div>
+        <h2 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{L("Settings","الإعدادات")}</h2>
+        <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("Manage your account, workspace and support","إدارة حسابك ومساحتك والدعم")}</p>
       </div>
-      <div style={{display:"flex", flexDirection:"column", gap:16}}>
 
-        <div style={card}>
-          {secTitle(User, L("Your profile","ملفك الشخصي"))}
-          <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Full name","الاسم الكامل")}</div>
-              <input value={fullName} disabled={loading} onChange={e=>setFullName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your name","اسمك")} style={fieldStyle}/>
+      <div style={{display:"grid",gridTemplateColumns:"196px 1fr",gap:28,alignItems:"start"}}>
+        <div style={{position:"sticky",top:20}}>
+          {[
+            [L("Account","الحساب"), [["profile",L("Profile","الملف"),User],["agency",L("Agency","الوكالة"),Building2],["security",L("Security","الأمان"),Key]]],
+            [L("Workspace","مساحة العمل"), [["notifications",L("Notifications","الإشعارات"),Bell],["appearance",L("Appearance","المظهر"),Sun],["regional",L("Language & region","اللغة والمنطقة"),Globe]].concat(wl?[["whitelabel",L("White-label","العلامة البيضاء"),Sparkles]]:[]).concat([["billing",L("Billing & plan","الفوترة والخطة"),CreditCard]])],
+            [L("Help","المساعدة"), [["support",L("Support","الدعم"),LifeBuoy],["faq",L("Help & FAQ","الأسئلة الشائعة"),MessageCircle],["about",L("About","حول"),Info]]],
+          ].map(([grp,items],gi)=>(
+            <div key={gi} style={{marginBottom:14}}>
+              <div style={{fontSize:9.5,letterSpacing:".12em",textTransform:"uppercase",color:th.text3,padding:"0 10px 7px",fontWeight:600}}>{grp}</div>
+              {items.map(([k,lbl,Ic])=>(
+                <div key={k} onClick={()=>setTab(k)} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:8,cursor:"pointer",fontSize:13,marginBottom:2,background:tab===k?th.accentSoft:"transparent",border:`1px solid ${tab===k?th.accent+"55":"transparent"}`,color:tab===k?th.accent:th.text2,fontWeight:tab===k?600:400}}><Ic size={15}/>{lbl}</div>
+              ))}
             </div>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Login email","بريد تسجيل الدخول")}</div>
-              <input type="email" value={loginEmail} disabled={loading} onChange={e=>setLoginEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/>
-              {loginEmail!==origEmail && loginEmail && <div style={{fontSize:10.5, color:th.text3, marginTop:5}}>{L("You'll get a confirmation link at the new address to finish the change.","سنرسل رابط تأكيد إلى البريد الجديد لإتمام التغيير.")}</div>}
-            </div>
-          </div>
-          {profileMsg && <div style={{marginTop:10, fontSize:11.5, color:profileMsg.indexOf("Almost")===0?th.accent:th.danger, lineHeight:1.5}}>{profileMsg}</div>}
-          <button onClick={saveProfile} disabled={savingProfile||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:profileSaved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(savingProfile||loading)?"not-allowed":"pointer", opacity:(savingProfile||loading)?0.7:1}}>
-            {profileSaved?L("Saved","تم الحفظ"):savingProfile?L("Saving…","جارٍ الحفظ…"):L("Update profile","تحديث الملف")}
-          </button>
+          ))}
         </div>
 
-        <div style={card}>
-          {secTitle(Building2, L("Agency profile","ملف الوكالة"))}
-          <div style={{display:"flex", alignItems:"center", gap:14, paddingBottom:16, marginBottom:16, borderBottom:`1px solid ${th.border}`}}>
-            <ClientMonogram name={agencyName||"Agency"} logo={agencyLogo} size={56} radius={15}/>
-            <div style={{flex:1, minWidth:0}}>
-              <div style={{fontSize:12.5, color:th.text, fontWeight:600, marginBottom:2}}>{L("Agency logo","شعار الوكالة")}</div>
-              <div style={{fontSize:11, color:th.text2, lineHeight:1.5}}>{L("Shows on approvals, the client link and your reports.","يظهر في الموافقات ورابط العميل وتقاريرك.")}</div>
-            </div>
-            <label style={{display:"inline-flex", alignItems:"center", gap:6, padding:"9px 15px", borderRadius:10, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:12, fontWeight:600, cursor:uploadingLogo?"wait":"pointer", flexShrink:0}}>
-              <Image size={14}/>{uploadingLogo?L("Uploading…","جارٍ الرفع…"):(agencyLogo?L("Change","تغيير"):L("Upload","رفع"))}
-              <input type="file" accept="image/*" disabled={uploadingLogo} style={{display:"none"}} onChange={e=>{ if(e.target.files&&e.target.files[0]) setLogoCropFile(e.target.files[0]); e.target.value=''; }}/>
-            </label>
-          </div>
-          <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Agency name","اسم الوكالة")}</div>
-              <input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your agency name","اسم وكالتك")} style={fieldStyle}/>
-            </div>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Contact email","بريد التواصل")}</div>
-              <input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/>
-            </div>
-            <div>
-              <div style={{fontSize:11, color:th.text2, marginBottom:5}}>{L("Website","الموقع الإلكتروني")}</div>
-              <input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"yoursite.com"} style={fieldStyle}/>
-            </div>
-          </div>
-          {err && <div style={{marginTop:10, fontSize:12, color:th.danger}}>{err}</div>}
-          <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16, padding:"10px 24px", borderRadius:9, background:saved?th.success:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:(saving||loading)?"not-allowed":"pointer", opacity:(saving||loading)?0.7:1}}>
-            {saved?L("Saved","تم الحفظ"):saving?L("Saving…","جارٍ الحفظ…"):L("Save changes","حفظ التغييرات")}
-          </button>
-          {logoCropFile && <LogoCropper file={logoCropFile} onCancel={()=>setLogoCropFile(null)} onSave={(blob)=>{ setLogoCropFile(null); putAgencyLogo(blob); }}/>}
-        </div>
+        <div style={{minWidth:0,maxWidth:560}}>
 
-        <div style={card}>
-          {secTitle(Bell, L("Notifications","الإشعارات"))}
-          <div style={{display:"flex", flexDirection:"column", gap:14}}>
-            {NOTIFS.map(([k,title,sub])=>(
-              <div key={k} style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12}}>
-                <div><div style={{fontSize:12.5}}>{title}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{sub}</div></div>
-                <Sw on={notif[k]} onClick={()=>toggleNotif(k)}/>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={card}>
-          {secTitle(FileText, L("Monthly report reminder","تذكير التقرير الشهري"))}
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom: reportPref.on?14:0}}>
-            <div><div style={{fontSize:12.5}}>{L("Remind me to send client reports","ذكّرني بإرسال تقارير العملاء")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("A banner on your Command Center each month","لافتة على لوحة القيادة كل شهر")}</div></div>
-            <Sw on={reportPref.on} onClick={()=>{ const p={...reportPref, on:!reportPref.on}; setReportPref(p); twSetReportPref(p); }}/>
-          </div>
-          {reportPref.on && (
-            <div style={{display:"flex", alignItems:"center", gap:9, flexWrap:"wrap"}}>
-              <span style={{fontSize:12, color:th.text2}}>{L("Remind me on day","ذكّرني في يوم")}</span>
-              <select value={reportPref.day} onChange={e=>{ const p={...reportPref, day:Number(e.target.value)}; setReportPref(p); twSetReportPref(p); }} style={{background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 10px", color:th.text, fontSize:13, outline:"none", cursor:"pointer"}}>
-                {Array.from({length:28}).map((_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
-              </select>
-              <span style={{fontSize:12, color:th.text2}}>{L("of the month","من الشهر")}</span>
-              <span style={{fontSize:10.5, color:th.text3, flexBasis:"100%"}}>{L("Tip: pick 1 to be nudged at the start, or 26 for a few days before the month ends.","نصيحة: اختر 1 للتذكير في البداية أو 26 قبل نهاية الشهر بأيام.")}</span>
+          {tab==='profile' && (<>
+            {paneT(L("Profile","الملف الشخصي"), L("Your personal name and login email.","اسمك الشخصي وبريد الدخول."))}
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div><div style={lblS}>{L("Full name","الاسم الكامل")}</div><input value={fullName} disabled={loading} onChange={e=>setFullName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your name","اسمك")} style={fieldStyle}/></div>
+              <div><div style={lblS}>{L("Login email","بريد تسجيل الدخول")}</div><input type="email" value={loginEmail} disabled={loading} onChange={e=>setLoginEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/>{loginEmail!==origEmail && loginEmail && <div style={{fontSize:10.5,color:th.text3,marginTop:5}}>{L("You'll get a confirmation link at the new address to finish the change.","سنرسل رابط تأكيد إلى البريد الجديد لإتمام التغيير.")}</div>}</div>
             </div>
-          )}
-        </div>
-
-        <div style={card}>
-          {secTitle(dark?Moon:Sun, L("Appearance","المظهر"))}
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center"}}>
-            <div><div style={{fontSize:12.5}}>{L("Dark mode","الوضع الداكن")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Switch between dark and light theme","التبديل بين الوضع الداكن والفاتح")}</div></div>
-            <Sw on={dark} onClick={()=>setDark(!dark)}/>
-          </div>
-        </div>
-
-        {wl && (
-        <div style={card}>
-          {secTitle(Sparkles, L("Studio · White-label","استوديو · العلامة البيضاء"))}
-          {!wlAllowed ? (
-            <div style={{display:"flex", alignItems:"center", gap:12, background:th.card2, border:`1px solid ${th.border}`, borderRadius:12, padding:"14px 16px"}}>
-              <Lock size={16} color={th.text3}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12.5, color:th.text}}>{L("White-label is part of the Studio plan","العلامة البيضاء ضمن خطة استوديو")}</div>
-                <div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Put your own logo, colors and name on every client page. Upgrade to Studio to turn it on.","ضع شعارك وألوانك واسمك على كل صفحة عميل. رقِّ إلى استوديو لتفعيلها.")}</div>
-              </div>
-              <button onClick={()=>setPage('billing')} style={{padding:"9px 15px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap"}}>{L("Upgrade","ترقية")}</button>
-            </div>
-          ) : (<>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, marginBottom: wl.enabled?16:0}}>
-            <div><div style={{fontSize:12.5}}>{L("Make the client pages yours","اجعل صفحات العملاء بعلامتك")}</div><div style={{fontSize:11, color:th.text2, marginTop:1}}>{L("Your logo, colors, font and name on everything clients see","شعارك وألوانك وخطك واسمك على كل ما يراه العملاء")}</div></div>
-            <Sw on={!!wl.enabled} onClick={()=>setWl(w=>({...w, enabled:!w.enabled}))}/>
-          </div>
-          {wl.enabled && <div style={{display:"flex", flexDirection:"column", gap:12}}>
-            <div><div style={wLbl}>{L("Brand name","اسم العلامة")}</div><input value={wl.brand_name||""} onChange={e=>setWl(w=>({...w, brand_name:e.target.value}))} placeholder="Octo Studio" style={wInp}/></div>
-            <div><div style={wLbl}>{L("Logo URL","رابط الشعار")}</div><input value={wl.logo_url||""} onChange={e=>setWl(w=>({...w, logo_url:e.target.value}))} placeholder="https://…" style={wInp}/></div>
-            <div>
-              <div style={wLbl}>{L("Recommended palettes","لوحات ألوان مقترحة")}</div>
-              <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
-                {WL_PRESETS.map(ps => { const on = (wl.accent||"").toLowerCase()===ps.accent.toLowerCase() && (wl.accent2||"").toLowerCase()===ps.accent2.toLowerCase(); return (
-                  <button key={ps.name} title={ps.name} onClick={()=>setWl(w=>({...w, accent:ps.accent, accent2:ps.accent2}))} style={{display:"flex", alignItems:"center", gap:7, padding:"6px 10px", borderRadius:999, cursor:"pointer", background:on?th.accentSoft:th.card2, border:`1.5px solid ${on?th.accent:th.border}`}}>
-                    <span style={{display:"flex"}}><span style={{width:13, height:13, borderRadius:"50% 0 0 50%", background:ps.accent}}/><span style={{width:13, height:13, borderRadius:"0 50% 50% 0", background:ps.accent2}}/></span>
-                    <span style={{fontSize:11.5, color:th.text}}>{ps.name}</span>
-                    {on && <Check size={12} color={th.accent}/>}
-                  </button>
-                );})}
-              </div>
-            </div>
-            <div style={{display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-end"}}>
-              <div><div style={wLbl}>{L("Accent","اللون الأساسي")}</div><input type="color" value={wl.accent||"#4F6B8C"} onChange={e=>setWl(w=>({...w, accent:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
-              <div><div style={wLbl}>{L("Secondary","الثانوي")}</div><input type="color" value={wl.accent2||"#1D9E75"} onChange={e=>setWl(w=>({...w, accent2:e.target.value}))} style={{width:60, height:38, border:`1px solid ${th.border}`, borderRadius:9, background:th.card2, cursor:"pointer"}}/></div>
-              <div style={{flex:1, minWidth:150}}><div style={wLbl}>{L("Font","الخط")}</div><select value={wl.font||"Plus Jakarta Sans"} onChange={e=>setWl(w=>({...w, font:e.target.value}))} style={{...wInp, cursor:"pointer"}}>{WL_FONTS.map(f=><option key={f} value={f}>{f}</option>)}</select></div>
-            </div>
-            <div><div style={wLbl}>{L("Footer text (replaces Powered by Tawaslo)","نص التذييل (يستبدل Powered by Tawaslo)")}</div><input value={wl.footer_text||""} onChange={e=>setWl(w=>({...w, footer_text:e.target.value}))} placeholder={L("Powered by Octo Studio","مُشغّل بواسطة استوديو أوكتو")} style={wInp}/></div>
-            <div><div style={wLbl}>{L("Contact shown to clients","جهة اتصال تظهر للعملاء")}</div><input value={wl.contact||""} onChange={e=>setWl(w=>({...w, contact:e.target.value}))} placeholder="hello@octostudio.com" style={wInp}/></div>
-            <label style={{display:"flex", alignItems:"center", gap:9, cursor:"pointer"}}><input type="checkbox" checked={wl.hide_tawaslo!==false} onChange={e=>setWl(w=>({...w, hide_tawaslo:e.target.checked}))} style={{width:16, height:16, accentColor:th.accent}}/><span style={{fontSize:12.5, color:th.text}}>{L("Hide all Tawaslo branding from client pages","إخفاء كل علامات تواصلو عن صفحات العملاء")}</span></label>
-            {WL_DOMAIN_VISIBLE && <div style={{borderTop:`1px solid ${th.border}`, paddingTop:13, marginTop:2}}>
-              <div style={wLbl}>{L("Custom domain","نطاق مخصص")}</div>
-              <input value={wl.domain||""} onChange={e=>setWl(w=>({...w, domain:e.target.value}))} placeholder="links.octostudio.com" style={wInp}/>
-              <div style={{fontSize:10.5, color:th.text3, marginTop:6, lineHeight:1.5}}>{L("Add a CNAME for this subdomain pointing to Tawaslo, then switch it on.","أضف سجل CNAME لهذا النطاق يشير إلى تواصلو ثم فعّله.")}</div>
-              <label style={{display:"flex", alignItems:"center", gap:9, cursor:"pointer", marginTop:9}}><input type="checkbox" checked={!!wl.domain_on} onChange={e=>setWl(w=>({...w, domain_on:e.target.checked}))} style={{width:16, height:16, accentColor:th.accent}}/><span style={{fontSize:12.5, color:th.text}}>{L("Serve client pages on my domain","قدّم صفحات العملاء على نطاقي")}</span></label>
-            </div>}
-            <button onClick={saveWl} style={{alignSelf:"flex-start", marginTop:2, padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:700, cursor:"pointer"}}>{wlSaved?L("Saved ✓","تم ✓"):L("Save branding","حفظ الهوية")}</button>
-          </div>}
+            {profileMsg && <div style={{marginTop:10,fontSize:11.5,color:profileMsg.indexOf("Almost")===0?th.accent:th.danger,lineHeight:1.5}}>{profileMsg}</div>}
+            <button onClick={saveProfile} disabled={savingProfile||loading} style={{marginTop:16,padding:"10px 22px",borderRadius:9,background:profileSaved?th.success:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:(savingProfile||loading)?"not-allowed":"pointer",opacity:(savingProfile||loading)?0.7:1}}>{profileSaved?L("Saved","تم الحفظ"):savingProfile?L("Saving…","جارٍ الحفظ…"):L("Update profile","تحديث الملف")}</button>
           </>)}
-        </div>
-        )}
 
-        <div style={card}>
-          {secTitle(Languages, L("Language","اللغة"))}
-          <div style={{display:"flex", gap:8}}>
-            {["en","ar"].map(l => (
-              <button key={l} onClick={()=>setLang(l)} style={{padding:"8px 22px", borderRadius:9, border:`1.5px solid ${lang===l?th.accent:th.border}`, background:lang===l?th.accentSoft:"transparent", color:lang===l?th.accent:th.text2, fontSize:13, fontWeight:600, cursor:"pointer"}}>
-                {l==="en"?"English":"العربية"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={card}>
-          {secTitle(MessageCircle, L("Support & help","الدعم والمساعدة"))}
-          <div style={{fontSize:12.5, color:th.text2, lineHeight:1.6, marginBottom:16}}>{L("Questions, issues, or a feature idea? Send us a message below and it lands straight with our team. We typically reply within one business day.","سؤال أو مشكلة أو فكرة لميزة جديدة؟ أرسل لنا رسالة وتصل مباشرة إلى فريقنا. نرد عادةً خلال يوم عمل واحد.")}</div>
-
-          {tkSent && (
-            <div style={{display:"flex", alignItems:"center", gap:9, background:th.successSoft, border:`1px solid ${th.success}40`, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12.5, color:th.success, fontWeight:600}}>
-              <CheckCircle size={16}/> {L("Message sent. We'll get back to you at","تم إرسال الرسالة. سنعاود التواصل معك على")} {contactEmail || L("your email","بريدك")}.
+          {tab==='agency' && (<>
+            {paneT(L("Agency","الوكالة"), L("How your agency shows on approvals, client links and reports.","كيف تظهر وكالتك على الموافقات وروابط العملاء والتقارير."))}
+            <div style={{display:"flex",alignItems:"center",gap:14,paddingBottom:16,marginBottom:16,borderBottom:`1px solid ${th.border}`}}>
+              <ClientMonogram name={agencyName||"Agency"} logo={agencyLogo} size={56} radius={15}/>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,color:th.text,fontWeight:600,marginBottom:2}}>{L("Agency logo","شعار الوكالة")}</div><div style={{fontSize:11,color:th.text3,lineHeight:1.5}}>{L("Shows on approvals, the client link and your reports.","يظهر في الموافقات ورابط العميل وتقاريرك.")}</div></div>
+              <label style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 15px",borderRadius:10,border:`1px solid ${th.border}`,background:th.card2,color:th.text,fontSize:12,fontWeight:600,cursor:uploadingLogo?"wait":"pointer",flexShrink:0}}><Image size={14}/>{uploadingLogo?L("Uploading…","جارٍ الرفع…"):(agencyLogo?L("Change","تغيير"):L("Upload","رفع"))}<input type="file" accept="image/*" disabled={uploadingLogo} style={{display:"none"}} onChange={e=>{ if(e.target.files&&e.target.files[0]) setLogoCropFile(e.target.files[0]); e.target.value=''; }}/></label>
             </div>
-          )}
-          {tkErr && (
-            <div style={{background:th.dangerSoft, border:`1px solid ${th.danger}40`, borderRadius:11, padding:"11px 14px", marginBottom:14, fontSize:12, color:th.danger}}>{tkErr}</div>
-          )}
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div><div style={lblS}>{L("Agency name","اسم الوكالة")}</div><input value={agencyName} disabled={loading} onChange={e=>setAgencyName(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):L("Your agency name","اسم وكالتك")} style={fieldStyle}/></div>
+              <div><div style={lblS}>{L("Contact email","بريد التواصل")}</div><input type="email" value={contactEmail} disabled={loading} onChange={e=>setContactEmail(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"you@example.com"} style={fieldStyle}/></div>
+              <div><div style={lblS}>{L("Website","الموقع الإلكتروني")}</div><input value={website} disabled={loading} onChange={e=>setWebsite(e.target.value)} placeholder={loading?L("Loading…","جارٍ التحميل…"):"yoursite.com"} style={fieldStyle}/></div>
+            </div>
+            {err && <div style={{marginTop:10,fontSize:12,color:th.danger}}>{err}</div>}
+            <button onClick={handleSave} disabled={saving||loading} style={{marginTop:16,padding:"10px 22px",borderRadius:9,background:saved?th.success:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:(saving||loading)?"not-allowed":"pointer",opacity:(saving||loading)?0.7:1}}>{saved?L("Saved","تم الحفظ"):saving?L("Saving…","جارٍ الحفظ…"):L("Save changes","حفظ التغييرات")}</button>
+            {logoCropFile && <LogoCropper file={logoCropFile} onCancel={()=>setLogoCropFile(null)} onSave={(blob)=>{ setLogoCropFile(null); putAgencyLogo(blob); }}/>}
+          </>)}
 
-          <div style={{marginBottom:11}}>
-            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>{L("Subject","الموضوع")}</label>
-            <input value={tkSubject} onChange={e=>{setTkSubject(e.target.value); setTkErr("");}} placeholder={L("e.g. Can't connect my Instagram","مثال: لا أستطيع ربط حساب إنستغرام")}
-              style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", boxSizing:"border-box"}}/>
-          </div>
-          <div style={{marginBottom:14}}>
-            <label style={{fontSize:11, color:th.text2, fontWeight:600, marginBottom:6, display:"block"}}>{L("Message","الرسالة")}</label>
-            <textarea value={tkMessage} onChange={e=>{setTkMessage(e.target.value); setTkErr("");}} placeholder={L("Tell us what's going on…","أخبرنا بما يحدث…")} rows={4}
-              style={{width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:12.5, outline:"none", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box"}}/>
-          </div>
-          <div style={{display:"flex", gap:10, flexWrap:"wrap", alignItems:"center"}}>
-            <button onClick={submitTicket} disabled={tkSending} style={{display:"flex", alignItems:"center", gap:7, padding:"11px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:tkSending?"not-allowed":"pointer", opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?L("Sending…","جارٍ الإرسال…"):L("Send message","إرسال الرسالة")}</button>
-            <a href="mailto:support@tawaslo.com" style={{fontSize:12, color:th.text2, textDecoration:"none"}}>{L("or email support@tawaslo.com","أو راسلنا على support@tawaslo.com")}</a>
-          </div>
+          {tab==='security' && (<>
+            {paneT(L("Security","الأمان"), L("Keep your account safe.","حافظ على أمان حسابك."))}
+            <div style={{paddingBottom:18,marginBottom:18,borderBottom:`1px solid ${th.border}`}}>
+              <div style={{fontSize:13,fontWeight:600,color:th.text,marginBottom:4}}>{L("Password","كلمة المرور")}</div>
+              <div style={{fontSize:12,color:th.text3,lineHeight:1.6,marginBottom:12}}>{L("We'll email a secure reset link to","سنرسل رابط إعادة تعيين آمن إلى")} <b style={{color:th.text2}}>{loginEmail||origEmail}</b>. {L("Open it to set a new password.","افتحه لتعيين كلمة مرور جديدة.")}</div>
+              <button onClick={sendReset} style={{padding:"9px 18px",borderRadius:9,border:`1px solid ${th.border}`,background:th.card2,color:th.text,fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Key size={14}/>{L("Send reset link","إرسال رابط إعادة التعيين")}</button>
+              {pwMsg && <div style={{marginTop:10,fontSize:11.5,color:th.text2}}>{pwMsg}</div>}
+            </div>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:th.text,marginBottom:4}}>{L("Active session","الجلسة النشطة")}</div>
+              <div style={{fontSize:12,color:th.text3,lineHeight:1.6,marginBottom:12}}>{L("Signed in as","مسجّل الدخول كـ")} <b style={{color:th.text2}}>{loginEmail||origEmail}</b>.</div>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                <button onClick={async()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); }} style={{padding:"9px 18px",borderRadius:9,border:`1px solid ${th.border}`,background:th.card2,color:th.text,fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><LogOut size={14}/>{L("Log out","تسجيل الخروج")}</button>
+                <button onClick={signOutAll} style={{padding:"9px 18px",borderRadius:9,border:`1px solid ${th.border}`,background:"transparent",color:th.text2,fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Shield size={14}/>{L("Log out of all devices","تسجيل الخروج من كل الأجهزة")}</button>
+              </div>
+            </div>
+            <div style={{marginTop:22,paddingTop:18,borderTop:`1px solid ${th.border}`}}>
+              <div style={{fontSize:13,fontWeight:600,color:th.danger,marginBottom:4}}>{L("Delete account","حذف الحساب")}</div>
+              <div style={{fontSize:12,color:th.text3,lineHeight:1.6,marginBottom:12,maxWidth:460}}>{L("Permanently removes your workspace, clients and data. This can't be undone — our team confirms with you before anything is deleted.","يزيل مساحتك وعملاءك وبياناتك نهائياً. لا يمكن التراجع — يؤكد فريقنا معك قبل أي حذف.")}</div>
+              <button onClick={()=>{ setTkSubject(L("Delete my account","حذف حسابي")); setTkMessage(L("I'd like to permanently delete my Tawaslo account.","أرغب في حذف حسابي في تواصلو نهائياً.")); setTab('support'); }} style={{padding:"9px 18px",borderRadius:9,border:`1px solid ${th.danger}`,background:"transparent",color:th.danger,fontSize:12,fontWeight:600,cursor:"pointer"}}>{L("Request deletion","طلب الحذف")}</button>
+            </div>
+          </>)}
+
+          {tab==='notifications' && (<>
+            {paneT(L("Notifications","الإشعارات"), L("Choose what reaches your inbox.","اختر ما يصل إلى بريدك."))}
+            <div style={{display:"flex",flexDirection:"column",gap:16,paddingBottom:18,marginBottom:18,borderBottom:`1px solid ${th.border}`}}>
+              {NOTIFS.map(([k,title,sub])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}><div><div style={{fontSize:12.5,color:th.text}}>{title}</div><div style={{fontSize:11,color:th.text3,marginTop:1}}>{sub}</div></div><Sw on={notif[k]} onClick={()=>toggleNotif(k)}/></div>))}
+            </div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:reportPref.on?14:0}}><div><div style={{fontSize:12.5,color:th.text}}>{L("Monthly report reminder","تذكير التقرير الشهري")}</div><div style={{fontSize:11,color:th.text3,marginTop:1}}>{L("A banner on your Command Center each month","لافتة على لوحة القيادة كل شهر")}</div></div><Sw on={reportPref.on} onClick={()=>{ const pp={...reportPref, on:!reportPref.on}; setReportPref(pp); twSetReportPref(pp); }}/></div>
+            {reportPref.on && (<div style={{display:"flex",alignItems:"center",gap:9,flexWrap:"wrap"}}><span style={{fontSize:12,color:th.text2}}>{L("Remind me on day","ذكّرني في يوم")}</span><select value={reportPref.day} onChange={e=>{ const pp={...reportPref, day:Number(e.target.value)}; setReportPref(pp); twSetReportPref(pp); }} style={{background:th.card2,border:`1px solid ${th.border}`,borderRadius:8,padding:"7px 10px",color:th.text,fontSize:13,outline:"none",cursor:"pointer"}}>{Array.from({length:28}).map((_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select><span style={{fontSize:12,color:th.text2}}>{L("of the month","من الشهر")}</span></div>)}
+          </>)}
+
+          {tab==='appearance' && (<>
+            {paneT(L("Appearance","المظهر"), L("How Tawaslo looks for you.","كيف يبدو تواصلو لك."))}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontSize:12.5,color:th.text}}>{L("Dark mode","الوضع الداكن")}</div><div style={{fontSize:11,color:th.text3,marginTop:1}}>{L("Switch between the dark and light theme","التبديل بين الوضع الداكن والفاتح")}</div></div><Sw on={dark} onClick={()=>setDark(!dark)}/></div>
+          </>)}
+
+          {tab==='regional' && (<>
+            {paneT(L("Language & region","اللغة والمنطقة"), L("Language and time zone for your workspace.","اللغة والمنطقة الزمنية لمساحتك."))}
+            <div style={{marginBottom:20}}>
+              <div style={lblS}>{L("Language","اللغة")}</div>
+              <div style={{display:"flex",gap:8}}>{["en","ar"].map(l=>(<button key={l} onClick={()=>setLang(l)} style={{padding:"8px 22px",borderRadius:9,border:`1.5px solid ${lang===l?th.accent:th.border}`,background:lang===l?th.accentSoft:"transparent",color:lang===l?th.accent:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{l==="en"?"English":"العربية"}</button>))}</div>
+            </div>
+            <div>
+              <div style={lblS}>{L("Time zone","المنطقة الزمنية")}</div>
+              <select value={tz} onChange={e=>saveTz(e.target.value)} style={{...fieldStyle,cursor:"pointer",maxWidth:320}}>{TZS.map(z=><option key={z} value={z}>{z.replace(/_/g,' ')}</option>)}</select>
+              <div style={{fontSize:10.5,color:th.text3,marginTop:7,lineHeight:1.5}}>{L("Used when showing scheduled times and report dates.","تُستخدم عند عرض أوقات الجدولة وتواريخ التقارير.")}</div>
+            </div>
+          </>)}
+
+          {tab==='whitelabel' && wl && (<>
+            {paneT(L("White-label","العلامة البيضاء"), L("Put your own brand on every client page.","ضع علامتك على كل صفحة عميل."))}
+            {!wlAllowed ? (
+              <div style={{display:"flex",alignItems:"center",gap:12,background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px 16px"}}><Lock size={16} color={th.text3}/><div style={{flex:1}}><div style={{fontSize:12.5,color:th.text}}>{L("White-label is part of the Studio plan","العلامة البيضاء ضمن خطة استوديو")}</div><div style={{fontSize:11,color:th.text3,marginTop:1}}>{L("Your logo, colors and name on every client page.","شعارك وألوانك واسمك على كل صفحة عميل.")}</div></div><button onClick={()=>setPage('billing')} style={{padding:"9px 15px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{L("Upgrade","ترقية")}</button></div>
+            ) : (<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:wl.enabled?16:0}}><div><div style={{fontSize:12.5,color:th.text}}>{L("Make the client pages yours","اجعل صفحات العملاء بعلامتك")}</div><div style={{fontSize:11,color:th.text3,marginTop:1}}>{L("Your logo, colors, font and name on everything clients see","شعارك وألوانك وخطك واسمك على كل ما يراه العملاء")}</div></div><Sw on={!!wl.enabled} onClick={()=>setWl(w=>({...w, enabled:!w.enabled}))}/></div>
+              {wl.enabled && <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div><div style={wLbl}>{L("Brand name","اسم العلامة")}</div><input value={wl.brand_name||""} onChange={e=>setWl(w=>({...w, brand_name:e.target.value}))} placeholder="Octo Studio" style={wInp}/></div>
+                <div><div style={wLbl}>{L("Logo URL","رابط الشعار")}</div><input value={wl.logo_url||""} onChange={e=>setWl(w=>({...w, logo_url:e.target.value}))} placeholder="https://…" style={wInp}/></div>
+                <div><div style={wLbl}>{L("Recommended palettes","لوحات ألوان مقترحة")}</div><div style={{display:"flex",flexWrap:"wrap",gap:8}}>{WL_PRESETS.map(ps=>{ const on=(wl.accent||"").toLowerCase()===ps.accent.toLowerCase()&&(wl.accent2||"").toLowerCase()===ps.accent2.toLowerCase(); return (<button key={ps.name} title={ps.name} onClick={()=>setWl(w=>({...w, accent:ps.accent, accent2:ps.accent2}))} style={{display:"flex",alignItems:"center",gap:7,padding:"6px 10px",borderRadius:999,cursor:"pointer",background:on?th.accentSoft:th.card2,border:`1.5px solid ${on?th.accent:th.border}`}}><span style={{display:"flex"}}><span style={{width:13,height:13,borderRadius:"50% 0 0 50%",background:ps.accent}}/><span style={{width:13,height:13,borderRadius:"0 50% 50% 0",background:ps.accent2}}/></span><span style={{fontSize:11.5,color:th.text}}>{ps.name}</span>{on&&<Check size={12} color={th.accent}/>}</button>); })}</div></div>
+                <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"flex-end"}}><div><div style={wLbl}>{L("Accent","اللون الأساسي")}</div><input type="color" value={wl.accent||"#4F6B8C"} onChange={e=>setWl(w=>({...w, accent:e.target.value}))} style={{width:60,height:38,border:`1px solid ${th.border}`,borderRadius:9,background:th.card2,cursor:"pointer"}}/></div><div><div style={wLbl}>{L("Secondary","الثانوي")}</div><input type="color" value={wl.accent2||"#1D9E75"} onChange={e=>setWl(w=>({...w, accent2:e.target.value}))} style={{width:60,height:38,border:`1px solid ${th.border}`,borderRadius:9,background:th.card2,cursor:"pointer"}}/></div><div style={{flex:1,minWidth:150}}><div style={wLbl}>{L("Font","الخط")}</div><select value={wl.font||"Plus Jakarta Sans"} onChange={e=>setWl(w=>({...w, font:e.target.value}))} style={{...wInp,cursor:"pointer"}}>{WL_FONTS.map(f=><option key={f} value={f}>{f}</option>)}</select></div></div>
+                <div><div style={wLbl}>{L("Footer text (replaces Powered by Tawaslo)","نص التذييل")}</div><input value={wl.footer_text||""} onChange={e=>setWl(w=>({...w, footer_text:e.target.value}))} placeholder={L("Powered by Octo Studio","مُشغّل بواسطة استوديو أوكتو")} style={wInp}/></div>
+                <div><div style={wLbl}>{L("Contact shown to clients","جهة اتصال تظهر للعملاء")}</div><input value={wl.contact||""} onChange={e=>setWl(w=>({...w, contact:e.target.value}))} placeholder="hello@octostudio.com" style={wInp}/></div>
+                <label style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer"}}><input type="checkbox" checked={wl.hide_tawaslo!==false} onChange={e=>setWl(w=>({...w, hide_tawaslo:e.target.checked}))} style={{width:16,height:16,accentColor:th.accent}}/><span style={{fontSize:12.5,color:th.text}}>{L("Hide all Tawaslo branding from client pages","إخفاء كل علامات تواصلو عن صفحات العملاء")}</span></label>
+                {WL_DOMAIN_VISIBLE && <div style={{borderTop:`1px solid ${th.border}`,paddingTop:13,marginTop:2}}><div style={wLbl}>{L("Custom domain","نطاق مخصص")}</div><input value={wl.domain||""} onChange={e=>setWl(w=>({...w, domain:e.target.value}))} placeholder="links.octostudio.com" style={wInp}/><div style={{fontSize:10.5,color:th.text3,marginTop:6,lineHeight:1.5}}>{L("Add a CNAME for this subdomain pointing to Tawaslo, then switch it on.","أضف سجل CNAME لهذا النطاق يشير إلى تواصلو ثم فعّله.")}</div><label style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer",marginTop:9}}><input type="checkbox" checked={!!wl.domain_on} onChange={e=>setWl(w=>({...w, domain_on:e.target.checked}))} style={{width:16,height:16,accentColor:th.accent}}/><span style={{fontSize:12.5,color:th.text}}>{L("Serve client pages on my domain","قدّم صفحات العملاء على نطاقي")}</span></label></div>}
+                <button onClick={saveWl} style={{alignSelf:"flex-start",marginTop:2,padding:"10px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:700,cursor:"pointer"}}>{wlSaved?L("Saved ✓","تم ✓"):L("Save branding","حفظ الهوية")}</button>
+              </div>}
+            </>)}
+          </>)}
+
+          {tab==='billing' && (<>
+            {paneT(L("Billing & plan","الفوترة والخطة"), L("Your subscription and invoices.","اشتراكك وفواتيرك."))}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"16px 0",borderTop:`1px solid ${th.border}`,borderBottom:`1px solid ${th.border}`,marginBottom:18}}>
+              <div><div style={{fontSize:10,letterSpacing:".1em",textTransform:"uppercase",color:th.text3,marginBottom:4}}>{L("Current plan","الخطة الحالية")}</div><div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:20,fontWeight:600,color:th.text}}>{userPlan||L("Trial","تجريبي")}</div></div>
+              <button onClick={()=>setPage('billing')} style={{padding:"9px 18px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><CreditCard size={14}/>{L("Manage billing","إدارة الفوترة")}</button>
+            </div>
+            <div style={{fontSize:12,color:th.text3,lineHeight:1.6}}>{L("Change your plan, update your payment method and download invoices from the Billing page.","غيّر خطتك وحدّث وسيلة الدفع ونزّل الفواتير من صفحة الفوترة.")}</div>
+          </>)}
+
+          {tab==='support' && (<>
+            {paneT(L("Support","الدعم"), L("We usually reply within one business day.","نرد عادةً خلال يوم عمل واحد."))}
+            <div style={{border:`1px solid ${aiOpen?th.accent:th.border}`,borderRadius:14,marginBottom:16,overflow:"hidden"}}>
+              {!aiOpen ? (
+                <div onClick={openAi} style={{display:"flex",alignItems:"center",gap:12,padding:"16px",cursor:"pointer"}}>
+                  <div style={{width:40,height:40,borderRadius:11,background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Sparkles size={18} color={th.accent}/></div>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600,color:th.text}}>{L("Ask the AI assistant","اسأل المساعد الذكي")}</div><div style={{fontSize:11.5,color:th.text3,marginTop:2}}>{L("Instant answers, 24/7 — in English or Arabic","إجابات فورية على مدار الساعة — بالعربية أو الإنجليزية")}</div></div>
+                  <span style={{fontSize:12,fontWeight:600,color:"#fff",background:th.gradient,borderRadius:9,padding:"8px 15px",flexShrink:0,display:"inline-flex",alignItems:"center",gap:6}}><Sparkles size={13}/>{L("Ask AI","اسأل")}</span>
+                </div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",height:380}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderBottom:`1px solid ${th.border}`}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",background:th.accentSoft,display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={14} color={th.accent}/></div>
+                    <div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:600,color:th.text}}>{L("Tawaslo assistant","مساعد تواصلو")}</div><div style={{fontSize:10,color:th.text3}}>{L("AI · answers instantly","ذكاء · يجيب فوراً")}</div></div>
+                    <button onClick={()=>setAiOpen(false)} style={{background:"none",border:"none",color:th.text3,cursor:"pointer",display:"flex"}}><ChevronDown size={18}/></button>
+                  </div>
+                  <div style={{flex:1,overflowY:"auto",padding:12,display:"flex",flexDirection:"column",gap:8}}>
+                    {aiMsgs.map((m,i)=>(<div key={i} style={{alignSelf:m.role==='user'?"flex-end":"flex-start",maxWidth:"88%",background:m.role==='user'?th.gradient:th.card2,color:m.role==='user'?"#fff":th.text,border:m.role==='user'?"none":`1px solid ${th.border}`,borderRadius:12,padding:"8px 11px",fontSize:12.5,lineHeight:1.55,whiteSpace:"pre-wrap"}}>{m.content}</div>))}
+                    {aiBusy && <div style={{alignSelf:"flex-start",background:th.card2,border:`1px solid ${th.border}`,borderRadius:12,padding:"8px 12px",fontSize:12.5,color:th.text3}}>…</div>}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"flex-end",padding:"8px 12px 0"}}>
+                    <button onClick={escalateAi} style={{fontSize:11.5,color:th.text2,background:"none",border:`1px solid ${th.border}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><MessageCircle size={13}/>{L("Talk to a human","تحدّث مع أحد الفريق")}</button>
+                  </div>
+                  <div style={{display:"flex",gap:8,padding:"8px 12px 12px"}}>
+                    <input value={aiInput} onChange={e=>setAiInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') askAi(); }} placeholder={L("Type your question…","اكتب سؤالك…")} style={{flex:1,boxSizing:"border-box",background:th.card2,border:`1px solid ${th.border}`,borderRadius:9,padding:"9px 11px",color:th.text,fontSize:13,outline:"none"}}/>
+                    <button onClick={()=>askAi()} disabled={aiBusy||!aiInput.trim()} style={{width:40,borderRadius:9,background:aiInput.trim()?th.gradient:th.card2,border:"none",color:"#fff",cursor:aiInput.trim()&&!aiBusy?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center"}}><Send size={15}/></button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:20}}>
+              <a href="mailto:support@tawaslo.com" style={{flex:1,minWidth:170,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px",textDecoration:"none"}}><div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:th.text,fontWeight:600}}><Send size={15} color={th.accent}/>{L("Email us","راسلنا")}</div><div style={{fontSize:11.5,color:th.text3,marginTop:4}}>support@tawaslo.com</div></a>
+              <div onClick={()=>setTab('faq')} style={{flex:1,minWidth:170,border:`1px solid ${th.border}`,borderRadius:12,padding:"14px",cursor:"pointer"}}><div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:th.text,fontWeight:600}}><MessageCircle size={15} color={th.accent}/>{L("Help & FAQ","الأسئلة الشائعة")}</div><div style={{fontSize:11.5,color:th.text3,marginTop:4}}>{L("Answers to common questions","إجابات للأسئلة الشائعة")}</div></div>
+            </div>
+            <div style={{fontSize:10.5,letterSpacing:".1em",textTransform:"uppercase",color:th.text3,fontWeight:600,marginBottom:12}}>{L("Send us a message","أرسل لنا رسالة")}</div>
+            {tkSent && (<div style={{display:"flex",alignItems:"center",gap:9,background:th.successSoft,border:`1px solid ${th.success}40`,borderRadius:11,padding:"11px 14px",marginBottom:14,fontSize:12.5,color:th.success,fontWeight:600}}><CheckCircle size={16}/> {L("Message sent. We'll get back to you at","تم إرسال الرسالة. سنعاود التواصل معك على")} {contactEmail||L("your email","بريدك")}.</div>)}
+            {tkErr && (<div style={{background:th.dangerSoft,border:`1px solid ${th.danger}40`,borderRadius:11,padding:"11px 14px",marginBottom:14,fontSize:12,color:th.danger}}>{tkErr}</div>)}
+            <div style={{marginBottom:11}}><div style={lblS}>{L("Subject","الموضوع")}</div><input value={tkSubject} onChange={e=>{setTkSubject(e.target.value); setTkErr("");}} placeholder={L("e.g. Can't connect my Instagram","مثال: لا أستطيع ربط حساب إنستغرام")} style={{...fieldStyle}}/></div>
+            <div style={{marginBottom:14}}><div style={lblS}>{L("Message","الرسالة")}</div><textarea value={tkMessage} onChange={e=>{setTkMessage(e.target.value); setTkErr("");}} placeholder={L("Tell us what's going on…","أخبرنا بما يحدث…")} rows={4} style={{...fieldStyle,resize:"vertical"}}/></div>
+            <button onClick={submitTicket} disabled={tkSending} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"11px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:12.5,fontWeight:600,cursor:tkSending?"not-allowed":"pointer",opacity:tkSending?0.7:1}}><Send size={14}/>{tkSending?L("Sending…","جارٍ الإرسال…"):L("Send message","إرسال الرسالة")}</button>
+          </>)}
+
+          {tab==='faq' && (<>
+            {paneT(L("Help & FAQ","المساعدة والأسئلة الشائعة"), L("Quick answers to the most common questions.","إجابات سريعة لأكثر الأسئلة شيوعاً."))}
+            <div style={{borderTop:`1px solid ${th.border}`}}>
+              {FAQS.map(([q,a],i)=>(
+                <div key={i} style={{borderBottom:`1px solid ${th.border}`}}>
+                  <div onClick={()=>setFaqOpen(faqOpen===i?-1:i)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"14px 2px",cursor:"pointer"}}>
+                    <span style={{fontSize:13,fontWeight:600,color:th.text}}>{q}</span>
+                    <ChevronDown size={16} color={th.text3} style={{transform:faqOpen===i?"rotate(180deg)":"none",transition:"transform .2s",flexShrink:0}}/>
+                  </div>
+                  {faqOpen===i && <div style={{fontSize:12.5,color:th.text2,lineHeight:1.7,padding:"0 2px 15px",maxWidth:520}}>{a}</div>}
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:12,color:th.text3,marginTop:16}}>{L("Still stuck?","ما زلت عالقاً؟")} <span onClick={()=>{ setTab('support'); openAi(); }} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("Ask the AI","اسأل الذكاء")}</span> {L("or","أو")} <span onClick={()=>setTab('support')} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("contact support","تواصل مع الدعم")}</span>.</div>
+          </>)}
+
+          {tab==='about' && (<>
+            {paneT(L("About","حول"), L("Version and legal.","الإصدار والقانوني."))}
+            <div style={{display:"flex",alignItems:"center",gap:12,paddingBottom:16,marginBottom:16,borderBottom:`1px solid ${th.border}`}}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg>
+              <div><div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:16,fontWeight:600,color:th.text}}>Tawaslo</div><div style={{fontSize:11.5,color:th.text3,marginTop:1}}>{L("Version","الإصدار")} 1.0 · {L("Social intelligence for brands","ذكاء اجتماعي للعلامات")}</div></div>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:2}}>
+              <a href="https://tawaslo.com/terms.html" target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 2px",borderBottom:`1px solid ${th.border}`,fontSize:12.5,color:th.text,textDecoration:"none"}}>{L("Terms of Service","شروط الخدمة")}<ChevronRight size={15} color={th.text3}/></a>
+              <a href="https://tawaslo.com/privacy.html" target="_blank" rel="noreferrer" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 2px",fontSize:12.5,color:th.text,textDecoration:"none"}}>{L("Privacy Policy","سياسة الخصوصية")}<ChevronRight size={15} color={th.text3}/></a>
+            </div>
+          </>)}
+
         </div>
-
-        <div style={{...card}}>
-          {secTitle(LogOut, L("Session","الجلسة"))}
-          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>{L("Sign out of your Tawaslo account on this device.","تسجيل الخروج من حسابك على هذا الجهاز.")}</div>
-          <button onClick={async()=>{ try{ await signOut(); }catch(e){} setIsAuthed(false); }} style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.border}`, background:th.card2, color:th.text, fontSize:12, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7}}><LogOut size={14}/>{L("Log out","تسجيل الخروج")}</button>
-        </div>
-
-        <div style={{...card, border:`1px solid ${th.danger}33`}}>
-          {secTitle(Shield, L("Danger zone","منطقة الخطر"))}
-          <div style={{fontSize:12, color:th.text2, marginBottom:12}}>{L("These actions are permanent and cannot be undone.","هذه الإجراءات نهائية ولا يمكن التراجع عنها.")}</div>
-          <button style={{padding:"9px 18px", borderRadius:9, border:`1px solid ${th.danger}`, background:"transparent", color:th.danger, fontSize:12, fontWeight:600, cursor:"pointer"}}>{L("Delete account","حذف الحساب")}</button>
-        </div>
-
       </div>
     </div>
   );
@@ -16649,6 +16716,21 @@ function OrderAssistant({ items, cur, money, onAdd, onCheckout, clientId, venueN
   );
 }
 
+// ── Happy-hour banner — shows on public menu + order pages during the offer window. ──
+function HappyHourBanner({ clientId, currency }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => { if(!clientId) return; let live=true; (async()=>{ try { const { data } = await supabase.from('booking_settings').select('hours').eq('client_id', clientId).limit(1); const h=(data&&data[0]&&data[0].hours)||{}; const cfg=h.offer_cfg; if(live && cfg && cfg.enabled!==false){ setSt({ w:offerWindowState(cfg, h.close||'23:00'), cfg }); } } catch(e){} })(); return ()=>{ live=false; }; }, [clientId]);
+  if(!st || !st.w || !st.w.isLive) return null;
+  const cfg=st.cfg;
+  const perk = cfg.perkType==='percent' ? ((cfg.perkValue||0)+'% off') : cfg.perkType==='amount' ? ((cfg.perkValue||0)+' '+(currency||'')+' off') : (cfg.text||'a treat');
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:9, background:"rgba(224,184,92,0.13)", border:"1px solid rgba(224,184,92,0.4)", borderRadius:12, padding:"10px 13px", marginBottom:14 }}>
+      <Clock size={15} color="#E0B85C" style={{ flexShrink:0 }}/>
+      <div style={{ fontSize:12.5, color:"#EBD9A6", lineHeight:1.4 }}><b style={{ color:"#F5EAC4", fontWeight:700 }}>Happy hour</b> · {perk} · until {st.w.endLabel}</div>
+    </div>
+  );
+}
+
 function OrderPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
   const [items, setItems] = useState([]);
@@ -16782,6 +16864,7 @@ function OrderPublicPage({ slug }) {
       {data.order_ai && items.length>0 && <OrderAssistant items={items} cur={cur} money={money} onAdd={add} onCheckout={()=>{ try{ const el=document.getElementById('tw-checkout'); if(el) el.scrollIntoView({behavior:'smooth'}); }catch(e){} }} clientId={data.client_id} venueName={data.name} cartCount={count} cartTotal={money(total)}/>}
       <div style={{maxWidth:520,margin:"0 auto"}}>
         <div style={{marginBottom:18}}><div style={{fontSize:20,fontWeight:800}}>{data.name}</div><div style={{fontSize:12,color:"#7E8794",marginTop:2}}>Order for pickup · ready in about {data.prep} min</div></div>
+        {data.client_id && <HappyHourBanner clientId={data.client_id} currency={data.currency}/>}
         {cats.map(cat=>(
           <div key={cat} style={{marginBottom:20}}>
             <div style={{fontSize:11,color:"#7E8794",textTransform:"uppercase",letterSpacing:1,fontWeight:700,marginBottom:8}}>{cat}</div>
@@ -17141,6 +17224,7 @@ function MenuPublicPage({ slug }) {
           <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:"#5e6b78", marginTop:4 }}>Menu</div>
         </div>
 
+        {data.client_id && <HappyHourBanner clientId={data.client_id} currency={data.currency}/>}
         {data.special_on && data.special && (
           <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(199,148,43,0.12)", border:"1px solid rgba(199,148,43,0.45)", borderRadius:13, padding:"12px 14px", marginBottom:14 }}>
             <Sparkles size={17} color="#E0B85C" style={{ flexShrink:0 }}/>
@@ -17261,7 +17345,8 @@ function MenuPublicPage({ slug }) {
           </div>
 
           <div className={"twm-body"+(entered?" twm-in":"")} style={{ flex:1, minWidth:0, overflowY:"auto", padding:"28px 34px 64px" }}>
-            {data.special_on && data.special && (
+            {data.client_id && <HappyHourBanner clientId={data.client_id} currency={data.currency}/>}
+        {data.special_on && data.special && (
               <div style={{ display:"flex", alignItems:"center", gap:11, background:"rgba(199,148,43,0.12)", border:"1px solid rgba(199,148,43,0.4)", borderRadius:14, padding:"13px 16px", marginBottom:20, maxWidth:760 }}>
                 <Sparkles size={18} color="#C7942B" style={{ flexShrink:0 }}/>
                 <div style={{ minWidth:0 }}><div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:"#C7942B", fontWeight:700 }}>Today's special</div><div style={{ fontSize:13.5, color:T.text, marginTop:1 }}>{data.special}</div></div>
@@ -18489,8 +18574,25 @@ function PitchPublicPage({ slug }) {
 
 // ── Fill My Tables (owner) — quiet-hour yield engine. Reads the next 2h of
 // occupancy and lets the owner offer a time-boxed perk to opted-in regulars. ──
+// Offer window (happy hour) — shared by Fill My Tables + the public banner.
+function offerWindowState(cfg, closeHHMM) {
+  if (!cfg || cfg.enabled === false) return { on:false };
+  const toMin = (h)=>{ const q=String(h||'').split(':'); return (Number(q[0])||0)*60+(Number(q[1])||0); };
+  const now = new Date();
+  const dow = now.getDay();
+  const days = (Array.isArray(cfg.days) && cfg.days.length) ? cfg.days : [0,1,2,3,4,5,6];
+  let endM, startM;
+  if (cfg.mode === 'custom') { startM = toMin(cfg.start || '21:00'); endM = toMin(cfg.end || '23:00'); }
+  else { endM = toMin(closeHHMM || '23:00'); startM = endM - (Number(cfg.hours)||2)*60; }
+  const nowM = now.getHours()*60 + now.getMinutes();
+  const activeDay = days.indexOf(dow) !== -1;
+  const isLive = activeDay && nowM >= startM && nowM < endM;
+  const fmt = (m)=>{ let x=((m%1440)+1440)%1440; let hh=Math.floor(x/60), mm=x%60, ap=hh>=12?'PM':'AM', h12=hh%12; if(h12===0)h12=12; return h12+':'+String(mm).padStart(2,'0')+' '+ap; };
+  return { on:true, isLive, activeDay, startM, endM, startLabel:fmt(startM), endLabel:fmt(endM), minsLeft: isLive ? (endM-nowM) : null, minsToStart: (activeDay && nowM < startM) ? (startM-nowM) : null };
+}
+
 function FillTablesPage() {
-  const { selClient, dark, lang } = useApp();
+  const { selClient, dark, lang, setPage } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
   const [cid, setCid] = useState(null);
@@ -18501,6 +18603,15 @@ function FillTablesPage() {
   const [loading, setLoading] = useState(true);
   const [offer, setOffer] = useState(L("dessert's on us","الحلوى علينا"));
   const [sentIds, setSentIds] = useState({});
+  const [perkType, setPerkType] = useState('free');
+  const [perkValue, setPerkValue] = useState('');
+  const [winMode, setWinMode] = useState('close');
+  const [winHours, setWinHours] = useState(2);
+  const [winStart, setWinStart] = useState('21:00');
+  const [winEnd, setWinEnd] = useState('23:00');
+  const [winDays, setWinDays] = useState([0,1,2,3,4,5,6]);
+  const [closeT, setCloseT] = useState('23:00');
+  const [savedMsg, setSavedMsg] = useState(false);
 
   useEffect(() => {
     let active = true; setLoading(true);
@@ -18515,7 +18626,20 @@ function FillTablesPage() {
       const { data: bk } = await supabase.from('bookings').select('party_size,status,starts_at').eq('client_id', id).gte('starts_at', t0.toISOString()).lte('starts_at', t1.toISOString());
       let gs = [];
       try { const r = await supabase.from('guests').select('id,name,phone,marketing_optin,visits,last_visit').eq('client_id', id).eq('marketing_optin', true); gs = r.data || []; } catch(e){}
-      if (active) { setTables(tb||[]); setBookings(bk||[]); setTargets((gs||[]).filter(g=>g.phone)); setLoading(false); }
+      let bh = {};
+      try { const bs = await supabase.from('booking_settings').select('hours').eq('client_id', id).limit(1); bh = (bs.data && bs.data[0] && bs.data[0].hours) || {}; } catch(e){}
+      if (active) { setTables(tb||[]); setBookings(bk||[]); setTargets((gs||[]).filter(g=>g.phone));
+        if (bh.close) setCloseT(bh.close);
+        const oc = bh.offer_cfg || {};
+        if (oc.text!=null) setOffer(oc.text||'');
+        if (oc.perkType) setPerkType(oc.perkType);
+        if (oc.perkValue!=null) setPerkValue(String(oc.perkValue));
+        if (oc.mode) setWinMode(oc.mode);
+        if (oc.hours!=null) setWinHours(oc.hours);
+        if (oc.start) setWinStart(oc.start);
+        if (oc.end) setWinEnd(oc.end);
+        if (Array.isArray(oc.days)) setWinDays(oc.days);
+        setLoading(false); }
     })();
     return () => { active = false; };
   }, [selClient]);
@@ -18528,8 +18652,12 @@ function FillTablesPage() {
   const band = occ>=72 ? 'full' : occ>=50 ? 'steady' : 'quiet';
   const recover = Math.max(1, Math.round(free*0.45));
   const bandC = band==='full' ? '#3FB983' : band==='steady' ? '#E0B85C' : '#E08A6A';
+  const win = offerWindowState({ enabled:true, mode:winMode, hours:Number(winHours)||2, start:winStart, end:winEnd, days:winDays }, closeT);
+  const perkLabel = perkType==='percent' ? ((perkValue||'0')+'% '+L('off','خصم')) : perkType==='amount' ? ((perkValue||'0')+' '+L('off','خصم')) : (offer||L('a treat','مفاجأة'));
+  const hrsLeft = win.minsLeft!=null ? Math.max(1, Math.round(win.minsLeft/60)) : null;
+  const saveOffer = async () => { if(!cid) return; try { const { data: st } = await supabase.from('booking_settings').select('hours,slot_minutes,capacity').eq('client_id',cid).limit(1); const cur=(st&&st[0])||{}; const h={...(cur.hours||{}), offer_cfg:{ enabled:true, mode:winMode, hours:Number(winHours)||2, start:winStart, end:winEnd, days:winDays, perkType, perkValue:perkValue===''?null:Number(perkValue), text:offer } }; await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:cur.slot_minutes||30, capacity:cur.capacity||4, hours:h, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1600); } catch(e){} };
 
-  const msgFor = (g) => { const name=(g.name||'').trim().split(' ')[0] || L('there','صديقنا'); return L(`Hi ${name}! It's a little quiet at ${venue} tonight — pop in before we close and ${offer}. Reply and we'll hold a table for you. 🌿`, `مرحباً ${name}! المكان هادئ الليلة في ${venue} — تفضّل قبل الإغلاق و${offer}. ردّ وسنحجز لك طاولة. 🌿`); };
+  const msgFor = (g) => { const name=(g.name||'').trim().split(' ')[0] || L('there','صديقنا'); const tail = win.isLive ? L(`before ${win.endLabel}`,`قبل ${win.endLabel}`) : L('before we close','قبل الإغلاق'); return L(`Hi ${name}! It's a little quiet at ${venue} tonight — pop in ${tail} and ${perkLabel}. Reply and we'll hold a table for you.`, `مرحباً ${name}! المكان هادئ الليلة في ${venue} — تفضّل ${tail} و${perkLabel}. ردّ وسنحجز لك طاولة.`); };
   const sendOne = (g) => { const ph=String(g.phone||'').replace(/[^\d]/g,''); if(!ph) return; if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msgFor(g))}`,'_blank'); setSentIds(s=>({ ...s, [g.id]:true })); };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
@@ -18539,47 +18667,111 @@ function FillTablesPage() {
   return (
     <div style={{ maxWidth:760, margin:"0 auto" }} className="tw-page-in">
       <div style={{ marginBottom:16 }}>
-        <div style={{ fontSize:18, fontWeight:800, color:th.text }}>{L("Fill My Tables","املأ طاولاتي")}</div>
-        <div style={{ fontSize:12, color:th.text2, marginTop:2 }}>{L("Turn quiet hours into covers — like airlines fill empty seats.","حوّل ساعات الهدوء إلى زبائن — كما تملأ الطائرات مقاعدها.")}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Fill My Tables","املأ طاولاتي")}</span></div>
+        <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{venue||L("Fill My Tables","املأ طاولاتي")}</h1>
+        <div style={{ fontSize:12.5, color:th.text2, marginTop:5 }}>{L("Turn quiet hours into covers — nudge your regulars when seats are at risk.","حوّل ساعات الهدوء إلى زبائن — نبّه ضيوفك عندما تكون المقاعد مهددة.")}</div>
       </div>
 
+      <div style={{ display:"flex", alignItems:"center", gap:20, flexWrap:"wrap", borderTop:`1px solid ${th.border}`, borderBottom:`1px solid ${th.border}`, padding:"18px 2px", marginBottom:18 }}>
+        <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+          <span className="tw-num" style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:44, fontWeight:600, color:bandC, lineHeight:1 }}>{occ}%</span>
+          <span style={{ fontSize:10, color:th.text3, textTransform:"uppercase", letterSpacing:".1em" }}>{L("full · next 2h","ممتلئ · ساعتان")}</span>
+        </div>
+        <div style={{ flex:1, minWidth:180 }}>
+          <div style={{ height:6, borderRadius:6, background:th.card2, overflow:"hidden" }}><div style={{ width:occ+"%", height:"100%", background:bandC }}/></div>
+          <div style={{ fontSize:11.5, color:th.text3, marginTop:8 }}><span className="tw-num">{busySeats}</span> {L("of","من")} <span className="tw-num">{cap}</span> {L("seats booked","مقعد محجوز")} · <b style={{ color:th.text2 }}><span className="tw-num">{free}</span> {L("still open","متاح")}</b></div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:600, padding:"5px 11px", borderRadius:13, color:bandC, background:bandC+"1e", textTransform:"uppercase", letterSpacing:".1em" }}>{band==='full'?L("Busy","مزدحم"):band==='steady'?L("Steady","معتدل"):L("Quiet","هادئ")}</span>
+      </div>
+      {cap===0 && (
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap", marginBottom:18, paddingBottom:18, borderBottom:`1px solid ${th.border}` }}>
+          <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:440 }}>{L("Add your tables in Reservations so we can read how full the floor is and spot quiet hours.","أضف طاولاتك في الحجوزات لنقرأ امتلاء المكان ونرصد ساعات الهدوء.")}</div>
+          <button onClick={()=>setPage&&setPage('reservations')} style={{ padding:"9px 15px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:12.5, fontWeight:600, cursor:"pointer", flexShrink:0 }}>{L("Set up tables","إعداد الطاولات")}</button>
+        </div>
+      )}
+
       <div style={{ ...card, padding:18, marginBottom:14 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:16, flexWrap:"wrap" }}>
-          <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
-            <span className="tw-num" style={{ fontSize:40, fontWeight:800, color:bandC, lineHeight:1 }}>{occ}%</span>
-            <span style={{ fontSize:12, color:th.text2 }}>{L("full · next 2 hours","ممتلئ · خلال ساعتين")}</span>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+          <div>
+            <div style={{ fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text3, fontWeight:600 }}>{L("Offer window","نافذة العرض")}</div>
+            <div style={{ fontSize:12, color:th.text3, marginTop:3 }}>{L("Pick when your perk runs — the app promotes it and times your nudges.","اختر متى يسري عرضك — يروّجه التطبيق ويوقّت تنبيهاتك.")}</div>
           </div>
-          <div style={{ flex:1, minWidth:160 }}>
-            <div style={{ height:9, borderRadius:6, background:th.card2, overflow:"hidden" }}><div style={{ width:occ+"%", height:"100%", background:bandC }}/></div>
-            <div style={{ fontSize:11.5, color:th.text3, marginTop:7 }}>{busySeats} {L("of","من")} {cap} {L("seats booked","مقعد محجوز")} · <b style={{ color:th.text2 }}>{free} {L("still open","متاح")}</b></div>
+          {win.isLive ? (
+            <span style={{ fontSize:10, fontWeight:600, padding:"5px 11px", borderRadius:13, color:"#3FB983", background:"rgba(63,185,131,.14)", textTransform:"uppercase", letterSpacing:".1em", whiteSpace:"nowrap" }}>● {L("Live now","مباشر الآن")} · {hrsLeft}h {L("left","متبقٍّ")}</span>
+          ) : win.minsToStart!=null ? (
+            <span style={{ fontSize:10.5, color:th.text3, whiteSpace:"nowrap" }}>{L("Starts","يبدأ")} {win.startLabel}</span>
+          ) : (
+            <span style={{ fontSize:10.5, color:th.text3, whiteSpace:"nowrap" }}>{win.activeDay?L("Ended for today","انتهى اليوم"):L("Off today","معطّل اليوم")}</span>
+          )}
+        </div>
+
+        <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+          {[["close",L("Last hours before close","آخر ساعات قبل الإغلاق")],["custom",L("Custom time","وقت مخصّص")]].map(([k,lbl])=>(
+            <button key={k} onClick={()=>setWinMode(k)} style={{ flex:1, padding:"9px 12px", borderRadius:10, cursor:"pointer", fontSize:12, fontWeight:600, border:`1px solid ${winMode===k?th.accent:th.border}`, background:winMode===k?th.accentSoft:th.card2, color:winMode===k?th.accent:th.text2 }}>{lbl}</button>
+          ))}
+        </div>
+
+        {winMode==="close" ? (
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:13 }}>
+            <span style={{ fontSize:12, color:th.text2 }}>{L("Hours before close","ساعات قبل الإغلاق")}</span>
+            <input type="number" min="1" max="8" value={winHours} onChange={e=>setWinHours(e.target.value===""?1:Number(e.target.value))} style={{ width:60, textAlign:"center", background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"8px 9px", color:th.text, fontSize:14, outline:"none" }}/>
+            <span style={{ fontSize:11.5, color:th.text3 }}>{L("You close","تغلق")} {closeT} → <b style={{ color:th.text2 }}>{win.startLabel}–{win.endLabel}</b></span>
           </div>
-          <span style={{ fontSize:11, fontWeight:700, padding:"5px 11px", borderRadius:13, color:bandC, background:bandC+"22", textTransform:"uppercase", letterSpacing:".05em" }}>{band==='full'?L("Busy","مزدحم"):band==='steady'?L("Steady","معتدل"):L("Quiet","هادئ")}</span>
+        ) : (
+          <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", marginBottom:13 }}>
+            <label style={{ fontSize:11.5, color:th.text2 }}>{L("From","من")} <input type="time" value={winStart} onChange={e=>setWinStart(e.target.value)} style={{ marginInlineStart:5, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+            <label style={{ fontSize:11.5, color:th.text2 }}>{L("To","إلى")} <input type="time" value={winEnd} onChange={e=>setWinEnd(e.target.value)} style={{ marginInlineStart:5, background:th.card2, border:`1px solid ${th.border}`, borderRadius:8, padding:"7px 9px", color:th.text, fontSize:13, outline:"none" }}/></label>
+          </div>
+        )}
+
+        <div style={{ fontSize:11, color:th.text3, marginBottom:7 }}>{L("Active on","الأيام")}</div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14 }}>
+          {[[0,L("Sun","أحد")],[1,L("Mon","إثن")],[2,L("Tue","ثلا")],[3,L("Wed","أرب")],[4,L("Thu","خمي")],[5,L("Fri","جمع")],[6,L("Sat","سبت")]].map(([d,lbl])=>{ const on=winDays.indexOf(d)!==-1; return (
+            <button key={d} onClick={()=>setWinDays(ds=> ds.indexOf(d)!==-1 ? ds.filter(x=>x!==d) : [...ds,d])} style={{ padding:"5px 11px", borderRadius:20, cursor:"pointer", fontSize:11.5, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.accent:th.text3 }}>{lbl}</button>
+          ); })}
+        </div>
+
+        <div style={{ fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text3, fontWeight:600, marginBottom:9, paddingTop:14, borderTop:`1px solid ${th.border}` }}>{L("The perk","الميزة")}</div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+          {[["free",L("Free item","صنف مجاني")],["percent",L("% off","نسبة خصم")],["amount",L("Amount off","مبلغ خصم")]].map(([k,lbl])=>(
+            <button key={k} onClick={()=>setPerkType(k)} style={{ padding:"8px 13px", borderRadius:20, cursor:"pointer", fontSize:12, border:`1px solid ${perkType===k?th.accent:th.border}`, background:perkType===k?th.accentSoft:"transparent", color:perkType===k?th.accent:th.text2 }}>{lbl}</button>
+          ))}
+        </div>
+        {perkType==="free" ? (
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+            <span style={{ fontSize:12.5, color:th.text2 }}>{L("Pop in and","تفضّل و")}</span>
+            <input value={offer} onChange={e=>setOffer(e.target.value)} placeholder={L("dessert's on us","الحلوى علينا")} style={{ flex:1, minWidth:160, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:15, outline:"none" }}/>
+          </div>
+        ) : (
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <input type="number" min="0" value={perkValue} onChange={e=>setPerkValue(e.target.value)} placeholder={perkType==="percent"?"15":"2"} style={{ width:90, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:15, outline:"none" }}/>
+            <span style={{ fontSize:12.5, color:th.text2 }}>{perkType==="percent"?L("% off the bill","% خصم من الفاتورة"):L("off the bill","خصم من الفاتورة")}</span>
+          </div>
+        )}
+
+        <div style={{ marginTop:13, padding:"11px 14px", background:th.card2, borderInlineStart:`2px solid ${th.accent}`, borderRadius:"0 8px 8px 0", fontSize:12.5, color:th.text2, lineHeight:1.65 }}>{msgFor({ name: L('Ahmed','أحمد') })}</div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginTop:14, flexWrap:"wrap" }}>
+          <button onClick={saveOffer} style={{ padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved ✓","تم ✓"):L("Save offer","حفظ العرض")}</button>
+          <span style={{ fontSize:11.5, color:"#3FB983" }}>~{recover} {L("covers from","زبون من")} {targets.length} {L("opted-in regulars","ضيف موافق")}.</span>
         </div>
       </div>
 
       {band==='full' ? (
-        <div style={{ ...card, padding:22, textAlign:"center" }}>
-          <div style={{ fontSize:30, marginBottom:8 }}>🎉</div>
-          <div style={{ fontSize:14, fontWeight:700, color:th.text }}>{L("You're filling up nicely tonight.","ليلتك تمتلئ بشكل جيد.")}</div>
-          <div style={{ fontSize:12, color:th.text3, marginTop:6, lineHeight:1.6 }}>{L("The engine stays quiet when seats aren't at risk — so your regulars only hear from you when it counts.","يبقى المحرّك هادئاً عندما لا تكون المقاعد مهددة — فلا يصل ضيوفك إلا عند الحاجة.")}</div>
+        <div style={{ padding:"48px 24px", textAlign:"center" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ opacity:.5, marginBottom:12 }}><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/></svg>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:18, color:th.text, marginBottom:6 }}>{L("You're filling up nicely tonight.","ليلتك تمتلئ بشكل جيد.")}</div>
+          <div style={{ fontSize:12.5, color:th.text3, lineHeight:1.6, maxWidth:420, margin:"0 auto" }}>{L("The engine stays quiet when seats aren't at risk — so your regulars only hear from you when it counts.","يبقى المحرّك هادئاً عندما لا تكون المقاعد مهددة — فلا يصل ضيوفك إلا عند الحاجة.")}</div>
         </div>
       ) : (
         <>
-          <div style={{ ...card, padding:18, marginBottom:14 }}>
-            <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:4 }}>{L("Tonight's offer","عرض الليلة")}</div>
-            <div style={{ fontSize:11.5, color:th.text3, marginBottom:11 }}>{L("Keep it small and warm — a perk, not a fire-sale discount.","اجعله بسيطاً ولطيفاً — ميزة لا تخفيضاً كبيراً.")}</div>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-              <span style={{ fontSize:12.5, color:th.text2 }}>{L("Pop in tonight and","تفضّل الليلة و")}</span>
-              <input value={offer} onChange={e=>setOffer(e.target.value)} style={{ flex:1, minWidth:160, background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:15, outline:"none" }}/>
-            </div>
-            <div style={{ marginTop:13, padding:"11px 13px", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, fontSize:12, color:th.text2, lineHeight:1.6 }}>{msgFor({ name: L('Ahmed','أحمد') })}</div>
-            <div style={{ fontSize:11.5, color:"#3FB983", marginTop:10 }}>↑ {L("Potential","إمكانية")}: ~{recover} {L("covers recovered","زبون مُستعاد")} {L("from","من")} {targets.length} {L("opted-in regulars","ضيف موافق")}.</div>
-          </div>
-
           <div style={{ ...card, padding:0, overflow:"hidden" }}>
             <div style={{ padding:"12px 16px", borderBottom:`1px solid ${th.border}`, fontSize:11, letterSpacing:".08em", textTransform:"uppercase", color:th.text2 }}>{L("Send to opted-in regulars","أرسل للضيوف الموافقين")} · {targets.length}</div>
             {targets.length===0 ? (
-              <div style={{ padding:"26px 16px", textAlign:"center", color:th.text3, fontSize:12.5, lineHeight:1.6 }}>{L("No opted-in guests yet. In Guests, tick \"Happy to receive offers\" on your regulars — then they'll appear here.","لا ضيوف موافقون بعد. في صفحة الضيوف فعّل \"يقبل العروض\" لزبائنك المعتادين ليظهروا هنا.")}</div>
+              <div style={{ padding:"32px 20px", textAlign:"center" }}>
+                <div style={{ fontSize:12.5, color:th.text3, lineHeight:1.6, maxWidth:400, margin:"0 auto 14px" }}>{L("No opted-in regulars yet. In Guests, turn on \"Happy to receive offers\" for your regulars — they'll appear here, ready to message.","لا ضيوف موافقون بعد. في صفحة الضيوف فعّل \"يقبل العروض\" لزبائنك ليظهروا هنا جاهزين للمراسلة.")}</div>
+                <button onClick={()=>setPage&&setPage('guests')} style={{ padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", display:"inline-flex", alignItems:"center", gap:7 }}><Users size={15}/>{L("Open Guests","افتح الضيوف")}</button>
+              </div>
             ) : targets.map(g=>(
               <div key={g.id} style={{ padding:"11px 16px", borderBottom:`1px solid ${th.border}`, display:"flex", alignItems:"center", gap:11 }}>
                 <div style={{ width:32, height:32, borderRadius:"50%", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", fontSize:12.5, fontWeight:700, color:th.accent, flexShrink:0 }}>{(g.name||'?')[0].toUpperCase()}</div>
