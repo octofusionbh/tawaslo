@@ -16,7 +16,7 @@ import {
   Radio, Edit3, XCircle, Link, Shield, DollarSign, Sparkles,
   ArrowLeft, Lock, Mail, User, MessageCircle, Sun, Moon,
   Languages, Wand2, MoreHorizontal, RefreshCw, Menu,
-  Gift, Tag, LifeBuoy, Copy, Trash2, Pause, Play, Send as SendIcon,
+  Gift, Tag, LifeBuoy, Key, Copy, Trash2, Pause, Play, Send as SendIcon,
   Monitor, Info, ScanLine, Check, CalendarCheck, Zap, Maximize2, X,
   GripVertical, Coffee,
 } from "lucide-react";
