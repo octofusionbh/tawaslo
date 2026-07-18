@@ -595,7 +595,7 @@ const PLATFORMS = [
 
 const ADMIN_EMAIL = 'octofusionbh@gmail.com';
 const PAYMENTS_LIVE = false; // menu online payments — hidden until Tap marketplace onboarding is live
-const HIDDEN_PAGES = new Set(['streams']); // agency pages hidden from the sidebar (code stays; toggle here)
+const HIDDEN_PAGES = new Set(['streams','listening']); // default-hidden agency pages (code stays; HQ toggle overrides live)
 const APP_PAGES = [['dashboard','Dashboard'],['publisher','Publisher'],['planner','Planner'],['inbox','Inbox'],['analytics','Analytics'],['listening','Trending'],['streams','Streams'],['campaigns','Campaigns'],['aistudio','AI Studio'],['media','Media'],['ads','Ads'],['reports','Reports'],['clients','Clients'],['social','Social Accounts'],['agencyteam','Team'],['billing','Billing'],['agencysets','Settings']];
 const ADMIN_HOST_PREFIX = 'admin.';
 const ownerRoleAllows = (key, role) => {
@@ -766,7 +766,7 @@ function StatCard({ label, value, change, up, Icon:I, color="accent", spark, sub
 function Sidebar() {
   const { dark, setDark, lang, setLang, mode, setMode, page, setPage,
           selClient, setSelClient, setIsAuthed, clients, t, mobileNav, setMobileNav,
-          userName, userEmail, accountType, userPlan, userCompany, myRole } = useApp();
+          userName, userEmail, accountType, userPlan, userCompany, myRole, hiddenPages } = useApp();
   const th = useTheme();
   const isAR = lang==="ar";
   const L = (en, ar) => isAR ? ar : en;
@@ -861,7 +861,7 @@ function Sidebar() {
       {key:"prospect",  Icon:Target,          label:"Win Clients", badge:null},
       {key:"media",     Icon:Image,           label:"Media",     badge:null},
       {key:"suggested", Icon:Sparkles,        label:"Suggested", badge:null},
-      {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
+      {key:"linkbio",   Icon:Link,            label:"Link in bio", badge:null},
       {key:"whatsapp",  Icon:MessageCircle,   label:"WhatsApp", badge:null},
     ]},
     {section:"Restaurant", items:[
@@ -902,11 +902,12 @@ function Sidebar() {
     reviews:{ key:"reviews", Icon:Star, label:"Reviews" },
     guests:{ key:"guests", Icon:Users, label:"Guests" },
     filltables:{ key:"filltables", Icon:Sparkles, label:"Fill My Tables" },
+    venuereport:{ key:"venuereport", Icon:TrendingUp, label:"Reports" },
   };
   const BIZ = {
-    restaurant:{ label:"Restaurant", items:["concierge","menu","orders","reservations","loyalty","reviews","guests","filltables"], labels:{} },
-    shop:{ label:"Storefront", items:["concierge","menu","orders","loyalty","reviews","guests"], labels:{ menu:"Catalog", orders:"Orders", guests:"Customers" } },
-    services:{ label:"Bookings", items:["concierge","reservations","guests","loyalty","reviews"], labels:{ reservations:"Bookings", guests:"Clients" } },
+    restaurant:{ label:"Restaurant", items:["concierge","menu","orders","reservations","loyalty","reviews","guests","filltables","venuereport"], labels:{} },
+    shop:{ label:"Storefront", items:["concierge","menu","orders","loyalty","reviews","guests","venuereport"], labels:{ menu:"Catalog", orders:"Orders", guests:"Customers" } },
+    services:{ label:"Bookings", items:["concierge","reservations","guests","loyalty","reviews","venuereport"], labels:{ reservations:"Bookings", guests:"Clients" } },
   };
   const bizType = (selClient && selClient.business_type) || 'restaurant';
   const bizCfg = BIZ[bizType] || BIZ.restaurant;
@@ -1017,7 +1018,7 @@ function Sidebar() {
 
       <nav className="tw-noscroll" style={{flex:1,overflowY:"auto",padding:"0 10px"}}>
         {mode==="owner"?(
-          <div>{OWNER_NAV.filter(({key})=>ownerRoleAllows(key,myRole) && !HIDDEN_PAGES.has(key)).map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
+          <div>{OWNER_NAV.filter(({key})=>ownerRoleAllows(key,myRole) && !hiddenPages[key]).map(({key,Icon:I,label})=>navItem(key,I,t("nav."+key,label),null,page===key,()=>setPage(key)))}</div>
         ):(
           AGENCY_NAV2.map((sec,si)=>{
             const secOpen = !collapsedSecs[sec.section];
@@ -1030,7 +1031,7 @@ function Sidebar() {
                 </div>
               )}
               {col&&si>0&&<div style={{height:1,background:th.border,margin:"8px 10px"}}/>}
-              {(col||secOpen)&&sec.items.filter(it=>!(isPhone&&DESKTOP_ONLY.has(it.key)) && !HIDDEN_PAGES.has(it.key)).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
+              {(col||secOpen)&&sec.items.filter(it=>!(isPhone&&DESKTOP_ONLY.has(it.key)) && !hiddenPages[it.key]).map(({key,Icon:I,label,badge})=>navItem(key,I,t("nav."+key,label),key==="reservations"?(resvNew>0?resvNew:null):badge,page===key,()=>setPage(key)))}
             </div>
             );
           })
@@ -1089,44 +1090,70 @@ function Topbar() {
   const agencyDisplay = shortCompany(userCompany) || (userEmail === ADMIN_EMAIL ? "Octo Fusion" : (accountLabelOf(accountType) || "Agency"));
   const uSub = (mode==="owner") ? "Tawaslo HQ" : agencyDisplay;
   const [notifOpen, setNotifOpen] = useState(false);
-  const [dotSeen, setDotSeen] = useState(false);
   const [bellRing, setBellRing] = useState(false);
-  const [respNotifs, setRespNotifs] = useState([]);
-  const [unseenResp, setUnseenResp] = useState(0);
+  const [notifs, setNotifs] = useState([]);
   const [toast, setToast] = useState(null);
-  const toastedRef = useRef(0);
-  const agoOf = (t) => { const s = (Date.now() - new Date(t).getTime())/1000; if (s < 60) return "now"; if (s < 3600) return Math.floor(s/60)+"m"; if (s < 86400) return Math.floor(s/3600)+"h"; return Math.floor(s/86400)+"d"; };
+  // Per-account read memory — keyed by email so accounts never share state and
+  // every event fires exactly once (fixes re-notifying the last event forever).
+  const nkey = (userEmail || 'anon').toLowerCase();
+  const readMap = () => { try { return JSON.parse(localStorage.getItem('tw_nseen_' + nkey) || '{}'); } catch (e) { return {}; } };
+  const toastMap = () => { try { return JSON.parse(localStorage.getItem('tw_ntoast_' + nkey) || '{}'); } catch (e) { return {}; } };
+  const [seen, setSeen] = useState(readMap);
+  const newAtOpenRef = useRef({});
+  const persistSeen = (m) => { setSeen(m); try { localStorage.setItem('tw_nseen_' + nkey, JSON.stringify(m)); } catch (e) { /* ignore */ } };
+  const agoOf = (t) => { const s = (Date.now() - new Date(t).getTime()) / 1000; if (s < 60) return "now"; if (s < 3600) return Math.floor(s / 60) + "m"; if (s < 86400) return Math.floor(s / 3600) + "h"; return Math.floor(s / 86400) + "d"; };
   useEffect(() => {
-    const ids = (clients || []).map(c => c.id).filter(Boolean);
-    if (!ids.length) return;
     let active = true;
+    const ids = (clients || []).map(c => c.id).filter(Boolean);
+    const cObj = (cid) => (clients || []).find(x => x.id === cid);
+    const cName = (cid) => { const c = cObj(cid); return (c && c.name) || 'A client'; };
     const poll = async () => {
       try {
-        const { data } = await supabase.from('posts').select('id,caption,appr_status,appr_responded_at,client_id').not('appr_responded_at', 'is', null).in('client_id', ids).in('appr_status', ['approved','changes','revised']).order('appr_responded_at', { ascending: false }).limit(20);
-        if (!active || !data) return;
-        const byKey = {};
-        data.forEach(p => { const c = (clients || []).find(x => x.id === p.client_id); const st = p.appr_status === 'revised' ? 'changes' : p.appr_status; const key = p.client_id + '|' + st; if (!byKey[key]) byKey[key] = { client: (c && c.name) || 'A client', clientObj: c, status: st, n: 0, t: p.appr_responded_at, caption: p.caption || '' }; byKey[key].n++; if (new Date(p.appr_responded_at) > new Date(byKey[key].t)) byKey[key].t = p.appr_responded_at; });
-        const items = Object.values(byKey).sort((a, b) => new Date(b.t) - new Date(a.t)).slice(0, 8);
-        setRespNotifs(items);
-        let seen = 0; try { seen = parseInt(localStorage.getItem('tw_resp_seen') || '0', 10); } catch (e) { /* ignore */ }
-        let toasted = 0; try { toasted = parseInt(localStorage.getItem('tw_resp_toasted') || '0', 10); } catch (e) { /* ignore */ }
-        setUnseenResp(items.filter(it => new Date(it.t).getTime() > seen).length);
-        // Pop a toast only the FIRST time a given response lands, then never again on reload.
-        // It still stays in the notifications list; we persist the last-toasted time so a
-        // fresh sign-in doesn't re-pop the same approval.
-        const newest = items[0];
-        if (newest) { const nt = new Date(newest.t).getTime(); if (nt > seen && nt > toasted && nt > toastedRef.current) { toastedRef.current = nt; try { localStorage.setItem('tw_resp_toasted', String(nt)); } catch (e) { /* ignore */ } setToast(newest); setTimeout(() => setToast(t => (t === newest ? null : t)), 7000); } }
+        const out = [];
+        const weekAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+        if (ids.length) {
+          // 1) Client approval responses
+          const { data: appr } = await supabase.from('posts').select('id,caption,appr_status,appr_responded_at,client_id').not('appr_responded_at', 'is', null).in('client_id', ids).in('appr_status', ['approved', 'changes', 'revised']).order('appr_responded_at', { ascending: false }).limit(15);
+          (appr || []).forEach(p => { const st = p.appr_status === 'revised' ? 'changes' : p.appr_status; out.push({ id: 'appr-' + p.id + '-' + st, type: st === 'approved' ? 'approved' : 'changes', t: p.appr_responded_at, client: cName(p.client_id), clientObj: cObj(p.client_id), page: 'approvals', title: cName(p.client_id) + (st === 'approved' ? ' approved a post' : ' requested changes'), body: st === 'approved' ? 'Cleared to publish on schedule.' : ('On “' + ((p.caption || 'a post').slice(0, 40)) + '”') }); });
+          // 2) Posts that went live
+          const { data: pub } = await supabase.from('posts').select('id,caption,platform,published_at,client_id').eq('status', 'published').not('published_at', 'is', null).in('client_id', ids).gte('published_at', weekAgo).order('published_at', { ascending: false }).limit(15);
+          (pub || []).forEach(p => { out.push({ id: 'pub-' + p.id, type: 'published', t: p.published_at, client: cName(p.client_id), clientObj: cObj(p.client_id), page: 'planner', title: cName(p.client_id) + ' — post published', body: ((p.caption || 'Your scheduled post').slice(0, 44)) + ' went live' + (p.platform ? ' on ' + p.platform : '') + '.' }); });
+          // 3) New pickup orders
+          try { const { data: ord } = await supabase.from('orders').select('id,order_no,customer_name,total,currency,created_at,client_id').in('client_id', ids).gte('created_at', weekAgo).order('created_at', { ascending: false }).limit(15);
+            (ord || []).forEach(o => { out.push({ id: 'ord-' + o.id, type: 'order', t: o.created_at, client: cName(o.client_id), clientObj: cObj(o.client_id), page: 'orders', title: cName(o.client_id) + ' — new order' + (o.order_no ? ' #' + o.order_no : ''), body: (o.customer_name || 'A customer') + ' · ' + (o.currency || '') + ' ' + (Number(o.total) || 0) }); });
+          } catch (e) { /* orders table may not exist for this account */ }
+          // 4) New reservations
+          try { const { data: bkg } = await supabase.from('bookings').select('id,customer_name,party_size,starts_at,created_at,client_id').in('client_id', ids).gte('created_at', weekAgo).order('created_at', { ascending: false }).limit(15);
+            (bkg || []).forEach(b => { out.push({ id: 'bkg-' + b.id, type: 'reservation', t: b.created_at, client: cName(b.client_id), clientObj: cObj(b.client_id), page: 'reservations', title: cName(b.client_id) + ' — new reservation', body: (b.customer_name || 'A guest') + ' · party of ' + (b.party_size || 2) + (b.starts_at ? ' · ' + new Date(b.starts_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '') }); });
+          } catch (e) { /* bookings table may not exist for this account */ }
+        }
+        // 5) Trial — real days left from the account, nudged once per threshold
+        try {
+          if (localStorage.getItem('tw_sub_active') !== '1') {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user && user.created_at) {
+              const days = Math.ceil((new Date(user.created_at).getTime() + 30 * 24 * 3600 * 1000 - Date.now()) / (24 * 3600 * 1000));
+              if (days <= 0) out.push({ id: 'trial-ended', type: 'trial', t: new Date().toISOString(), page: 'billing', title: 'Your free trial has ended', body: 'Upgrade to keep publishing and scheduling.' });
+              else if (days <= 7) { const bucket = days <= 1 ? 1 : (days <= 3 ? 3 : 7); out.push({ id: 'trial-' + bucket, type: 'trial', t: new Date().toISOString(), page: 'billing', title: days + ' day' + (days === 1 ? '' : 's') + ' left on your trial', body: 'Upgrade any time to keep full access.' }); }
+            }
+          }
+        } catch (e) { /* ignore */ }
+        if (!active) return;
+        out.sort((a, b) => new Date(b.t) - new Date(a.t));
+        const items = out.slice(0, 12);
+        setNotifs(items);
+        // Toast the newest unseen + un-toasted item, exactly once ever per account.
+        const tset = toastMap(); const sset = readMap();
+        const fresh = items.find(it => !sset[it.id] && !tset[it.id]);
+        if (fresh) { tset[fresh.id] = 1; try { localStorage.setItem('tw_ntoast_' + nkey, JSON.stringify(tset)); } catch (e) { /* ignore */ } setToast(fresh); setTimeout(() => setToast(t => (t && t.id === fresh.id ? null : t)), 7000); }
       } catch (e) { /* ignore */ }
     };
     poll(); const iv = setInterval(poll, 30000);
     return () => { active = false; clearInterval(iv); };
-  }, [clients]);
-  const NOTIFS = [
-    { Icon:Send, color:th.success, title:"Post published", body:"Your scheduled post went live on Facebook.", ago:"12m", to:"calendar" },
-    { Icon:MessageCircle, color:th.accent, title:"New comment", body:"Someone commented on your Instagram post.", ago:"1h", to:"inbox" },
-    { Icon:FileText, color:th.accent2, title:"Report ready", body:"Your weekly performance report is ready.", ago:"1d", to:"reports" },
-    { Icon:Sparkles, color:th.warning, title:"Trial reminder", body:"You have 23 days left on your free trial.", ago:"2d", to:"billing" },
-  ];
+  }, [clients, userEmail]);
+  const unseenCount = notifs.filter(n => !seen[n.id]).length;
+  const markAllSeen = () => { const m = { ...seen }; notifs.forEach(n => { m[n.id] = 1; }); persistSeen(m); };
+  const NICON = { approved: { Icon: CheckCircle, color: th.success }, changes: { Icon: MessageCircle, color: "#D98A6A" }, published: { Icon: Send, color: th.accent }, order: { Icon: ShoppingBag, color: th.accent }, reservation: { Icon: CalendarCheck, color: th.accent }, trial: { Icon: Sparkles, color: th.warning } };
   const titles = {
     overview:"Platform Overview", clients:"All Clients", revenue:"Revenue",
     promos:"Promo Codes", gifts:"Gift Cards & Gifting", support:"Support Inbox",
@@ -1185,31 +1212,40 @@ function Topbar() {
       </div>
       <div style={{display:"flex",alignItems:"center",gap:9}}>
         <div style={{position:"relative"}}>
-          <button onClick={()=>{ setNotifOpen(o=>!o); setDotSeen(true); setUnseenResp(0); try{ localStorage.setItem('tw_resp_seen', String(Date.now())); }catch(e){} setBellRing(true); setTimeout(()=>setBellRing(false), 850); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
+          <button onClick={()=>{ setNotifOpen(o=>{ const nx=!o; if(nx){ newAtOpenRef.current = notifs.reduce((a,n)=>{ if(!seen[n.id]) a[n.id]=1; return a; },{}); markAllSeen(); setBellRing(true); setTimeout(()=>setBellRing(false), 850); } return nx; }); }} style={{width:32,height:32,borderRadius:8,background:notifOpen?th.accentSoft:th.card2,border:`1px solid ${notifOpen?th.accent:th.border}`,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",position:"relative"}}>
             <Bell className={bellRing?"tw-bell-ring":""} size={14} color={notifOpen?th.accent:th.text2}/>
-            {unseenResp>0 ? <span style={{position:"absolute",top:-4,right:-4,minWidth:15,height:15,padding:"0 4px",borderRadius:8,background:th.danger,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${th.surface}`}} className="tw-num">{unseenResp}</span> : (!dotSeen && <span style={{position:"absolute",top:6,right:6,width:6,height:6,borderRadius:"50%",background:th.danger,border:`1.5px solid ${th.surface}`}}/>)}
+            {unseenCount>0 && <span style={{position:"absolute",top:-4,right:-4,minWidth:15,height:15,padding:"0 4px",borderRadius:8,background:th.danger,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${th.surface}`}} className="tw-num">{unseenCount}</span>}
           </button>
           {notifOpen && (
             <>
               <div onClick={()=>setNotifOpen(false)} style={{position:"fixed",inset:0,zIndex:40}}/>
-              <div className="tw-pop" style={{position:"absolute",right:0,top:40,zIndex:50,width:330,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden",transformOrigin:"top right"}}>
-                <div style={{padding:"12px 16px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <span style={{fontSize:13,fontWeight:700}}>Notifications</span>
-                  <span onClick={()=>{ setUnseenResp(0); setToast(null); try{ localStorage.setItem('tw_resp_seen', String(Date.now())); }catch(e){} setNotifOpen(false); }} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>
+              <div className="tw-pop" style={{position:"absolute",right:0,top:40,zIndex:50,width:342,background:th.card,border:`1px solid ${th.border}`,borderRadius:14,boxShadow:"0 22px 54px rgba(0,0,0,0.55)",overflow:"hidden",transformOrigin:"top right"}}>
+                <div style={{padding:"13px 16px 11px",borderBottom:`1px solid ${th.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg>
+                    <span style={{letterSpacing:".18em",textTransform:"uppercase",fontSize:10.5,fontWeight:600,color:th.text2}}>Notifications</span>
+                  </div>
+                  {notifs.length>0 && <span onClick={markAllSeen} style={{fontSize:11,color:th.accent,cursor:"pointer",fontWeight:600}}>Mark all read</span>}
                 </div>
-                {respNotifs.length>0 && <div style={{padding:"9px 16px 4px",fontSize:9.5,fontWeight:700,letterSpacing:0.5,color:th.text3,textTransform:"uppercase"}}>Client responses</div>}
-                {respNotifs.map((n,i)=>(
-                  <div key={'r'+i} onClick={()=>{ if(setSelClient && n.clientObj) setSelClient(n.clientObj); if(setMode) setMode("agency"); setPage("approvals"); setNotifOpen(false); }} style={{display:"flex",gap:11,padding:"12px 16px",borderBottom:`1px solid ${th.border}`,cursor:"pointer",animation:"twRowIn .32s ease both",animationDelay:(i*0.05)+"s"}}>
-                    <div style={{width:30,height:30,borderRadius:9,background:(n.status==='approved'?th.success:"#D98A6A")+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n.status==='approved'?<CheckCircle size={14} color={th.success}/>:<MessageCircle size={14} color="#D98A6A"/>}</div>
-                    <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.client} {n.status==='approved'?"approved":"requested changes"} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {agoOf(n.t)}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.status==='approved' ? (n.n+" post"+(n.n>1?"s":"")+" cleared to publish on schedule.") : ("On “"+(n.caption||"a post").slice(0,38)+"”")}</div></div>
+                <div style={{maxHeight:400,overflowY:"auto"}}>
+                {notifs.length===0 && (
+                  <div style={{padding:"36px 20px 32px",textAlign:"center"}}>
+                    <svg width="27" height="27" viewBox="0 0 24 24" fill="none" style={{opacity:.5,marginBottom:10}}><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/></svg>
+                    <div style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:15.5,color:th.text,marginBottom:3}}>You're all caught up</div>
+                    <div style={{fontSize:11.5,color:th.text3,lineHeight:1.5}}>New activity across your clients<br/>will appear here.</div>
                   </div>
-                ))}
-                {NOTIFS.map((n,i)=>(
-                  <div key={i} onClick={()=>{ setPage(n.to); setNotifOpen(false); }} style={{display:"flex",gap:11,padding:"12px 16px",cursor:"pointer",borderBottom:i<NOTIFS.length-1?`1px solid ${th.border}`:"none",animation:"twRowIn .32s ease both",animationDelay:((respNotifs.length+i)*0.05)+"s"}}>
-                    <div style={{width:30,height:30,borderRadius:9,background:n.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><n.Icon size={14} color={n.color}/></div>
-                    <div style={{minWidth:0}}><div style={{fontSize:12.5,fontWeight:600}}>{n.title} <span style={{fontSize:10,color:th.text3,fontWeight:400}}>· {n.ago}</span></div><div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4}}>{n.body}</div></div>
+                )}
+                {notifs.map((n,i)=>{ const ic=NICON[n.type]||{Icon:Bell,color:th.accent}; const isNew=newAtOpenRef.current[n.id]; return (
+                  <div key={n.id} className="tw-hoverrow" onClick={()=>{ const m={...seen}; m[n.id]=1; persistSeen(m); if(setSelClient && n.clientObj) setSelClient(n.clientObj); if(setMode && n.clientObj) setMode("agency"); setPage(n.page); setNotifOpen(false); }} style={{display:"flex",gap:12,padding:"12px 16px",borderBottom:i<notifs.length-1?`1px solid ${th.border}`:"none",cursor:"pointer",animation:"twRowIn .32s ease both",animationDelay:(i*0.04)+"s",background:isNew?"rgba(110,140,171,0.05)":"transparent"}}>
+                    <div style={{width:30,height:30,borderRadius:9,background:ic.color+"1f",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><ic.Icon size={14} color={ic.color}/></div>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontSize:12.5,fontWeight:600,color:th.text,display:"flex",alignItems:"center",gap:6}}><span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.title}</span><span style={{fontSize:10,color:th.text3,fontWeight:400,flexShrink:0,marginLeft:"auto"}}>{agoOf(n.t)}</span></div>
+                      <div style={{fontSize:11.5,color:th.text2,marginTop:2,lineHeight:1.4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.body}</div>
+                    </div>
+                    {isNew && <span style={{width:7,height:7,borderRadius:"50%",background:th.accent,flexShrink:0,alignSelf:"center"}}/>}
                   </div>
-                ))}
+                ); })}
+                </div>
               </div>
             </>
           )}
@@ -1221,12 +1257,12 @@ function Topbar() {
           </div>
         </div>
       </div>
-      {toast && createPortal((
-        <div onClick={()=>{ if(setSelClient && toast.clientObj) setSelClient(toast.clientObj); if(setMode) setMode("agency"); setPage("approvals"); setToast(null); }} style={{position:"fixed",top:70,right:22,zIndex:9999,width:300,maxWidth:"90vw",background:th.surface,border:`1px solid ${(toast.status==='approved'?th.success:'#D98A6A')}66`,borderLeft:`3px solid ${toast.status==='approved'?th.success:'#D98A6A'}`,borderRadius:13,padding:"12px 14px",boxShadow:"0 18px 44px rgba(0,0,0,0.5)",cursor:"pointer",animation:"twRowIn .35s ease both"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>{toast.status==='approved'?<CheckCircle size={15} color={th.success}/>:<MessageCircle size={15} color="#D98A6A"/>}<span style={{fontSize:12.5,fontWeight:700,color:th.text}}>{toast.client} {toast.status==='approved'?"approved":"requested changes"}</span><span style={{marginLeft:"auto",fontSize:9.5,color:th.text3}}>now</span><XCircle size={14} color={th.text3} onClick={e=>{e.stopPropagation();setToast(null);}} style={{cursor:"pointer"}}/></div>
-          <div style={{fontSize:11.5,color:th.text2,lineHeight:1.45}}>{toast.status==='approved'?(toast.n+" post"+(toast.n>1?"s":"")+" cleared to publish."):("On “"+(toast.caption||"a post").slice(0,40)+"”")}</div>
+      {toast && (() => { const ic=NICON[toast.type]||{Icon:Bell,color:th.accent}; return createPortal((
+        <div onClick={()=>{ const m={...seen}; m[toast.id]=1; persistSeen(m); if(setSelClient && toast.clientObj) setSelClient(toast.clientObj); if(setMode && toast.clientObj) setMode("agency"); setPage(toast.page); setToast(null); }} style={{position:"fixed",top:70,right:22,zIndex:9999,width:312,maxWidth:"90vw",background:th.surface,border:`1px solid ${th.border}`,borderInlineStart:`3px solid ${ic.color}`,borderRadius:13,padding:"12px 14px",boxShadow:"0 18px 44px rgba(0,0,0,0.5)",cursor:"pointer",animation:"twRowIn .35s ease both"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><ic.Icon size={15} color={ic.color}/><span style={{fontSize:12.5,fontWeight:700,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{toast.title}</span><span style={{marginLeft:"auto",fontSize:9.5,color:th.text3,flexShrink:0}}>now</span><XCircle size={14} color={th.text3} onClick={e=>{e.stopPropagation();setToast(null);}} style={{cursor:"pointer",flexShrink:0}}/></div>
+          <div style={{fontSize:11.5,color:th.text2,lineHeight:1.45}}>{toast.body}</div>
         </div>
-      ), document.body)}
+      ), document.body); })()}
     </header>
   );
 }
@@ -1317,11 +1353,11 @@ function ContextBar() {
         </>)}
       </div>
 
-      {present.length>0 && <div style={{width:1,height:20,background:th.border}}/>}
+      {present.length>0 && page!=="competitor" && page!=="stealthis" && <div style={{width:1,height:20,background:th.border}}/>}
 
       <div className="tw-scroll-x" style={{display:"flex",alignItems:"center",gap:6,flex:1,minWidth:0}}>
-        {chip(selPlatform==="all", ()=>setSelPlatform("all"), L("All","الكل"), "all")}
-        {present.map(p=>{ const m=PLAT_META[p]; if(!m) return null; const PI=m.Icon; return chip(selPlatform===p, ()=>setSelPlatform(p), <><PI style={{color:m.color,fontSize:14}}/>{m.label}</>, p); })}
+        {page!=="competitor" && page!=="stealthis" && chip(selPlatform==="all", ()=>setSelPlatform("all"), L("All","الكل"), "all")}
+        {page!=="competitor" && page!=="stealthis" && present.map(p=>{ const m=PLAT_META[p]; if(!m) return null; const PI=m.Icon; return chip(selPlatform===p, ()=>setSelPlatform(p), <><PI style={{color:m.color,fontSize:14}}/>{m.label}</>, p); })}
         {present.length===0&&<span style={{fontSize:11.5,color:th.text3}}>{L("No accounts connected","لا توجد حسابات مرتبطة")} · <span onClick={()=>setPage("social")} style={{color:th.accent,cursor:"pointer",fontWeight:600}}>{L("Connect","ربط")}</span></span>}
       </div>
 
@@ -1499,7 +1535,8 @@ function ClientsPage() {
     <div className="tw-page-in" style={{padding:"24px 26px",maxWidth:920,margin:"0 auto",direction:isAR?"rtl":"ltr"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:6,flexWrap:"wrap"}}>
         <div>
-          <h1 style={{margin:0,fontSize:21,fontWeight:700,letterSpacing:"-0.4px",color:th.text}}>{L("Clients","العملاء")}</h1>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em",textTransform:"uppercase",fontSize:10.5,fontWeight:600,color:th.accent}}>{L("Clients","العملاء")}</span></div>
+          <h1 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{L("All clients","كل العملاء")}</h1>
           <div style={{fontSize:12.5,color:th.text2,marginTop:3}}><span className="tw-num">{clients.length}</span> {clients.length===1?L("client","عميل"):L("clients","عملاء")} · <span className="tw-num">{totalAccounts}</span> {L("connected accounts","حسابات مرتبطة")}</div>
         </div>
         <button onClick={()=>setAddOpen(true)} style={{background:th.gradient,color:"#fff",fontSize:12.5,fontWeight:600,border:"none",borderRadius:10,padding:"10px 16px",cursor:"pointer",display:"inline-flex",alignItems:"center",gap:7}}><Plus size={15}/>{L("Add client","إضافة عميل")}</button>
@@ -1513,7 +1550,7 @@ function ClientsPage() {
             <ClientMonogram name={c.name} logo={c.logo_url} size={40}/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:14,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
+                <span style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:15,fontWeight:600,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</span>
               </div>
               <div style={{display:"flex",alignItems:"center",gap:7,marginTop:5,color:th.text3,fontSize:11}}>
                 {plats.map(p=>{ const m=PLAT[p]; if(!m) return null; const PI=m.Icon; return <PI key={p} style={{color:m.color,fontSize:14}}/>; })}
@@ -1699,7 +1736,7 @@ function OwnerDashboard() {
         </div>
       </div>
 
-      <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 20px", marginBottom:20, fontSize:14, color:th.text2, lineHeight:1.6}}>
+      <div style={{borderInlineStart:`3px solid ${th.accent}`, padding:"3px 0 3px 18px", marginBottom:20, fontSize:14, color:th.text2, lineHeight:1.6}}>
         {live.loaded
           ? <>Tawaslo is at <span className="tw-num" style={{color:th.text, fontWeight:600}}>${(live.mrr||0).toLocaleString()}</span> MRR across <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.activeSubs||0}</span> active {live.activeSubs===1?"subscription":"subscriptions"}, <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.trials||0}</span> on trial, with <span className="tw-num" style={{color:th.text, fontWeight:600}}>{live.clients!=null?live.clients:0}</span> brands managed.</>
           : <>Loading platform numbers…</>}
@@ -2915,6 +2952,7 @@ function OwnerErrorsPage() {
 }
 function OwnerApiUsagePage() {
   const th = useTheme();
+  const { hiddenPages, setPageHidden } = useApp();
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:18, boxShadow:"none" };
   const [data, setData] = useState(null);
 
@@ -2962,12 +3000,12 @@ function OwnerErrorsPage() {
       <OwnerPageHead Icon={Activity} title="API & Usage" subtitle="Connected channels and live platform totals" />
       <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:20, marginBottom:18 }}>
         <div style={{ fontSize:13, fontWeight:700, marginBottom:4, display:"flex", alignItems:"center", gap:8 }}><Eye size={15} color={th.accent}/>Page visibility</div>
-        <div style={{ fontSize:11.5, color:th.text3, marginBottom:14 }}>Which agency pages show in the sidebar. Hidden pages stay in the code and can be switched back on.</div>
+        <div style={{ fontSize:11.5, color:th.text3, marginBottom:14 }}>Click a page to hide or unhide it for everyone. Hidden pages stay in the code — flip them back on anytime.</div>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
-          {APP_PAGES.map(([k,l])=>{ const hid = HIDDEN_PAGES.has(k); return (
-            <div key={k} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 11px", borderRadius:9, background:th.card2, border:`1px solid ${hid?th.warning:th.border}` }}>
-              <span style={{ fontSize:12, color:hid?th.text3:th.text }}>{l}</span>
-              <span style={{ fontSize:10, fontWeight:700, color:hid?th.warning:th.success }}>{hid?"Hidden":"Live"}</span>
+          {APP_PAGES.map(([k,l])=>{ const when = hiddenPages[k]; const hid = !!when; const ts = (typeof when==='string' && when) ? new Date(when).toLocaleDateString(undefined,{day:'numeric',month:'short'}) : null; return (
+            <div key={k} onClick={()=>setPageHidden(k, !hid)} title={hid?"Click to unhide":"Click to hide"} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"9px 11px", borderRadius:9, cursor:"pointer", background:th.card2, border:`1px solid ${hid?th.warning:th.border}` }}>
+              <span style={{ minWidth:0 }}><span style={{ fontSize:12, color:hid?th.text3:th.text, display:"block", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{l}</span>{ts && <span style={{ fontSize:9, color:th.text3 }}>hidden {ts}</span>}</span>
+              <span style={{ fontSize:10, fontWeight:700, color:hid?th.warning:th.success, flexShrink:0 }}>{hid?"Hidden":"Live"}</span>
             </div>
           );})}
         </div>
@@ -3312,25 +3350,23 @@ function ApprovalsPage() {
       <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={apprLink("send-"+(selClient?.id||"x")+"-"+sentCount)} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
       <div style={{ display:"flex", alignItems:"flex-end", justifyContent:"space-between", gap:16, marginBottom:18, flexWrap:"wrap" }}>
         <div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <Shield size={19} color={th.accent}/>
-            <h1 style={{ fontSize:22, fontWeight:700, color:th.text, margin:0 }}>{L("Approvals","الموافقات")}</h1>
-          </div>
-          <div style={{ fontSize:12.5, color:th.text2, marginTop:5 }}>{L("Track sign-off for ","تتبّع موافقات ")}{selClient?.name||L("this client","هذا العميل")}{L(". Send the month or a single post.",". أرسل الشهر أو منشوراً واحداً.")}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Approvals","الموافقات")}</span></div>
+          <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name||L("Approvals","الموافقات")}</h1>
+          <div style={{ fontSize:12.5, color:th.text2, marginTop:5 }}>{L("Track sign-off — send the month or a single post.","تتبّع الموافقات — أرسل الشهر أو منشوراً واحداً.")}</div>
         </div>
         <button onClick={openPicker} style={{ display:"flex", alignItems:"center", gap:7, padding:"10px 17px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontWeight:600, fontSize:13, cursor:"pointer" }}><Send size={15}/>{L("Send for approval","إرسال للموافقة")}</button>
       </div>
 
       {/* Clean inline summary — counts, export, expiry (no boxes / chunky bar) */}
-      <div style={{ display:"flex", alignItems:"center", gap:34, flexWrap:"wrap", marginBottom:14 }}>
-        {[["approved",L("Approved","موافق")],["pending",L("Pending","بانتظار")],["changes",L("Changes","تعديلات")]].map(([k,lbl])=>(
-          <div key={k} style={{ display:"flex", alignItems:"baseline", gap:8 }}>
-            <span className="tw-num" style={{ fontSize:26, fontWeight:700, color:APPR_STATUS[k].color }}>{counts[k]||0}</span>
-            <span style={{ fontSize:12.5, color:th.text2 }}>{lbl}</span>
+      <div style={{ display:"flex", alignItems:"stretch", borderTop:`1px solid ${th.border}`, borderBottom:`1px solid ${th.border}`, marginBottom:16, flexWrap:"wrap" }}>
+        {[["approved",L("Approved","موافق")],["pending",L("Pending","بانتظار")],["changes",L("Changes","تعديلات")]].map(([k,lbl],i)=>(
+          <div key={k} style={{ padding:"14px 22px", borderInlineStart:i?`1px solid ${th.border}`:"none" }}>
+            <div style={{ fontSize:10, letterSpacing:".1em", textTransform:"uppercase", color:th.text3, fontWeight:600, marginBottom:6, display:"flex", alignItems:"center", gap:6 }}><span style={{ width:6, height:6, borderRadius:"50%", background:APPR_STATUS[k].color, display:"inline-block", flexShrink:0 }}/>{lbl}</div>
+            <div className="tw-num" style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:25, fontWeight:600, color:th.text }}>{counts[k]||0}</div>
           </div>
         ))}
-        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:18 }}>
-          <button onClick={()=>{ setExported(true); setTimeout(()=>setExported(false), 3000); }} disabled={!counts.approved} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"transparent", border:"none", color:counts.approved?th.text2:th.text3, fontSize:12, cursor:counts.approved?"pointer":"not-allowed", padding:0 }}><Image size={13}/>{exported?L("Preparing PDF…","يُحضّر الملف…"):L("Export PDF","تصدير PDF")}</button>
+        <div style={{ marginInlineStart:"auto", alignSelf:"center", display:"flex", alignItems:"center", gap:18, paddingInlineStart:22, paddingInlineEnd:4 }}>
+          <button onClick={()=>{ setExported(true); setTimeout(()=>setExported(false), 3000); }} disabled={!counts.approved} style={{ display:"inline-flex", alignItems:"center", gap:6, background:"transparent", border:"none", color:counts.approved?th.text2:th.text3, fontSize:12, cursor:counts.approved?"pointer":"not-allowed", padding:0 }}><Download size={13}/>{exported?L("Preparing PDF…","يُحضّر الملف…"):L("Export PDF","تصدير PDF")}</button>
           <span style={{ fontSize:11.5, color:th.text3 }}>{L("expires in ","ينتهي خلال ")}<span className="tw-num">6</span>{L(" days","أيام")}</span>
         </div>
       </div>
@@ -3353,10 +3389,10 @@ function ApprovalsPage() {
       </div>
 
       {shown.length === 0 ? (
-        <div style={{ ...card, padding:"56px 24px", textAlign:"center" }}>
-          <Shield size={26} color={th.text3} style={{ opacity:0.5, marginBottom:12 }}/>
-          <div style={{ fontSize:14, fontWeight:600, color:th.text, marginBottom:5 }}>{L("Nothing to approve yet","لا شيء للموافقة بعد")}</div>
-          <div style={{ fontSize:12.5, color:th.text2 }}>{L("Send posts for sign-off and they'll appear here.","أرسل منشورات للموافقة وستظهر هنا.")}</div>
+        <div style={{ padding:"64px 24px", textAlign:"center" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ opacity:.5, marginBottom:12 }}><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/></svg>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:17, color:th.text, marginBottom:5 }}>{L("Nothing to approve yet","لا شيء للموافقة بعد")}</div>
+          <div style={{ fontSize:12.5, color:th.text3, lineHeight:1.6 }}>{L("Send posts for sign-off and they'll appear here.","أرسل منشورات للموافقة وستظهر هنا.")}</div>
         </div>
       ) : (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(212px, 1fr))", gap:16 }}>
@@ -3760,7 +3796,8 @@ function MediaPage() {
     <div style={{ padding:"28px 32px", maxWidth:1040 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Media Library","مكتبة الوسائط")}</h2>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Media","الوسائط")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{L("Media Library","مكتبة الوسائط")}</h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}><span className="tw-num">{shown.length}</span> {isAR?"ملف":(shown.length===1?"asset":"assets")} &middot; {clientName}{plat!=="all"?" · "+PNAME[plat]:""}</p>
         </div>
         <label style={{ display:"flex", alignItems:"center", gap:7, padding:"9px 16px", borderRadius:11, background:th.gradient, color:"#fff", fontWeight:600, fontSize:12.5, cursor:"pointer" }}>
@@ -3845,7 +3882,7 @@ function AIStudioPage() {
 
   const PLATS = [["ig","Instagram"],["fb","Facebook"],["tw","X"],["li","LinkedIn"],["tt","TikTok"],["yt","YouTube"]];
   const TONES = ["engaging and professional","fun and casual","luxury and premium","urgent and promotional","informative and educational"];
-  const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["hashtags",L("Hashtags","الوسوم"),TrendingUp],["images",L("Images","الصور"),Image],["graphics",L("Templates","قوالب"),LayoutDashboard]];
+  const TOOLS = [["captions",L("Captions","التعليقات"),Edit3],["ideas",L("Post ideas","أفكار منشورات"),Sparkles],["images",L("Images","الصور"),Image],["graphics",L("Templates","قوالب"),LayoutDashboard]];
   const [imgMode, setImgMode] = useState("generate");   // generate | edit
   const [realOn, setRealOn] = useState(true);           // photorealistic prompt boost
   const [imgPrompt, setImgPrompt] = useState("");
@@ -3961,10 +3998,10 @@ function AIStudioPage() {
   return (
     <div style={{ padding:"28px 32px", maxWidth:920 }}>
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:6 }}>
-        <div style={{ width:40, height:40, borderRadius:12, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Wand2 size={20} color="#fff"/></div>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("AI Studio","استوديو الذكاء")}</h2>
-          <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("Captions, ideas, hashtags & AI images — in English & Arabic","تعليقات وأفكار ووسوم وصور بالذكاء الاصطناعي — بالعربية والإنجليزية")}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("AI Studio","استوديو الذكاء")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{L("AI Studio","استوديو الذكاء")}</h2>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("Captions, ideas & AI images — in English & Arabic","تعليقات وأفكار وصور بالذكاء الاصطناعي — بالعربية والإنجليزية")}</p>
         </div>
       </div>
 
@@ -3980,7 +4017,7 @@ function AIStudioPage() {
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", alignItems:"center" }}>
           <div>
             <div style={{ fontSize:11, color:th.text2, marginBottom:6 }}>{L("Platform","المنصة")}</div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>{PLATS.map(([k,l])=><button key={k} onClick={()=>setPlatform(k)} style={smallBtn(platform===k)}>{l}</button>)}</div>
+            <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>{PLATS.map(([k,l])=><button key={k} onClick={()=>setPlatform(k)} style={smallBtn(platform===k)}><span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>{PlatformIcons[k]?PlatformIcons[k]():null}{l}</span></button>)}</div>
           </div>
           {tool!=="hashtags" && (
             <div>
@@ -5228,9 +5265,13 @@ function CompetitorSpyPage() {
     <div style={{ maxWidth:880, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"center", gap:11, marginBottom:16 }}>
         <div style={{ width:38, height:38, borderRadius:11, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center" }}><Eye size={18} color="#fff"/></div>
-        <div>
+        <div style={{ flex:1, minWidth:0 }}>
           <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Competitor Spy","تجسّس المنافسين")}</h1>
           <p style={{ margin:"3px 0 0", fontSize:12.5, color:th.text2 }}>{L("Size up any rival and get a plan to beat them","حلّل أي منافس واحصل على خطة للتفوّق عليه")}</p>
+        </div>
+        <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+          <button onClick={()=>setPlatform("instagram")} style={chip(platform==="instagram")}>Instagram</button>
+          <button onClick={()=>setPlatform("tiktok")} style={chip(platform==="tiktok")}>TikTok</button>
         </div>
       </div>
 
@@ -5239,8 +5280,6 @@ function CompetitorSpyPage() {
           <span style={{ color:th.text3, fontSize:13 }}>@</span>
           <input value={handle} onChange={e=>setHandle(e.target.value)} onKeyDown={e=>e.key==='Enter'&&run()} placeholder={L("competitor handle","حساب المنافس")} style={{ flex:1, background:"transparent", border:"none", padding:"10px 6px", color:th.text, fontSize:13.5, outline:"none" }}/>
         </div>
-        <button onClick={()=>setPlatform("instagram")} style={chip(platform==="instagram")}>Instagram</button>
-        <button onClick={()=>setPlatform("tiktok")} style={chip(platform==="tiktok")}>TikTok</button>
         <button onClick={run} disabled={!handle.trim()||busy} style={{ display:"inline-flex", alignItems:"center", gap:6, background:(!handle.trim())?th.card2:th.gradient, border:"none", color:(!handle.trim())?th.text3:"#fff", fontSize:13, fontWeight:700, borderRadius:9, padding:"10px 16px", cursor:(!handle.trim()||busy)?"default":"pointer" }}>{busy?<RefreshCw size={14}/>:<Eye size={14}/>}{busy?L("Analyzing…","جارٍ التحليل…"):L("Analyze","حلّل")}</button>
       </div>
       <div style={{ marginBottom:14 }}>
@@ -6042,6 +6081,13 @@ function SuggestedPage() {
           <Sparkles size={28} color={th.accent} style={{ opacity:0.5, marginBottom:12 }}/>
           <div style={{ fontSize:14.5, fontWeight:600, color:th.text, marginBottom:6 }}>{L("Add a feed to get started","أضف مصدراً للبدء")}</div>
           <div style={{ fontSize:12.5, color:th.text2, lineHeight:1.6, maxWidth:440, margin:"0 auto" }}>{L("Paste the RSS link of the client's blog or an industry news site. Fresh articles appear here, ready to turn into posts.","الصق رابط RSS لمدونة العميل أو موقع أخبار في مجاله. ستظهر المقالات الجديدة هنا جاهزة لتحويلها لمنشورات.")}</div>
+          <div style={{ fontSize:11, fontWeight:600, letterSpacing:".08em", textTransform:"uppercase", color:th.text3, margin:"20px 0 10px" }}>{L("Not sure? Try one of these","لست متأكداً؟ جرّب أحد هذه")}</div>
+          <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+            {[[L("Coffee news","أخبار القهوة"),"https://news.google.com/rss/search?q=coffee+shop&hl=en-US&gl=US&ceid=US:en"],[L("Food & dining","الطعام والمطاعم"),"https://news.google.com/rss/search?q=restaurant+dining+trends&hl=en-US&gl=US&ceid=US:en"],[L("Bahrain","البحرين"),"https://news.google.com/rss/search?q=Bahrain+restaurants&hl=en-US&gl=US&ceid=US:en"]].map(([lbl,u]) => (
+              <button key={u} onClick={()=>{ if(!feeds.includes(u)) persist([...feeds,u]); }} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"7px 14px", borderRadius:999, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer" }}><Plus size={12}/>{lbl}</button>
+            ))}
+          </div>
+          <div style={{ fontSize:11, color:th.text3, marginTop:14, lineHeight:1.6, maxWidth:440, margin:"14px auto 0" }}>{L("New to RSS? It's just a website's address with /feed or /rss added on the end — like yourblog.com/feed.","جديد على RSS؟ إنه ببساطة رابط الموقع مع /feed أو /rss في نهايته — مثل yourblog.com/feed.")}</div>
         </div>
       ) : loading ? (
         <div style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:18, padding:24, fontSize:13, color:th.text2 }}>{L("Fetching the latest articles…","جارٍ جلب أحدث المقالات…")}</div>
@@ -6174,6 +6220,8 @@ function CalendarPage() {
   const [cursor, setCursor] = useState(new Date());
   const [posts, setPosts] = useState([]);
   const [selected, setSelected] = useState(null);
+  const detailRef = useRef(null);
+  useEffect(() => { if (selected && detailRef.current) detailRef.current.scrollTo(0, 0); }, [selected]);
   const [realClientId, setRealClientId] = useState(null);
   const [busy, setBusy] = useState("");
   const [dragId, setDragId] = useState(null);
@@ -6369,13 +6417,14 @@ function CalendarPage() {
     <div style={{ padding:"28px 32px" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Planner","المخطط")}</h2>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Planner","المخطط")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em" }}>{selClient?.name || L("Planner","المخطط")}</h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; <span className="tw-num">{posts.length}</span> {L("scheduled","مجدول")}{nextPost ? <> &middot; {L("next up","التالي")} <span style={{ color:th.text }}>{new Date(nextPost.scheduled_at).toLocaleDateString([], { weekday:"short", day:"numeric", month:"short" })}</span> {L("at","في")} <span className="tw-num" style={{ color:th.text }}>{fmtTime(nextPost.scheduled_at)}</span></> : <> &middot; <span style={{ color:th.text3 }}>{L("drag a post to reschedule","اسحب منشوراً لإعادة جدولته")}</span></>}</p>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
           <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
             {[["list",L("List","قائمة")],["grid",L("Grid","شبكة")],["month",L("Month","شهر")],["week",L("Week","أسبوع")]].map(([k,t])=>(
-              <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.gradient:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
+              <button key={k} onClick={()=>setView(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:view===k?th.accent:"transparent", color:view===k?"#fff":th.text2, fontSize:12, fontWeight:view===k?600:400, cursor:"pointer" }}>{t}</button>
             ))}
           </div>
           <button onClick={sharePortal} title={L("Copy the client's private portal link","انسخ رابط بوابة العميل الخاص")} style={{ display:"flex", alignItems:"center", gap:6, padding:"0 15px", height:38, boxSizing:"border-box", whiteSpace:"nowrap", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text, fontWeight:600, fontSize:12.5, cursor:"pointer" }}><Link size={14} color={th.accent}/>{L("Client portal","بوابة العميل")}</button>
@@ -6557,20 +6606,20 @@ function CalendarPage() {
           const dayLabel = (d) => isToday(d) ? L("Today","اليوم") : sameDay(d,tmr) ? L("Tomorrow","غداً") : d.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"long", day:"numeric", month:"long" });
           return <div>{groups.map((g,gi) => (
             <div key={g.key}>
-              <div style={{ padding:"9px 18px", background:th.card2, borderBottom:`1px solid ${th.border}`, borderTop:gi>0?`1px solid ${th.border}`:"none", fontSize:10.5, fontWeight:700, letterSpacing:0.5, color:th.text3, textTransform:"uppercase", display:"flex", justifyContent:"space-between" }}>
+              <div style={{ padding:"13px 18px 7px", borderBottom:`1px solid ${th.border}`, marginTop:gi>0?12:0, fontSize:10, fontWeight:700, letterSpacing:".14em", color:th.text3, textTransform:"uppercase", display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
                 <span>{dayLabel(g.date)}</span><span className="tw-num" style={{ color:th.text3 }}>{g.date.toLocaleDateString(isAR?"ar-u-nu-latn":[], { day:"numeric", month:"short" })}</span>
               </div>
               {g.items.map((p,pi) => { const info = PLAT[p.platform] || { name:p.platform, color:th.accent, Icon:Globe };
                 return (
-                <div key={p.id} onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer", background: selected&&selected.id===p.id ? th.accentSoft : "transparent", boxShadow: selected&&selected.id===p.id ? `inset 3px 0 0 ${th.accent}` : "none", transition:"background .15s ease" }}>
+                <div key={p.id} className="tw-hoverrow" onClick={()=>setSelected(p)} style={{ display:"flex", alignItems:"center", gap:13, padding:"13px 18px", borderBottom:(pi<g.items.length-1||gi<groups.length-1)?`1px solid ${th.border}`:"none", cursor:"pointer", background: selected&&selected.id===p.id ? th.accentSoft : "transparent", boxShadow: selected&&selected.id===p.id ? `inset 3px 0 0 ${th.accent}` : "none", transition:"background .15s ease" }}>
                   <div style={{ width:40, height:40, borderRadius:11, background:info.color+"1e", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><info.Icon style={{ color:info.color, fontSize:18 }}/></div>
                   <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, overflow:"hidden", background:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{p.image_url ? <Cover url={p.image_url} style={{ width:"100%", height:"100%" }}/> : <Image size={15} color={th.text3}/>}</div>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(untitled)","(بدون عنوان)")}</div>
+                    <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:14.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.caption || L("(untitled)","(بدون عنوان)")}</div>
                     <div style={{ fontSize:11, color:th.text2, marginTop:2, display:"flex", alignItems:"center", gap:5 }}><Clock size={12}/><span className="tw-num">{fmtTime(p.scheduled_at)}</span>{p.account_id && <span style={{ color:th.text3 }}>&middot; {(accounts.find(a=>a.account_id===p.account_id)||{}).account_name || info.name}</span>}</div>
                   </div>
                   {p.label && <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:9.5, fontWeight:600, borderRadius:999, padding:"3px 9px", background:labelColor(p.label)+"22", color:th.text, flexShrink:0 }}><span style={{ width:6, height:6, borderRadius:"50%", background:labelColor(p.label) }}/>{p.label}</span>}
-                  <span style={{ fontSize:10, fontWeight:700, borderRadius:999, padding:"3px 10px", background:p.status==="scheduled"?th.successSoft:th.warningSoft, color:p.status==="scheduled"?th.success:th.warning, flexShrink:0 }}>{p.status==="scheduled"?L("scheduled","مجدول"):L("draft","مسودة")}</span>
+                  <span style={{ fontSize:10, fontWeight:600, borderRadius:8, padding:"3px 10px", border:`1px solid ${(p.status==="scheduled"?th.success:th.warning)}55`, color:p.status==="scheduled"?th.success:th.warning, flexShrink:0 }}>{p.status==="scheduled"?L("scheduled","مجدول"):L("draft","مسودة")}</span>
                   <button title={L("Preview","معاينة")} onClick={(e)=>{e.stopPropagation();setSelected(p);}} style={{ background:"none", border:"none", cursor:"pointer", color: selected&&selected.id===p.id ? th.accent : th.text3, display:"flex", padding:4 }}><Eye size={16}/></button>
                   <button title={L("Edit","تعديل")} onClick={(e)=>{e.stopPropagation();setPage("publisher");}} style={{ background:"none", border:"none", cursor:"pointer", color:th.text3, display:"flex", padding:4 }}><Edit3 size={15}/></button>
                 </div>
@@ -6618,17 +6667,17 @@ function CalendarPage() {
         </div>
       )}
 
-      {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; return (
+      {selected && (() => { const info = PLAT[selected.platform] || { name:selected.platform, color:th.accent, Icon:Globe }; return createPortal((
         <div onClick={()=>setSelected(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.32)", zIndex:60, display:"flex", justifyContent:"flex-end" }}>
-          <div onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)", animation:"twDrawerIn .26s cubic-bezier(0.2,0.7,0.2,1) both" }}>
+          <div ref={detailRef} onClick={e=>e.stopPropagation()} style={{ width:380, maxWidth:"90vw", height:"100%", background:th.surface, borderLeft:`1px solid ${th.border}`, padding:24, overflowY:"auto", boxShadow:"-20px 0 60px rgba(0,0,0,0.5)", animation:"twDrawerIn .26s cubic-bezier(0.2,0.7,0.2,1) both" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18 }}>
               <div style={{ display:"flex", alignItems:"center", gap:9 }}><info.Icon style={{ fontSize:18, color:info.color }}/><span style={{ fontSize:14, fontWeight:600 }}>{info.name}</span></div>
               <button onClick={()=>setSelected(null)} style={{ background:"none", border:"none", cursor:"pointer", color:th.text2, display:"flex" }}><XCircle size={20}/></button>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12.5, color:th.text2, marginBottom:16 }}><Clock size={14}/>{new Date(selected.scheduled_at).toLocaleString([], { weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit" })}</div>
             {selected.image_url && (isVid(selected.image_url)
-              ? <video src={selected.image_url} controls muted playsInline style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}`, background:"#000" }}/>
-              : <img src={selected.image_url} alt="" style={{ width:"100%", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>)}
+              ? <video src={selected.image_url} controls muted playsInline style={{ width:"100%", maxHeight:260, objectFit:"contain", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}`, background:"#000" }}/>
+              : <img src={selected.image_url} alt="" style={{ width:"100%", maxHeight:220, objectFit:"cover", borderRadius:14, marginBottom:14, border:`1px solid ${th.border}` }}/>)}
             <div style={{ fontSize:13, lineHeight:1.6, color:th.text, whiteSpace:"pre-wrap", marginBottom:20 }}>{selected.caption || L("(no caption)","(بدون نص)")}</div>
             {busy.startsWith("err") && <div style={{ fontSize:11.5, color:th.danger, marginBottom:10 }}>{busy.slice(4)}</div>}
             {busy === "noacc" && <div style={{ fontSize:11.5, color:th.warning, marginBottom:10 }}>{L("Connected account not found for this post.","لم يتم العثور على الحساب المرتبط لهذا المنشور.")}</div>}
@@ -6652,7 +6701,7 @@ function CalendarPage() {
             </div>
           </div>
         </div>
-      ); })()}
+      ), document.body); })()}
 
       <SendPickerModal open={pickerOpen} onClose={()=>setPickerOpen(false)} th={th} L={L} rows={apprRows} sel={sel} setSel={setSel} onContinue={confirmSend}/>
       <SendApprovalModal open={sendOpen} onClose={()=>setSendOpen(false)} th={th} L={L} link={"tawaslo.com/a/" + (batchToken || "preview")} subtitle={L("Sending ","إرسال ")+sentCount+L(sentCount===1?" post to ":" posts to "," منشور إلى ")+(selClient?.name||L("your client","عميلك"))+L(" for sign off.","للموافقة.")}/>
@@ -6805,7 +6854,7 @@ function BusinessProfilePage() {
 
   if (acct === null) return (
     <div style={{ padding:"28px 32px", maxWidth:760 }}>
-      <h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2>
+      <div style={{ display:"flex", alignItems:"center", gap:9 }}><FaGoogle style={{ fontSize:20, color:"#4285F4" }}/><h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2></div>
       <p style={{ fontSize:12.5, color:th.text2, margin:"5px 0 22px" }}>{L("Manage Google reviews, hours, photos, posts and Q&A.","إدارة مراجعات Google والأوقات والصور والمنشورات.")}</p>
       <div style={{ ...card, textAlign:"center", padding:"40px 24px" }}>
         <div style={{ width:54, height:54, borderRadius:14, background:th.card2, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}><FaGoogle style={{ fontSize:24, color:"#4285F4" }}/></div>
@@ -6819,7 +6868,7 @@ function BusinessProfilePage() {
   return (
     <div style={{ padding:"24px 28px" }}>
       <div style={{ display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap", marginBottom:16 }}>
-        <div><h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2>
+        <div><div style={{ display:"flex", alignItems:"center", gap:9 }}><FaGoogle style={{ fontSize:20, color:"#4285F4" }}/><h2 style={{ margin:0, fontSize:20, fontWeight:600 }}>{L("Business Profile","الملف التجاري")}</h2></div>
           <p style={{ fontSize:12, color:th.text2, margin:"4px 0 0" }}>{selClient?.name} · {L("reviews, hours, links, posts & Q&A","المراجعات والأوقات والروابط والمنشورات")}</p></div>
         {locations.length > 0 && (
           <select value={locIdx} onChange={e=>setLocIdx(Number(e.target.value))} style={{ marginLeft:"auto", background:th.card, border:`1px solid ${th.border}`, color:th.text, borderRadius:10, padding:"8px 12px", fontSize:12.5, cursor:"pointer" }}>
@@ -7430,12 +7479,13 @@ function PublisherPage() {
       <UpgradeGate open={!!upgrade} onClose={()=>setUpgrade(null)} onUpgrade={()=>{setUpgrade(null);setPage('billing');}} th={th} title={upgrade?.title} detail={upgrade?.detail} Icon={upgrade?.Icon}/>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-start", marginBottom:16, flexWrap:"wrap", gap:18 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3 }}>{L("Create post","إنشاء منشور")}</h2>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Publisher","النشر")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em" }}>{L("Create post","إنشاء منشور")}</h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("compose, schedule & publish","اكتب وجدوِل وانشر")}</p>
         </div>
         <div style={{ display:"flex", gap:4, background:th.card, border:`1px solid ${th.border}`, borderRadius:999, padding:3 }}>
           {[["compose",L("Compose","إنشاء")],["drafts",L("Drafts","المسودات")+(drafts.length?" ("+drafts.length+")":"")]].map(([k,t])=>(
-            <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:tab===k?th.gradient:"transparent", color:tab===k?"#fff":th.text2, fontSize:12, fontWeight:tab===k?600:400, cursor:"pointer" }}>{t}</button>
+            <button key={k} onClick={()=>setTab(k)} style={{ padding:"7px 16px", borderRadius:999, border:"none", background:tab===k?th.accent:"transparent", color:tab===k?"#fff":th.text2, fontSize:12, fontWeight:tab===k?600:400, cursor:"pointer" }}>{t}</button>
           ))}
         </div>
       </div>
@@ -8819,8 +8869,9 @@ function TrendingPage() {
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:16,flexWrap:"wrap"}}>
         <div>
-          <h2 style={{margin:0,fontSize:20,fontWeight:600,letterSpacing:-0.3}}>{L("Trending now","الرائج الآن")}</h2>
-          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("Showing trends for","عرض الرائج في")} {curRegion.label} &middot; TikTok &amp; Instagram</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Trending","الرائج")}</span></div>
+          <h2 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{L("Trending now","الرائج الآن")}</h2>
+          <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("Showing trends for","عرض الرائج في")} {curRegion.label} &middot; YouTube, TikTok &amp; Instagram</p>
         </div>
         <div style={{position:"relative"}}>
           <button onClick={()=>setRegionOpen(o=>!o)} style={{display:"flex",alignItems:"center",gap:8,background:th.card,border:`1px solid ${th.border}`,borderRadius:11,padding:"9px 14px",cursor:"pointer",color:th.text,fontSize:13}}>
@@ -9002,7 +9053,7 @@ function AnalyticsPage() {
   const engFrac = Math.min(engRate/20, 1);
   const ringC = 2*Math.PI*32;
   const typeLabels = { IMAGE:"Photo", VIDEO:"Video", CAROUSEL_ALBUM:"Carousel", REELS:"Reels", LINK:"Link" };
-  const typeColors = { IMAGE:"#2DD4BF", VIDEO:"#A78BFA", CAROUSEL_ALBUM:"#4F6EF7", REELS:"#7C3AED", LINK:"#6E8CAB" };
+  const typeColors = { IMAGE:"#6E8CAB", VIDEO:"#9FB6D2", CAROUSEL_ALBUM:"#5E7A99", REELS:"#4F6B8C", LINK:"#8AA0BE" };
   const plat = data?.platform || selectedAcc?.platform || 'ig';
   const platName = plat === 'fb' ? L("Facebook","فيسبوك") : plat === 'li' ? "LinkedIn" : plat === 'tw' ? "X" : L("Instagram","إنستغرام");
   const typeCounts = (data?.recentPosts||[]).reduce((m,pp)=>{ const t=pp.type||"IMAGE"; m[t]=(m[t]||0)+1; return m; },{});
@@ -9052,9 +9103,9 @@ function AnalyticsPage() {
   const topTypeLabel = topTypeEntry ? (typeLabels[topTypeEntry[0]] || topTypeEntry[0]) : null;
 
   const metric = (label, value, series, scolor, change) => (
-    <div style={{background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:"16px 18px",boxShadow:"none"}}>
-      <div style={{fontSize:11.5,color:th.text2,marginBottom:9,fontWeight:500}}>{label}</div>
-      <div className="tw-num" style={{fontSize:27,fontWeight:600,letterSpacing:-0.6,color:th.text}}>{value}</div>
+    <div className="tw-fu" style={{border:`1px solid ${th.border}`,borderRadius:12,padding:"15px 17px"}}>
+      <div style={{fontSize:9.5,letterSpacing:".16em",textTransform:"uppercase",color:th.text3,marginBottom:10}}>{label}</div>
+      <div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:28,fontWeight:600,letterSpacing:"-0.01em",color:th.text,fontVariantNumeric:"tabular-nums"}}>{value}</div>
       {change && <div style={{marginTop:8}}>{chip(change)}</div>}
       {!change && series && series.length>1 && (
         <svg width="100%" height="26" viewBox="0 0 100 26" preserveAspectRatio="none" style={{marginTop:8,display:"block"}}>
@@ -9067,20 +9118,25 @@ function AnalyticsPage() {
 
   return (
     <div style={{padding:"28px 32px", maxWidth:1200}}>
-      <div style={{marginBottom:22, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12}}>
-        <div>
-          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3, display:"flex", alignItems:"center", gap:10}}>{L("Analytics","التحليلات")}{data?._sample && <span style={{fontSize:10, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:7, padding:"3px 9px", letterSpacing:0.3}}>{L("SAMPLE PREVIEW","معاينة عينة")}</span>}</h2>
-          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{platName} &middot; {selectedAcc?.username?("@"+selectedAcc.username):selectedAcc?.account_name||selClient?.name}</p>
-        </div>
-        {accounts.length > 1 && (
-          <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-            {accounts.map(acc => { const PI=PlatformIcons[acc.platform]; const on=selectedAcc?.id===acc.id; return (
-              <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 13px", borderRadius:999, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:th.card, color:on?th.accent:th.text2, fontSize:11.5, fontWeight:500, cursor:"pointer"}}>
-                {PI?<PI/>:<Globe size={13}/>}{acc.username?("@"+acc.username):acc.account_name}
-              </button>
-            ); })}
+      <div style={{marginBottom:20}}>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", borderBottom:`1px solid ${th.border}`, paddingBottom:11, marginBottom:16, flexWrap:"wrap", gap:10}}>
+          <div style={{display:"flex", alignItems:"center", gap:9}}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg>
+            <span style={{letterSpacing:".2em", textTransform:"uppercase", fontSize:11, fontWeight:600, color:th.accent}}>{L("Analytics","التحليلات")}</span>
+            {data?._sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, border:`1px solid ${th.accent}33`, borderRadius:6, padding:"2px 7px", letterSpacing:".08em"}}>{L("SAMPLE","عينة")}</span>}
           </div>
-        )}
+          {accounts.length > 1 && (
+            <div style={{display:"flex", gap:7, flexWrap:"wrap"}}>
+              {accounts.map(acc => { const PI=PlatformIcons[acc.platform]; const on=selectedAcc?.id===acc.id; return (
+                <button key={acc.id} onClick={()=>{setSelectedAcc(acc);fetchAnalytics(acc);}} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 12px", borderRadius:999, border:`1px solid ${on?th.accent:th.border}`, background:on?th.accentSoft:"transparent", color:on?th.accent:th.text2, fontSize:11, fontWeight:500, cursor:"pointer"}}>
+                  {PI?<PI/>:<Globe size={13}/>}{acc.username?("@"+acc.username):acc.account_name}
+                </button>
+              ); })}
+            </div>
+          )}
+        </div>
+        <div style={{fontFamily:"'Fraunces',Georgia,serif", fontSize:29, fontWeight:600, letterSpacing:"-0.01em", color:th.text}}>{platName}</div>
+        <div style={{fontFamily:"'Fraunces',Georgia,serif", fontSize:15, fontStyle:"italic", color:th.text2, marginTop:6}}>{selectedAcc?.username?("@"+selectedAcc.username):selectedAcc?.account_name||selClient?.name}{(data?.summary?.totalReach||0)>0 ? ` — ${data.summary.totalReach.toLocaleString()} ${L("reached in 30 days","وصلوا خلال 30 يوماً")}` : ""}</div>
       </div>
 
       {loading ? (
@@ -9094,7 +9150,7 @@ function AnalyticsPage() {
       ) : data ? (
         <>
           {data.summary.totalReach > 0 && (
-            <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"14px 18px", marginBottom:14}}>
+            <div style={{borderInlineStart:`3px solid ${th.accent}`, paddingInlineStart:15, marginBottom:20}}>
               <div style={{fontSize:14, lineHeight:1.65, color:th.text2}}>
                 {L("You reached ","وصلت إلى ")}<span className="tw-num" style={{color:th.text, fontWeight:600}}>{data.summary.totalReach.toLocaleString()}</span>{L(" people in the last 30 days"," شخص خلال آخر 30 يوماً")}
                 {reachDelta!=null && reachDelta!==0 && <>{L(", ","، ")}<span className="tw-num" style={{color:reachDelta>0?th.success:th.danger, fontWeight:600}}>{reachDelta>0?L("up ","بزيادة ")+Math.abs(reachDelta)+"%":L("down ","بانخفاض ")+Math.abs(reachDelta)+"%"}</span></>}
@@ -9106,11 +9162,11 @@ function AnalyticsPage() {
 
           <div style={{display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:14}}>
             {metric(L("Followers","المتابعون"), (selectedAcc?.followers_count||data?.summary?.followers||totalFollowers).toLocaleString(), null, null, followerDelta!=null?{txt:followerDelta+"%",up:true}:null)}
-            {metric(L("Reach · 30d","الوصول · 30 يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#4F6EF7", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
+            {metric(L("Reach · 30d","الوصول · 30 يوم"), data.summary.totalReach.toLocaleString(), reachSeries, "#6E8CAB", reachDelta!=null?{txt:Math.abs(reachDelta)+"%",up:reachDelta>=0}:null)}
             {(data.summary.totalViews||0) > 0
-              ? metric(L("Views · 30d","المشاهدات · 30 يوم"), (data.summary.totalViews||0).toLocaleString(), viewsSeries, "#2DD4BF", null)
+              ? metric(L("Views · 30d","المشاهدات · 30 يوم"), (data.summary.totalViews||0).toLocaleString(), viewsSeries, "#9FB6D2", null)
               : hasImpr
-              ? metric(L("Impressions · 30d","الظهور · 30 يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#A78BFA", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
+              ? metric(L("Impressions · 30d","الظهور · 30 يوم"), data.summary.totalImpressions.toLocaleString(), imprSeries, "#9FB6D2", imprDelta!=null?{txt:Math.abs(imprDelta)+"%",up:imprDelta>=0}:null)
               : metric(L("Avg. likes","متوسط الإعجابات"), avgLikes.toLocaleString(), null, null, null)}
             {metric(L("Engagement","التفاعل"), engRate+"%", null, null, engPtsDelta!=null?{txt:engPtsDelta+"",up:true}:null)}
           </div>
@@ -9120,16 +9176,16 @@ function AnalyticsPage() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div style={{fontSize:13.5,fontWeight:600}}>{hasImpr ? L("Reach & impressions","الوصول والظهور") : L("Daily reach","الوصول اليومي")}</div>
                 <div style={{fontSize:11,color:th.text2,display:"flex",gap:14}}>
-                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#4F6EF7",display:"inline-block"}}/>{L("Reach","الوصول")}</span>
-                  {hasImpr && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#A78BFA",display:"inline-block"}}/>{L("Impressions","الظهور")}</span>}
+                  <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#6E8CAB",display:"inline-block"}}/>{L("Reach","الوصول")}</span>
+                  {hasImpr && <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{width:8,height:8,borderRadius:"50%",background:"#9FB6D2",display:"inline-block"}}/>{L("Impressions","الظهور")}</span>}
                 </div>
               </div>
               {reachSeries.length>1 ? (
                 <HoverChart height={160}
                   yTop={(()=>{const m=Math.max(...reachSeries,...(hasImpr?imprSeries:[]),1);return m>=1000000?(m/1000000).toFixed(1).replace(/\.0$/,'')+"M":Math.round(m/1000)+"K";})()}
                   lines={hasImpr
-                    ? [{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries},{color:"#A78BFA",label:L("Impressions","الظهور"),values:imprSeries}]
-                    : [{color:"#4F6EF7",label:L("Reach","الوصول"),values:reachSeries}]}
+                    ? [{color:"#6E8CAB",label:L("Reach","الوصول"),values:reachSeries},{color:"#9FB6D2",label:L("Impressions","الظهور"),values:imprSeries}]
+                    : [{color:"#6E8CAB",label:L("Reach","الوصول"),values:reachSeries}]}
                   labels={reachSeries.map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(reachSeries.length-1-i));return d.toLocaleDateString([],{month:'short',day:'numeric'});})}/>
               ) : (
                 <div style={{fontSize:12,color:th.text2,padding:"30px 0",textAlign:"center"}}>{L("Daily trend appears once insights data is available.","يظهر الاتجاه اليومي بمجرد توفر بيانات الإحصاءات.")}</div>
@@ -9141,7 +9197,7 @@ function AnalyticsPage() {
                 <div style={{display:"flex",alignItems:"center",gap:14}}>
                   <svg viewBox="0 0 80 80" width="68" height="68">
                     <circle cx="40" cy="40" r="32" fill="none" stroke={th.border} strokeWidth="8"/>
-                    <circle cx="40" cy="40" r="32" fill="none" stroke="#4F6EF7" strokeWidth="8" strokeDasharray={`${engFrac*ringC} ${ringC}`} strokeLinecap="round" transform="rotate(-90 40 40)"/>
+                    <circle cx="40" cy="40" r="32" fill="none" stroke="#6E8CAB" strokeWidth="8" strokeDasharray={`${engFrac*ringC} ${ringC}`} strokeLinecap="round" transform="rotate(-90 40 40)"/>
                   </svg>
                   <div><div className="tw-num" style={{fontSize:24,fontWeight:600}}>{engRate}%</div><div style={{fontSize:10.5,color:th.text2}}>{L("per post avg","متوسط لكل منشور")}</div></div>
                 </div>
@@ -9183,14 +9239,14 @@ function AnalyticsPage() {
                   {HM_PARTS.map((p,i)=><div key={'h'+i} style={{fontSize:9.5,color:th.text3,textAlign:"center"}}>{p}</div>)}
                   {hmVal.flatMap((row,di)=>{
                     const cells = row.map((c,pi)=>{ const intensity = hmMax ? c.v/hmMax : 0; const isPk = hmPeak && hmPeak[0]===di && hmPeak[1]===pi; return (
-                      <div key={di+'-'+pi} title={`${HM_DAYS[di]} ${HM_PARTS[pi]} · ${c.n} ${L("posts","منشور")}`} style={{height:26,borderRadius:5,background:c.n?`rgba(124,131,255,${(0.12+intensity*0.88).toFixed(2)})`:th.card2,boxShadow:isPk?"inset 0 0 0 2px #fff":"none"}}/>
+                      <div key={di+'-'+pi} title={`${HM_DAYS[di]} ${HM_PARTS[pi]} · ${c.n} ${L("posts","منشور")}`} style={{height:26,borderRadius:5,background:c.n?`rgba(110,140,171,${(0.12+intensity*0.88).toFixed(2)})`:th.card2,boxShadow:isPk?"inset 0 0 0 2px #fff":"none"}}/>
                     ); });
                     return [<div key={'d'+di} style={{fontSize:10.5,color:th.text2,textAlign:"right",paddingRight:4}}>{HM_DAYS[di]}</div>, ...cells];
                   })}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginTop:12,fontSize:10,color:th.text3}}>
                   <span>{L("Less","أقل")}</span>
-                  {[0.12,0.35,0.58,0.8,1].map((a,i)=><span key={i} style={{width:16,height:9,borderRadius:2,background:`rgba(124,131,255,${a})`}}/>)}
+                  {[0.12,0.35,0.58,0.8,1].map((a,i)=><span key={i} style={{width:16,height:9,borderRadius:2,background:`rgba(110,140,171,${a})`}}/>)}
                   <span>{L("More","أكثر")}</span>
                   <span style={{marginInlineStart:"auto"}}>{L("by avg engagement","حسب متوسط التفاعل")}</span>
                 </div>
@@ -9300,7 +9356,8 @@ function CampaignsPage() {
     <div className="tw-page-in" style={{ padding:"28px 32px", maxWidth:1100 }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:12 }}>
         <div>
-          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Campaigns","الحملات")}</h2>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Campaigns","الحملات")}</span></div>
+          <h2 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Campaigns","الحملات")}</h2>
           <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("Group posts into campaigns and track them against a goal.","اجمع المنشورات في حملات وتتبّعها مقابل هدف.")}</p>
         </div>
         <button onClick={()=>setShowCreate(true)} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 18px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("New campaign","حملة جديدة")}</button>
@@ -9320,7 +9377,7 @@ function CampaignsPage() {
             return (
               <div key={c.id} style={{ background:th.card, border:`1px solid ${th.border}`, borderRadius:16, padding:18 }}>
                 <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
-                  <div style={{ fontSize:15, fontWeight:700, color:th.text, lineHeight:1.3 }}>{c.name}</div>
+                  <div style={{ fontFamily:"Fraunces,Georgia,serif", fontSize:16, fontWeight:600, color:th.text, lineHeight:1.3 }}>{c.name}</div>
                   <span style={{ flexShrink:0, fontSize:10, fontWeight:700, color:st.c, background:st.c+'22', borderRadius:20, padding:"3px 10px" }}>{st.l}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:th.text2, marginBottom:7 }}><Target size={13}/>{c.goal || L('No goal set','بدون هدف')}</div>
@@ -10200,9 +10257,14 @@ function CompetitorDigestPage() {
 
   return (
     <div style={{ padding:"28px 32px", maxWidth:1000 }}>
-      <div style={{ marginBottom:18 }}>
-        <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Steal This","اسرق الفكرة")}</h2>
-        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Your competitors' best performing posts, ranked, so you can adapt what works","أفضل منشورات منافسيك مرتّبة لتقتبس ما ينجح")}</p>
+      <div style={{ marginBottom:18, display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
+        <div style={{ minWidth:0 }}>
+          <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Steal This","اسرق الفكرة")}</h2>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{L("Your competitors' best performing posts, ranked, so you can adapt what works","أفضل منشورات منافسيك مرتّبة لتقتبس ما ينجح")}</p>
+        </div>
+        <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3, flexShrink:0 }}>
+          {[["instagram","Instagram"],["tiktok","TikTok"]].map(([k,l])=>{ const on=platform===k; return (<button key={k} onClick={()=>setPlatform(k)} style={{ padding:"7px 13px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
+        </div>
       </div>
 
       <div style={{ ...card, padding:16, marginBottom:18 }}>
@@ -10210,9 +10272,6 @@ function CompetitorDigestPage() {
           <div style={{ flex:"1 1 280px", display:"flex", alignItems:"center", gap:8, background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"3px 12px" }}>
             <Search size={15} color={th.text3}/>
             <input value={handles} onChange={e=>setHandles(e.target.value)} onKeyDown={e=>e.key==='Enter'&&run()} placeholder={L("competitor handles, comma separated","حسابات المنافسين، مفصولة بفواصل")} style={{ flex:1, background:"transparent", border:"none", padding:"10px 4px", color:th.text, fontSize:13, outline:"none", fontFamily:"inherit" }}/>
-          </div>
-          <div style={{ display:"flex", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:3 }}>
-            {[["instagram","Instagram"],["tiktok","TikTok"]].map(([k,l])=>{ const on=platform===k; return (<button key={k} onClick={()=>setPlatform(k)} style={{ padding:"7px 13px", borderRadius:7, border:"none", cursor:"pointer", fontSize:11.5, fontWeight:600, background:on?th.accent:"transparent", color:on?"#fff":th.text2 }}>{l}</button>);})}
           </div>
           <button onClick={run} disabled={busy||!handles.trim()} style={{ padding:"11px 18px", borderRadius:10, background:(busy||!handles.trim())?th.card2:th.gradient, border:"none", color:(busy||!handles.trim())?th.text3:"#fff", fontSize:12.5, fontWeight:600, cursor:(busy||!handles.trim())?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:7 }}><Sparkles size={14}/>{busy?L("Building…","يُجهّز…"):L("Build digest","ابنِ الملخص")}</button>
         </div>
@@ -10984,6 +11043,227 @@ function InvoiceView({ token }) {
   );
 }
 
+function VenueReportPage() {
+  const { selClient, dark, lang } = useApp();
+  const th = dark ? DARK : LIGHT;
+  const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
+  const origin = (typeof window !== "undefined" && window.location.origin) || "https://tawaslo.com";
+  const [cid, setCid] = useState(null);
+  const [slug, setSlug] = useState(null);
+  const [menu, setMenu] = useState(null);
+  const [bk, setBk] = useState([]); const [bkPrev, setBkPrev] = useState([]);
+  const [od, setOd] = useState([]); const [odPrev, setOdPrev] = useState([]);
+  const [reviews, setReviews] = useState([]);
+  const [loy, setLoy] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let active = true; setLoading(true);
+    if (!selClient?.name) { setLoading(false); return; }
+    (async () => {
+      const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
+      const id = data && data[0] && data[0].id; if (!active) return; setCid(id || null);
+      if (!id) { setLoading(false); return; }
+      const now = new Date();
+      const mStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+      try { const { data: mn } = await supabase.from('menus').select('id,slug,currency').eq('client_id', id).limit(1); if (active && mn && mn[0]) { setMenu(mn[0]); setSlug(mn[0].slug || null); } } catch (e) {}
+      try {
+        const rr = await Promise.all([
+          supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', mStart),
+          supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', pStart).lt('starts_at', mStart),
+          supabase.from('orders').select('*').eq('client_id', id).gte('created_at', mStart),
+          supabase.from('orders').select('*').eq('client_id', id).gte('created_at', pStart).lt('created_at', mStart),
+          supabase.from('reviews').select('*').eq('client_id', id).gte('created_at', mStart),
+          supabase.from('loyalty_cards').select('*').eq('client_id', id),
+        ]);
+        if (active) { setBk(rr[0].data || []); setBkPrev(rr[1].data || []); setOd(rr[2].data || []); setOdPrev(rr[3].data || []); setReviews(rr[4].data || []); setLoy(rr[5].data || []); }
+      } catch (e) {}
+      if (active) setLoading(false);
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const bizType = (selClient && selClient.business_type) || 'restaurant';
+  const hasPickup = bizType !== 'services';
+  const cur = (menu && menu.currency) || (od.find(o => o && o.currency) || {}).currency || 'BHD';
+  const dec = ['BHD', 'KWD', 'OMR', 'TND', 'LYD'].includes(cur) ? 3 : 2;
+  const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec }) + ' ' + cur;
+  const spark = (arr, color) => { const c = color || th.accent; const mx = Math.max(1, ...arr); const n = arr.length; const w = 90, h = 18; const pts = arr.map((v, i) => [(n <= 1 ? 0 : (i / (n - 1)) * w), h - (v / mx) * (h - 4) - 2]); const d = 'M' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L'); return (<svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height: 18, marginTop: 5 }}><path d={d} fill="none" stroke={c} strokeWidth="1.6" /></svg>); };
+  const now = new Date();
+  const dim = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const series = (rows, field, valFn) => { const a = new Array(dim).fill(0); rows.forEach(r => { const i = new Date(r[field]).getDate() - 1; if (i >= 0 && i < dim) a[i] += (valFn ? valFn(r) : 1); }); return a; };
+  const mStartT = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+  const activeBk = bk.filter(b => b.status !== 'cancelled');
+  const covers = activeBk.reduce((s, b) => s + (b.party_size || 1), 0);
+  const noShow = bk.filter(b => b.status === 'no_show').length;
+  const noShowRate = bk.length ? Math.round(noShow / bk.length * 100) : 0;
+  const coversLost = bk.filter(b => b.status === 'no_show').reduce((s, b) => s + (b.party_size || 1), 0);
+  const cancelled = bk.filter(b => b.status === 'cancelled').length;
+  const cancelRate = bk.length ? Math.round(cancelled / bk.length * 100) : 0;
+  const avgParty = activeBk.length ? (covers / activeBk.length) : 0;
+  const bkDelta = (bkPrev.filter(b => b.status !== 'cancelled').length) ? (activeBk.length - bkPrev.filter(b => b.status !== 'cancelled').length) : null;
+  const phoneCount = {}; activeBk.forEach(b => { const p = (b.customer_phone || '').replace(/[^0-9]/g, ''); if (p.length >= 6) phoneCount[p] = (phoneCount[p] || 0) + 1; });
+  const uniqueGuests = Object.keys(phoneCount).length;
+  const returning = Object.values(phoneCount).filter(n => n > 1).length;
+  const returnRate = uniqueGuests ? Math.round(returning / uniqueGuests * 100) : 0;
+
+  const activeOd = od.filter(o => o.status !== 'cancelled');
+  const revenue = activeOd.reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const prevRev = odPrev.filter(o => o.status !== 'cancelled').reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const revDelta = prevRev > 0 ? Math.round((revenue - prevRev) / prevRev * 100) : null;
+  const aov = activeOd.length ? revenue / activeOd.length : 0;
+  const onlineRate = activeOd.length ? Math.round(activeOd.filter(o => o.pay_status === 'paid').length / activeOd.length * 100) : 0;
+  const carhopRate = activeOd.length ? Math.round(activeOd.filter(o => o.pickup_method === 'carhop').length / activeOd.length * 100) : 0;
+  const itemMap = {}, itemRev = {}; activeOd.forEach(o => (o.items || []).forEach(it => { if (it && it.name) { const q = Number(it.qty) || 1; itemMap[it.name] = (itemMap[it.name] || 0) + q; itemRev[it.name] = (itemRev[it.name] || 0) + q * (Number(it.price) || 0); } }));
+  const topItems = Object.entries(itemMap).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const itemsSold = Object.values(itemMap).reduce((a, b) => a + b, 0);
+
+  const srcMap = {}; activeBk.forEach(b => { const sc = b.source || 'other'; srcMap[sc] = (srcMap[sc] || 0) + 1; });
+  const SL = { bio: L('Bio link', 'رابط البايو'), concierge: L('AI concierge', 'الكونسيرج'), whatsapp: 'WhatsApp', manual: L('Walk-in', 'حضور'), walkin: L('Walk-in', 'حضور'), online: L('Online', 'أونلاين'), other: L('Other', 'أخرى') };
+  const srcRows = Object.entries(srcMap).sort((a, b) => b[1] - a[1]); const maxSrc = Math.max(1, ...srcRows.map(r => r[1]));
+  const dowMap = {}; activeBk.forEach(b => { const d = new Date(b.starts_at).toLocaleDateString(isAR ? 'ar' : 'en', { weekday: 'long' }); dowMap[d] = (dowMap[d] || 0) + 1; });
+  const busiestDay = Object.entries(dowMap).sort((a, b) => b[1] - a[1])[0];
+  const hourMap = {}; activeBk.forEach(b => { const h = new Date(b.starts_at).getHours(); hourMap[h] = (hourMap[h] || 0) + 1; });
+  const busiestHour = Object.entries(hourMap).sort((a, b) => b[1] - a[1])[0];
+  const fmtHr = (h) => { h = Number(h); const ap = h < 12 ? 'AM' : 'PM'; const hh = h % 12 || 12; return hh + '–' + ((h + 1) % 12 || 12) + ' ' + ap; };
+
+  const occRe = /(birthday|anniversary|graduation|عيد ميلاد|ذكرى|سنوية|تخرج|مناسبة)/i;
+  const bdayN = activeBk.filter(b => b.note && /(birthday|عيد ميلاد)/i.test(b.note)).length;
+  const anniN = activeBk.filter(b => b.note && /(anniversary|ذكرى|سنوية)/i.test(b.note)).length;
+  const occN = activeBk.filter(b => b.note && occRe.test(b.note)).length;
+  const soon = new Date(Date.now() + 7 * 24 * 3600 * 1000);
+  const upcomingOcc = bk.filter(b => b.status !== 'cancelled' && b.note && occRe.test(b.note) && new Date(b.starts_at) >= now && new Date(b.starts_at) <= soon).length;
+
+  const avgRating = reviews.length ? (reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length) : null;
+  const repliedN = reviews.filter(r => r.reply || r.response || r.replied || r.reply_text).length;
+  const replyRate = reviews.length ? Math.round(repliedN / reviews.length * 100) : 0;
+
+  const newMembers = loy.filter(c => c.created_at && new Date(c.created_at).getTime() >= mStartT).length;
+  const redeemed = loy.reduce((s, c) => s + (c.redeemed || 0), 0);
+  const conciergeBk = activeBk.filter(b => b.source === 'concierge' || b.source === 'whatsapp').length;
+  const conciergeOd = activeOd.filter(o => o.source === 'whatsapp' || o.source === 'concierge').length;
+
+  const monthLabel = now.toLocaleString(isAR ? 'ar' : 'default', { month: 'long', year: 'numeric' });
+  const reportUrl = slug ? `${origin}/rreport/${slug}` : "";
+  const copyUrl = () => { try { navigator.clipboard.writeText(reportUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (e) {} setShareOpen(false); };
+  const shareWA = () => { const t = encodeURIComponent((selClient?.name || '') + ' — ' + monthLabel + ' ' + L('report', 'تقرير') + ': ' + reportUrl); if (typeof window !== "undefined") window.open(`https://wa.me/?text=${t}`, "_blank"); setShareOpen(false); };
+  const shareEmail = () => { const sub = encodeURIComponent((selClient?.name || '') + ' — ' + monthLabel + ' ' + L('report', 'تقرير')); const body = encodeURIComponent(L('Here is this month’s report:', 'إليك تقرير هذا الشهر:') + ' ' + reportUrl); if (typeof window !== "undefined") window.location.href = `mailto:?subject=${sub}&body=${body}`; setShareOpen(false); };
+  const downloadPDF = () => { if (typeof window !== "undefined" && reportUrl) window.open(reportUrl, "_blank"); else if (typeof window !== "undefined") window.print(); setShareOpen(false); };
+
+  const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 14 };
+  const sec = { fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: th.text3, fontWeight: 700, margin: "22px 0 9px" };
+  const lab = { fontSize: 9, letterSpacing: ".09em", textTransform: "uppercase", color: th.text3, fontWeight: 600, marginBottom: 5 };
+  const numS = { fontFamily: "'Fraunces',Georgia,serif", fontWeight: 600 };
+  const ct = { fontSize: 10.5, letterSpacing: ".14em", textTransform: "uppercase", color: th.text3, fontWeight: 700, marginBottom: 11 };
+
+  if (loading) return <div style={{ padding: 24, color: th.text2, fontSize: 13 }}>{L("Loading report…", "تحميل التقرير…")}</div>;
+  if (!cid) return <div style={{ padding: 24, color: th.text2, fontSize: 13 }}>{L("Select a client to see its report.", "اختر عميلاً لعرض تقريره.")}</div>;
+
+  const StatCell = ({ label, value, sub, subUp, series: sr, color }) => (
+    <div style={{ flex: "1 1 100px", padding: "13px 15px", borderInlineStart: `1px solid ${th.border}` }}>
+      <div style={lab}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ ...numS, fontSize: 21, color: th.text }}>{value}</span>{sub && <span style={{ fontSize: 10, fontWeight: 600, color: subUp === false ? "#D98A6A" : subUp === true ? th.success : th.text3 }}>{sub}</span>}</div>
+      {sr && spark(sr, color)}
+    </div>
+  );
+
+  return (
+    <div className="tw-page-in" style={{ padding: "26px 30px", maxWidth: 1000, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 4 }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8" /><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8" /></svg><span style={{ letterSpacing: ".2em", textTransform: "uppercase", fontSize: 10.5, fontWeight: 600, color: th.accent }}>{bizType === 'services' ? L("Bookings report", "تقرير الحجوزات") : L("Restaurant report", "تقرير المطعم")}</span></div>
+          <h1 style={{ margin: 0, fontFamily: "'Fraunces',Georgia,serif", fontSize: 27, fontWeight: 600, letterSpacing: "-0.01em", color: th.text }}>{selClient?.name || ""}</h1>
+          <p style={{ margin: "5px 0 0", fontSize: 12.5, color: th.text2 }}>{monthLabel}{hasPickup ? " · " + L("priced in", "بعملة") + " " + cur : ""}</p>
+        </div>
+        <div style={{ position: "relative" }}>
+          <button onClick={() => setShareOpen(o => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "10px 18px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Send size={14} />{L("Share", "مشاركة")}</button>
+          {shareOpen && <div onMouseLeave={() => setShareOpen(false)} style={{ position: "absolute", top: "115%", insetInlineEnd: 0, zIndex: 60, background: th.card, border: `1px solid ${th.border}`, borderRadius: 12, padding: 6, minWidth: 210, boxShadow: "0 16px 44px rgba(0,0,0,0.45)" }}>
+            <div onClick={copyUrl} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 8, cursor: "pointer", color: th.text, fontSize: 12.5 }}><Link size={14} color={th.accent} />{copied ? L("Copied!", "تم النسخ!") : L("Copy link", "نسخ الرابط")}</div>
+            <div onClick={shareWA} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 8, cursor: "pointer", color: th.text, fontSize: 12.5 }}><FaWhatsapp style={{ color: "#25D366", fontSize: 15 }} />{L("Send on WhatsApp", "أرسل عبر واتساب")}</div>
+            <div onClick={shareEmail} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 8, cursor: "pointer", color: th.text, fontSize: 12.5 }}><Send size={14} color={th.text2} />{L("Email to client", "إرسال بالبريد")}</div>
+            <div onClick={downloadPDF} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 11px", borderRadius: 8, cursor: "pointer", color: th.text, fontSize: 12.5 }}><Download size={14} color={th.text2} />{L("Download PDF", "تنزيل PDF")}</div>
+          </div>}
+        </div>
+      </div>
+
+      <div style={{ borderInlineStart: `3px solid ${th.accent}`, padding: "6px 0 6px 15px", margin: "14px 0", fontSize: 13.5, color: th.text2, lineHeight: 1.6 }}>
+        {hasPickup && <><span style={{ color: th.text, fontWeight: 600 }} className="tw-num">{money(revenue)}</span> {L("in pickup this month", "طلبات هذا الشهر")}{revDelta != null ? (revDelta >= 0 ? ` (▲ ${revDelta}%)` : ` (▼ ${Math.abs(revDelta)}%)`) : ""}. </>}
+        <span className="tw-num" style={{ color: th.text, fontWeight: 600 }}>{activeBk.length}</span> {L("bookings", "حجز")} · <span className="tw-num" style={{ color: th.text, fontWeight: 600 }}>{covers}</span> {L("covers", "ضيف")}{busiestDay ? `. ${L("Busiest day", "أكثر يوم")}: ${busiestDay[0]}.` : "."}
+      </div>
+
+      {hasPickup && (
+        <>
+          <div style={sec}>{L("Revenue", "الإيراد")}</div>
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "center", ...card, padding: 18 }}>
+            <div style={{ flex: 1, minWidth: 210 }}>
+              <div style={lab}>{L("Pickup this month", "طلبات الاستلام هذا الشهر")}</div>
+              <div style={{ ...numS, fontSize: 32, color: th.text, lineHeight: 1.1 }}>{money(revenue)} {revDelta != null && <span style={{ fontSize: 12, color: revDelta >= 0 ? th.success : "#D98A6A" }}>{revDelta >= 0 ? "▲" : "▼"} {Math.abs(revDelta)}%</span>}</div>
+              {spark(series(activeOd, 'created_at', o => Number(o.total) || 0))}
+            </div>
+            <div style={{ width: 1, alignSelf: "stretch", background: th.border }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: 11, minWidth: 150 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span style={lab}>{L("Orders", "الطلبات")}</span><span style={{ ...numS, fontSize: 15, color: th.text }}>{activeOd.length}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span style={lab}>{L("Avg order", "متوسط الطلب")}</span><span style={{ ...numS, fontSize: 15, color: th.text }}>{money(aov)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span style={lab}>{L("Items sold", "أصناف مباعة")}</span><span style={{ ...numS, fontSize: 15, color: th.text }}>{itemsSold}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}><span style={lab}>{L("Paid online", "دفع إلكتروني")}</span><span style={{ ...numS, fontSize: 15, color: th.text }}>{onlineRate}%</span></div>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div style={sec}>{L("Reservations", "الحجوزات")}</div>
+      <div style={{ display: "flex", borderTop: `1px solid ${th.border}`, borderBottom: `1px solid ${th.border}`, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 100px", padding: "13px 15px" }}><div style={lab}>{L("Bookings", "الحجوزات")}</div><div style={{ display: "flex", alignItems: "baseline", gap: 6 }}><span style={{ ...numS, fontSize: 21, color: th.text }}>{activeBk.length}</span>{bkDelta != null && <span style={{ fontSize: 10, fontWeight: 600, color: bkDelta >= 0 ? th.success : "#D98A6A" }}>{bkDelta >= 0 ? "▲" : "▼"}{Math.abs(bkDelta)}</span>}</div>{spark(series(activeBk, 'starts_at'))}</div>
+        <StatCell label={L("Covers", "الضيوف")} value={covers} series={series(activeBk, 'starts_at', b => b.party_size || 1)} />
+        <StatCell label={L("Avg party", "متوسط المجموعة")} value={avgParty.toFixed(1)} />
+        <StatCell label={L("No-show rate", "نسبة عدم الحضور")} value={noShowRate + "%"} sub={coversLost + " " + L("covers lost", "ضيف مفقود")} subUp={false} color="#D98A6A" series={series(bk.filter(b => b.status === 'no_show'), 'starts_at')} />
+        <StatCell label={L("Returning", "عائدون")} value={returnRate + "%"} sub={"" + returning} subUp={true} />
+      </div>
+
+      <div style={sec}>{L("Where bookings came from · peak times", "مصدر الحجوزات · أوقات الذروة")}</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ ...card, padding: 15, flex: 1, minWidth: 230 }}>
+          {srcRows.length === 0 ? <div style={{ fontSize: 12.5, color: th.text3 }}>{L("No bookings this month yet.", "لا حجوزات بعد.")}</div> : srcRows.map(([s, n], i) => (
+            <div key={s} style={{ marginBottom: i < srcRows.length - 1 ? 12 : 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 12.5 }}><span style={{ color: th.text }}>{SL[s] || s}</span><span className="tw-num" style={{ color: th.text2 }}>{n}</span></div>
+              <div style={{ height: 7, background: th.card2, borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: Math.round(n / maxSrc * 100) + "%", background: th.accent, borderRadius: 5 }} /></div>
+            </div>
+          ))}
+        </div>
+        <div style={{ ...card, padding: 15, flex: 1, minWidth: 230 }}>
+          <div style={ct}>{L("Peak times", "أوقات الذروة")}</div>
+          <div style={{ fontSize: 13, color: th.text2, lineHeight: 1.9 }}>{L("Busiest day", "أكثر يوم")} · <b style={{ ...numS, color: th.text, fontSize: 15 }}>{busiestDay ? busiestDay[0] : "—"}</b><br />{L("Busiest hour", "أكثر ساعة")} · <b style={{ ...numS, color: th.text, fontSize: 15 }}>{busiestHour ? fmtHr(busiestHour[0]) : "—"}</b></div>
+        </div>
+      </div>
+
+      {hasPickup && topItems.length > 0 && (<>
+        <div style={sec}>{L("Top items", "الأصناف الأكثر طلباً")}</div>
+        <div style={{ ...card, padding: 15 }}>
+          {topItems.map(([nm, q], i) => (
+            <div key={nm} style={{ display: "flex", alignItems: "center", gap: 11, padding: "9px 0", borderTop: i ? `1px solid ${th.border}` : "none" }}>
+              <span className="tw-num" style={{ width: 18, textAlign: "right", color: th.accent, fontWeight: 600 }}>{i + 1}</span>
+              <span style={{ flex: 1, minWidth: 0, fontFamily: "'Fraunces',Georgia,serif", fontSize: 14, color: th.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nm}</span>
+              <span className="tw-num" style={{ color: th.text2, fontSize: 12 }}>{q} · {money(itemRev[nm] || 0)}</span>
+            </div>
+          ))}
+        </div>
+      </>)}
+
+      <div style={sec}>{L("Occasions · reviews · loyalty · concierge", "المناسبات · التقييمات · الولاء · الكونسيرج")}</div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ ...card, padding: 15, flex: "1 1 190px" }}><div style={ct}>{L("Occasions", "المناسبات")}</div><div style={{ fontSize: 13, color: th.text2, lineHeight: 1.7 }}><b style={{ ...numS, color: th.text, fontSize: 16 }}>{occN}</b> {L("booked", "محجوزة")}<br /><span style={{ fontSize: 11.5 }}>{bdayN} {L("birthdays", "عيد ميلاد")} · {anniN} {L("anniversaries", "ذكرى")}</span>{upcomingOcc > 0 && <><br /><span style={{ fontSize: 11.5, color: th.accent }}>{upcomingOcc} {L("coming up next week", "قادمة الأسبوع القادم")}</span></>}</div></div>
+        <div style={{ ...card, padding: 15, flex: "1 1 190px" }}><div style={ct}>{L("Reviews", "التقييمات")}</div><div style={{ fontSize: 13, color: th.text2, lineHeight: 1.7 }}><b style={{ ...numS, color: th.text, fontSize: 16 }}>{avgRating != null ? avgRating.toFixed(1) : "—"}</b> {L("avg", "متوسط")} · {reviews.length} {L("reviews", "تقييم")}<br /><span style={{ fontSize: 11.5 }}>{L("you replied to", "رددت على")} {replyRate}%</span></div></div>
+        <div style={{ ...card, padding: 15, flex: "1 1 190px" }}><div style={ct}>{L("Loyalty", "الولاء")}</div><div style={{ fontSize: 13, color: th.text2, lineHeight: 1.7 }}><b style={{ ...numS, color: th.text, fontSize: 16 }}>{newMembers}</b> {L("new members", "أعضاء جدد")}<br /><span style={{ fontSize: 11.5 }}>{redeemed} {L("rewards redeemed", "مكافآت مستبدلة")}</span></div></div>
+        <div style={{ ...card, padding: 15, flex: "1 1 190px" }}><div style={ct}>{L("Concierge drove", "الكونسيرج حقّق")}</div><div style={{ fontSize: 13, color: th.text2, lineHeight: 1.7 }}><b style={{ ...numS, color: th.success, fontSize: 16 }}>{conciergeBk}</b> {L("bookings", "حجز")}{hasPickup ? <> · <b style={{ ...numS, color: th.success, fontSize: 16 }}>{conciergeOd}</b> {L("orders", "طلب")}</> : null}<br /><span style={{ fontSize: 11.5 }}>{L("from WhatsApp", "عبر واتساب")}</span></div></div>
+      </div>
+    </div>
+  );
+}
+
 function ReportsPage() {
   const { selClient, dark, clients, lang } = useApp();
   const th = dark ? DARK : LIGHT;
@@ -11028,6 +11308,34 @@ function ReportsPage() {
         setOpens(Object.entries(mp).map(([client_id, v]) => ({ client_id, ...v })).sort((a,b)=>b.total-a.total));
       }, () => setOpens([]));
   }, [clients]);
+  const [rBk, setRBk] = useState([]);
+  const [rOd, setROd] = useState([]);
+  const [rLoy, setRLoy] = useState(0);
+  const [rPosts, setRPosts] = useState([]);
+  useEffect(() => {
+    const ids = rClient==="all" ? (clients||[]).map(c=>c.id).filter(Boolean) : [rClient];
+    if (!ids.length) { setRBk([]); setROd([]); setRLoy(0); setRPosts([]); return; }
+    const st = new Date(); st.setDate(1); st.setHours(0,0,0,0); const iso = st.toISOString();
+    supabase.from('bookings').select('id,status').in('client_id', ids).gte('starts_at', iso).then(({data})=>setRBk(data||[]), ()=>setRBk([]));
+    supabase.from('orders').select('id,status').in('client_id', ids).gte('created_at', iso).then(({data})=>setROd(data||[]), ()=>setROd([]));
+    supabase.from('loyalty_cards').select('id',{count:'exact',head:true}).in('client_id', ids).gte('created_at', iso).then(({count})=>setRLoy(count||0), ()=>setRLoy(0));
+    supabase.from('posts').select('id,platform,label,status,published_at,scheduled_at').in('client_id', ids).gte('scheduled_at', iso).then(({data})=>setRPosts(data||[]), ()=>setRPosts([]));
+    supabase.from('engagement_events').select('kind,ai,rt').in('client_id', ids).gte('created_at', iso).then(({data})=>setREng(data||[]), ()=>setREng([]));
+  }, [clients, rClient]);
+  const [snapPrev, setSnapPrev] = useState(null);
+  const [rEng, setREng] = useState([]);
+  useEffect(() => {
+    if (rClient==="all" || !analyticsData) { setSnapPrev(null); return; }
+    const accs = (allAccounts||[]).filter(a => String(a.client_id)===String(rClient));
+    const followers = accs.reduce((s,a)=>s+(a.followers_count||0),0);
+    const reach = (analyticsData.summary && analyticsData.summary.totalReach) || 0;
+    const eng = (analyticsData.summary && analyticsData.summary.engagementRate) || 0;
+    const d = new Date(); const ym = d.toISOString().slice(0,7); const prevYm = new Date(d.getFullYear(), d.getMonth()-1, 1).toISOString().slice(0,7);
+    (async () => {
+      try { await supabase.from('social_snapshots').upsert({ client_id: rClient, ym, followers, reach, engagement: eng, updated_at: new Date().toISOString() }, { onConflict: 'client_id,ym' }); } catch (e) {}
+      try { const { data } = await supabase.from('social_snapshots').select('followers,reach,engagement').eq('client_id', rClient).eq('ym', prevYm).limit(1); setSnapPrev((data && data[0]) || null); } catch (e) {}
+    })();
+  }, [rClient, analyticsData, allAccounts]);
 
   const cName = (id) => (clients.find(c=>String(c.id)===String(id))||{}).name || "";
   const platLabel = (p) => ({ ig:"Instagram", fb:"Facebook", li:"LinkedIn", tt:"TikTok", tw:"X", yt:"YouTube" }[p] || p);
@@ -11273,11 +11581,13 @@ ${topPosts.length > 0 ? `<div class="page">
   const er = analyticsData && analyticsData.summary ? analyticsData.summary.engagementRate : null;
   const chart = (analyticsData && analyticsData.chartData) ? analyticsData.chartData : [];
   const rcard = { background:th.card, border:`1px solid ${th.border}`, borderRadius:16, boxShadow:"none" };
+  const _fD = (snapPrev && snapPrev.followers) ? Math.round((totalFollowers - snapPrev.followers)/snapPrev.followers*100) : null;
+  const _eD = (snapPrev && snapPrev.engagement!=null && er!=null) ? Number((er - snapPrev.engagement).toFixed(1)) : null;
   const kpis = [
-    { label:L("Total followers","إجمالي المتابعين"), value: totalFollowers.toLocaleString(), Icon:Users, color:"success" },
+    { label:L("Total followers","إجمالي المتابعين"), value: totalFollowers.toLocaleString(), Icon:Users, color:"success", change: _fD!=null?(Math.abs(_fD)+"% "+L("vs last mo","عن الشهر السابق")):undefined, up: _fD!=null?_fD>=0:undefined },
     { label:L("Connected accounts","الحسابات المرتبطة"), value: String(accounts.length), Icon:Link, color:"accent" },
     { label:L("Platforms","المنصات"), value: String(platforms.length), Icon:Globe, color:"warning" },
-    { label:L("Engagement rate","معدل التفاعل"), value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2" },
+    { label:L("Engagement rate","معدل التفاعل"), value: (er != null ? er : 0)+"%", Icon:Heart, color:"accent2", change: _eD!=null?(Math.abs(_eD)+"pt "+L("vs last mo","عن الشهر السابق")):undefined, up: _eD!=null?_eD>=0:undefined },
   ];
 
   const genReport = async () => {
@@ -11314,8 +11624,9 @@ ${topPosts.length > 0 ? `<div class="page">
       <div style={{marginBottom:18}}>
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, marginBottom:14}}>
           <div>
-            <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Reports","التقارير")}</h2>
-            <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("Performance summary","ملخّص الأداء")} · {month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Reports","التقارير")}</span></div>
+            <h2 style={{margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text}}>{L("Performance summary","ملخّص الأداء")}</h2>
+            <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{month} · <span style={{color:th.text}}>{scopeLabel}</span></p>
           </div>
           <button onClick={exportPDF} style={{padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7, boxShadow:"none"}}>
             <Download size={15}/> {L("Export PDF","تصدير PDF")}
@@ -11366,9 +11677,9 @@ ${topPosts.length > 0 ? `<div class="page">
           <div style={{display:"flex", flexDirection:"column"}}>
             {rows.map((o,i)=>(
               <div key={o.client_id} style={{display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderTop:i?`1px solid ${th.border}`:"none"}}>
-                <span style={{flex:1, minWidth:0, fontSize:13, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{cName(o.client_id)||L("Client","عميل")}</span>
-                <span style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap"}}>🍽 {o.menu}</span>
-                <span style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap"}}>🔗 {o.short}</span>
+                <span style={{flex:1, minWidth:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:14, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{cName(o.client_id)||L("Client","عميل")}</span>
+                <span title={L("Menu opens","فتح القائمة")} style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:4}}><FileText size={12}/>{o.menu}</span>
+                <span title={L("Link opens","فتح الرابط")} style={{fontSize:11.5, color:th.text2, whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:4}}><Link size={12}/>{o.short}</span>
                 <span className="tw-num" style={{fontSize:15, fontWeight:700, color:th.accent, minWidth:42, textAlign:"right"}}>{o.total}</span>
               </div>
             ))}
@@ -11377,7 +11688,7 @@ ${topPosts.length > 0 ? `<div class="page">
       ); })()}
 
       {accounts.length>0 && (
-        <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
+        <div style={{borderInlineStart:`3px solid ${th.accent}`, padding:"2px 0 2px 16px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
           {isAR ? (
             <>يصل {scopeLabel} إلى <span className="tw-num" style={{color:th.text, fontWeight:600}}>{totalFollowers.toLocaleString()}</span> متابع عبر <span className="tw-num" style={{color:th.text, fontWeight:600}}>{accounts.length}</span> حساب على <span className="tw-num">{platforms.length}</span> منصة{er!=null?<>، بمعدل تفاعل <span className="tw-num" style={{color:th.success, fontWeight:600}}>{er}%</span></>:""}.</>
           ) : (
@@ -11409,6 +11720,77 @@ ${topPosts.length > 0 ? `<div class="page">
         {kpis.map((s,i)=><StatCard key={i} {...s}/>)}
       </div>
 
+      {(() => {
+        const reach = (analyticsData && analyticsData.summary && analyticsData.summary.totalReach) || 0;
+        const scopeOpens = (rClient==="all" ? opens : opens.filter(o=>String(o.client_id)===String(rClient))).reduce((s,o)=>s+(o.menu||0)+(o.short||0),0);
+        const bkN = rBk.filter(b=>b.status!=='cancelled').length;
+        const odN = rOd.filter(o=>o.status!=='cancelled').length;
+        if (!reach && !scopeOpens && !bkN && !odN && !rLoy) return null;
+        const steps = [[L("Reach","الوصول"),reach],[L("Menu opens","فتح القائمة"),scopeOpens],[L("Bookings","الحجوزات"),bkN],[L("Orders","الطلبات"),odN],[L("Loyalty joins","انضمام للولاء"),rLoy]];
+        return (
+          <div style={{...rcard, padding:"16px 18px", marginBottom:16, borderInlineStart:`3px solid ${th.success}`}}>
+            <div style={{fontSize:11, letterSpacing:".14em", textTransform:"uppercase", color:th.success, fontWeight:700, marginBottom:13}}>{L("Social → dining","السوشيال إلى المطعم")}</div>
+            <div style={{display:"flex", alignItems:"center", gap:4, flexWrap:"wrap"}}>
+              {steps.map(([l,v],i)=>[
+                i>0 && <ChevronRight key={l+'c'} size={14} color={th.text3} style={{flexShrink:0}}/>,
+                <div key={l} style={{textAlign:"center", padding:"4px 10px"}}><div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif", fontSize:20, fontWeight:600, color:th.text}}>{Number(v).toLocaleString()}</div><div style={{fontSize:9, letterSpacing:".09em", textTransform:"uppercase", color:th.text3, fontWeight:600, marginTop:3}}>{l}</div></div>
+              ])}
+            </div>
+          </div>
+        );
+      })()}
+
+      {rPosts.length>0 && (() => {
+        const pub = rPosts.filter(p=>p.status==='published'||p.published_at).length;
+        const byPlat = Object.entries(rPosts.reduce((a,p)=>{ const k=p.platform||'other'; a[k]=(a[k]||0)+1; return a; },{})).sort((a,b)=>b[1]-a[1]);
+        const byFmt = Object.entries(rPosts.reduce((a,p)=>{ const k=(p.label||'Post'); a[k]=(a[k]||0)+1; return a; },{})).sort((a,b)=>b[1]-a[1]);
+        const tp = (analyticsData && analyticsData.topPosts) || [];
+        const dayEng = tp.reduce((a,p)=>{ if(p.timestamp){ const d=new Date(p.timestamp).toLocaleDateString(isAR?'ar':'en',{weekday:'long'}); a[d]=(a[d]||0)+(p.likes||0)+(p.comments||0); } return a; },{});
+        const bestDay = Object.entries(dayEng).sort((a,b)=>b[1]-a[1])[0];
+        const platL = { ig:'Instagram', fb:'Facebook', tt:'TikTok', li:'LinkedIn', tw:'X', yt:'YouTube' };
+        return (
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
+            <div style={{...rcard, padding:"15px 18px"}}>
+              <div style={{fontSize:11, letterSpacing:".14em", textTransform:"uppercase", color:th.text3, fontWeight:700, marginBottom:11}}>{L("Content this month","المحتوى هذا الشهر")}</div>
+              <div style={{fontSize:13, color:th.text2, lineHeight:1.8}}><b className="tw-num" style={{color:th.text, fontFamily:"'Fraunces',Georgia,serif", fontSize:18}}>{rPosts.length}</b> {L("posts","منشور")} · {pub} {L("published","نُشر")}{byFmt.length>0 && <><br/>{L("By format","حسب النوع")}: {byFmt.slice(0,3).map(([f,n])=>f+" "+n).join("  ·  ")}</>}</div>
+            </div>
+            <div style={{...rcard, padding:"15px 18px"}}>
+              <div style={{fontSize:11, letterSpacing:".14em", textTransform:"uppercase", color:th.text3, fontWeight:700, marginBottom:11}}>{L("By platform · best day","حسب المنصة · أفضل يوم")}</div>
+              <div style={{fontSize:13, color:th.text2, lineHeight:1.8}}>{byPlat.length>0 ? byPlat.slice(0,4).map(([p,n])=>(platL[p]||p)+" "+n).join("  ·  ") : L("No posts yet.","لا منشورات بعد.")}{bestDay && <><br/>{L("Best day to post","أفضل يوم للنشر")}: <b style={{color:th.text}}>{bestDay[0]}</b></>}</div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const dem = (analyticsData && analyticsData.demographics) || null;
+        const replies = rEng.filter(e=>e.kind==='reply');
+        const aiPct = replies.length ? Math.round(replies.filter(e=>e.ai).length/replies.length*100) : 0;
+        const rts = replies.map(e=>e.rt).filter(v=>typeof v==='number' && v>=0);
+        const avgRt = rts.length ? Math.round(rts.reduce((a,b)=>a+b,0)/rts.length) : null;
+        const fmtRt = (m)=> m==null?"—" : m<60? m+"m" : (m/60).toFixed(1)+"h";
+        const hasDem = dem && ((dem.cities&&dem.cities.length)||(dem.gender&&dem.gender.length)||(dem.age&&dem.age.length));
+        if (!hasDem && replies.length===0) return null;
+        const genderL = { M:L("Men","رجال"), F:L("Women","نساء"), U:L("Other","غير محدد") };
+        const gTot = dem&&dem.gender ? dem.gender.reduce((a,b)=>a+b.value,0) : 0;
+        const clab = { fontSize:11, letterSpacing:".14em", textTransform:"uppercase", color:th.text3, fontWeight:700, marginBottom:11 };
+        return (
+          <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16}}>
+            <div style={{...rcard, padding:"15px 18px"}}>
+              <div style={clab}>{L("Audience","الجمهور")}</div>
+              {hasDem ? <div style={{fontSize:13, color:th.text2, lineHeight:1.9}}>
+                {dem.cities&&dem.cities.length>0 && <>{L("Top cities","أهم المدن")}: <b style={{color:th.text}}>{dem.cities.slice(0,3).map(c=>String(c.key).split(',')[0]).join(" · ")}</b><br/></>}
+                {gTot>0 && <>{dem.gender.map(g=>(genderL[g.key]||g.key)+" "+Math.round(g.value/gTot*100)+"%").join(" · ")}<br/></>}
+                {dem.age&&dem.age.length>0 && <>{L("Top age","الفئة العمرية الأكبر")}: <b style={{color:th.text}}>{dem.age[0].key}</b></>}
+              </div> : <div style={{fontSize:12.5, color:th.text3, lineHeight:1.6}}>{L("Audience breakdown appears once the account has enough followers.","تظهر بيانات الجمهور عند توفر عدد كافٍ من المتابعين.")}</div>}
+            </div>
+            <div style={{...rcard, padding:"15px 18px"}}>
+              <div style={clab}>{L("Care · your replies","الرد على الجمهور")}</div>
+              <div style={{fontSize:13, color:th.text2, lineHeight:1.9}}><b className="tw-num" style={{color:th.text, fontFamily:"'Fraunces',Georgia,serif", fontSize:18}}>{replies.length}</b> {L("replies sent","رد مُرسل")}<br/>{L("Avg response","متوسط زمن الرد")}: <b style={{color:th.text}}>{fmtRt(avgRt)}</b> · {aiPct}% {L("AI-assisted","بمساعدة الذكاء")}</div>
+            </div>
+          </div>
+        );
+      })()}
       <div style={{display:"grid", gridTemplateColumns: chart.length ? "1.4fr 1fr" : "1fr", gap:16, marginBottom:16}}>
         <div style={{...rcard, padding:20}}>
           <div style={{fontSize:13, fontWeight:600, marginBottom:16, display:"flex", alignItems:"center", gap:8}}><PieChart size={15} color={th.accent}/>{L("Followers by platform","المتابعون حسب المنصة")}</div>
@@ -12070,8 +12452,9 @@ function InboxPage() {
     <div style={{padding:"28px 32px", maxWidth:1200}}>
       <div style={{marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:12}}>
         <div>
-          <h2 style={{margin:0, fontSize:20, fontWeight:600, letterSpacing:-0.3}}>{L("Inbox","الوارد")}</h2>
-          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{selClient?.name || L("Your brand","علامتك")} &middot; {L("comments & messages","التعليقات والرسائل")}</p>
+          <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent}}>{L("Inbox","الوارد")}</span></div>
+          <h2 style={{margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em"}}>{selClient?.name || L("Your brand","علامتك")}</h2>
+          <p style={{margin:"5px 0 0", fontSize:12.5, color:th.text2}}>{L("comments & messages","التعليقات والرسائل")}</p>
         </div>
         <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
           {accounts.filter(a=>a.platform==='ig').length>1 && (
@@ -12117,7 +12500,7 @@ function InboxPage() {
       )}
 
       {!loading && messages.length>0 && (
-        <div style={{background:`linear-gradient(120deg, ${th.accent}1a, ${th.accent}03)`, border:`1px solid ${th.border}`, borderLeft:`2px solid ${th.accent}`, borderRadius:14, padding:"13px 18px", marginBottom:14, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
+        <div style={{borderInlineStart:`3px solid ${th.accent}`, padding:"2px 0 2px 16px", marginBottom:16, fontSize:13.5, color:th.text2, lineHeight:1.6}}>
           <span className="tw-num" style={{color:th.text, fontWeight:600}}>{commentCount}</span> {L("comments","تعليق")} {L("and","و")} <span className="tw-num" style={{color:th.text, fontWeight:600}}>{dmCount}</span> {L("messages","رسالة")} {L("across your accounts","عبر حساباتك")}{needReply>0 && <>. <span style={{color:th.accent2||th.accent, fontWeight:600}}><span className="tw-num">{needReply}</span> {L("waiting on a reply","بانتظار الرد")}</span></>}.
         </div>
       )}
@@ -12161,20 +12544,20 @@ function InboxPage() {
             {listItems.length===0 && <div style={{padding:"44px 18px", textAlign:"center", fontSize:12, color:th.text3, lineHeight:1.6}}>{L("No saved items yet. Tap the bookmark on a Streams post to save it here.","لا عناصر محفوظة بعد. احفظ منشوراً من التدفقات ليظهر هنا.")}</div>}
             {listItems.map((msg,idx) => { const P=platOf(msg); const sel=selected?.id===msg.id; const unreplied = msg.type==='comment' && (!msg.replies || msg.replies.length===0);
               return (
-              <div key={msg.id} onClick={()=>setSelected(msg)} style={{padding:"13px 15px", borderBottom:idx<listItems.length-1?`1px solid ${th.border}`:"none", cursor:"pointer", background:sel?th.accentSoft:"transparent", borderLeft:`2px solid ${sel?th.accent:"transparent"}`, display:"flex", gap:11}}>
+              <div key={msg.id} className="tw-hoverrow" onClick={()=>setSelected(msg)} style={{padding:"13px 15px", borderBottom:idx<listItems.length-1?`1px solid ${th.border}`:"none", cursor:"pointer", background:sel?th.accentSoft:"transparent", borderLeft:`2px solid ${sel?th.accent:"transparent"}`, display:"flex", gap:11}}>
                 <div style={{position:"relative"}}>
                   {mono(msg.from, 38)}
                   <span style={{position:"absolute", bottom:-3, right:-3, width:16, height:16, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><P.Icon style={{color:P.color, fontSize:9}}/></span>
                 </div>
                 <div style={{flex:1, minWidth:0}}>
                   <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, marginBottom:2}}>
-                    <span style={{fontSize:12.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>@{msg.from}</span>
+                    <span style={{fontFamily:"'Fraunces',Georgia,serif", fontSize:13.5, fontWeight:600, color:th.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>@{msg.from}</span>
                     <span className="tw-num" style={{fontSize:10, color:th.text3, flexShrink:0}}>{formatTime(msg.time)}</span>
                   </div>
                   <div style={{fontSize:11.5, color:th.text2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", marginBottom:5}}>{msg.text}</div>
                   <div style={{display:"flex", gap:6, alignItems:"center"}}>
                     {(()=>{ const ms=msgSent(msg.text); return <span title={sentLabel(ms)} style={{width:7, height:7, borderRadius:"50%", background:sentColor(ms), flexShrink:0}}/>; })()}
-                    <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?"#7C3AED":msg.type==='saved'?th.accent:th.text2, background:msg.type==='dm'?"#7C3AED1a":msg.type==='saved'?th.accentSoft:th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):msg.type==='saved'?L("Mention","إشارة"):L("Comment","تعليق")}</span>
+                    <span style={{fontSize:9, fontWeight:700, color:msg.type==='dm'?th.accent:th.text2, background:msg.type==='dm'?th.accentSoft:th.card2, padding:"2px 7px", borderRadius:5}}>{msg.type==='dm'?L("DM","رسالة"):msg.type==='saved'?L("Mention","إشارة"):L("Comment","تعليق")}</span>
                     {triage[String(msg.id)] && (()=>{ const t=triage[String(msg.id)]; const c=TRIAGE_CATS[t.category]; return <span style={{display:"inline-flex", alignItems:"center", gap:4, fontSize:9, fontWeight:700, color:c.color, background:c.color+"1f", padding:"2px 7px", borderRadius:5}}>{t.priority==='high' && <span style={{width:5, height:5, borderRadius:"50%", background:c.color}}/>}{isAR?c.ar:c.en}</span>; })()}
                     {msg.likeCount > 0 && <span style={{fontSize:9.5, color:th.text3, display:"inline-flex", alignItems:"center", gap:3}}><Heart size={9}/> <span className="tw-num">{msg.likeCount}</span></span>}
                     {msg.sample && <span style={{fontSize:9, fontWeight:700, color:th.accent, background:th.accentSoft, padding:"2px 6px", borderRadius:5}}>{L("Sample","عينة")}</span>}
@@ -12194,7 +12577,7 @@ function InboxPage() {
                     <span style={{position:"absolute", bottom:-3, right:-3, width:19, height:19, borderRadius:"50%", background:th.card, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center"}}><P.Icon style={{color:P.color, fontSize:11}}/></span>
                   </div>
                   <div style={{flex:1, minWidth:0}}>
-                    <div style={{fontSize:14, fontWeight:600, color:th.text}}>@{selected.from}</div>
+                    <div style={{fontFamily:"'Fraunces',Georgia,serif", fontSize:16, fontWeight:600, color:th.text}}>@{selected.from}</div>
                     <div style={{fontSize:11.5, color:th.text2}}><span style={{fontWeight:600, color:P.color}}>{P.name}</span> &middot; {selected.type === 'dm' ? L("Direct message","رسالة مباشرة") : selected.type === 'saved' ? L("Saved mention","إشارة محفوظة") : L("Comment","تعليق")} &middot; <span className="tw-num">{formatTime(selected.time)}</span></div>
                   </div>
                   {(()=>{ const ms=msgSent(selected.text); return <span style={{display:"inline-flex", alignItems:"center", gap:5, fontSize:10.5, fontWeight:600, color:sentColor(ms), background:sentColor(ms)+"1a", padding:"3px 9px", borderRadius:20, flexShrink:0}}><span style={{width:6, height:6, borderRadius:"50%", background:sentColor(ms)}}/>{sentLabel(ms)}</span>; })()}
@@ -15499,8 +15882,9 @@ function MenuBuilderPage() {
     <div style={{ maxWidth:900, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
         <div>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Menu","القائمة")}</h1>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("bilingual menu — shown on your bio link & QR","قائمة ثنائية اللغة — تظهر على رابط البايو ورمز QR")}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Menu","القائمة")}</span></div>
+          <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Your menu","قائمتك")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("bilingual menu — shown on your bio link & QR","قائمة ثنائية اللغة — تظهر على رابط البايو ورمز QR")}</p>
         </div>
         <div style={{ display:"flex", gap:8, position:"relative" }}>
           <button onClick={()=>setShareOpen(o=>!o)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Send size={13}/>{L("Share","مشاركة")}</button>
@@ -15565,6 +15949,13 @@ function MenuBuilderPage() {
             ); })}
           </div>
           {(menu.pickup_pay||"cash")!=="cash" && <div style={{ fontSize:10.5, color:th.text3, marginTop:9, lineHeight:1.5 }}>{L("Online payment activates once your Tap merchant account is connected. Until then, orders come through as pay-at-pickup.","يُفعّل الدفع الإلكتروني بعد ربط حساب تاب. حتى ذلك الحين تصل الطلبات كدفع عند الاستلام.")}</div>}
+          <div style={{ marginTop:14, paddingTop:14, borderTop:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:14, flexWrap:"wrap" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("AI assistant","المساعد الذكي")}</div>
+              <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5, maxWidth:430 }}>{menu.order_ai?L("On — guests can chat to build their order and go straight to checkout.","مفعّل — يمكن للضيوف بناء طلبهم بالمحادثة والانتقال مباشرة للدفع."):L("Off — guests build their order manually from the menu.","معطّل — يبني الضيوف طلبهم يدوياً من القائمة.")}</div>
+            </div>
+            <div onClick={()=>updateMenu({ order_ai: !menu.order_ai })} style={{ width:44, height:25, borderRadius:20, background:menu.order_ai?th.accent:th.border, position:"relative", cursor:"pointer", flexShrink:0, transition:"background .15s" }}><span style={{ position:"absolute", top:3, insetInlineStart:menu.order_ai?22:3, width:19, height:19, borderRadius:"50%", background:"#fff", transition:"inset-inline-start .15s" }}/></div>
+          </div>
         </div>
       )}
       {menu && planHas(userPlan, 'whatsapp') && (
@@ -15767,7 +16158,7 @@ function MenuBuilderPage() {
             <GripVertical size={15} color={th.text3} style={{ flexShrink:0, cursor:"grab" }}/>
             <div style={{ width:46, height:46, borderRadius:9, flexShrink:0, background: it.photo_url?`center/cover url(${it.photo_url})`:th.card2, display:"flex", alignItems:"center", justifyContent:"center" }}>{!it.photo_url && <Image size={16} color={th.text3}/>}</div>
             <div style={{ flex:1, minWidth:120 }}>
-              <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}
+              <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:14.5, fontWeight:600, color:th.text }}>{it.name_en||L("(untitled)","(بدون اسم)")}
                 {stt==="sold_out" && <span style={{ fontSize:9, color:th.warning, border:`1px solid ${th.warning}55`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("sold out","نفد")}</span>}
                 {stt==="hidden" && <span style={{ fontSize:9, color:th.text3, border:`1px solid ${th.border}`, borderRadius:5, padding:"1px 6px", marginInlineStart:7 }}>{L("hidden","مخفي")}</span>}
               </div>
@@ -15953,16 +16344,17 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
     if (!clientId) return;
     let live = true;
     (async () => {
-      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null, menuUrl = null, orderUrl = null;
+      let menu = [], settings = {}, cur = currency || 'BHD', special = null, dayparts = null, menuUrl = null, orderUrl = null, bizType = 'restaurant';
       try { const { data: mn } = await supabase.from('menus').select('id,slug,currency,hide_prices,special,special_on,cat_dayparts,daypart_hours,external_menu_url,pickup_enabled').eq('client_id', clientId).limit(1); const m = mn && mn[0]; if (m) { cur = m.currency || cur; menuUrl = (m.external_menu_url && m.external_menu_url.trim()) || ((m.slug && typeof window!=='undefined') ? `${window.location.origin}/menu/${m.slug}` : null); orderUrl = (m.pickup_enabled && m.slug && typeof window!=='undefined') ? `${window.location.origin}/order/${m.slug}` : null; special = (m.special_on && m.special) ? m.special : null; dayparts = { hours: { ...DEFAULT_DAYPART_HOURS, ...(m.daypart_hours||{}) }, cats: m.cat_dayparts||{}, now: activeDaypart(m.daypart_hours) }; const { data: it } = await supabase.from('menu_items').select('category,name_en,name_ar,description,price,available,hidden,show_price,tags,variants,addons').eq('menu_id', m.id).limit(120); menu = (it||[]).filter(x=>!x.hidden).map(x => ({ category:x.category, name_en:x.name_en, name_ar:x.name_ar, description:x.description||null, available:x.available, tags: Array.isArray(x.tags)?x.tags:[], variants: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]), addons: (m.hide_prices||x.show_price===false) ? [] : (Array.isArray(x.addons)?x.addons.filter(a=>a&&a.name):[]), price: (m.hide_prices || x.show_price===false) ? null : x.price })); } } catch (e) {}
+      try { const { data: cl } = await supabase.from('clients').select('business_type').eq('id', clientId).limit(1); if (cl && cl[0] && cl[0].business_type) bizType = cl[0].business_type; } catch (e) {}
       try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', clientId).limit(1); if (st && st[0]) settings = st[0]; } catch (e) {}
-      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl, orderUrl });
+      if (live) setCtx({ menu, settings, currency: cur, special, dayparts, menuUrl, orderUrl, bizType });
     })();
     return () => { live = false; };
   }, [clientId, currency]);
 
   useEffect(() => { if (open && endRef.current) endRef.current.scrollIntoView({ behavior:'smooth' }); }, [msgs, open, busy]);
-  useEffect(() => { if (open && msgs.length===0) { const g = (ctx && ctx.settings && ctx.settings.hours && ctx.settings.hours.concierge_greeting) || `Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu${canBook ? ", or tell me a day, time and how many — I'll book your table" : ""}. 👋`; setMsgs([{ role:'assistant', content:g }]); } }, [open, ctx]); // eslint-disable-line
+  useEffect(() => { if (open && msgs.length===0) { const bt=(ctx&&ctx.bizType)||'restaurant'; const isServ=bt==='services', isShop=bt==='shop', isGen=!isServ&&!isShop&&bt!=='restaurant'&&bt!=='cafe'; let g=(ctx && ctx.settings && ctx.settings.hours && ctx.settings.hours.concierge_greeting); if(!g){ if(isGen) g=`Hi! I'm the assistant at ${name||'our team'} — how can I help you today?`; else if(isShop) g=`Hi! I'm the assistant at ${name||'the shop'}. Ask me about the catalog${(ctx&&ctx.orderUrl)?' or your order':''}.`; else if(isServ) g=`Hi! I'm the host at ${name||'the business'}.${canBook?" Tell me a day and time and I'll book your appointment.":' How can I help?'}`; else g=`Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu${canBook?", or tell me a day, time and how many — I'll book your table":''}.`; } setMsgs([{ role:'assistant', content:g }]); } }, [open, ctx]); // eslint-disable-line
   const openChat = () => setOpen(true);
 
   const send = async () => {
@@ -15973,7 +16365,7 @@ function ConciergeWidget({ clientId, name, currency, open: openProp, onOpenChang
       const s = (ctx && ctx.settings) || {}; const h = (s.hours) || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, orderUrl:(ctx&&ctx.orderUrl)||null, booking:canBook, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||currency||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:clientId, bizType:(ctx&&ctx.bizType)||'restaurant', orderUrl:(h.concierge_orders!==false&&ctx&&ctx.orderUrl)?ctx.orderUrl:null, booking:canBook&&h.concierge_booking!==false, instructions:(h.concierge_brief||null), brandVoice:(h.concierge_voice||null) } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "Sorry, I didn't catch that — could you rephrase?" }]);
@@ -16064,11 +16456,13 @@ function ConciergePage() {
   const th = dark ? DARK : LIGHT;
   const isAR = lang==="ar"; const L=(en,ar)=>isAR?ar:en;
   const [cid,setCid]=useState(null);
+  const bizType=(selClient&&selClient.business_type)||'restaurant';
   const [brandVoice,setBrandVoice]=useState("");
   const [usage,setUsage]=useState({used:0,topup:0});
   const [stats,setStats]=useState(null);
   const [greeting,setGreeting]=useState("");
   const [brief,setBrief]=useState("");
+  const [caps,setCaps]=useState({orders:true,booking:true,capture:true});
   const [waNum,setWaNum]=useState("");
   const [waMsg,setWaMsg]=useState("");
   const [savedMsg,setSavedMsg]=useState(false);
@@ -16078,12 +16472,12 @@ function ConciergePage() {
     (async()=>{
       const { data } = await supabase.from('clients').select('id').eq('name', selClient.name).limit(1);
       const id=data&&data[0]&&data[0].id; if(!active) return; setCid(id||null);
-      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } }catch(e){} try{ const ym=new Date().toISOString().slice(0,7); const { data:u } = await supabase.from('concierge_usage').select('used,topup').eq('client_id',id).eq('ym',ym).maybeSingle(); if(active&&u) setUsage({used:u.used||0,topup:u.topup||0}); }catch(e){} try{ const ms=new Date(); ms.setDate(1); ms.setHours(0,0,0,0); const iso=ms.toISOString(); const rr=await Promise.all([ supabase.from('orders').select('total,items,status').eq('client_id',id).gte('created_at',iso), supabase.from('bookings').select('source').eq('client_id',id).gte('starts_at',iso), supabase.from('link_events').select('id',{count:'exact',head:true}).eq('client_id',id).eq('kind','menu').gte('created_at',iso) ]); const od=rr[0].data||[]; const bk=rr[1].data||[]; const mv=rr[2].count||0; const orders=od.filter(o=>o.status!=='cancelled'); const revenue=orders.reduce((s,o)=>s+(Number(o.total)||0),0); const botBk=bk.filter(b=>b.source==='whatsapp'||b.source==='concierge').length; const agg={}; orders.forEach(o=>(o.items||[]).forEach(it=>{ if(it&&it.name) agg[it.name]=(agg[it.name]||0)+(Number(it.qty)||0); })); const topE=Object.entries(agg).sort((a,b)=>b[1]-a[1])[0]; if(active) setStats({ orders:orders.length, revenue, bookings:botBk, menuOpens:mv, top: topE?topE[0]:null }); }catch(e){} }
+      if(id){ try{ const { data:st } = await supabase.from('booking_settings').select('hours').eq('client_id',id).limit(1); const h=(st&&st[0]&&st[0].hours)||{}; if(active){ setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); setCaps({orders:h.concierge_orders!==false,booking:h.concierge_booking!==false,capture:h.concierge_capture!==false}); } }catch(e){} try{ const ym=new Date().toISOString().slice(0,7); const { data:u } = await supabase.from('concierge_usage').select('used,topup').eq('client_id',id).eq('ym',ym).maybeSingle(); if(active&&u) setUsage({used:u.used||0,topup:u.topup||0}); }catch(e){} try{ const ms=new Date(); ms.setDate(1); ms.setHours(0,0,0,0); const iso=ms.toISOString(); const rr=await Promise.all([ supabase.from('orders').select('total,items,status').eq('client_id',id).gte('created_at',iso), supabase.from('bookings').select('source').eq('client_id',id).gte('starts_at',iso), supabase.from('link_events').select('id',{count:'exact',head:true}).eq('client_id',id).eq('kind','menu').gte('created_at',iso) ]); const od=rr[0].data||[]; const bk=rr[1].data||[]; const mv=rr[2].count||0; const orders=od.filter(o=>o.status!=='cancelled'); const revenue=orders.reduce((s,o)=>s+(Number(o.total)||0),0); const botBk=bk.filter(b=>b.source==='whatsapp'||b.source==='concierge').length; const agg={}; orders.forEach(o=>(o.items||[]).forEach(it=>{ if(it&&it.name) agg[it.name]=(agg[it.name]||0)+(Number(it.qty)||0); })); const topE=Object.entries(agg).sort((a,b)=>b[1]-a[1])[0]; if(active) setStats({ orders:orders.length, revenue, bookings:botBk, menuOpens:mv, top: topE?topE[0]:null }); }catch(e){} }
       if(active) setLoading(false);
     })();
     return ()=>{ active=false; };
   },[selClient]);
-  const save=async()=>{ if(!cid) return; try{ const { data:st }=await supabase.from('booking_settings').select('hours,slot_minutes,capacity').eq('client_id',cid).limit(1); const cur=(st&&st[0])||{}; const h={...(cur.hours||{}), concierge_voice:brandVoice||null, concierge_greeting:greeting||null, concierge_brief:brief||null}; await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:cur.slot_minutes||30, capacity:cur.capacity||4, hours:h, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); }catch(e){} };
+  const save=async()=>{ if(!cid) return; try{ const { data:st }=await supabase.from('booking_settings').select('hours,slot_minutes,capacity').eq('client_id',cid).limit(1); const cur=(st&&st[0])||{}; const h={...(cur.hours||{}), concierge_voice:brandVoice||null, concierge_greeting:greeting||null, concierge_brief:brief||null, concierge_orders:caps.orders, concierge_booking:caps.booking, concierge_capture:caps.capture}; await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:cur.slot_minutes||30, capacity:cur.capacity||4, hours:h, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); }catch(e){} };
   const sendWaTest=async()=>{ const to=String(waNum||'').replace(/[^\d]/g,''); if(!to){ setWaMsg(L("Enter a WhatsApp number first.","أدخل رقم واتساب أولاً.")); return; } setWaMsg(L("Sending…","جارٍ الإرسال…")); try{ const g=(greeting&&greeting.trim())||("Hi! This is a test from "+(selClient?.name||'your restaurant')+"'s Concierge."); const r=await fetch('/api/meta-publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:'whatsapp',to,body:g})}); const d=await r.json().catch(()=>({})); if(d&&d.success) setWaMsg(L("Sent — check WhatsApp.","تم الإرسال — تحقق من واتساب.")); else if(d&&d.configured===false) setWaMsg(L("WhatsApp isn't connected yet.","واتساب غير متصل بعد.")); else setWaMsg((d&&d.error)||L("Couldn't send — is WhatsApp connected?","تعذّر الإرسال.")); }catch(e){ setWaMsg(L("Network error.","خطأ في الشبكة.")); } };
   const card={ background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const inp={ background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
@@ -16098,8 +16492,9 @@ function ConciergePage() {
   return (
     <div style={{maxWidth:980,margin:"0 auto"}}>
       <div style={{marginBottom:18}}>
-        <h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Concierge","الكونسيرج")}</h1>
-        <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("your AI host — trains the web widget and WhatsApp","مضيفك الذكي — يدرّب الويب وواتساب")}</p>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Concierge","الكونسيرج")}</span></div>
+        <h1 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{selClient?.name||L("Concierge","الكونسيرج")}</h1>
+        <p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("Your AI host — answers guests on your website and WhatsApp, in your voice.","مضيفك الذكي — يردّ على ضيوفك على موقعك وواتساب بنبرتك.")}</p>
       </div>
       <div style={{...card,padding:14,marginBottom:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
@@ -16109,21 +16504,34 @@ function ConciergePage() {
         <div style={{height:7,borderRadius:20,background:th.card2,overflow:"hidden"}}><div style={{height:"100%",width:usagePct+"%",background:usageColor}}/></div>
         {usagePct>=80 && <div style={{fontSize:11.5,color:usageColor,marginTop:8}}>{usagePct>=100?L("You\u2019re out of Concierge chats \u2014 top up to keep your host answering.","نفدت محادثات الكونسيرج."):L("Running low on Concierge chats.","محادثات الكونسيرج على وشك النفاد.")}</div>}
       </div>
-      {stats && (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:16}}>
-          {[[L("Conversations","المحادثات"),usedN],[L("Menu opens","فتح القائمة"),stats.menuOpens],[L("Orders","الطلبات"),stats.orders],[L("Revenue","الإيراد"),stats.revenue.toFixed(3)],[L("Bot bookings","حجوزات البوت"),stats.bookings]].map((m,i)=>(
-            <div key={i} style={{...card,padding:"12px 14px"}}><div style={{fontSize:20,fontWeight:700,color:th.text}}>{m[1]}</div><div style={{fontSize:11,color:th.text2,marginTop:2}}>{m[0]}</div></div>
+      {stats && (()=>{ const cells=[[L("Conversations","المحادثات"),usedN]]; if(bizType!=='services'){ cells.push([L("Menu opens","فتح القائمة"),stats.menuOpens]); cells.push([L("Orders","الطلبات"),stats.orders]); cells.push([L("Revenue","الإيراد"),stats.revenue.toFixed(3)]); } if(bizType!=='shop') cells.push([bizType==='services'?L("Appointments","المواعيد"):L("Bot bookings","حجوزات البوت"),stats.bookings]); if(stats.top&&bizType!=='services') cells.push([L("Top item","الأكثر طلباً"),stats.top]); return (
+        <div style={{display:"flex",flexWrap:"wrap",borderTop:`1px solid ${th.border}`,borderBottom:`1px solid ${th.border}`,marginBottom:18}}>
+          {cells.map((m,i)=>(
+            <div key={i} style={{padding:"14px 22px",borderInlineStart:i?`1px solid ${th.border}`:"none"}}>
+              <div style={{fontSize:10,letterSpacing:".1em",textTransform:"uppercase",color:th.text3,fontWeight:600,marginBottom:6}}>{m[0]}</div>
+              <div className="tw-num" style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:23,fontWeight:600,color:th.text,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m[1]}</div>
+            </div>
           ))}
-          {stats.top && <div style={{...card,padding:"12px 14px"}}><div style={{fontSize:13.5,fontWeight:700,color:th.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{stats.top}</div><div style={{fontSize:11,color:th.text2,marginTop:2}}>{L("Top item","الأكثر طلباً")}</div></div>}
         </div>
-      )}
+      ); })()}
       <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
         <div style={{...card,padding:18,flex:"1 1 360px",minWidth:0}}>
+          <div style={{marginBottom:18,paddingBottom:16,borderBottom:`1px solid ${th.border}`}}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:".08em",textTransform:"uppercase",color:th.text3,marginBottom:12}}>{L("What your concierge can do","ماذا يمكن للكونسيرج أن يفعل")}</div>
+            {(()=>{ const rows=[["menu", bizType==='shop'?L("Answer catalog & prices","الرد على الكتالوج والأسعار"):L("Answer menu & prices","الرد على القائمة والأسعار"), true, true]]; if(bizType==='restaurant'||bizType==='cafe'||bizType==='shop') rows.push(["orders",L("Take pickup orders","استقبال طلبات الاستلام"),caps.orders,false]); if(bizType==='restaurant'||bizType==='cafe') rows.push(["booking",L("Book a table","حجز طاولة"),caps.booking,false]); if(bizType==='services') rows.push(["booking",L("Book appointments","حجز المواعيد"),caps.booking,false]); if(bizType!=='restaurant'&&bizType!=='cafe'&&bizType!=='shop'&&bizType!=='services') rows.push(["capture",L("Capture enquiries (name & contact)","التقاط الاستفسارات (الاسم وجهة الاتصال)"),caps.capture,false]); return rows.map(([k,lbl,on,locked])=>(
+              <div key={k} style={{display:"flex",alignItems:"center",gap:11,padding:"6px 0"}}>
+                <span onClick={locked?undefined:()=>setCaps(c=>({...c,[k]:!c[k]}))} style={{width:34,height:20,borderRadius:12,background:on?th.accent:th.border,position:"relative",cursor:locked?"default":"pointer",flexShrink:0,opacity:locked?0.55:1,transition:"background .2s"}}>
+                  <span style={{position:"absolute",top:2.5,insetInlineStart:on?16:2.5,width:15,height:15,borderRadius:"50%",background:"#fff",transition:"inset-inline-start .2s"}}/>
+                </span>
+                <span style={{fontSize:12.5,color:th.text2}}>{lbl}{locked&&<span style={{fontSize:10,color:th.text3,marginInlineStart:7}}>{L("always on","دائماً")}</span>}</span>
+              </div>
+            )); })()}
+          </div>
           <label style={lblS}>{L("Brand voice","نبرة العلامة")}</label>
           <textarea value={brandVoice} onChange={e=>setBrandVoice(e.target.value)} rows={2} placeholder={L("e.g. Warm and upbeat — speaks like a friendly Bahraini host.","مثلاً: ودّي ومرح.")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:14,lineHeight:1.5}}/>
           <label style={lblS}>{L("Greeting (first message)","الترحيب")}</label>
           <textarea value={greeting} onChange={e=>setGreeting(e.target.value)} rows={2} placeholder={L("Hi! Welcome — ask about the menu, order for pickup, or book a table.","أهلاً! اسأل عن القائمة أو اطلب أو احجز.")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:14,lineHeight:1.5}}/>
-          <label style={lblS}>{L("House instructions","تعليمات المطعم")}</label>
+          <label style={lblS}>{L("House instructions","تعليمات المكان")}</label>
           <textarea value={brief} onChange={e=>setBrief(e.target.value)} rows={7} placeholder={L("Teach your host, e.g.:\n- No outside food.\n- Always suggest the saffron cheesecake.\n- Valet is free after 7pm.\n- Groups over 8 should call us.","علّم مضيفك…")} style={{...inp,width:"100%",boxSizing:"border-box",resize:"vertical",marginBottom:16,lineHeight:1.6}}/>
           <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <button onClick={save} style={{padding:"10px 18px",borderRadius:10,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer"}}>{savedMsg?L("Saved ✓","تم ✓"):L("Save & make live","حفظ وتفعيل")}</button>
@@ -16139,7 +16547,7 @@ function ConciergePage() {
           </div>
         </div>
         <div style={{flex:"1 1 320px",minWidth:280}}>
-          <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting}/>
+          <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting} bizType={(selClient&&selClient.business_type)||'restaurant'} caps={caps}/>
         </div>
       </div>
     </div>
@@ -16187,12 +16595,73 @@ function RreportPublicPage({ slug, host }) {
 }
 
 
+function OrderAssistant({ items, cur, money, onAdd, onCheckout, clientId, venueName, cartCount, cartTotal }) {
+  const [open,setOpen]=useState(false);
+  const [msgs,setMsgs]=useState([]);
+  const [input,setInput]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [hint,setHint]=useState(true);
+  const endRef=useRef(null);
+  useEffect(()=>{ const t=setTimeout(()=>setHint(false),4500); return ()=>clearTimeout(t); },[]);
+  useEffect(()=>{ if(open && msgs.length===0) setMsgs([{role:'assistant',content:"Hi! Tell me what you'd like and I'll build your pickup order."}]); },[open]); // eslint-disable-line
+  useEffect(()=>{ if(open && endRef.current) endRef.current.scrollIntoView({behavior:'smooth'}); },[msgs,busy,open]);
+  const findItem=(nm)=>{ const q=String(nm||'').toLowerCase().trim(); if(!q) return null; return items.find(x=>(x.name_en||'').toLowerCase().trim()===q||(x.name_ar||'').trim()===String(nm).trim()) || items.find(x=>{ const e=(x.name_en||'').toLowerCase(); return e && (e.includes(q)||q.includes(e)); }); };
+  const send=async()=>{ const text=input.trim(); if(!text||busy) return; const next=[...msgs,{role:'user',content:text}]; setMsgs(next); setInput(""); setBusy(true);
+    try{
+      const menu=items.map(x=>({name_en:x.name_en,name_ar:x.name_ar,price:x.price,variants:Array.isArray(x.variants)?x.variants.filter(v=>v&&v.name):[]}));
+      const now=new Date(); const todayStr=now.toISOString().slice(0,10)+' ('+now.toLocaleDateString('en',{weekday:'long'})+')';
+      let convo=next.filter(m=>m.role==='user'||m.role==='assistant'); while(convo.length&&convo[0].role!=='user') convo=convo.slice(1);
+      const body={ mode:'concierge', messages:convo, context:{ name:venueName, currency:cur, menu, today:todayStr, client_id:clientId, orderMode:true, booking:false } };
+      const r=await fetch('/api/generate-caption',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d=await r.json();
+      setMsgs(m=>[...m,{role:'assistant',content:d.reply||"…"}]);
+      if(Array.isArray(d.order)){ d.order.forEach(o=>{ const it=findItem(o.name); const qty=Math.max(1,Math.min(20,Number(o.qty)||1)); if(it){ for(let i=0;i<qty;i++) onAdd(it); } }); }
+    }catch(e){ setMsgs(m=>[...m,{role:'assistant',content:"Sorry — try again in a moment."}]); }
+    setBusy(false);
+  };
+  if(!open) return (
+    <div style={{position:"fixed",insetInlineEnd:16,bottom:18,zIndex:900,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8}}>
+      {hint && <div style={{background:"#141923",border:"1px solid #20242b",borderRadius:12,padding:"7px 11px",fontSize:11,color:"#C7CCD6",boxShadow:"0 6px 16px rgba(0,0,0,.4)"}}>Order with AI</div>}
+      <button onClick={()=>setOpen(true)} aria-label="Order with AI" style={{width:54,height:54,borderRadius:"50%",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",border:"none",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",cursor:"pointer",boxShadow:"0 8px 22px rgba(79,107,140,.55)"}}><Sparkles size={24}/></button>
+    </div>
+  );
+  return (
+    <div style={{position:"fixed",insetInlineEnd:16,bottom:18,zIndex:900,width:"min(340px, calc(100vw - 32px))",height:"min(460px, calc(100vh - 90px))",display:"flex",flexDirection:"column",background:"#0E1013",border:"1px solid #20242b",borderRadius:16,overflow:"hidden",boxShadow:"0 16px 40px rgba(0,0,0,.55)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderBottom:"1px solid #1A1F27"}}>
+        <span style={{width:28,height:28,borderRadius:"50%",background:"linear-gradient(135deg,#6E8CAB,#4F6B8C)",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={14} color="#fff"/></span>
+        <div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:700,color:"#ECEAE1"}}>{(venueName||'Order')+' assistant'}</div><div style={{fontSize:10,color:"#5e6b78"}}>Builds your order</div></div>
+        <button onClick={()=>setOpen(false)} aria-label="Close" style={{background:"none",border:"none",color:"#5e6b78",cursor:"pointer",display:"flex"}}><ChevronDown size={20}/></button>
+      </div>
+      <div style={{flex:1,overflowY:"auto",padding:12,display:"flex",flexDirection:"column",gap:8}}>
+        {msgs.map((m,i)=>(<div key={i} style={{alignSelf:m.role==='user'?"flex-end":"flex-start",maxWidth:"86%",background:m.role==='user'?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#141923",color:m.role==='user'?"#fff":"#ECEAE1",border:m.role==='user'?"none":"1px solid #20242b",borderRadius:13,padding:"8px 11px",fontSize:12.5,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.content}</div>))}
+        {busy && <div style={{alignSelf:"flex-start",background:"#141923",border:"1px solid #20242b",borderRadius:13,padding:"8px 12px",fontSize:12.5,color:"#7E8794"}}>…</div>}
+        <div ref={endRef}/>
+      </div>
+      {cartCount>0 && <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderTop:"1px solid #1A1F27",background:"#0B0F14"}}>
+        <span style={{fontSize:11,color:"#6C7A8A"}}>{cartCount+' item'+(cartCount>1?'s':'')+' · '}<b style={{color:"#E7ECF2",fontWeight:600}}>{cartTotal}</b></span>
+        <button onClick={()=>{ setOpen(false); if(onCheckout) onCheckout(); }} style={{background:"#6E8CAB",border:"none",borderRadius:9,padding:"7px 13px",color:"#0B0F14",fontSize:12,fontWeight:700,cursor:"pointer"}}>Review & checkout</button>
+      </div>}
+      <div style={{display:"flex",gap:8,padding:"10px 12px",borderTop:"1px solid #1A1F27"}}>
+        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter') send(); }} placeholder="e.g. 2 lattes and a cheesecake" style={{flex:1,boxSizing:"border-box",background:"#141923",border:"1px solid #20242b",borderRadius:10,padding:"10px 12px",color:"#ECEAE1",fontSize:14,outline:"none"}}/>
+        <button onClick={send} disabled={busy||!input.trim()} aria-label="Send" style={{width:42,borderRadius:10,background:input.trim()?"linear-gradient(135deg,#6E8CAB,#4F6B8C)":"#1a2230",border:"none",color:"#fff",cursor:input.trim()&&!busy?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center"}}><Send size={15}/></button>
+      </div>
+    </div>
+  );
+}
+
 function OrderPublicPage({ slug }) {
   const [data, setData] = useState(undefined);
   const [items, setItems] = useState([]);
   const [cart, setCart] = useState({});
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const OC_COUNTRIES = [
+    {iso:'BH',dial:'+973',flag:'🇧🇭'},{iso:'SA',dial:'+966',flag:'🇸🇦'},{iso:'AE',dial:'+971',flag:'🇦🇪'},{iso:'KW',dial:'+965',flag:'🇰🇼'},{iso:'QA',dial:'+974',flag:'🇶🇦'},{iso:'OM',dial:'+968',flag:'🇴🇲'},{iso:'IQ',dial:'+964',flag:'🇮🇶'},{iso:'JO',dial:'+962',flag:'🇯🇴'},{iso:'LB',dial:'+961',flag:'🇱🇧'},{iso:'EG',dial:'+20',flag:'🇪🇬'},{iso:'SY',dial:'+963',flag:'🇸🇾'},{iso:'YE',dial:'+967',flag:'🇾🇪'},{iso:'PS',dial:'+970',flag:'🇵🇸'},{iso:'TR',dial:'+90',flag:'🇹🇷'},{iso:'GB',dial:'+44',flag:'🇬🇧'},{iso:'US',dial:'+1',flag:'🇺🇸'},{iso:'IN',dial:'+91',flag:'🇮🇳'},{iso:'PK',dial:'+92',flag:'🇵🇰'},{iso:'PH',dial:'+63',flag:'🇵🇭'},{iso:'FR',dial:'+33',flag:'🇫🇷'},{iso:'DE',dial:'+49',flag:'🇩🇪'}
+  ];
+  const OC_TZ = { 'Asia/Bahrain':'BH','Asia/Riyadh':'SA','Asia/Dubai':'AE','Asia/Kuwait':'KW','Asia/Qatar':'QA','Asia/Muscat':'OM','Asia/Baghdad':'IQ','Asia/Amman':'JO','Asia/Beirut':'LB','Africa/Cairo':'EG' };
+  const ocDetect = () => { try { const tz=Intl.DateTimeFormat().resolvedOptions().timeZone; if(OC_TZ[tz]) return OC_TZ[tz]; const r=(navigator.language||'').split('-')[1]; if(r && OC_COUNTRIES.find(c=>c.iso===r.toUpperCase())) return r.toUpperCase(); } catch(e){} return 'BH'; };
+  const [ctry, setCtry] = useState(ocDetect);
+  const dial = (OC_COUNTRIES.find(c=>c.iso===ctry)||{dial:'+973'}).dial;
   const [selDay, setSelDay] = useState(null);
   const [selSlot, setSelSlot] = useState(null);
   const [itemNotes, setItemNotes] = useState({});
@@ -16209,7 +16678,7 @@ function OrderPublicPage({ slug }) {
     (async () => {
       let m0=null, cid=null, cname=null, menuId=null;
       try {
-        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order,online_pay_enabled,tap_destination_id,pay_currency,pickup_open,pickup_close,pickup_days_ahead,pickup_methods,pickup_pay').eq('slug', slug).limit(1);
+        const { data: md } = await supabase.from('menus').select('id,title,client_id,currency,photo_mode,pickup_prep_min,tax_enabled,tax_pct,pickup_enabled,pickup_min_order,online_pay_enabled,tap_destination_id,pay_currency,pickup_open,pickup_close,pickup_days_ahead,pickup_methods,pickup_pay,order_ai').eq('slug', slug).limit(1);
         m0 = md && md[0];
         if (m0) { menuId=m0.id; cid=m0.client_id; cname=m0.title;
           const { data: it } = await supabase.from('menu_items').select('*').eq('menu_id', m0.id).order('sort',{ascending:true});
@@ -16275,14 +16744,14 @@ function OrderPublicPage({ slug }) {
     const pickupAt = slotDate(selDay, selSlot).toISOString();
     const carStr = meth==='carhop' ? (car.color.trim()+' '+car.model.trim()+' · '+car.plate.trim()) : null;
     try {
-      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:phone, items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status: pay==='online'?'pending':'unpaid', pickup_at:pickupAt, note:orderNote.trim()||null, pickup_method:meth, car_details:carStr, notify_optin: notifyOptin }]).select();
+      const { data:oIns, error:oErr } = await supabase.from('orders').insert([{ client_id:data.client_id, menu_id:data.menu_id, order_no, customer_name:name, customer_phone:(dial+" "+phone.trim()), items:rows, subtotal, fee:0, tax:taxAmt, total, currency:cur, status:'new', pay_status: pay==='online'?'pending':'unpaid', pickup_at:pickupAt, note:orderNote.trim()||null, pickup_method:meth, car_details:carStr, notify_optin: notifyOptin }]).select();
       if (oErr) { setOrderErr('Could not place your order. Please try again or call the restaurant.'); setPlacing(false); return; }
       const newOrder = oIns && oIns[0];
       if (newOrder && newOrder.id) { const fn=(ev)=>{ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:newOrder.id,event:ev})}).catch(()=>{}); }catch(e){} }; fn('placed'); fn('new'); }
       if (pay==='online' && PAYMENTS_LIVE && data.destId && newOrder && newOrder.id) {
         try { const rr = await fetch('/api/tap', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'order_charge', order_id:newOrder.id }) }); const jj = await rr.json(); if (jj && jj.url) { window.location.href = jj.url; return; } } catch(e){}
       }
-      setDone({ no:order_no, at:pickupAt, method:meth, pay });
+      setDone({ no:order_no, at:pickupAt, method:meth, pay, name:name.trim(), phone:(dial+" "+phone.trim()) });
     } catch(e){ setOrderErr('Something went wrong. Please try again.'); }
     setPlacing(false);
   };
@@ -16303,12 +16772,14 @@ function OrderPublicPage({ slug }) {
         <div style={{fontSize:14,fontWeight:600}}>{data.name}</div>
         <div style={{fontSize:13,color:"#9aa3b2",marginTop:5}}>Pick up {dl} at {tl}</div>
         <div style={{fontSize:12.5,color:"#7E8794",marginTop:4}}>{done.method==='carhop'?'Car Hop (curbside)':'Pick up inside'} · {done.pay==='online'?'Paid online':'Pay at pickup'}</div>
+        {(done.name||done.phone) && <div style={{fontSize:12,color:"#7E8794",marginTop:10,paddingTop:10,borderTop:"1px solid #20242b"}}>{done.name}{done.name&&done.phone?" · ":""}{done.phone}</div>}
       </div>
       <div style={{fontSize:11,color:"#5A6B86",marginTop:16}}>Powered by Tawaslo</div>
     </div></div>;
   }
   return (
     <div style={wrap}>
+      {data.order_ai && items.length>0 && <OrderAssistant items={items} cur={cur} money={money} onAdd={add} onCheckout={()=>{ try{ const el=document.getElementById('tw-checkout'); if(el) el.scrollIntoView({behavior:'smooth'}); }catch(e){} }} clientId={data.client_id} venueName={data.name} cartCount={count} cartTotal={money(total)}/>}
       <div style={{maxWidth:520,margin:"0 auto"}}>
         <div style={{marginBottom:18}}><div style={{fontSize:20,fontWeight:800}}>{data.name}</div><div style={{fontSize:12,color:"#7E8794",marginTop:2}}>Order for pickup · ready in about {data.prep} min</div></div>
         {cats.map(cat=>(
@@ -16324,7 +16795,7 @@ function OrderPublicPage({ slug }) {
           </div>
         ))}
         {count>0 && (
-          <div style={{background:"#141923",border:"1px solid #20242b",borderRadius:14,padding:16,marginTop:6}}>
+          <div id="tw-checkout" style={{background:"#141923",border:"1px solid #20242b",borderRadius:14,padding:16,marginTop:6}}>
             <div style={{fontSize:13,fontWeight:700,marginBottom:10}}>Your order · {count} item{count>1?"s":""}</div>
             {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:3,display:"flex",justifyContent:"space-between"}}><span>Subtotal</span><span>{money(subtotal)}</span></div>}
             {taxPct>0 && <div style={{fontSize:12.5,color:"#9aa3b2",marginBottom:8,display:"flex",justifyContent:"space-between"}}><span>VAT ({taxPct}%)</span><span>{money(taxAmt)}</span></div>}
@@ -16333,7 +16804,11 @@ function OrderPublicPage({ slug }) {
               <div key={l.item.id} style={{marginBottom:8}}><div style={{fontSize:11.5,color:"#9aa3b2",marginBottom:4}}>Note for {l.item.name_en||l.item.name_ar}</div><input value={itemNotes[l.item.id]||""} onChange={e=>setItemNotes(n=>({...n,[l.item.id]:e.target.value}))} placeholder="e.g. Happy Birthday Sara" style={fieldS}/></div>
             ))}</div>}
             <input value={name} onChange={e=>setName(e.target.value)} placeholder="Your name" style={{...fieldS,marginBottom:8}}/>
-            <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" style={{...fieldS,marginBottom:14}}/>
+            <div style={{display:"flex",gap:7,marginBottom:6}}>
+              <select value={ctry} onChange={e=>setCtry(e.target.value)} title="Country code" style={{...fieldS,width:"auto",flex:"0 0 auto",cursor:"pointer"}}>{OC_COUNTRIES.map(c=><option key={c.iso} value={c.iso}>{c.flag} {c.dial}</option>)}</select>
+              <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="Phone number" inputMode="tel" style={{...fieldS,flex:1,marginBottom:0}}/>
+            </div>
+            <div style={{fontSize:10.5,color:"#7E8794",marginBottom:14}}>We'll use {dial} {phone||"…"} for pickup updates.</div>
             <div style={{fontSize:11.5,color:"#7E8794",marginBottom:7}}>1 · Choose a day</div>
             <div style={{display:"flex",gap:7,overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
               {Array.from({length:(data.daysAhead||0)+1}).map((_,i)=>{ const en=dayEnabled(i); const on=selDay===i; return (
@@ -16454,6 +16929,7 @@ function OrdersPage() {
   const [copied, setCopied] = useState(false);
   const [rcopied,setRcopied]=useState(false);
   const [klink, setKlink] = useState("");
+  const [flash, setFlash] = useState({});
   const load = async (id) => { try { const { data } = await supabase.from('orders').select('*').eq('client_id', id).order('created_at',{ascending:false}).limit(60); setOrders(data||[]); } catch(e){} };
   const staffBoard = async () => { if(!cid) return; try { const { data: mn } = await supabase.from('menus').select('id,kitchen_token').eq('client_id', cid).limit(1); let m=mn&&mn[0]; let tok=m&&m.kitchen_token; if(m&&!tok){ tok='k'+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6); await supabase.from('menus').update({ kitchen_token: tok }).eq('id', m.id); } if(tok){ const url=origin+'/k/'+tok; try { await navigator.clipboard.writeText(url); } catch(e){} setKlink(url); } } catch(e){} };
   useEffect(() => {
@@ -16467,22 +16943,26 @@ function OrdersPage() {
     })();
     return ()=>{ active=false; };
   }, [selClient]);
-  const setStatus = async (o, st) => { setOrders(os=>os.map(x=>x.id===o.id?{...x,status:st}:x)); try { await supabase.from('orders').update({ status:st }).eq('id', o.id); } catch(e){} if (st==='ready'||st==='collected') { try { fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:o.id,event:st})}).catch(()=>{}); } catch(e){} } };
+  const setStatus = async (o, st) => { setOrders(os=>os.map(x=>x.id===o.id?{...x,status:st}:x)); try { await supabase.from('orders').update({ status:st }).eq('id', o.id); } catch(e){} if (st==='ready'||st==='collected') { try { fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'order',id:o.id,event:st})}).catch(()=>{}); } catch(e){} setFlash(f=>({...f,[o.id]:st})); setTimeout(()=>setFlash(f=>{ const g={...f}; delete g[o.id]; return g; }),4500); } };
   const orderUrl = slug ? origin+'/order/'+slug : "";
   const copy = () => { try { navigator.clipboard.writeText(orderUrl); setCopied(true); setTimeout(()=>setCopied(false),1500); } catch(e){} };
   const curOf = (o)=> o.currency||'BHD';
   const money = (n,c)=> (Number(n)||0).toFixed(3)+' '+c;
-  const active = orders.filter(o=>o.status!=='picked_up'&&o.status!=='cancelled');
-  const SC = { new:th.warning, accepted:th.accent, preparing:th.accent, ready:th.success, picked_up:th.text3, cancelled:th.text3 };
-  const nextSt = { new:'accepted', accepted:'preparing', preparing:'ready', ready:'picked_up' };
-  const nextLbl = { new:L('Accept','قبول'), accepted:L('Start preparing','بدء التحضير'), preparing:L('Mark ready','جاهز'), ready:L('Picked up','تم الاستلام') };
+  const isToday = (t)=>{ if(!t) return false; const d=new Date(t), n=new Date(); return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth()&&d.getDate()===n.getDate(); };
+  const active = orders.filter(o=>o.status!=='collected'&&o.status!=='picked_up'&&o.status!=='cancelled');
+  const handedToday = orders.filter(o=>(o.status==='collected'||o.status==='picked_up')&&isToday(o.created_at));
+  const OSTAGES = ['new','accepted','preparing','ready','collected'];
+  const stageIdx = (st)=>{ const i=OSTAGES.indexOf(st==='picked_up'?'collected':st); return i<0?0:i; };
+  const SC = { new:th.warning, accepted:th.accent, preparing:th.accent, ready:th.success, collected:th.text3, picked_up:th.text3, cancelled:th.text3 };
+  const nextSt = { new:'accepted', accepted:'preparing', preparing:'ready', ready:'collected' };
+  const nextLbl = { new:L('Accept','قبول'), accepted:L('Start preparing','بدء التحضير'), preparing:L('Mark ready','جاهز'), ready:L('Hand over','تسليم') };
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   if (loading) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Loading…","جارٍ التحميل…")}</div>;
   if (!cid) return <div style={{padding:24,color:th.text2,fontSize:13}}>{L("Select a client to manage orders.","اختر عميلاً لإدارة الطلبات.")}</div>;
   return (
     <div style={{maxWidth:820,margin:"0 auto"}}>
       <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:18}}>
-        <div><h1 style={{margin:0,fontSize:22,fontWeight:600,color:th.text}}>{L("Orders","الطلبات")}</h1><p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{selClient?.name} · {L("pickup orders","طلبات الاستلام")}</p></div>
+        <div><div style={{display:"flex", alignItems:"center", gap:8, marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent}}>{L("Orders","الطلبات")}</span></div><h1 style={{margin:0,fontFamily:"'Fraunces',Georgia,serif",fontSize:27,fontWeight:600,letterSpacing:"-0.01em",color:th.text}}>{selClient?.name || L("Pickup orders","طلبات الاستلام")}</h1><p style={{margin:"5px 0 0",fontSize:12.5,color:th.text2}}>{L("pickup orders","طلبات الاستلام")}</p></div>
         <div style={{display:"flex",gap:8}}>
           <button onClick={copy} disabled={!orderUrl} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:`1px solid ${th.border}`,color:th.text2,fontSize:12,cursor:orderUrl?"pointer":"default"}}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy order link","نسخ رابط الطلب")}</button>
           <button onClick={()=>{ try{ navigator.clipboard.writeText(origin+"/rreport/"+slug); setRcopied(true); setTimeout(()=>setRcopied(false),1500);}catch(e){} }} disabled={!slug} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"9px 13px",borderRadius:10,background:th.card2,border:"1px solid "+th.border,color:th.text2,fontSize:12,cursor:slug?"pointer":"default"}}><FileText size={13}/>{rcopied?L("Copied","تم"):L("Report link","رابط التقرير")}</button>
@@ -16495,20 +16975,40 @@ function OrdersPage() {
       {active.length===0 ? <div style={{...card,padding:40,textAlign:"center",color:th.text2,fontSize:13}}>{L("No active orders. Share your order link to start taking pickup orders.","لا طلبات نشطة. شارك رابط الطلب لبدء استقبال الطلبات.")}</div> : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(240px,1fr))",gap:12}}>
           {active.map(o=>(
-            <div key={o.id} style={{...card,padding:14}}>
+            <div key={o.id} className="tw-fu" style={{...card,padding:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                <span style={{fontSize:13,fontWeight:700,color:th.text}}>{o.order_no} · {o.customer_name}</span>
-                <span style={{fontSize:10,fontWeight:700,padding:"2px 9px",borderRadius:20,background:(SC[o.status]||th.text3)+"22",color:SC[o.status]||th.text3}}>{o.status}</span>
+                <span style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:14.5,fontWeight:600,color:th.text}}>{o.order_no} · {o.customer_name}</span>
+                <span style={{fontSize:9.5,fontWeight:600,padding:"2px 9px",borderRadius:8,border:`1px solid ${(SC[o.status]||th.text3)}55`,color:SC[o.status]||th.text3,textTransform:"uppercase",letterSpacing:".06em"}}>{o.status}</span>
               </div>
-              <div style={{fontSize:11.5,color:th.text2,lineHeight:1.5,marginBottom:10}}>{(o.items||[]).map((it,i)=><div key={i}>{it.qty}× {it.name}</div>)}<div style={{marginTop:4,color:th.text,fontWeight:600}}>{money(o.total,curOf(o))} · {o.pay_status}</div>{o.customer_phone?<div style={{marginTop:2}}>{o.customer_phone}</div>:null}</div>
+              <div style={{display:"flex",alignItems:"center",gap:0,margin:"0 0 10px"}}>
+                {['new','accepted','preparing','ready','collected'].map((k,i)=>{ const done=stageIdx(o.status)>=i; const cc=stageIdx(o.status)>=3?th.success:th.accent; return [ i>0 && <div key={k+'c'} style={{flex:1,height:2,background:done?cc:th.border}}/>, <div key={k+'d'} title={k} style={{width:done?8:7,height:done?8:7,borderRadius:"50%",background:done?cc:th.border,flexShrink:0}}/> ]; })}
+              </div>
+              <div style={{fontSize:11.5,color:th.text2,lineHeight:1.5,marginBottom:10}}>{(o.items||[]).map((it,i)=><div key={i}>{it.qty}× {it.name}</div>)}<div style={{marginTop:4,color:th.text,fontWeight:600}}>{money(o.total,curOf(o))} · {o.pay_status}</div>{o.customer_phone?<div style={{marginTop:5,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><a href={"tel:"+o.customer_phone} style={{display:"inline-flex",alignItems:"center",gap:5,color:th.accent,textDecoration:"none",fontWeight:600,fontSize:11.5}}>{o.customer_phone}</a><a href={"https://wa.me/"+String(o.customer_phone).replace(/[^0-9]/g,'')+"?text="+encodeURIComponent((selClient?.name?selClient.name+": ":"")+L("Hi","مرحباً")+" "+(o.customer_name||"")+" — "+L("about your order","بخصوص طلبك")+" "+o.order_no)} target="_blank" rel="noreferrer" style={{display:"inline-flex",alignItems:"center",gap:5,color:"#25D366",textDecoration:"none",fontWeight:600,fontSize:11.5,border:"1px solid #25D36655",borderRadius:8,padding:"2px 9px"}}><FaWhatsapp/> {L("Message","رسالة")}</a></div>:null}</div>
               {o.pickup_at && <div style={{fontSize:11,color:th.accent,marginBottom:6,display:"flex",alignItems:"center",gap:5}}><Clock size={12}/>{new Date(o.pickup_at).toLocaleString([], {weekday:"short",day:"numeric",month:"short",hour:"numeric",minute:"2-digit"})}</div>}
               {o.pickup_method && <div style={{fontSize:11,color:th.text2,marginBottom:4}}>{o.pickup_method==='carhop'?L("Car Hop","كار هوب"):L("Pick up inside","استلام بالداخل")}{o.car_details?" · "+o.car_details:""}</div>}
               {o.note && <div style={{fontSize:11,color:th.text,marginBottom:6,background:th.card2,borderRadius:8,padding:"6px 9px"}}><b>{L("Note","ملاحظة")}:</b> {o.note}</div>}
               {(o.items||[]).some(it=>it&&it.note) && <div style={{fontSize:10.5,color:th.text2,marginBottom:6}}>{(o.items||[]).filter(it=>it&&it.note).map((it,i)=><div key={i}>• {it.name}: {it.note}</div>)}</div>}
+              {flash[o.id]==='ready' ? <div style={{fontSize:10.5,color:"#25D366",marginBottom:8,display:"flex",alignItems:"center",gap:5}}><FaWhatsapp/> {L("Customer notified — order ready 🎉","تم إشعار العميل — الطلب جاهز 🎉")}</div>
+               : flash[o.id]==='collected' ? <div style={{fontSize:10.5,color:"#25D366",marginBottom:8,display:"flex",alignItems:"center",gap:5}}><FaWhatsapp/> {L("Thank-you message sent","تم إرسال رسالة الشكر")}</div>
+               : o.status==='ready' ? <div style={{fontSize:10.5,color:th.success,marginBottom:8}}>{L("Customer was told it's ready","أُبلغ العميل بأن الطلب جاهز")}</div>
+               : <div style={{fontSize:10.5,color:th.text3,marginBottom:8}}>{L("Customer got the received message","استلم العميل رسالة تأكيد الطلب")}</div>}
               <div style={{display:"flex",gap:7}}>
                 {nextSt[o.status] && <button onClick={()=>setStatus(o,nextSt[o.status])} style={{flex:1,padding:"8px",borderRadius:9,background:th.gradient,border:"none",color:"#fff",fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{nextLbl[o.status]}</button>}
                 <button onClick={()=>setStatus(o,'cancelled')} style={{padding:"8px 11px",borderRadius:9,background:"transparent",border:`1px solid ${th.border}`,color:th.danger,fontSize:11.5,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {handedToday.length>0 && (
+        <div style={{marginTop:22}}>
+          <div style={{fontSize:10.5,letterSpacing:".14em",textTransform:"uppercase",color:th.text3,fontWeight:700,marginBottom:10}}>{L("Handed over today","سُلّمت اليوم")} · <span className="tw-num">{handedToday.length}</span></div>
+          {handedToday.map((o,i)=>(
+            <div key={o.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:i<handedToday.length-1?`1px solid ${th.border}`:"none"}}>
+              <CheckCircle size={15} color={th.success}/>
+              <span style={{fontFamily:"'Fraunces',Georgia,serif",fontSize:13.5,color:th.text}}>{o.order_no} · {o.customer_name}</span>
+              <span className="tw-num" style={{marginLeft:"auto",fontSize:11,color:th.text3}}>{money(o.total,curOf(o))}</span>
+              <span style={{fontSize:9.5,fontWeight:600,color:th.success,border:`1px solid ${th.success}55`,borderRadius:8,padding:"2px 8px",textTransform:"uppercase",letterSpacing:".06em"}}>{L("Handed over","سُلّم")}</span>
             </div>
           ))}
         </div>
@@ -16980,6 +17480,10 @@ function LoyaltyPage() {
   const updateProgram = async (patch) => { setProgram(p => ({ ...p, ...patch })); if (program && program.id) { try { await supabase.from('loyalty_programs').update(patch).eq('id', program.id); } catch(e){} } };
   const publicUrl = slug ? `${origin}/loyalty/${slug}` : "";
   const copyUrl = () => { try { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(()=>setCopied(false),1500);}catch(e){} };
+  const shareWA = () => { const txt = encodeURIComponent(`${selClient?.name||''} — ${L('your loyalty card','بطاقة الولاء')}: ${publicUrl}`); if (typeof window!=="undefined") window.open(`https://wa.me/?text=${txt}`, "_blank"); };
+  const uploadBanner = async (file) => { if(!file) return; try { const { data:{ user } } = await supabase.auth.getUser(); const uid = user? user.id : 'anon'; const ext = ((file.name||'').split('.').pop()||'jpg').toLowerCase(); const path = `${uid}/${cid}/loyalty-banner-${Date.now()}.${ext}`; const { error } = await supabase.storage.from('media').upload(path, file, { upsert:true, contentType:file.type||'image/jpeg' }); if(!error){ const { data:url } = supabase.storage.from('media').getPublicUrl(path); updateProgram({ banner_url:(url&&url.publicUrl)||"" }); } } catch(e){} };
+  const [cardLogo, setCardLogo] = useState(selClient?.logo_url || selClient?.logo || "");
+  const uploadLogo = async (file) => { if(!file) return; try { const { data:{ user } } = await supabase.auth.getUser(); const uid = user? user.id : 'anon'; const ext=((file.name||'').split('.').pop()||'png').toLowerCase(); const path=`${uid}/${cid}/loyalty-logo-${Date.now()}.${ext}`; const { error } = await supabase.storage.from('media').upload(path, file, { upsert:true, contentType:file.type||'image/png' }); if(!error){ const { data:url } = supabase.storage.from('media').getPublicUrl(path); const u=(url&&url.publicUrl)||""; setCardLogo(u); try{ await supabase.from('clients').update({ logo_url:u }).eq('id', cid); }catch(e){} } } catch(e){} };
 
   const findCard = (q) => { const v=(q||"").trim(); if(!v) return null; const up=v.toUpperCase(); const np=loyNormPhone(v); return cards.find(c => (c.code && c.code.toUpperCase()===up) || (c.phone && np.length>=6 && loyNormPhone(c.phone)===np)) || null; };
   const recordVisit = async (card) => {
@@ -17024,14 +17528,27 @@ function LoyaltyPage() {
     <div style={{ maxWidth:900, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
         <div>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Loyalty","الولاء")}</h1>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("digital cards — no app, guests open a link or scan a QR","بطاقات رقمية — بلا تطبيق، يفتحها الضيوف برابط أو رمز QR")}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Loyalty","الولاء")}</span></div>
+          <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Loyalty","الولاء")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("digital cards — no app, guests open a link or scan a QR","بطاقات رقمية — بلا تطبيق، يفتحها الضيوف برابط أو رمز QR")}</p>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
-          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("View card","عرض البطاقة")}</a>
+          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10, background:th.gradient, color:"#fff", fontSize:12, fontWeight:600, textDecoration:"none" }}><Eye size={13}/>{L("Preview card","معاينة البطاقة")}</a>
         </div>
       </div>
+
+      {slug && <div style={{ ...card, padding:16, marginBottom:14, display:"flex", gap:14, alignItems:"center", flexWrap:"wrap" }}>
+        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&margin=0&data=${encodeURIComponent(publicUrl)}`} alt="Card QR" style={{ width:70, height:70, borderRadius:8, background:"#fff", padding:5, flexShrink:0 }}/>
+        <div style={{ flex:1, minWidth:180 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:th.text }}>{L("Share the card with guests","شارك البطاقة مع الضيوف")}</div>
+          <div style={{ fontSize:11.5, color:th.text2, marginTop:3, lineHeight:1.5 }}>{L("Print the QR for the counter, or send the link — no app, it opens in their browser.","اطبع رمز QR للكاونتر أو أرسل الرابط — بلا تطبيق، يفتح في المتصفح.")}</div>
+        </div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم"):L("Copy link","نسخ الرابط")}</button>
+          <button onClick={shareWA} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><FaWhatsapp style={{ color:"#25D366" }}/>{L("WhatsApp","واتساب")}</button>
+        </div>
+      </div>}
 
       {/* Stamp tool */}
       <div style={{ ...card, padding:16, marginBottom:14 }}>
@@ -17100,6 +17617,33 @@ function LoyaltyPage() {
       {/* Appearance */}
       <div style={{ ...card, padding:16, marginBottom:14 }}>
         <div style={{ fontSize:13, fontWeight:700, color:th.text, marginBottom:13 }}>{L("Appearance","المظهر")}</div>
+        <div style={{ display:"flex", gap:16, flexWrap:"wrap", marginBottom:16 }}>
+          <div style={{ width:250, maxWidth:"100%", borderRadius:16, overflow:"hidden", border:`1px solid ${th.border}`, flexShrink:0 }}>
+            {p.banner_url ? <div style={{ height:80, background:`center/cover url(${p.banner_url})` }}/> : <div style={{ height:80, background:`linear-gradient(135deg, ${p.brand_color||th.accent}, ${(p.brand_color||th.accent)}99)` }}/>}
+            <div style={{ background:(p.theme==='light'?'#faf7f0':'#12151b'), padding:"0 16px 16px", textAlign:"center" }}>
+              <div style={{ width:50, height:50, borderRadius:"50%", margin:"-25px auto 0", background:"#fff", border:`3px solid ${p.theme==='light'?'#faf7f0':'#12151b'}`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, color:p.brand_color||th.accent }}>{cardLogo ? <img src={cardLogo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : (selClient?.name||"L")[0]}</div>
+              <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:16, fontWeight:600, marginTop:8, color:(p.theme==='light'?'#1a1a1a':'#fff') }}>{selClient?.name || L("Your venue","علامتك")}</div>
+              {p.tagline ? <div style={{ fontSize:11, color:(p.theme==='light'?'#666':'#9aa3b2'), marginTop:3 }}>{p.tagline}</div> : null}
+              <div style={{ display:"flex", gap:5, justifyContent:"center", marginTop:12, flexWrap:"wrap" }}>{Array.from({length:Math.min(p.stamp_goal||8,10)}).map((_,i)=><div key={i} style={{ width:19, height:19, borderRadius:"50%", border:`1.5px solid ${p.brand_color||th.accent}`, background:i<3?(p.brand_color||th.accent):"transparent" }}/>)}</div>
+              <div style={{ fontSize:10.5, color:(p.theme==='light'?'#666':'#8a93a0'), marginTop:11, lineHeight:1.4 }}>{p.welcome || (p.type==='points'?`${p.points_per_visit||10} ${L('pts/visit','نقطة/زيارة')}`:`${L('Collect','اجمع')} ${p.stamp_goal||8} → ${p.reward||L('a reward','مكافأة')}`)}</div>
+            </div>
+          </div>
+          <div style={{ flex:"1 1 240px", minWidth:0 }}>
+            <div style={lbl}>{L("Logo","الشعار")}</div>
+            <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:15 }}>
+              <div style={{ width:44, height:44, borderRadius:"50%", background:th.card2, border:`1px solid ${th.border}`, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontWeight:700, color:th.accent }}>{cardLogo ? <img src={cardLogo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : (selClient?.name||"L")[0]}</div>
+              <label style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, fontWeight:600, cursor:"pointer" }}><Image size={14}/>{cardLogo?L("Change logo","تغيير الشعار"):L("Upload logo","رفع الشعار")}<input type="file" accept="image/*" onChange={e=>uploadLogo(e.target.files&&e.target.files[0])} style={{ display:"none" }}/></label>
+              <span style={{ fontSize:10.5, color:th.text3 }}>{L("Also used on your menu & profile","يُستخدم أيضاً في قائمتك وملفك")}</span>
+            </div>
+            <div style={lbl}>{L("Cover banner","غلاف البطاقة")} <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+            <div style={{ display:"flex", gap:9, alignItems:"center", marginBottom:15 }}>
+              <label style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, fontWeight:600, cursor:"pointer" }}><Image size={14}/>{p.banner_url?L("Change banner","تغيير الغلاف"):L("Upload banner","رفع غلاف")}<input type="file" accept="image/*" onChange={e=>uploadBanner(e.target.files&&e.target.files[0])} style={{ display:"none" }}/></label>
+              {p.banner_url && <button onClick={()=>updateProgram({ banner_url:"" })} style={{ background:"none", border:"none", color:th.text3, cursor:"pointer", fontSize:12 }}>{L("Remove","إزالة")}</button>}
+            </div>
+            <div style={lbl}>{L("Tagline","الشعار")} <span style={{ color:th.text3 }}>· {L("optional","اختياري")}</span></div>
+            <input value={p.tagline||""} onChange={e=>updateProgram({ tagline:e.target.value })} placeholder={L("e.g. Bahrain's cosiest coffee","مثلاً ألطف قهوة في البحرين")} style={{ ...inp, marginBottom:4, width:"100%", boxSizing:"border-box" }}/>
+          </div>
+        </div>
         <div style={lbl}>{L("Brand colour","لون العلامة")}</div>
         <div style={{ display:"flex", gap:9, flexWrap:"wrap", alignItems:"center", marginBottom:15 }}>
           {LOY_BRANDS.map(b=>(
@@ -17206,11 +17750,15 @@ function LoyaltyPublicPage({ slug }) {
   if (data === null) return <div style={{ ...wrap, display:"flex", alignItems:"center", justifyContent:"center" }}><div style={{ textAlign:"center" }}><div style={{ fontSize:15, fontWeight:600 }}>Card not available</div><div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:12.5, color:T.text3, marginTop:6 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div></div></div>;
   const enabled = program && program.enabled !== false;
 
+  const _banner = program && program.banner_url;
   const Header = (
-    <div style={{ textAlign:"center", marginBottom:22 }}>
-      {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:T.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:BR }}>{(data.name||"L")[0]}</div>}
-      <div style={{ fontSize:20, fontWeight:700, marginTop:10, color:T.text }}>{data.name}</div>
-      <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:T.text3, marginTop:4 }}>Loyalty</div>
+    <div style={{ marginBottom:22 }}>
+      {_banner && <div style={{ height:120, borderRadius:16, background:`center/cover url(${program.banner_url})`, marginBottom:-32 }}/>}
+      <div style={{ textAlign:"center" }}>
+        {data.logo ? <img src={data.logo} alt="" style={{ width:64, height:64, borderRadius:"50%", objectFit:"cover", background:"#fff", border:_banner?`3px solid ${T.bg}`:"none" }}/> : <div style={{ width:64, height:64, borderRadius:"50%", margin:"0 auto", background:T.card, display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, fontWeight:700, color:BR, border:_banner?`3px solid ${T.bg}`:"none" }}>{(data.name||"L")[0]}</div>}
+        <div style={{ fontSize:20, fontWeight:700, marginTop:10, color:T.text }}>{data.name}</div>
+        {program && program.tagline ? <div style={{ fontSize:12, color:T.text2, marginTop:4 }}>{program.tagline}</div> : <div style={{ fontSize:10, letterSpacing:"0.22em", textTransform:"uppercase", color:T.text3, marginTop:4 }}>Loyalty</div>}
+      </div>
     </div>
   );
   const Footer = <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, fontSize:11, color:T.text3, marginTop:26 }}><img src="/logo-transparent.png" alt="" style={{ width:14, height:14, objectFit:"contain" }}/>Powered by Tawaslo</div>;
@@ -17509,7 +18057,6 @@ function AutopilotPage() {
     <div style={{ maxWidth: 760, margin: "0 auto" }} className="tw-page-in">
       <div style={{ ...card, padding: 0, overflow: "hidden", marginBottom: 14 }}>
         <div style={{ padding: "18px 20px", borderBottom: `1px solid ${th.border}`, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ width: 40, height: 40, borderRadius: 11, background: th.card2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: th.accent, flexShrink: 0 }}>{(selClient.name || "?")[0].toUpperCase()}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: th.text }}>{selClient.name} · {L("Autopilot", "الطيار الآلي")}</div>
             <div style={{ fontSize: 11.5, color: th.text2 }}>{on ? L("Tawaslo is running this account", "تواصلو يدير هذا الحساب") : L("Paused — flip it on to hand over the grind", "متوقف — شغّله لتسليم العمل الروتيني")}</div>
@@ -17635,58 +18182,63 @@ function CommandCenterPage() {
 
   if (loading) return <div style={{ padding: 30, color: th.text2, fontSize: 13, textAlign: "center" }}>{L("Gathering your clients…", "نجمع عملاءك…")}</div>;
 
+  const HAIR = th.border;
+  const SERIF = "'Fraunces',Georgia,'Times New Roman',serif";
+  const TK = { letterSpacing: ".2em", textTransform: "uppercase", fontSize: 9.5, color: th.text3 };
   return (
-    <div style={{ maxWidth: 920, margin: "0 auto" }} className="tw-page-in">
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 24, fontWeight: 700, color: th.text }}>{greet}, {firstName} 👋</div>
-        <div style={{ fontSize: 13, color: th.text2, marginTop: 4 }}>{new Date().toLocaleDateString(isAR ? "ar" : [], { weekday: "long", day: "numeric", month: "long" })} · {L("here is your agency today", "هذه وكالتك اليوم")}</div>
+    <div style={{ maxWidth: 900, margin: "0 auto" }} className="tw-page-in">
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `1px solid ${HAIR}`, paddingBottom: 11, marginBottom: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8" /><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8" /></svg>
+          <span style={{ ...TK, fontSize: 11, fontWeight: 600, color: th.accent }}>{L("Command Center", "مركز القيادة")}</span>
+        </div>
+        <span style={{ ...TK }}>{new Date().toLocaleDateString(isAR ? "ar" : [], { weekday: "short", day: "numeric", month: "long" })}</span>
       </div>
 
-      <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginBottom: 22 }}>
-        {[[totals.clients, L("clients", "عملاء"), th.text], [totals.need, L("need you", "يحتاجونك"), AMBER], [totals.today, L("today", "اليوم"), BLUE], [totals.fire, L("on fire", "متوهّجون"), GREEN]].map(([v, k, c], i) => (
-          <div key={i} style={{ ...card, padding: "11px 15px", minWidth: 74, textAlign: "center" }}><div className="tw-num" style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div><div style={{ fontSize: 10, color: th.text2, marginTop: 2 }}>{k}</div></div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontFamily: SERIF, fontSize: 29, fontWeight: 600, letterSpacing: "-0.01em", color: th.text }}>{greet}, {firstName}.</div>
+        <div style={{ fontFamily: SERIF, fontSize: 15, fontStyle: "italic", color: th.text2, marginTop: 8 }}>{totals.today > 0 ? `${totals.today} ${L("posts leave today", "منشوراً اليوم")}` : L("Nothing scheduled today", "لا شيء مجدول اليوم")}{totals.need > 0 ? ` — ${totals.need} ${L("want a look first", "بحاجة لنظرة")}` : ` — ${L("all running clean", "كل شيء يسير")}`}.</div>
+      </div>
+
+      <div style={{ display: "flex", borderTop: `1px solid ${HAIR}`, borderBottom: `1px solid ${HAIR}`, marginBottom: 26 }}>
+        {[[totals.clients, L("Clients", "عملاء"), th.text], [totals.need, L("Need you", "يحتاجونك"), AMBER], [totals.today, L("Today", "اليوم"), th.accent], [totals.fire, L("On fire", "متوهّجون"), GREEN]].map(([v, k, c], i) => (
+          <div key={i} style={{ flex: 1, padding: i ? "14px 0 14px 18px" : "14px 0", borderInlineStart: i ? `1px solid ${HAIR}` : "none" }}>
+            <div style={{ fontFamily: SERIF, fontSize: 26, fontWeight: 600, color: c, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.01em" }}><CountUp to={v} /></div>
+            <div style={{ ...TK, marginTop: 3 }}>{k}</div>
+          </div>
         ))}
       </div>
 
       {(() => { const rp = twReportPref(); const dom = new Date().getDate(); return rp.on && rows.length > 0 && dom >= rp.day && dom <= rp.day + 2; })() && (
-        <div style={{ ...card, padding: "13px 15px", marginBottom: 18, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderInlineStart: `4px solid ${BLUE}` }}>
-          <span style={{ fontSize: 20 }}>📊</span>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{L("Report time", "وقت التقارير")} · {new Date().toLocaleDateString(isAR ? "ar" : [], { month: "long" })}</div>
-            <div style={{ fontSize: 11.5, color: th.text2 }}>{L("Send your clients their monthly recap while the month is fresh.", "أرسل لعملائك ملخّصهم الشهري بينما الشهر جديد.")}</div>
-          </div>
-          <button onClick={() => setPage && setPage("reports")} style={{ padding: "9px 15px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>{L("Open Reports", "افتح التقارير")}</button>
+        <div style={{ borderInlineStart: `3px solid ${th.accent}`, paddingInlineStart: 14, marginBottom: 24 }}>
+          <div style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: th.text }}>{L("Report time", "وقت التقارير")} · {new Date().toLocaleDateString(isAR ? "ar" : [], { month: "long" })}</div>
+          <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>{L("Send clients their monthly recap — ", "أرسل الملخّص الشهري — ")}<span onClick={() => setPage && setPage("reports")} style={{ color: th.accent, cursor: "pointer", fontWeight: 600 }}>{L("open Reports", "افتح التقارير")}</span>.</div>
         </div>
       )}
 
       {rows.length === 0 ? (
-        <div style={{ ...card, padding: "50px 20px", textAlign: "center", color: th.text3 }}><div style={{ fontSize: 34, marginBottom: 10 }}>🗂️</div><div style={{ fontSize: 13.5, fontWeight: 600, color: th.text2 }}>{L("No clients yet", "لا عملاء بعد")}</div><div style={{ fontSize: 12, marginTop: 6 }}>{L("Add a client and they will appear here.", "أضف عميلاً وسيظهر هنا.")}</div></div>
+        <div style={{ borderTop: `1px solid ${HAIR}`, padding: "48px 0", textAlign: "center" }}><div style={{ fontFamily: SERIF, fontSize: 18, fontWeight: 600, color: th.text }}>{L("No clients yet", "لا عملاء بعد")}</div><div style={{ fontSize: 12.5, color: th.text2, marginTop: 6 }}>{L("Add a client and they will appear here.", "أضف عميلاً وسيظهر هنا.")}</div></div>
       ) : <>
         {needs.length > 0 && <>
-          <div style={lane}>{L("Needs you first", "يحتاجونك أولاً")}</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 22 }}>
-            {needs.map(r => { const meta = levelMeta[r.s.level]; const Ic = meta.icon; const msg = r.s.level === "review" ? `${r.s.pending} ${L("posts waiting for approval", "منشورات بانتظار الموافقة")}` : meta.msg; return (
-              <div key={r.id} onClick={() => openClient(r)} style={{ ...card, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer", borderInlineStart: `4px solid ${meta.c}` }}>
-                <Ic size={18} color={meta.c} style={{ flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: th.text }}>{r.name}</div><div style={{ fontSize: 11.5, color: th.text2 }}>{msg}</div></div>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", background: meta.c, borderRadius: 9, padding: "6px 13px", flexShrink: 0 }}>{meta.label}</span>
+          <div style={{ ...TK, marginBottom: 2 }}>{L("Needs you first", "يحتاجونك أولاً")}</div>
+          <div style={{ marginBottom: 28 }}>
+            {needs.map((r, ri) => { const meta = levelMeta[r.s.level]; const msg = r.s.level === "review" ? `${r.s.pending} ${L("awaiting approval", "بانتظار الموافقة")}` : meta.msg; return (
+              <div key={r.id} className="tw-hoverrow" onClick={() => openClient(r)} style={{ display: "flex", alignItems: "baseline", padding: "14px 0", borderTop: ri ? `1px solid ${HAIR}` : "none", cursor: "pointer" }}>
+                <span style={{ fontFamily: SERIF, width: 22, flexShrink: 0, textAlign: "right", fontSize: 13, color: th.text3, paddingInlineEnd: 14, fontVariantNumeric: "tabular-nums" }}>{ri + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}><span style={{ fontFamily: SERIF, fontSize: 19, fontWeight: 600, color: th.text }}>{r.name}</span><span style={{ fontSize: 12.5, color: th.text2 }}> — {msg}</span></div>
+                <span style={{ ...TK, color: meta.c, paddingInlineStart: 12 }}>{meta.label}</span>
               </div>
             ); })}
           </div>
         </>}
         {rest.length > 0 && <>
-          <div style={lane}>{L("Everyone else", "البقية")}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(210px,1fr))", gap: 9 }}>
-            {rest.map(r => { const fire = r.s.level === "fire"; const mx = Math.max(1, ...r.s.bars); return (
-              <div key={r.id} onClick={() => openClient(r)} style={{ ...card, padding: 13, cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 11 }}>
-                  {r.logo_url ? <img src={r.logo_url} alt="" style={{ width: 30, height: 30, borderRadius: 9, objectFit: "cover" }} /> : <div style={{ width: 30, height: 30, borderRadius: 9, background: th.card2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color: BLUE }}>{(r.name || "?").slice(0, 2).toUpperCase()}</div>}
-                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 12.5, fontWeight: 600, color: th.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div><div style={{ fontSize: 10, color: fire ? GREEN : th.text3 }}>{fire ? L("🔥 thriving", "🔥 متوهّج") : L("on track", "على المسار")}</div></div>
-                </div>
-                <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 22, marginBottom: 8 }}>
-                  {r.s.bars.map((v, i) => <div key={i} style={{ flex: 1, height: Math.max(2, Math.round(v / mx * 22)), borderRadius: 2, background: fire ? GREEN : BLUE, opacity: v ? 1 : 0.25 }} />)}
-                </div>
-                <div style={{ fontSize: 10.5, color: th.text2 }}>{r.s.todayN > 0 ? `${r.s.todayN} ${L("posts today", "منشور اليوم")}` : `${r.s.upcoming} ${L("scheduled", "مجدول")}`}</div>
+          <div style={{ ...TK, marginBottom: 2 }}>{L("Running clean", "يسير بسلاسة")}</div>
+          <div>
+            {rest.map((r, ri) => { const fire = r.s.level === "fire"; return (
+              <div key={r.id} className="tw-hoverrow" onClick={() => openClient(r)} style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", padding: "11px 0", borderTop: ri ? `1px solid ${HAIR}` : "none", cursor: "pointer" }}>
+                <span style={{ fontFamily: SERIF, fontSize: 16, fontWeight: 600, color: th.text }}>{r.name}</span>
+                <span style={{ fontSize: 11.5, color: fire ? GREEN : th.text2, fontVariantNumeric: "tabular-nums" }}>{fire ? "▲ " : ""}{r.s.todayN > 0 ? `${r.s.todayN} ${L("today", "اليوم")}` : `${r.s.upcoming} ${L("queued", "مجدول")}`}</span>
               </div>
             ); })}
           </div>
@@ -17842,13 +18394,22 @@ function ProspectAuditPage() {
   const card = { background: th.card, border: `1px solid ${th.border}`, borderRadius: 14 };
   const inp = { width: "100%", boxSizing: "border-box", background: th.card2, border: `1px solid ${th.border}`, borderRadius: 9, padding: "10px 11px", color: th.text, fontSize: 16, outline: "none" };
   const lbl = { fontSize: 10.5, color: th.text2, margin: "11px 0 5px" };
-  const modes = [["price", L("With price", "مع السعر"), L("Closer, ready to sign", "للإغلاق")], ["noprice", L("Without price", "بدون سعر"), L("Win the meeting first", "احجز الاجتماع")], ["deep", L("Deep research", "بحث معمّق"), L("Full report, sellable", "تقرير كامل")]];
+  const modes = [["price", L("With price", "مع السعر"), L("Includes your quote — use when they're ready to decide.", "يتضمّن سعرك — استخدمه عندما يكونون جاهزين للقرار.")], ["noprice", L("Without price", "بدون سعر"), L("No numbers — built to get them on a call first.", "بلا أرقام — لجذبهم إلى مكالمة أولاً.")], ["deep", L("Deep research", "بحث معمّق"), L("A full, sellable audit with competitor benchmarks.", "تدقيق كامل قابل للبيع مع مقارنة المنافسين.")]];
 
   return (
     <div style={{ maxWidth: 1000, margin: "0 auto" }} className="tw-page-in">
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: th.text }}>{L("Win a client", "اكسب عميلاً")}</div>
-        <div style={{ fontSize: 12, color: th.text2, marginTop: 2 }}>{L("Paste a prospect's handle and Tawaslo writes the pitch that lands them.", "ألصق معرّف العميل المحتمل ويكتب تواصلو العرض الذي يكسبه.")}</div>
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing: ".2em", textTransform: "uppercase", fontSize: 10.5, fontWeight: 600, color: th.accent }}>{L("Win Clients", "اكسب عملاء")}</span></div>
+        <h1 style={{ margin: 0, fontFamily: "'Fraunces',Georgia,serif", fontSize: 27, fontWeight: 600, letterSpacing: "-0.01em", color: th.text }}>{L("Win a client", "اكسب عميلاً")}</h1>
+        <div style={{ fontSize: 12.5, color: th.text2, marginTop: 5 }}>{L("Paste a prospect's handle — Tawaslo reads their socials and writes the pitch that lands them.", "ألصق معرّف العميل المحتمل — يقرأ تواصلو حساباتهم ويكتب العرض الذي يكسبهم.")}</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", borderTop: `1px solid ${th.border}`, borderBottom: `1px solid ${th.border}`, padding: "12px 2px", marginBottom: 18 }}>
+        {[[L("1 · Paste their handle", "١ · ألصق معرّفهم"), L("Any Instagram or TikTok account you want to sign.", "أي حساب إنستغرام أو تيك توك تريد التعاقد معه.")], [L("2 · Pick a mode", "٢ · اختر النمط"), L("How hard to close — a quote, a meeting, or a full report.", "قوة الإغلاق — سعر، اجتماع، أو تقرير كامل.")], [L("3 · Send the proposal", "٣ · أرسل العرض"), L("Branded PDF, Word doc, or a live link for the prospect.", "PDF أو وورد أو رابط مباشر للعميل.")]].map(([t, sub], i) => (
+          <div key={i} style={{ flex: "1 1 210px", paddingInlineStart: i ? 14 : 0, borderInlineStart: i ? `1px solid ${th.border}` : "none" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: th.text }}>{t}</div>
+            <div style={{ fontSize: 11, color: th.text3, marginTop: 2, lineHeight: 1.5 }}>{sub}</div>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(280px,360px) 1fr", gap: 16, alignItems: "start" }}>
@@ -17862,6 +18423,7 @@ function ProspectAuditPage() {
                 <option value="tiktok">TikTok</option>
               </select>
             </div>
+            <div style={{ fontSize: 10.5, color: th.text3, marginTop: 6, lineHeight: 1.5 }}>{L("Tawaslo reads Instagram and TikTok — the networks it can audit publicly.", "يقرأ تواصلو إنستغرام وتيك توك — الشبكات التي يمكنه تدقيقها علناً.")}</div>
             <div style={lbl}>{L("Mode", "النمط")}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
               {modes.map(([k, t, sub]) => (
@@ -17871,6 +18433,10 @@ function ProspectAuditPage() {
                 </button>
               ))}
             </div>
+            {mode === "price" && <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ flex: 1 }}><div style={lbl}>{L("Your price", "سعرك")}</div><input value={brand.price} onChange={e => setBrand(b => ({ ...b, price: e.target.value }))} placeholder="120" style={inp} /></div>
+              <div style={{ width: 84 }}><div style={lbl}>{L("Currency", "العملة")}</div><input value={brand.currency} onChange={e => setBrand(b => ({ ...b, currency: e.target.value }))} placeholder="BHD" style={inp} /></div>
+            </div>}
             {mode === "deep" && <><div style={lbl}>{L("Compare with (optional)", "قارن مع (اختياري)")}</div>
               <input value={competitors} onChange={e => setCompetitors(e.target.value)} placeholder={L("rival_one, rival_two", "منافس_واحد، منافس_اثنان")} style={inp} /></>}
             <button onClick={generate} disabled={busy} style={{ width: "100%", marginTop: 14, padding: "12px", borderRadius: 11, background: th.gradient, border: "none", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: busy ? "wait" : "pointer", opacity: busy ? 0.7 : 1 }}>{busy ? L("Reading their socials…", "نقرأ حساباتهم…") : L("Generate audit", "أنشئ التدقيق")}</button>
@@ -17885,12 +18451,11 @@ function ProspectAuditPage() {
             <input value={brand.logo} onChange={e => setBrand(b => ({ ...b, logo: e.target.value }))} placeholder="https://…" style={inp} />
             <div style={{ display: "flex", gap: 10 }}>
               <div style={{ flex: 1 }}><div style={lbl}>{L("Accent", "اللون")}</div><input type="color" value={brand.accent} onChange={e => setBrand(b => ({ ...b, accent: e.target.value }))} style={{ width: "100%", height: 38, border: `1px solid ${th.border}`, borderRadius: 9, background: th.card2, cursor: "pointer" }} /></div>
-              {mode === "price" && <><div style={{ flex: 1 }}><div style={lbl}>{L("Price", "السعر")}</div><input value={brand.price} onChange={e => setBrand(b => ({ ...b, price: e.target.value }))} style={inp} /></div>
-                <div style={{ width: 78 }}><div style={lbl}>{L("Cur.", "العملة")}</div><input value={brand.currency} onChange={e => setBrand(b => ({ ...b, currency: e.target.value }))} style={inp} /></div></>}
             </div>
             <div style={lbl}>{L("Package name", "اسم الباقة")}</div>
             <input value={brand.packageName} onChange={e => setBrand(b => ({ ...b, packageName: e.target.value }))} style={inp} />
-            <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 10.5, color: th.text3, margin: "16px 0 8px", lineHeight: 1.6 }}>{L("Share it three ways — ", "شاركه بثلاث طرق — ")}<b style={{ color: th.text2, fontWeight: 700 }}>{L("PDF", "PDF")}</b>{L(" to print or attach, ", " للطباعة أو الإرفاق، ")}<b style={{ color: th.text2, fontWeight: 700 }}>{L("Word", "وورد")}</b>{L(" to tweak it first, ", " للتعديل أولاً، ")}<b style={{ color: th.text2, fontWeight: 700 }}>{L("Copy link", "نسخ الرابط")}</b>{L(" for a live web page you send the prospect.", " لصفحة ويب مباشرة ترسلها للعميل.")}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 0, flexWrap: "wrap" }}>
               <button onClick={printPdf} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 10, background: th.card2, border: `1px solid ${th.border}`, color: th.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{L("PDF", "PDF")}</button>
               <button onClick={exportWord} style={{ flex: 1, minWidth: 90, padding: "10px", borderRadius: 10, background: th.card2, border: `1px solid ${th.border}`, color: th.text, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{L("Word", "وورد")}</button>
               <button onClick={link ? copyLink : saveLink} style={{ flex: 1.4, minWidth: 120, padding: "10px", borderRadius: 10, background: th.gradient, border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>{link ? (copied ? L("Copied", "تم النسخ") : L("Copy link", "نسخ الرابط")) : L("Get link", "أنشئ رابطاً")}</button>
@@ -17901,10 +18466,10 @@ function ProspectAuditPage() {
 
         <div>
           {audit ? <div ref={propRef}><ProposalView audit={audit} brand={brand} mode={mode} /></div> :
-            <div style={{ ...card, padding: "60px 20px", textAlign: "center", color: th.text3 }}>
-              <div style={{ fontSize: 34, marginBottom: 10 }}>📄</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: th.text2 }}>{L("Your proposal previews here", "تظهر معاينة عرضك هنا")}</div>
-              <div style={{ fontSize: 12, marginTop: 6 }}>{L("Paste a handle, pick a mode, and press Generate.", "ألصق معرّفاً، اختر نمطاً، واضغط إنشاء.")}</div>
+            <div style={{ ...card, padding: "72px 26px", textAlign: "center", color: th.text3 }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ opacity: .5, marginBottom: 14 }}><circle cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/><circle cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.6"/></svg>
+              <div style={{ fontFamily: "'Fraunces',Georgia,serif", fontSize: 18, color: th.text, marginBottom: 6 }}>{L("Your proposal previews here", "تظهر معاينة عرضك هنا")}</div>
+              <div style={{ fontSize: 12.5, marginTop: 2, lineHeight: 1.6 }}>{L("Paste a handle, pick a mode, and press Generate audit.", "ألصق معرّفاً، اختر نمطاً، واضغط إنشاء التدقيق.")}</div>
             </div>}
         </div>
       </div>
@@ -18098,8 +18663,9 @@ function GuestsPage() {
     <div style={{ maxWidth:900, margin:"0 auto" }} className="tw-page-in">
       <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16, flexWrap:"wrap" }}>
         <div style={{ flex:1, minWidth:200 }}>
-          <div style={{ fontSize:18, fontWeight:800, color:th.text }}>{L("Guests","الضيوف")}</div>
-          <div style={{ fontSize:12, color:th.text2, marginTop:2 }}>{L("Your guest book — birthdays, allergies, the usuals.","دفتر ضيوفك — أعياد الميلاد والحساسية والمعتاد.")}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Guests","الضيوف")}</span></div>
+          <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:26, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Guests","الضيوف")}</div>
+          <div style={{ fontSize:12, color:th.text2, marginTop:3 }}>{L("Your guest book — birthdays, allergies, the usuals.","دفتر ضيوفك — أعياد الميلاد والحساسية والمعتاد.")}</div>
         </div>
         <button onClick={()=>setEditing({ ...blankGuest })} style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"10px 15px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer" }}><Plus size={15}/>{L("Add guest","إضافة ضيف")}</button>
       </div>
@@ -18262,8 +18828,9 @@ function ReviewsPage() {
     <div style={{ maxWidth:900, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
         <div>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Reviews","التقييمات")}</h1>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("happy guests → Google, unhappy → private","السعداء إلى جوجل، غير الراضين بشكل خاص")}</p>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:7 }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{ letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent }}>{L("Reviews","التقييمات")}</span></div>
+          <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Reviews","التقييمات")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("happy guests → Google, unhappy → private","السعداء إلى جوجل، غير الراضين بشكل خاص")}</p>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy link","نسخ الرابط")}</button>
@@ -18429,7 +18996,7 @@ function ReviewPublicPage({ slug }) {
 
 // ── Concierge live preview — same AI brain as the public widget + WhatsApp,
 // fed with the owner's UNSAVED edits so training is instant. ──
-function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
+function ConciergePreview({ cid, name, brandVoice, instructions, greeting, bizType, caps }) {
   const { dark, lang } = useApp();
   const th = dark ? DARK : LIGHT;
   const isAR = lang === "ar"; const L = (en, ar) => isAR ? ar : en;
@@ -18438,7 +19005,7 @@ function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
-  const defGreet = `Hi! I'm the host at ${name || 'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table. 👋`;
+  const _bt=bizType||'restaurant'; const defGreet = _bt==='services' ? `Hi! I'm the host at ${name||'the business'}. Tell me a day and time and I'll book your appointment.` : _bt==='shop' ? `Hi! I'm the assistant at ${name||'the shop'}. Ask me about the catalog or your order.` : (_bt!=='restaurant'&&_bt!=='cafe') ? `Hi! I'm the assistant at ${name||'our team'} — how can I help you today?` : `Hi! I'm the host at ${name||'the restaurant'}. Ask me about the menu, or tell me a day, time and how many — I'll book your table.`;
   useEffect(() => {
     if (!cid) return; let live = true;
     (async () => {
@@ -18459,7 +19026,7 @@ function ConciergePreview({ cid, name, brandVoice, instructions, greeting }) {
       const s = (ctx && ctx.settings) || {}; const h = s.hours || {};
       const now = new Date(); const todayStr = now.toISOString().slice(0,10) + ' (' + now.toLocaleDateString('en', { weekday:'long' }) + ')';
       let convo = next.filter(m => m.role==='user' || m.role==='assistant'); while (convo.length && convo[0].role!=='user') convo = convo.slice(1);
-      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:cid, preview:true, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
+      const body = { mode:'concierge', messages: convo, context:{ name, currency:(ctx&&ctx.currency)||'BHD', menu:(ctx&&ctx.menu)||[], menuUrl:(ctx&&ctx.menuUrl)||null, special:(ctx&&ctx.special)||null, dayparts:(ctx&&ctx.dayparts)||null, open:h.open||'12:00', close:h.close||'22:00', closedDays:h.closed_days||[], slotMinutes:s.slot_minutes||30, today:todayStr, client_id:cid, bizType:bizType||'restaurant', booking:(caps?caps.booking!==false:true), preview:true, instructions:(instructions&&instructions.trim())||null, brandVoice:(brandVoice&&brandVoice.trim())||null } };
       const r = await fetch('/api/generate-caption', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(body) });
       const d = await r.json();
       setMsgs(m => [...m, { role:'assistant', content: d.reply || "…" }]);
@@ -18503,6 +19070,7 @@ function ReservationsPage() {
   const [closeT, setCloseT] = useState("22:00");
   const [slot, setSlot] = useState(30);
   const [cap, setCap] = useState(4);
+  const [reqApproval, setReqApproval] = useState(false);
   const [closedDays, setClosedDays] = useState([]);
   const [savedMsg, setSavedMsg] = useState(false);
   const [tab, setTab] = useState("bookings");
@@ -18525,7 +19093,7 @@ function ReservationsPage() {
       let bs = null;
       try { const { data: bp } = await supabase.from('bio_pages').select('slug').eq('client_id', id).limit(1); bs = bp && bp[0] && bp[0].slug; if (!bs) { bs = slugify(selClient.name)+'-'+Math.random().toString(36).slice(2,5); await supabase.from('bio_pages').insert([{ client_id:id, slug:bs, title:selClient.name }]); } } catch(e){}
       if (active) setPubSlug(bs);
-      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); if(h.host_pin) setHostPin(h.host_pin); setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } } catch(e){}
+      try { const { data: st } = await supabase.from('booking_settings').select('*').eq('client_id', id).limit(1); const s = st && st[0]; if (s && active) { setSlot(s.slot_minutes||30); setCap(s.capacity||4); const h=s.hours||{}; if(h.open) setOpenT(h.open); if(h.close) setCloseT(h.close); if(Array.isArray(h.closed_days)) setClosedDays(h.closed_days); if(h.host_pin) setHostPin(h.host_pin); setReqApproval(!!h.require_approval); setBrandVoice(h.concierge_voice||""); setGreeting(h.concierge_greeting||""); setBrief(h.concierge_brief||""); } } catch(e){}
       const t0 = new Date(); t0.setHours(0,0,0,0);
       try { const { data: bk } = await supabase.from('bookings').select('*').eq('client_id', id).gte('starts_at', t0.toISOString()).order('starts_at',{ascending:true}); if (active) setBookings(bk||[]); } catch(e){}
       if (active) setLoading(false);
@@ -18535,7 +19103,7 @@ function ReservationsPage() {
 
   const saveSettings = async () => {
     if (!cid) return;
-    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null, concierge_voice: brandVoice||null, concierge_greeting: greeting||null, concierge_brief: brief||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
+    try { await supabase.from('booking_settings').upsert({ client_id:cid, slot_minutes:Number(slot)||30, capacity:Number(cap)||1, hours:{ open:openT, close:closeT, closed_days:closedDays, host_pin: hostPin||null, require_approval: reqApproval, concierge_voice: brandVoice||null, concierge_greeting: greeting||null, concierge_brief: brief||null }, updated_at:new Date().toISOString() }); setSavedMsg(true); setTimeout(()=>setSavedMsg(false),1500); } catch(e){}
   };
   const sendWaTest = async () => {
     const to = String(waNum||'').replace(/[^\d]/g,''); if(!to){ setWaMsg(L("Enter a WhatsApp number first.","أدخل رقم واتساب أولاً.")); return; }
@@ -18549,7 +19117,12 @@ function ReservationsPage() {
       else setWaMsg((d&&d.error)||L("Couldn't send — the guest must message you first, or WhatsApp isn't connected.","تعذّر الإرسال — يجب أن يراسلك الضيف أولاً أو أن واتساب غير متصل."));
     } catch(e){ setWaMsg(L("Network error.","خطأ في الشبكة.")); }
   };
-  const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); const _ev = st==='cancelled'?'cancelled':st==='no_show'?'noshow':null; if(_ev){ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:b.id,event:_ev})}).catch(()=>{}); }catch(e){} } };
+  const [rflash, setRflash] = useState({});
+  const [editBk, setEditBk] = useState(null);
+  const openResched = (b) => { const d=new Date(b.starts_at); const pad=n=>String(n).padStart(2,'0'); const dt=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; setEditBk({ id:b.id, name:b.customer_name, dt, party:b.party_size||2 }); };
+  const saveResched = async () => { if(!editBk) return; const nd=new Date(editBk.dt); if(isNaN(nd.getTime())) return; const iso=nd.toISOString(); try{ await supabase.from('bookings').update({ starts_at:iso, party_size:Number(editBk.party)||2 }).eq('id', editBk.id); }catch(e){} setBookings(bs=>bs.map(x=>x.id===editBk.id?{...x,starts_at:iso,party_size:Number(editBk.party)||2}:x)); try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:editBk.id,event:'updated'})}).catch(()=>{}); }catch(e){} setRflash(f=>({...f,[editBk.id]:'updated'})); setTimeout(()=>setRflash(f=>{ const g={...f}; delete g[editBk.id]; return g; }),4500); setEditBk(null); };
+  const approveBk = async (b) => { try{ await supabase.from('bookings').update({ status:'confirmed' }).eq('id', b.id); }catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:'confirmed'}:x)); try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:b.id,event:'created'})}).catch(()=>{}); }catch(e){} setRflash(f=>({...f,[b.id]:'created'})); setTimeout(()=>setRflash(f=>{ const g={...f}; delete g[b.id]; return g; }),4500); };
+  const setStatus = async (b, st) => { try { await supabase.from('bookings').update({ status:st }).eq('id', b.id); } catch(e){} setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:st}:x)); const _ev = st==='cancelled'?'cancelled':st==='no_show'?'noshow':st==='completed'?'thanks':null; if(_ev){ try{ fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'notify',kind:'booking',id:b.id,event:_ev})}).catch(()=>{}); }catch(e){} setRflash(f=>({...f,[b.id]:_ev})); setTimeout(()=>setRflash(f=>{ const g={...f}; delete g[b.id]; return g; }),4500); } };
   const notifyCancel = (b) => { const ph = String(b.customer_phone||'').replace(/[^\d]/g,''); if(!ph) return; const when = `${fmtD(b.starts_at)} ${fmtT(b.starts_at)}`; const msg = encodeURIComponent(`Hi ${b.customer_name||'there'}, we're sorry — your reservation at ${selClient?.name||'us'} for ${when} has been cancelled. Please contact us to rebook. Apologies for the inconvenience.`); if(typeof window!=='undefined') window.open(`https://wa.me/${ph}?text=${msg}`, '_blank'); };
 
   const reserveUrl = pubSlug ? `${origin}/reserve/${pubSlug}` : "";
@@ -18561,8 +19134,8 @@ function ReservationsPage() {
   const shown = filter==='today'?todayB : filter==='upcoming'?upcomingB : bookings;
   const fmtT = (iso) => new Date(iso).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
   const fmtD = (iso) => new Date(iso).toLocaleDateString(isAR?'ar-u-nu-latn':[], {weekday:'short',day:'numeric',month:'short'});
-  const SC = { confirmed:th.success, seated:th.accent, no_show:'#D98A6A', cancelled:th.text3 };
-  const SL = { confirmed:L("Confirmed","مؤكد"), seated:L("Seated","جلس"), no_show:L("No-show","لم يحضر"), cancelled:L("Cancelled","ملغى") };
+  const SC = { pending:'#C7942B', confirmed:th.success, seated:th.accent, completed:th.text3, no_show:'#D98A6A', cancelled:th.text3 };
+  const SL = { pending:L("Pending","بانتظار"), confirmed:L("Confirmed","مؤكد"), seated:L("Seated","جلس"), completed:L("Completed","اكتمل"), no_show:L("No-show","لم يحضر"), cancelled:L("Cancelled","ملغى") };
 
   const card = { background:th.card, border:`1px solid ${th.border}`, borderRadius:14 };
   const inp = { background:th.card2, border:`1px solid ${th.border}`, borderRadius:9, padding:"9px 11px", color:th.text, fontSize:16, outline:"none" };
@@ -18574,8 +19147,9 @@ function ReservationsPage() {
     <div style={{ maxWidth:900, margin:"0 auto" }}>
       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:18 }}>
         <div>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:600, color:th.text }}>{L("Reservations","الحجوزات")}</h1>
-          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name} · {L("bookings from your bio, QR & the AI","حجوزات من البايو ورمز QR والذكاء")}</p>
+          <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:7}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle className="tw-mark-l" cx="8" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/><circle className="tw-mark-r" cx="16" cy="12" r="4.4" stroke={th.accent} strokeWidth="1.8"/></svg><span style={{letterSpacing:".2em", textTransform:"uppercase", fontSize:10.5, fontWeight:600, color:th.accent}}>{L("Reservations","الحجوزات")}</span></div>
+          <h1 style={{ margin:0, fontFamily:"'Fraunces',Georgia,serif", fontSize:27, fontWeight:600, letterSpacing:"-0.01em", color:th.text }}>{selClient?.name || L("Reservations","الحجوزات")}</h1>
+          <p style={{ margin:"5px 0 0", fontSize:12.5, color:th.text2 }}>{L("bookings from your bio, QR & the AI","حجوزات من البايو ورمز QR والذكاء")}</p>
         </div>
         {tab==="bookings" && <div style={{ display:"flex", gap:8 }}>
           <button onClick={copyUrl} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"9px 13px", borderRadius:10, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:12, cursor:"pointer" }}><Link size={13}/>{copied?L("Copied","تم النسخ"):L("Copy booking link","نسخ رابط الحجز")}</button>
@@ -18598,7 +19172,7 @@ function ReservationsPage() {
             <textarea value={brandVoice} onChange={e=>setBrandVoice(e.target.value)} rows={2} placeholder={L("e.g. Warm and upbeat — speaks like a friendly Bahraini host. Light emojis welcome.","مثلاً: ودّي ومرح — يتحدث كمضيف بحريني لطيف.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:14, lineHeight:1.5 }}/>
             <label style={lblS}>{L("Greeting (first message)","الترحيب (الرسالة الأولى)")}</label>
             <textarea value={greeting} onChange={e=>setGreeting(e.target.value)} rows={2} placeholder={L("Hi! Welcome — ask me about the menu or tell me a day, time and party size to book.","أهلاً! اسألني عن القائمة أو أخبرني باليوم والوقت وعدد الضيوف للحجز.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:14, lineHeight:1.5 }}/>
-            <label style={lblS}>{L("House instructions","تعليمات المطعم")}</label>
+            <label style={lblS}>{L("House instructions","تعليمات المكان")}</label>
             <textarea value={brief} onChange={e=>setBrief(e.target.value)} rows={6} placeholder={L("Teach your host, e.g.:\n• No outside food or cakes.\n• Always suggest the saffron cheesecake for dessert.\n• Valet parking is free after 7pm.\n• Groups over 8 should call us directly.","علّم مضيفك، مثلاً:\n• لا يُسمح بطعام خارجي.\n• اقترح دائماً تشيز كيك الزعفران.\n• صف السيارات مجاني بعد السابعة مساءً.")} style={{ ...inp, width:"100%", boxSizing:"border-box", resize:"vertical", marginBottom:16, lineHeight:1.6 }}/>
             <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
               <button onClick={saveSettings} style={{ padding:"10px 18px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved ✓","تم الحفظ ✓"):L("Save & make live","حفظ وتفعيل")}</button>
@@ -18614,7 +19188,7 @@ function ReservationsPage() {
             </div>
           </div>
           <div style={{ flex:"1 1 320px", minWidth:280 }}>
-            <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting}/>
+            <ConciergePreview cid={cid} name={selClient?.name} brandVoice={brandVoice} instructions={brief} greeting={greeting} bizType={(selClient&&selClient.business_type)||'restaurant'}/>
           </div>
         </div>
       )}
@@ -18658,6 +19232,10 @@ function ReservationsPage() {
             <button key={i} onClick={()=>setClosedDays(cd=>cd.includes(i)?cd.filter(x=>x!==i):[...cd,i].sort())} style={{ padding:"7px 13px", borderRadius:9, fontSize:11.5, fontWeight:600, cursor:"pointer", border:`1px solid ${on?'#D98A6A':th.border}`, background:on?'rgba(217,138,106,0.14)':th.card2, color:on?'#D98A6A':th.text2 }}>{d}</button>
           ); })}
         </div>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"12px 0", marginBottom:12, borderTop:`1px solid ${th.border}` }}>
+          <div style={{ minWidth:0 }}><div style={{ fontSize:12.5, fontWeight:600, color:th.text }}>{L("Auto-confirm bookings","تأكيد الحجوزات تلقائياً")}</div><div style={{ fontSize:10.5, color:th.text3, marginTop:2, lineHeight:1.45 }}>{reqApproval?L("Off — the AI holds bookings as pending and you approve each one.","متوقف — يجعل الذكاء الحجوزات معلّقة وتوافق على كل واحدة."):L("On — the AI confirms instantly when the slot has space.","مفعّل — يؤكد الذكاء فوراً عند توفر مكان في الفترة.")}</div></div>
+          <button onClick={()=>setReqApproval(v=>!v)} title={L("Toggle","تبديل")} style={{ width:44, height:24, borderRadius:12, background:reqApproval?th.border:th.accent, border:"none", cursor:"pointer", position:"relative", flexShrink:0 }}><div style={{ position:"absolute", top:3, left:reqApproval?3:23, width:18, height:18, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/></button>
+        </div>
         <button onClick={saveSettings} style={{ padding:"9px 16px", borderRadius:10, background:th.gradient, border:"none", color:"#fff", fontSize:12.5, fontWeight:600, cursor:"pointer" }}>{savedMsg?L("Saved","تم"):L("Save availability","حفظ التوفر")}</button>
       </div>
 
@@ -18674,26 +19252,54 @@ function ReservationsPage() {
               <div style={{ width:38, textAlign:"center", flexShrink:0 }}><div className="tw-num" style={{ fontSize:14, fontWeight:700, color:th.text }}>{b.party_size||1}</div><div style={{ fontSize:9, color:th.text3 }}>{L("pax","ضيف")}</div></div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
-                  <span style={{ fontSize:13, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.customer_name||L("Guest","ضيف")}</span>
+                  <span style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:14, fontWeight:600, color:th.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{b.customer_name||L("Guest","ضيف")}</span>
                   {b.note && <span style={{ fontSize:9, color:'#C7942B', border:'1px solid #C7942B55', borderRadius:5, padding:'1px 6px', whiteSpace:"nowrap", flexShrink:0 }}>{b.note}</span>}
                 </div>
                 <div style={{ fontSize:11, color:th.text3, marginTop:2 }}>{fmtD(b.starts_at)} · {fmtT(b.starts_at)}{b.customer_phone?` · ${b.customer_phone}`:""}</div>
               </div>
               <span style={{ fontSize:9.5, color:th.text3, background:th.card2, borderRadius:5, padding:"2px 7px", flexShrink:0 }}>{b.source==='concierge'?L("AI","ذكاء"):b.source==='manual'?L("manual","يدوي"):L("bio","بايو")}</span>
-              <span style={{ fontSize:11, fontWeight:600, color:SC[b.status]||th.text3, flexShrink:0 }}>{SL[b.status]||b.status}</span>
-              {b.status==='cancelled' && b.customer_phone && (
-                <button onClick={()=>notifyCancel(b)} title={L("Notify guest on WhatsApp","إبلاغ الضيف عبر واتساب")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text2, fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><FaWhatsapp style={{ color:"#25D366" }}/>{L("Notify","إبلاغ")}</button>
+              <span style={{ fontSize:9.5, fontWeight:600, padding:"2px 9px", borderRadius:8, border:`1px solid ${(SC[b.status]||th.text3)}55`, color:SC[b.status]||th.text3, textTransform:"uppercase", letterSpacing:".06em", flexShrink:0 }}>{SL[b.status]||b.status}</span>
+              {rflash[b.id] && <span style={{ fontSize:10, color:"#25D366", display:"inline-flex", alignItems:"center", gap:4, flexShrink:0 }}><FaWhatsapp/>{rflash[b.id]==='created'?L("Confirmation sent","تم إرسال التأكيد"):rflash[b.id]==='updated'?L("Reschedule sent","تم إرسال التحديث"):rflash[b.id]==='thanks'?L("Thanks sent","تم الشكر"):rflash[b.id]==='noshow'?L("Notified","تم الإرسال"):L("Guest notified","تم إشعار الضيف")}</span>}
+              {b.customer_phone && (
+                <a href={"https://wa.me/"+String(b.customer_phone).replace(/[^0-9]/g,'')+"?text="+encodeURIComponent((selClient?.name?selClient.name+": ":"")+L("Hi","مرحباً")+" "+(b.customer_name||"")+" — "+L("about your reservation","بخصوص حجزك"))} target="_blank" rel="noreferrer" title={L("Message guest on WhatsApp","راسل الضيف عبر واتساب")} style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:"#25D366", flexShrink:0 }}><FaWhatsapp/></a>
               )}
-              {b.status!=='cancelled' && b.status!=='seated' && (
+              {b.status==='pending' && (
                 <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-                  <button onClick={()=>setStatus(b,'seated')} title={L("Seated","جلس")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.success, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Check size={14}/></button>
+                  <button onClick={()=>approveBk(b)} title={L("Approve","موافقة")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 11px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><Check size={13}/>{L("Approve","موافقة")}</button>
+                  <button onClick={()=>setStatus(b,'cancelled')} title={L("Decline","رفض")} style={{ padding:"6px 10px", borderRadius:8, background:th.card2, border:`1px solid #D98A6A55`, color:"#D98A6A", fontSize:10.5, fontWeight:600, cursor:"pointer" }}>{L("Decline","رفض")}</button>
+                </div>
+              )}
+              {b.status==='confirmed' && (
+                <div style={{ display:"flex", gap:6, flexShrink:0 }}>
+                  <button onClick={()=>openResched(b)} title={L("Reschedule","إعادة جدولة")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.accent, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><Clock size={14}/></button>
+                  <button onClick={()=>setStatus(b,'seated')} title={L("Seat guest","إجلاس الضيف")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 11px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer" }}><Check size={13}/>{L("Seat","إجلاس")}</button>
+                  <button onClick={()=>setStatus(b,'no_show')} title={L("No-show","لم يحضر")} style={{ padding:"6px 10px", borderRadius:8, background:th.card2, border:`1px solid #D98A6A55`, color:"#D98A6A", fontSize:10.5, fontWeight:600, cursor:"pointer" }}>{L("No-show","لم يحضر")}</button>
                   <button onClick={()=>setStatus(b,'cancelled')} title={L("Cancel","إلغاء")} style={{ width:30, height:30, borderRadius:8, background:th.card2, border:`1px solid ${th.border}`, color:th.text3, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><XCircle size={14}/></button>
                 </div>
+              )}
+              {b.status==='seated' && (
+                <button onClick={()=>setStatus(b,'completed')} title={L("Mark done — sends a thank-you","إنهاء — يرسل رسالة شكر")} style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"6px 11px", borderRadius:8, background:th.gradient, border:"none", color:"#fff", fontSize:11, fontWeight:600, cursor:"pointer", flexShrink:0 }}><CheckCircle size={13}/>{L("Complete","إنهاء")}</button>
               )}
             </div>
           ))}
       </div>
       </>)}
+      {editBk && createPortal((
+        <div onClick={()=>setEditBk(null)} style={{ position:"fixed", inset:0, background:"rgba(3,5,10,0.6)", backdropFilter:"blur(2px)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+          <div onClick={e=>e.stopPropagation()} style={{ width:360, maxWidth:"100%", background:th.surface, border:`1px solid ${th.border}`, borderRadius:16, padding:20, boxShadow:"0 24px 60px rgba(0,0,0,0.5)" }}>
+            <div style={{ fontFamily:"'Fraunces',Georgia,serif", fontSize:18, fontWeight:600, marginBottom:3 }}>{L("Reschedule","إعادة جدولة")}</div>
+            <div style={{ fontSize:12, color:th.text2, marginBottom:16 }}>{editBk.name||L("Guest","ضيف")}</div>
+            <label style={lblS}>{L("New date & time","التاريخ والوقت الجديد")}</label>
+            <input type="datetime-local" value={editBk.dt} onChange={e=>setEditBk(v=>({...v,dt:e.target.value}))} style={{ ...inp, width:"100%", boxSizing:"border-box", marginBottom:14 }}/>
+            <label style={lblS}>{L("Party size","عدد الضيوف")}</label>
+            <input type="number" min={1} value={editBk.party} onChange={e=>setEditBk(v=>({...v,party:e.target.value}))} style={{ ...inp, width:110, marginBottom:18 }}/>
+            <div style={{ display:"flex", gap:9 }}>
+              <button onClick={saveResched} style={{ flex:1, padding:"11px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer" }}>{L("Save & notify guest","حفظ وإبلاغ الضيف")}</button>
+              <button onClick={()=>setEditBk(null)} style={{ padding:"11px 16px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, cursor:"pointer" }}>{L("Cancel","إلغاء")}</button>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
     </div>
   );
 }
@@ -20609,6 +21215,9 @@ export default function TawasloApp() {
   };
   const saveMode = (m) => { sessionStorage.setItem('tw_mode', m); setMode(m); };
 
+  const [hiddenPages, setHiddenPages] = useState(() => { const o = {}; HIDDEN_PAGES.forEach(k => { o[k] = ""; }); return o; });
+  useEffect(() => { let on = true; supabase.from('app_config').select('hidden').eq('id', 1).limit(1).then(({ data }) => { if (on && data && data[0] && data[0].hidden && typeof data[0].hidden === 'object') setHiddenPages(data[0].hidden); }, () => {}); return () => { on = false; }; }, []);
+  const setPageHidden = (key, hide) => { setHiddenPages(prev => { const n = { ...prev }; if (hide) n[key] = new Date().toISOString(); else delete n[key]; try { supabase.from('app_config').upsert({ id: 1, hidden: n, updated_at: new Date().toISOString() }); } catch (e) {} return n; }); };
   const ctx = {
     dark, setDark, lang, setLang,
     t: (k, fb) => (TR[lang] && TR[lang][k]) || TR.en[k] || fb || k,
@@ -20626,10 +21235,11 @@ export default function TawasloApp() {
     selPlatform, setSelPlatform,
     setShowLanding,
     mobileNav, setMobileNav,
+    hiddenPages, setPageHidden,
   };
 
   const renderPage = () => {
-    if (mode !== "owner" && HIDDEN_PAGES.has(page)) return <Placeholder icon={Eye} badge="Hidden" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is currently hidden."/>;
+    if (mode !== "owner" && hiddenPages[page]) return <Placeholder icon={Eye} badge="Hidden" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section is currently hidden."/>;
     if (mode==="owner") {
       if (!ownerRoleAllows(page, myRole)) return <OwnerDashboard/>;
       if (page==="overview") return <OwnerDashboard/>;
@@ -20663,6 +21273,7 @@ export default function TawasloApp() {
     if (page==="reviews") return <ReviewsPage/>;
     if (page==="guests") return <GuestsPage/>;
     if (page==="filltables") return <FillTablesPage/>;
+    if (page==="venuereport") return <VenueReportPage/>;
     if (page==="prospect") return <ProspectAuditPage/>;
     if (page==="shortlinks") return <ShortLinksPage/>;
     if (page==="suggested") return <SuggestedPage/>;

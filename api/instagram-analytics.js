@@ -57,6 +57,22 @@ export default async function handler(req, res) {
       if (vData.data && vData.data[0]) viewsByDay = vData.data[0].values || [];
     } catch (e) { /* views unsupported for this account — ignore */ }
 
+    // Follower demographics (city / age / gender). Newer Meta API; each wrapped so a failure never breaks the rest.
+    let demographics = { cities: [], age: [], gender: [] };
+    const fdemo = async (breakdown) => {
+      try {
+        const r = await fetch(`${base}/${accountId}/insights?metric=follower_demographics&period=lifetime&metric_type=total_value&breakdown=${breakdown}&access_token=${accessToken}`);
+        const j = await r.json();
+        const results = j && j.data && j.data[0] && j.data[0].total_value && j.data[0].total_value.breakdowns && j.data[0].total_value.breakdowns[0] && j.data[0].total_value.breakdowns[0].results;
+        if (!Array.isArray(results)) return [];
+        return results.map(x => ({ key: (x.dimension_values && x.dimension_values[0]) || '', value: x.value || 0 })).filter(x => x.key).sort((a, b) => b.value - a.value);
+      } catch (e) { return []; }
+    };
+    try {
+      const [cities, age, gender] = await Promise.all([fdemo('city'), fdemo('age'), fdemo('gender')]);
+      demographics = { cities: cities.slice(0, 5), age: age.slice(0, 6), gender: gender.slice(0, 3) };
+    } catch (e) { /* ignore */ }
+
     // 3. Recent media — valid fields only (reach/impressions/saved are NOT media fields; they live on /insights)
     const mediaRes = await fetch(
       `${base}/${accountId}/media?fields=id,caption,media_type,timestamp,like_count,comments_count,thumbnail_url,media_url,permalink&limit=12&access_token=${accessToken}`
@@ -96,6 +112,7 @@ export default async function handler(req, res) {
         bio: profile.biography || '',
         website: profile.website || '',
       },
+      demographics,
       summary: {
         totalReach,
         totalViews,

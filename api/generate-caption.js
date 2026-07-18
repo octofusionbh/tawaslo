@@ -310,7 +310,7 @@ How to help:
     const out = await conciergeReply(ctx, convo);
     if (out.error) return res.status(500).json({ error: 'Concierge AI error', details: out.details });
     if (!ctx.preview) bumpConcierge(ctx.client_id);
-    return res.status(200).json({ reply: out.reply, booking: out.booking });
+    return res.status(200).json({ reply: out.reply, booking: out.booking, order: out.order });
   }
 
   // Vision modes need an image; reply needs a message; everything else needs a topic.
@@ -661,32 +661,57 @@ async function conciergeReply(ctx, convo) {
   const orderLine = ctx.orderUrl ? `\nPickup ordering is ON. Order & pay link: ${ctx.orderUrl} — when the guest wants to order for pickup / takeaway / to-go, share this link so they can build their order.` : '';
   const voiceLine = ctx.brandVoice ? `\n\nBrand voice — write EVERY reply in this voice and personality: ${String(ctx.brandVoice).slice(0, 500)}` : '';
   const houseLine = ctx.instructions ? `\n\nHouse instructions from the owner (these take priority — follow them exactly, but never invent menu items, prices or facts that are not listed above):\n${String(ctx.instructions).slice(0, 1800)}` : '';
-  const canBook = ctx.booking !== false;
-  const capabilities = canBook
-    ? 'answer menu and price questions, give opening hours, book a table for dine-in, and (when pickup ordering is on) help with pickup orders. When a guest first says hi or seems unsure, warmly offer the options — see the menu, order for pickup, or book a table to dine in — and share the matching link.'
-    : 'answer menu and price questions, give opening hours, and (when pickup ordering is on) help with pickup orders. When a guest first says hi, warmly offer to show the menu or help them order for pickup. This venue does not take table reservations.';
+  const orderMode = !!ctx.orderMode;
+  const orderHint = orderMode ? `\n\nORDER MODE: You are taking a pickup order. Help the guest pick items from the menu above. When they ask to add item(s), reply warmly and set "order" to the items to ADD this turn — an array of {"name":"<exact menu item name>","qty":<integer>}. Only include items that appear in the menu; never invent. Do NOT repeat items already added in earlier turns. When they seem done, invite them to tap "Review & checkout". Never take payment or ask for card details — checkout handles that.` : '';
+  const bt = ctx.bizType || 'restaurant';
+  const isShop = bt === 'shop';
+  const isServices = bt === 'services';
+  const isGeneral = !isShop && !isServices && bt !== 'restaurant' && bt !== 'cafe';
+  const hasMenu = !isServices && !isGeneral;
+  const menuNoun = isShop ? 'catalog' : 'menu';
+  const bookNoun = isServices ? 'appointment' : 'table';
+  const venueNoun = isShop ? 'shop' : (isServices || isGeneral) ? 'business' : 'restaurant';
+  const roleNoun = isShop ? 'shop assistant' : isGeneral ? 'assistant' : 'front-desk host';
+  const canBook = ctx.booking !== false && !isShop && !isGeneral;
+  const menuCap = hasMenu ? `answer ${menuNoun} and price questions, ` : '';
+  const orderCap = ctx.orderUrl ? 'help with pickup orders, ' : '';
+  const bookCap = canBook ? `and book ${isServices ? 'an appointment' : 'a table for dine-in'}. ` : '';
+  const genCap = isGeneral ? "answer questions about the business, its services and hours, and take down what the visitor needs (their name and how to reach them) so the team can follow up. " : '';
+  const hiCap = isGeneral
+    ? "When a visitor first says hi, warmly ask how you can help and what they're looking for."
+    : canBook
+      ? `When a guest first says hi or seems unsure, warmly offer the options${hasMenu ? ' — see the ' + menuNoun : ''}${ctx.orderUrl ? ', order for pickup' : ''}, or book ${isServices ? 'an appointment' : 'a table'} — and share the matching link.`
+      : `When a guest first says hi, warmly ask how you can help${hasMenu ? ' and offer to show the ' + menuNoun : ''}${ctx.orderUrl ? ' or help them order for pickup' : ''}.`;
+  const capabilities = `give opening hours, ${genCap}${menuCap}${orderCap}${bookCap}${hiCap}`.replace(/\s+/g, ' ').trim();
   const bookRules = canBook
-    ? "- To book you need: date, time (inside opening hours, not on a closed day, not in the past), party size, and the guest's name. Phone and occasion are optional. Ask only for what's missing, one at a time. Confirm details back before booking; only once date, time, party size AND name are known and the guest agrees, return the booking object."
-    : "- This venue does NOT take reservations. Never ask for booking details and never return a booking object. If a guest wants a table, warmly say the team will help or ask them to call, and offer the menu instead.";
-  const sys = `You are the friendly front-desk host for ${ctx.name || 'the restaurant'}, a venue in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
+    ? `- To book you need: date, time (inside opening hours, not on a closed day, not in the past), ${isServices ? 'number of people' : 'party size'}, and the guest's name. Phone is optional. Always ask once, warmly, whether it is a special occasion — it is optional, so do not insist if they would rather skip. Ask only for what's missing, one at a time. Confirm details back before booking; only once date, time, ${isServices ? 'people' : 'party size'} AND name are known and the guest agrees, return the booking object.`
+    : isGeneral
+      ? "- This is not a bookable venue. Never ask for reservation details and never return a booking object. Instead, when the visitor has a request, take their name and a contact (phone or email) so the team can follow up, and reassure them someone will be in touch."
+      : `- This ${venueNoun} does NOT take ${bookNoun} bookings. Never ask for booking details and never return a booking object. If a guest wants ${isShop ? 'to reserve or buy something' : 'a ' + bookNoun}, warmly say the team will help or ask them to call${hasMenu ? ', and offer the ' + menuNoun + ' instead' : ''}.`;
+  const capLine = canBook ? ((ctx.capacity ? `- Each time slot holds up to ${ctx.capacity} ${isServices ? 'people' : 'guests'} in total; never confirm a time that would exceed this.` : '') + (Array.isArray(ctx.fullSlots) && ctx.fullSlots.length ? ` These upcoming times are FULLY BOOKED — never offer them; if the guest asks for one, say it is full and suggest the nearest open time: ${ctx.fullSlots.join('; ')}.` : '') + (ctx.requireApproval ? ` IMPORTANT: this ${venueNoun} approves bookings manually. When the guest agrees, still return the booking object, but in your reply do NOT say it is confirmed — say you have requested it and the team will confirm shortly.` : '')) : '';
+  const sys = `You are the friendly ${roleNoun} for ${ctx.name || ('the ' + venueNoun)}, a ${venueNoun} in Bahrain. Reply in the SAME language the guest uses — English or natural Gulf (Khaleeji) Arabic. Be warm and concise (1-3 short sentences).
 You can: ${capabilities}
 Opening hours: ${ctx.open || '12:00'}–${ctx.close || '22:00'}. Closed on: ${closed}. Slot length: ${ctx.slotMinutes || 30} minutes. Today is ${ctx.today || ''}.
-Menu (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
-${menuLines || '(no menu provided — politely offer to have the team confirm specifics)'}${specialLine}${dpLine}${menuLink}${orderLine}${voiceLine}${houseLine}
+${hasMenu ? `${isShop ? 'Catalog' : 'Menu'} (prices in ${ctx.currency || 'BHD'}; brackets show dietary tags):
+${menuLines || '(no items listed yet — politely offer to have the team confirm specifics)'}` : 'This business has no food menu — do not discuss dishes, menu items, or dietary tags.'}${specialLine}${dpLine}${menuLink}${orderLine}${voiceLine}${houseLine}${orderHint}
 
 Rules:
 - Never invent menu items, prices, or facts not listed above. If you don't know, say you'll have the team follow up.
 - Dietary questions: use the bracketed tags to answer "what's vegan / vegetarian / halal / gluten-free / dairy-free / spicy?" — list only items that carry that exact tag, and warn if nothing matches.
 - Time-based menu: if a section is served only at certain times, and the guest asks for it outside those hours, tell them warmly when it's available (e.g. "Breakfast is served 7–11am").
 - Intent routing: "pickup / takeaway / to-go / order to collect" → share the pickup order link (if provided). "dine in / table / reservation / book" → do the booking flow. "menu / the list / photos / what do you have" → share the menu link.
-${bookRules}
+${bookRules}
+${capLine}
 
 - If the guest asks to CANCEL their reservation, confirm which booking with them first; only once they clearly confirm, set "cancel" to true (and write a warm confirmation in "reply").
+- If the guest asks to RESCHEDULE, move, or change the time of their reservation, gather the NEW date and time (and the new party size if it changed), confirm the new details back, and only once they agree set "reschedule" to the new details. Do not also return a "booking" object when rescheduling.
 
 Return ONLY a JSON object, no markdown:
-{ "reply": "your message to the guest", "booking": null, "cancel": false }
+{ "reply": "your message to the guest", "booking": null, "cancel": false, "reschedule": null, "order": null }
 When (and only when) all booking details are gathered and confirmed, set "booking" to:
-{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }`;
+{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer>, "name": "guest name", "phone": "", "occasion": "" }
+When (and only when) the guest confirms a reschedule, set "reschedule" to the new details:
+{ "date": "YYYY-MM-DD", "time": "HH:MM", "party": <integer> }`;
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -702,7 +727,7 @@ When (and only when) all booking details are gathered and confirmed, set "bookin
     const jm = text.match(/\{[\s\S]*\}/);
     if (!jm) return { reply: text || '…', booking: null };
     let parsed; try { parsed = JSON.parse(jm[0]); } catch (e) { return { reply: text, booking: null }; }
-    return { reply: parsed.reply || '', booking: canBook ? (parsed.booking || null) : null, cancel: !!parsed.cancel };
+    return { reply: parsed.reply || '', booking: canBook ? (parsed.booking || null) : null, cancel: !!parsed.cancel, reschedule: canBook ? (parsed.reschedule || null) : null, order: orderMode ? (Array.isArray(parsed.order) ? parsed.order : null) : null };
   } catch (e) { return { error: true, details: e.message }; }
 }
 
@@ -723,7 +748,7 @@ function waActiveDaypart(hours) {
 async function waBuildContext(clientId) {
   const ctx = { name: 'the restaurant', currency: 'BHD', menu: [], open: '12:00', close: '22:00', closedDays: [], slotMinutes: 30, special: null, dayparts: null };
   const now = new Date(); ctx.today = now.toISOString().slice(0, 10) + ' (' + now.toLocaleDateString('en', { weekday: 'long' }) + ')';
-  try { const r = await waSb(`clients?id=eq.${clientId}&select=name&limit=1`); const c = await r.json(); if (c && c[0] && c[0].name) ctx.name = c[0].name; } catch (e) {}
+  try { const r = await waSb(`clients?id=eq.${clientId}&select=name,business_type&limit=1`); const c = await r.json(); if (c && c[0]) { if (c[0].name) ctx.name = c[0].name; if (c[0].business_type) ctx.bizType = c[0].business_type; } } catch (e) {}
   try {
     const r = await waSb(`menus?client_id=eq.${clientId}&select=*&limit=1`);
     const mj = await r.json();
@@ -741,7 +766,18 @@ async function waBuildContext(clientId) {
       ctx.menu = items.filter(x => !x.hidden).map(x => ({ category: x.category, name_en: x.name_en, name_ar: x.name_ar, description: x.description || null, available: x.available, tags: Array.isArray(x.tags) ? x.tags : [], variants: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.variants) ? x.variants : []), addons: (m.hide_prices || x.show_price === false) ? [] : (Array.isArray(x.addons) ? x.addons : []), price: (m.hide_prices || x.show_price === false) ? null : x.price }));
     }
   } catch (e) {}
-  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=*&limit=1`); const sj = await r.json(); const s = Array.isArray(sj) ? sj[0] : null; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; if (h.concierge_brief) ctx.instructions = h.concierge_brief; if (h.concierge_greeting) ctx.greeting = h.concierge_greeting; if (h.concierge_voice) ctx.brandVoice = h.concierge_voice; } } catch (e) {}
+  try { const r = await waSb(`booking_settings?client_id=eq.${clientId}&select=*&limit=1`); const sj = await r.json(); const s = Array.isArray(sj) ? sj[0] : null; if (s) { const h = s.hours || {}; if (h.open) ctx.open = h.open; if (h.close) ctx.close = h.close; if (Array.isArray(h.closed_days)) ctx.closedDays = h.closed_days; if (s.slot_minutes) ctx.slotMinutes = s.slot_minutes; if (s.capacity) ctx.capacity = s.capacity; ctx.requireApproval = !!h.require_approval; if (h.concierge_brief) ctx.instructions = h.concierge_brief; if (h.concierge_greeting) ctx.greeting = h.concierge_greeting; if (h.concierge_voice) ctx.brandVoice = h.concierge_voice; } } catch (e) {}
+  try {
+    if (ctx.capacity) {
+      const nowIso = new Date().toISOString();
+      const horizon = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString();
+      const r = await waSb(`bookings?client_id=eq.${clientId}&status=in.(confirmed,pending,seated)&starts_at=gte.${nowIso}&starts_at=lt.${horizon}&select=starts_at,party_size`);
+      const rows = await r.json();
+      const bySlot = {};
+      (Array.isArray(rows) ? rows : []).forEach(x => { const k = x.starts_at; bySlot[k] = (bySlot[k] || 0) + (Number(x.party_size) || 0); });
+      ctx.fullSlots = Object.keys(bySlot).filter(k => bySlot[k] >= ctx.capacity).map(k => { const d = new Date(k); return d.toLocaleString('en', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }); }).slice(0, 20);
+    }
+  } catch (e) {}
   return ctx;
 }
 async function waSend(phoneId, token, to, bodyText) {
@@ -786,13 +822,69 @@ async function handleWhatsApp(body) {
             if (match) await waSb(`bookings?id=eq.${match.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'cancelled' }) });
           } catch (e) {}
         }
+        const rs = out && out.reschedule;
+        if (rs && rs.date && rs.time) {
+          try {
+            const tt2 = String(rs.time).length === 5 ? rs.time : ('0' + rs.time);
+            const sd2 = new Date(rs.date + 'T' + tt2 + ':00');
+            if (!isNaN(sd2.getTime())) {
+              const nowIso2 = new Date().toISOString();
+              const rr = await waSb(`bookings?client_id=eq.${clientId}&status=eq.confirmed&starts_at=gte.${nowIso2}&order=starts_at.asc&select=id,customer_phone,party_size`);
+              const bks2 = await rr.json();
+              const fd2 = String(from).replace(/[^\d]/g, '');
+              const match2 = (Array.isArray(bks2) ? bks2 : []).find(x => { const cp = String(x.customer_phone || '').replace(/[^\d]/g, ''); return cp && fd2 && (cp.slice(-8) === fd2.slice(-8)); });
+              if (match2) {
+                const party2 = rs.party ? (Number(rs.party) || match2.party_size) : (match2.party_size || 2);
+                let full2 = false;
+                try {
+                  const cap2 = Number(ctx.capacity) || 0;
+                  if (cap2 > 0) {
+                    const slotMs2 = (Number(ctx.slotMinutes) || 30) * 60000;
+                    const q0 = sd2.toISOString(); const q1 = new Date(sd2.getTime() + slotMs2).toISOString();
+                    const rc2 = await waSb(`bookings?client_id=eq.${clientId}&status=in.(confirmed,pending,seated)&starts_at=gte.${q0}&starts_at=lt.${q1}&id=neq.${match2.id}&select=party_size`);
+                    const rw2 = await rc2.json();
+                    const bk2 = (Array.isArray(rw2) ? rw2 : []).reduce((a, x) => a + (Number(x.party_size) || 0), 0);
+                    if (bk2 + party2 > cap2) full2 = true;
+                  }
+                } catch (e) {}
+                if (full2) {
+                  await waSend(phoneId, token, from, `Sorry — ${sd2.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })} is fully booked. Want me to check another time?`);
+                } else {
+                  const patch2 = { starts_at: sd2.toISOString() };
+                  if (rs.party) patch2.party_size = party2;
+                  await waSb(`bookings?id=eq.${match2.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch2) });
+                  await waSend(phoneId, token, from, `Updated ✓ ${sd2.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${sd2.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}. See you then!`);
+                }
+              }
+            }
+          } catch (e) {}
+        }
         const b = out && out.booking;
         if (b && b.date && b.time && b.name) {
           const tt = String(b.time).length === 5 ? b.time : ('0' + b.time);
           const sd = new Date(b.date + 'T' + tt + ':00');
           if (!isNaN(sd.getTime())) {
-            try { await waSb(`bookings`, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ client_id: clientId, customer_name: b.name, customer_phone: b.phone || from, party_size: Number(b.party) || 2, starts_at: sd.toISOString(), source: 'whatsapp', status: 'confirmed', note: b.occasion || null }) }); } catch (e) {}
-            await waSend(phoneId, token, from, `Booked ✓ ${sd.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${sd.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })} for ${b.party}. See you then!`);
+            const party = Number(b.party) || 2;
+            let full = false;
+            try {
+              const cap = Number(ctx.capacity) || 0;
+              if (cap > 0) {
+                const slotMs = (Number(ctx.slotMinutes) || 30) * 60000;
+                const s0 = sd.toISOString(); const s1 = new Date(sd.getTime() + slotMs).toISOString();
+                const rc = await waSb(`bookings?client_id=eq.${clientId}&status=in.(confirmed,pending,seated)&starts_at=gte.${s0}&starts_at=lt.${s1}&select=party_size`);
+                const rows = await rc.json();
+                const booked = (Array.isArray(rows) ? rows : []).reduce((a, x) => a + (Number(x.party_size) || 0), 0);
+                if (booked + party > cap) full = true;
+              }
+            } catch (e) {}
+            if (full) {
+              await waSend(phoneId, token, from, `Sorry — ${sd.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })} is fully booked. Could you try another time? Reply with one and I will check.`);
+            } else {
+              const st = ctx.requireApproval ? 'pending' : 'confirmed';
+              try { await waSb(`bookings`, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ client_id: clientId, customer_name: b.name, customer_phone: b.phone || from, party_size: party, starts_at: sd.toISOString(), source: 'whatsapp', status: st, note: b.occasion || null }) }); } catch (e) {}
+              const whenStr = `${sd.toLocaleDateString('en', { weekday: 'long', day: 'numeric', month: 'long' })} at ${sd.toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}`;
+              await waSend(phoneId, token, from, ctx.requireApproval ? `Got it — I have requested your table for ${party} on ${whenStr}. The team will confirm shortly! ⏳` : `Booked ✓ ${whenStr} for ${party}. See you then!`);
+            }
           }
         }
       }

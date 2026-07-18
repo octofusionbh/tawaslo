@@ -1,0 +1,126 @@
+# TAWASLO — PROJECT STATUS & HANDOFF
+
+**Read this first in any new chat to catch up.** It's the single source of truth for what's built, what's pending, and how to work on this app. Update it as things change.
+
+Tawaslo = Arabic-first social-media management + restaurant/F&B (and merchant) SaaS. Owner: Abdulla / Octo Fusion. Competitors to remember: Hootsuite, EatApp, Shopify. Goal: worldwide, not just GCC.
+
+---
+
+## DESIGN SYSTEM (LOCKED — apply IDENTICALLY to every room)
+Editorial system, theme-aware. Same parts on every page so all rooms feel like ONE product (Abdulla's rule: no per-page bespoke designs). **Reference implementation = `CommandCenterPage`** — copy its patterns.
+
+**Two modes (auto via `th = dark ? DARK : LIGHT`):**
+- **Dark = default:** ink canvas, `th` dark tokens.
+- **Light = toggle:** warm cream/paper editorial (matches Tawaslo's client proposals). NOTE: to make light mode truly warm-cream, the global LIGHT theme tokens still need warming — PENDING.
+
+**Brand color: SLATE ONLY** = `th.accent` (`#6E8CAB` dark / `#4F6B8C` light). No purple, no teal/emerald. Amber/coral/green ONLY for semantic status (need / fail / fire, up / down).
+
+**The kit — reuse these exact parts on every room:**
+- **Masthead:** linked-circles mark + tracked UPPERCASE section label (slate) left, date/context right, hairline rule under it.
+- **Page title:** Fraunces serif ~29px/600; optional serif-italic subline that states the situation in words.
+- **Stat rule:** metrics in a hairline top+bottom row (NOT boxed cards), serif tabular numbers, tiny tracked uppercase labels.
+- **Lists:** hairline-separated rows (no cards). Ranked lists use a FIXED numeral gutter (width 22, right-aligned, tabular) so names always align; wrapped text hangs under the name.
+- **Type:** Fraunces serif for names/titles/numbers; system sans for body/meta; serif-italic for the single "voice" line. Two weights.
+- **Restraint:** hairlines + whitespace, not boxes everywhere. One accent (slate). Tabular figures for ALL numbers.
+- **Signature:** the two-linked-circles mark recurs quietly.
+
+**Avoid the "AI look":** no uniform card grids, no tinted alert-callout boxes, no purple, no per-page bespoke layouts.
+
+---
+
+## HOW TO WORK ON THIS APP (rules for any chat)
+- Main app is ONE file: `src/TawasaloApp.js` (~20k lines, MIXED line endings CRLF/LF). It is fragile — the Edit/Write tools can truncate it. **Edit it with small `node` string-replace scripts** that try LF then CRLF matching, and verify uniqueness (count===1) before writing.
+- APIs are in `api/*.js` (Vercel serverless, 12-function cap — fold new features into existing files, don't add new ones).
+- **Verify every change:** app → `npx esbuild src/TawasaloApp.js --bundle --outfile=/dev/null --loader:.js=jsx --loader:.css=empty --log-level=error` (exit 0); APIs → `node --check api/<file>.js`.
+- Supabase backend (Postgres + RLS). Auth via Supabase. Anthropic (Claude) + Gemini for AI. Resend for email. Tap for payments (not live yet). WhatsApp Cloud API folded into `api/meta-publish.js` (+ `api/cron.js` for notifications).
+
+---
+
+## SPEC / DOC FILES IN THIS REPO (read as needed)
+- `HOST-PORTAL-SPEC.md` — venue self-service login plan (task #48, NOT built yet).
+- `LOYALTY-WALLET-SPEC.md` — Apple/Google Wallet loyalty (task #43, NOT built yet).
+- `WHATSAPP-TEMPLATES.md` — the 11 WhatsApp templates to submit to Meta.
+- `TEST-CHECKLIST.md` — how to test the pickup/publish batch.
+
+---
+
+## BUILT THIS SESSION — code-complete, builds clean, NEEDS PUSH + SQL
+1. **Publishing fix** (brace/module bug) + IG tagging/location.
+2. **Pickup ordering system** — checkout (day/time picker w/ opening hours + prep + pre-order lead time; per-item special-request note; order note; Car Hop/Inside; payment cash/online/both; pickup-pass confirmation), host settings, per-item toggles (lead_hours/dine_in/allow_note), Orders board shows time/method/notes.
+3. **Menu polish** — detail popup centered on desktop / bottom-sheet on mobile; text-color fix (dark mode); compact photo-less cards; **Grid vs List layout** choice per menu; **drag-reorder items**; category reorder (already existed).
+4. **Staff order board** — login-free `/k/<token>` (copy from Orders → "Staff board"), any device, live orders + status.
+5. **WhatsApp notification engine (DORMANT until WA connected)** — dispatcher in `api/cron.js` (`notify` action), order triggers (placed/new/ready/collected), reservation triggers (created + host alert via chatbox & online page; cancelled/no-show via status buttons), scheduled cron (reminder/no-show/thank-you, `task=notify_scheduled`), Pro+ gated per-venue settings panel (Menu builder), opt-in checkbox at checkout.
+6. Menu importer, Menu→Post, plan-a-week, WhatsApp broadcast, mobile gating (Publisher/heavy tools hidden <640px), avatar refresh, sidebar collapsed-icon fix, Essential pricing copy, Streams hidden. (earlier in session)
+
+## SQL — run all of these in Supabase (idempotent). Tick when done.
+- [ ] `tawaslo-loyalty-design.sql` (loyalty card banner + tagline)
+- [ ] `tawaslo-social-snapshots.sql` (month-over-month snapshots for the Social report)
+- [ ] `tawaslo-app-config.sql` (HQ page-visibility toggle — hide/unhide pages globally)
+- [ ] `tawaslo-order-ai.sql` (menus.order_ai — "AI assistant" toggle on the pickup order page)
+- [ ] `tawaslo-post-format.sql` (scheduled Stories)
+- [ ] `tawaslo-pickup.sql` (pickup system)
+- [ ] `tawaslo-menu-layout.sql` (grid/list)
+- [ ] Staff board + notifications (also in `tawaslo-kitchen-token.sql` + `tawaslo-notifications.sql`):
+```sql
+alter table public.menus    add column if not exists kitchen_token text;
+alter table public.menus    add column if not exists notify       jsonb   default '{}'::jsonb;
+alter table public.orders   add column if not exists notify_optin boolean default true;
+alter table public.bookings add column if not exists notify_optin boolean default true;
+alter table public.bookings add column if not exists notified     jsonb   default '{}'::jsonb;
+```
+
+---
+
+## USER-SIDE TODOs (only Abdulla can do these)
+- **Push** the current code batch to production (Vercel) after running the SQL.
+- **Test** using `TEST-CHECKLIST.md` (esp. publish a real post; run a pickup order on phone).
+- **Auto-publish (scheduled posts don't fire yet):** set Vercel env `PUBLISH_ENABLED=1`, `CRON_SECRET`, `SUPABASE_SERVICE_ROLE_KEY`, and add an external cron (cron-job.org) pinging `/api/cron?key=SECRET` every minute.
+- **Timed WhatsApp notifications:** add a cron ping to `/api/cron?key=SECRET&task=notify_scheduled` every ~10 min.
+- **WhatsApp go-live:** get a dedicated Bahraini eSIM (keep it alive w/ a year prepaid; bar calls after registering), do Meta Business Verification, register the number on WhatsApp Cloud API, submit the templates from `WHATSAPP-TEMPLATES.md`, then set `WA_TOKEN` + `WA_PHONE_ID` in Vercel. Model = ONE central Tawaslo number; per-message utility cost is pennies; gate to Professional+.
+- **Resend:** verify `tawaslo.com` domain + `RESEND_API_KEY` in Vercel (for team invites + reports).
+- **Loyalty wallet (later):** Apple Developer $99/yr + Google Wallet issuer (free).
+
+---
+
+## PENDING BUILDS (pipeline — NOT built yet)
+- **Host Portal** (#48) — venue self-service login (Menu/Orders/Reservations/Loyalty/Reviews/Guests), RLS-scoped. Security-sensitive; spec in `HOST-PORTAL-SPEC.md`.
+- **Dashboard makeover** — visual polish pass on the dashboard (user is keen; discuss directions first, mock up, then build).
+- **Loyalty Wallet Pass** (#43) — spec in `LOYALTY-WALLET-SPEC.md`.
+- **Notification engine remainders** (minor) — per-event granular toggles. (Walk-in confirmation + reschedule "updated" message + host approval mode are now DONE, see BUILT below.)
+- **Merchant delivery** — address capture + delivery zones/fees (pickup works for merchants now; true delivery is a bigger add).
+- **Instagram DM auto-responder** (#42) — when Meta approves IG messaging.
+- Older pending: support@tawaslo.com mailbox (#13), IG Story test (#20), F&B hardening (#28), UGC/influencer discovery (#29), per-seat billing (#31).
+
+---
+
+## INVENTIONS — FUTURE PHASE (parked, Abdulla's call)
+Build the things single-vertical competitors structurally can't (social × dining × WhatsApp × AI, Arabic-first). Reviewed July 2026.
+**Greenlit for a later "second brain" phase:**
+- **Invisible loyalty + occasion memory** — no points/cards/payments. AI recognizes a regular across channels, briefs the host ("5th visit, loves the saffron cheesecake — dessert on us"), and remembers occasions to nudge the venue a year later ("Layla's birthday next week — invite her back?"). Uses Guest 360 + the occasion field we now capture.
+- **Khaleeji voice-note concierge** — guest sends an Arabic/Khaleeji WhatsApp voice note ("احجزلي طاولة لأربعة بكرة الساعة ثمانية") → transcribe dialect → book/order. (+ "Majlis mode": one shared link, whole family adds to one order.)
+- **Nightly operator's brief** — one afternoon WhatsApp to the venue: tonight's covers, birthdays, allergies flagged, low-stock items, expected rush. A co-pilot that texts what matters, not a dashboard.
+**Parked / declined for now:**
+- Post-to-Plate (per-post → covers attribution) — declined.
+- Operationally-aware auto-marketing (content reacts to occupancy/inventory) — declined.
+NOTE: explicitly NO reservation deposits / card-holds / taking payments through bookings (Abdulla: "we're inventors, not copiers").
+
+---
+
+## BUILT THIS SESSION (July 2026) — dashboard makeover + F&B lifecycle. NO SQL NEEDED (reuses existing columns).
+- **Real notification engine** — killed all hardcoded/demo notifications; bell now fires real events (approvals, published posts, new orders, new reservations, real trial days). Per-account read tracking (keyed by email) so each event toasts exactly once. Ink+slate restyle + empty state.
+- **Design system rollout** — Inbox, Orders board, Reservations restyled to ink+slate (masthead mark, Fraunces serif, hairline rows, outline status pills). Removed last purple (Inbox DM badge).
+- **Pickup order full lifecycle** — country-code picker (auto-detect + changeable) on checkout, phone echoed on the pass + tappable/WhatsApp on host card; stepper New→Accepted→Preparing→Ready→Handed over; fixed the picked_up/collected bug so handover fires the thanks message; "Handed over today" list.
+- **Reservations full lifecycle** — Confirmed→Seated→Completed + No-show + Cancel, each firing the right WhatsApp; per-row WhatsApp message button; green "notified" flash.
+- **Reschedule (manual + automated)** — host 🕐 edit modal (date/time/party → fires reservation_updated); concierge learned a reschedule intent (finds booking by phone, moves it). Closes the never-triggered "updated" message gap.
+- **Capacity + approval + occasion (concierge)** — server + AI capacity guard (never overbooks seats-per-slot, offers alternatives when full); host toggle Auto-confirm ⇄ manual approval (pending bookings get Approve/Decline on the board); concierge now always asks the occasion. Approval mode stored in booking_settings.hours.require_approval (no SQL).
+- Publisher Live Preview made properly sticky (page-scroll only, no inner scrollbar).
+- **Concierge is now business-type aware** — was hardcoded as a restaurant host everywhere; now the persona (backend `conciergeReply` in generate-caption.js + `waBuildContext`) adapts to `business_type`: restaurant/cafe = menu + table booking + pickup; shop = catalog + pickup, NO booking ("book a table" removed); services = appointments, NO menu talk; any other/agency type = neutral receptionist that answers about the business + takes a name/contact for follow-up, never offers menu/table. `bizType` now passed through all 3 concierge callers (ConciergeWidget public, ConciergePreview owner, WhatsApp). Default stays 'restaurant' so existing venues are unchanged. Design: Concierge page got the editorial masthead (linked-circles + Fraunces), de-boxed the stat cards into a hairline stat rule (mono/serif numbers, type-aware metrics — Appointments vs Bot bookings, hides menu metrics for services), neutral AR labels, and removed the 👋 emoji from every default greeting (all greetings now type-aware). Both concierge configs (Concierge page + Reservations tab) updated.
+- **Pickup order AI assistant (floating bubble → cart → checkout)** — host toggle "AI assistant" in Menu builder → Pickup settings (stores `menus.order_ai`, default OFF; SQL `tawaslo-order-ai.sql`). When ON, the public /order/<slug> page shows a slate floating bubble (bottom-right, "Order with AI" hint fades after ~4.5s). Opens a chat: guest types in plain language → backend concierge "ORDER MODE" (new `orderMode` flag in generate-caption.js returns `order:[{name,qty}]`) → the page fuzzy-matches names to real menu items and calls add() → live item/total footer → "Review & checkout" closes the sheet and scrolls to the existing checkout (`#tw-checkout`). Guest always reviews + pays manually — never auto-charges. Uses the concierge AI meter. New component `OrderAssistant`.
+- **Concierge capability toggles** — Concierge page now has a "What your concierge can do" panel (type-aware): Answer menu/catalog (always on) + toggles for Take pickup orders / Book a table|appointment / Capture enquiries. Stored in booking_settings.hours (concierge_orders/booking/capture, default true). Gates the live widget (orderUrl/booking only passed when the toggle is on) + preview. No SQL (reuses hours jsonb).
+- **Suggested content** — empty state now has one-click starter feeds (Coffee news / Food & dining / Bahrain via Google News RSS) + a plain-English "what's an RSS URL" hint, so new users aren't stuck hunting for a feed.
+- **Win Clients page refined** — editorial masthead (linked-circles mark + Fraunces title), hairline "how it works" 3-step strip, each mode button now explains what it produces + when to use it, platform picker helper (reads only IG + TikTok — the networks it can audit), export legend (PDF / Word / Copy link explained), emoji empty state replaced with linked-circles editorial. **Inline "Your price + Currency" field now appears directly under the mode buttons when "With price" is selected** (was hidden in the branding card until after Generate); removed the duplicate price box from the branding card (single source of truth).
+
+---
+
+## QUICK "RESUME IN NEW CHAT" SCRIPT
+> Read `TAWASLO-STATUS.md` in this repo. It has everything we've built, the SQL to run, my to-dos, and what's still pending. Then let's continue with [X].

@@ -196,3 +196,20 @@ input:-webkit-autofill:active {
   }
   .tw-scroll-x::-webkit-scrollbar { display: none; }
 }
+
+/* ── Motion system (Tawaslo) — subtle, one easing, reduced-motion aware ── */
+@keyframes twFadeUp { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+@keyframes twConnectL { from { opacity:0; transform:translateX(-7px); } to { opacity:1; transform:none; } }
+@keyframes twConnectR { from { opacity:0; transform:translateX(7px); } to { opacity:1; transform:none; } }
+.tw-fu { animation: twFadeUp .5s cubic-bezier(.2,.7,.2,1) both; }
+.tw-mark-l { animation: twConnectL .6s cubic-bezier(.2,.7,.2,1) both; transform-origin:center; }
+.tw-mark-r { animation: twConnectR .6s cubic-bezier(.2,.7,.2,1) both; transform-origin:center; }
+.tw-hoverrow { position:relative; transition: background .18s ease, transform .16s ease; }
+.tw-hoverrow::before { content:""; position:absolute; inset-inline-start:0; top:20%; bottom:20%; width:0; background:#6E8CAB; border-radius:2px; transition:width .18s ease; }
+.tw-hoverrow:hover { background:rgba(110,140,171,0.06); transform:translateX(3px); }
+.tw-hoverrow:hover::before { width:3px; }
+@media (prefers-reduced-motion: reduce) {
+  .tw-fu, .tw-throb, .tw-mark-l, .tw-mark-r { animation:none !important; opacity:1 !important; transform:none !important; }
+  .tw-hoverrow { transition:none; }
+  .tw-hoverrow:hover { transform:none; }
+}
