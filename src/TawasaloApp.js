@@ -3576,12 +3576,6 @@ function AgencyDashboard() {
   const fmtWhen = (iso) => { const d=new Date(iso); const now=new Date(); const sameDay=d.toDateString()===now.toDateString(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}); return (sameDay?"Today":d.toLocaleDateString([], {weekday:'short'}))+" · "+tm; };
   // Real upcoming posts only — no demo fallback. Empty list shows an empty state below.
   const upcomingShown = upcoming.map(p=>({platform:p.platform,caption:p.caption||"(untitled)",time:fmtWhen(p.scheduled_at),status:p.status}));
-  const kpiStats = [
-    { label:L("Total Posts","إجمالي المنشورات"), value: String(postCount || 0), change:"+12%", up:true, Icon:FileText, color:"accent" },
-    { label:L("Total Reach","إجمالي الوصول"), value: dashFollowers > 0 ? fmtN(dashReach) : "0", change:"+28%", up:true, Icon:Eye, color:"info" },
-    { label:L("Engagement","التفاعل"),  value: dashEng, change:"+1.2%", up:true, Icon:Heart, color:"danger" },
-    { label:L("Followers","المتابعون"),   value: fmtN(dashFollowers), change:"+5.2%", up:true, Icon:Users, color:"success" },
-  ];
   if (loading) return (
     <div>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, marginBottom:16 }}><div/><div style={{ display:"flex", gap:10 }}><Sk th={th} w={130} h={34} r={999}/><Sk th={th} w={120} h={38} r={11}/></div></div>
@@ -3626,7 +3620,7 @@ function AgencyDashboard() {
           <div style={{fontSize:12,color:th.text2,marginBottom:14}}>{L("Connect this client's social accounts to see their analytics here.","اربط حسابات هذا العميل الاجتماعية لرؤية تحليلاته هنا.")}</div>
           <button onClick={()=>setPage("social")} style={{padding:"9px 16px",borderRadius:10,background:th.accent,border:"none",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}><Plus size={14}/>{L("Connect accounts","ربط الحسابات")}</button>
         </div>
-      ): shownAccounts.length===1 ? (()=>{ const acc=shownAccounts[0]; const PI=PlatformIcons[acc.platform]; return (
+      ): shownAccounts.length===1 ? (()=>{ const acc=shownAccounts[0]; const PI=PlatformIcons[acc.platform]; const _mx=Math.max(...reachSeries,1),_dn=Math.max(reachSeries.length-1,1),_sl=reachSeries.map((v,ix)=>(ix?'L':'M')+((ix/_dn)*200).toFixed(1)+','+(36-(v/_mx)*32).toFixed(1)).join(' '),_sa=_sl+' L200,38 L0,38 Z'; return (
         <div onClick={()=>{ setViewingAccount(acc.id||0); setPlatform(acc.platform); }} style={{display:"flex",alignItems:"center",gap:18,background:th.card,border:`1px solid ${th.border}`,borderRadius:16,padding:"16px 20px",marginBottom:18,flexWrap:"wrap",cursor:"pointer"}}>
           <div style={{display:"flex",alignItems:"center",gap:12,flexShrink:0}}>
             <div style={{width:44,height:44,borderRadius:12,background:th.card2,display:"flex",alignItems:"center",justifyContent:"center"}}>{PI?<PI/>:<Globe size={20} color={th.text2}/>}</div>
@@ -3639,8 +3633,8 @@ function AgencyDashboard() {
           <div style={{flex:1,minWidth:150,display:"flex",alignItems:"center",gap:10}}>
             <div style={{fontSize:11,color:th.text2,flexShrink:0,lineHeight:1.3}}>{L("Reach trend","اتجاه الوصول")}<br/><span style={{fontSize:10,color:th.text3}}>{L("last 30 days","آخر 30 يومًا")}</span></div>
             <svg className="tw-throb" height="38" viewBox="0 0 200 38" preserveAspectRatio="none" style={{flex:1,minWidth:0,display:"block"}}>
-              <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6 L200,38 L0,38 Z" fill={th.accent+"22"}/>
-              <path d="M0,32 L28,30 L56,31 L84,24 L112,22 L140,15 L168,12 L200,6" fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
+              <path d={_sa} fill={th.accent+"22"}/>
+              <path d={_sl} fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
             </svg>
           </div>
           <div style={{display:"flex",gap:22,flexShrink:0}}>
@@ -3655,10 +3649,6 @@ function AgencyDashboard() {
             const sel = viewingAccount===(acc.id||i);
             const PCLR = {ig:"#E1306C",fb:"#1877F2",li:"#0A66C2",tt:th.text2,yt:"#FF0000"};
             const pc = PCLR[acc.platform]||th.accent;
-            const f = acc.followers_count||0;
-            const up = f>0;
-            const sLine = up ? "M0,24 L20,22 L40,23 L60,17 L80,15 L100,10 L120,7" : "M0,22 L120,22";
-            const sArea = up ? "M0,24 L20,22 L40,23 L60,17 L80,15 L100,10 L120,7 L120,30 L0,30 Z" : "M0,22 L120,22 L120,30 L0,30 Z";
             return (
               <div key={acc.id||i} onClick={()=>{ setViewingAccount(acc.id||i); setPlatform(acc.platform); }} style={{background:sel?th.card2:th.card,border:`1.5px solid ${sel?th.accent:th.border}`,borderRadius:16,padding:14,boxShadow:"none",cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -3667,10 +3657,6 @@ function AgencyDashboard() {
                 </div>
                 <div style={{fontSize:11.5,color:th.text2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{acc.username?("@"+acc.username):acc.account_name}</div>
                 <div style={{fontSize:18,fontWeight:600,marginTop:2}}><span className="tw-num">{acc.followers_count!=null?Number(acc.followers_count).toLocaleString():"\u2014"}</span><span style={{fontSize:11,color:th.text2,fontWeight:400}}> {L("followers","\u0645\u062a\u0627\u0628\u0639")}</span></div>
-                <svg className="tw-throb" height="30" viewBox="0 0 120 30" preserveAspectRatio="none" style={{width:"100%",display:"block",marginTop:9}}>
-                  <path d={sArea} fill={th.accent+"24"}/>
-                  <path d={sLine} fill="none" stroke={th.accent} strokeWidth="2" vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
-                </svg>
                 <div style={{fontSize:10,color:th.text2,marginTop:8}}>{L("Reach 30d","الوصول 30 يوم")} <span className="tw-num" style={{color:th.text}}>{"—"}</span></div>
               </div>
             );
@@ -3679,7 +3665,7 @@ function AgencyDashboard() {
       )}
 
       <div style={{marginBottom:22,paddingTop:4}}>
-        <div style={{fontSize:10.5,fontWeight:700,letterSpacing:"1.5px",color:th.text3,marginBottom:11}}>{L("THIS MONTH","هذا الشهر")}</div>
+        <div style={{fontSize:12,fontWeight:600,color:th.text2,marginBottom:11}}>{L("This month","هذا الشهر")}</div>
         <div style={{fontSize:24,fontWeight:600,lineHeight:1.45,color:th.text,maxWidth:680,letterSpacing:"-0.2px"}}>
           {dashHasData
             ? <>{L("You reached","وصلتم إلى")} <span className="tw-num" style={{fontWeight:600}}>{dashReach.toLocaleString()}</span> {L("people, with a","شخصًا، بمعدل تفاعل")} <span className="tw-num">{dashEng}</span> {postCount>0 ? <>{L("engagement rate across","عبر")} <span className="tw-num">{postCount}</span> {L("posts.","منشورًا.")}</> : L("engagement rate this month.","معدل التفاعل هذا الشهر.")}</>
@@ -3688,7 +3674,7 @@ function AgencyDashboard() {
         <div style={{fontSize:12.5,color:th.text2,marginTop:11}}>{shownAccounts.length} {shownAccounts.length===1?L("connected account","حساب مرتبط"):L("connected accounts","حسابات مرتبطة")}{selPlatform&&selPlatform!=="all"?` · ${selPlatform.toUpperCase()}`:""} · {L("Last 30 days","آخر 30 يومًا")}</div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"1.7fr 1fr",gap:16,marginBottom:18}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr",gap:16,marginBottom:18}}>
         <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",padding:"18px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={{fontSize:13.5,fontWeight:600}}>{L("Post performance","أداء المنشورات")}</div>
@@ -3703,22 +3689,6 @@ function AgencyDashboard() {
             labels={chartLabels}/>
         </div>
 
-        <div style={{background:th.card,borderRadius:18,border:`1px solid ${th.border}`,boxShadow:"none",padding:"18px 20px"}}>
-          <div style={{fontSize:13.5,fontWeight:600,marginBottom:16}}>{L("Reach by post type","الوصول حسب نوع المنشور")}</div>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <svg viewBox="0 0 120 120" width="104" height="104">
-              <circle cx="60" cy="60" r="42" fill="none" stroke={th.border} strokeWidth="15"/>
-              <circle cx="60" cy="60" r="42" fill="none" stroke="#4F6EF7" strokeWidth="15" strokeDasharray="118.8 145.1" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-              <circle cx="60" cy="60" r="42" fill="none" stroke="#7C3AED" strokeWidth="15" strokeDasharray="79.2 184.7" strokeDashoffset="-120" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-              <circle cx="60" cy="60" r="42" fill="none" stroke="#2DD4BF" strokeWidth="15" strokeDasharray="60 203.9" strokeDashoffset="-202" transform="rotate(-90 60 60)" strokeLinecap="round"/>
-            </svg>
-            <div style={{fontSize:11.5,color:th.text2,lineHeight:2.1}}>
-              <div><span style={{color:"#4F6EF7"}}>&#9679;</span> {L("Reels","ريلز")} 45%</div>
-              <div><span style={{color:"#7C3AED"}}>&#9679;</span> {L("Carousel","كاروسيل")} 30%</div>
-              <div><span style={{color:"#2DD4BF"}}>&#9679;</span> {L("Photo","صورة")} 25%</div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16}}>
@@ -7848,7 +7818,7 @@ function PublisherPage() {
                   {repeatType!=="once" && scheduleDate && <div style={{ fontSize:9.5, color:th.text3, marginTop:7 }}>{L("Creates ","سيُنشئ ")}{repeatCount}{L(repeatType==="daily"?" posts, one each day from the date above.":repeatType==="weekly"?" posts, one each week from the date above.":" posts, one each month from the date above."," منشوراً تباعاً من التاريخ أعلاه.")}</div>}
                 </div>
                 <div style={{ fontSize:11, color:th.text2, marginBottom:3, display:"flex", alignItems:"center", gap:6 }}><Sparkles size={12} color={th.accent}/>{L("Best time to post on","أفضل وقت للنشر على")} {(PLAT[primaryPlat]||{}).name || "Instagram"}</div>
-                <div style={{ fontSize:9.5, color:th.text3, marginBottom:11 }}>{L("Brighter cells are when your audience is most active.","الخلايا الأفتح هي أوقات نشاط جمهورك.")}</div>
+                <div style={{ fontSize:9.5, color:th.text3, marginBottom:11 }}>{L("Brighter cells are typical high-engagement windows.","الخلايا الأفتح هي أوقات التفاعل المرتفع المعتادة.")}</div>
                 <div style={{ display:"grid", gridTemplateColumns:"34px repeat(7,1fr)", gap:3, alignItems:"center" }}>
                   <div/>
                   {["M","T","W","T","F","S","S"].map((d,i)=><div key={"d"+i} style={{ textAlign:"center", fontSize:9, color:th.text3, fontWeight:700 }}>{d}</div>)}
@@ -10661,7 +10631,7 @@ function BestTimePage() {
     <div style={{ padding:"28px 32px", maxWidth:920 }}>
       <div style={{ marginBottom:18 }}>
         <h2 style={{ margin:0, fontSize:21, fontWeight:700, letterSpacing:-0.4 }}>{L("Best Time to Post","أفضل وقت للنشر")}</h2>
-        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("when your audience is most active","متى يكون جمهورك أكثر نشاطاً")}</p>
+        <p style={{ margin:"6px 0 0", fontSize:12.5, color:th.text2 }}>{selClient?.name || L("your brand","علامتك")} · {L("suggested posting times · general guidance","أوقات نشر مقترحة · إرشادات عامة")}</p>
       </div>
 
       <div style={{ display:"flex", gap:7, flexWrap:"wrap", marginBottom:18 }}>
@@ -12027,35 +11997,33 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
   }, [clientId]);
   const events = (dbEvents && dbEvents.length) ? dbEvents : loadEngagement(clientId);
   const replies = events.filter(e => e.kind === 'reply');
-  const real = replies.length >= 3;
   const liveComments = (messages || []).filter(m => m.type === 'comment').length;
   const liveDms = (messages || []).filter(m => m.type === 'dm').length;
-  const repliesN = real ? replies.length : 523;
-  const commentsN = real ? Math.max(liveComments, replies.filter(r => r.type === 'comment').length) : 418;
-  const dmsN = real ? Math.max(liveDms, replies.filter(r => r.type === 'dm').length) : 132;
+  const repliesN = replies.length;
+  const commentsN = Math.max(liveComments, replies.filter(r => r.type === 'comment').length);
+  const dmsN = Math.max(liveDms, replies.filter(r => r.type === 'dm').length);
   const convN = commentsN + dmsN;
-  const aiPct = real ? Math.round(replies.filter(r => r.ai).length / replies.length * 100) : 71;
+  const aiPct = replies.length ? Math.round(replies.filter(r => r.ai).length / replies.length * 100) : 0;
   const rts = replies.map(r => r.rt).filter(v => typeof v === 'number');
-  const avgRt = real && rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : 24;
-  const respRate = real ? Math.min(100, Math.round(repliesN / Math.max(1, convN) * 100)) : 95;
+  const avgRt = rts.length ? Math.round(rts.reduce((a, b) => a + b, 0) / rts.length) : 0;
+  const respRate = convN ? Math.min(100, Math.round(repliesN / Math.max(1, convN) * 100)) : 0;
   // 30-day trend from the log; representative curve until history builds.
   const now = new Date(), y = now.getFullYear(), m = now.getMonth();
   const days = new Date(y, m + 1, 0).getDate();
   const perDay = Array.from({ length: days }, () => 0);
   events.forEach(e => { const d = new Date(e.t); if (d.getFullYear() === y && d.getMonth() === m) perDay[d.getDate() - 1]++; });
-  const demoTrend = [6,9,7,11,8,13,10,14,12,9,15,11,17,13,16,12,19,15,14,18,16,21,17,20,23,19,22,18,24,26];
-  const trend = real ? perDay : demoTrend;
+  const trend = perDay;
   // first-response distribution
   const u15 = rts.filter(v => v < 15).length, u60 = rts.filter(v => v >= 15 && v <= 60).length, over = rts.filter(v => v > 60).length;
   const rtTot = u15 + u60 + over;
-  const rtPct = rtTot ? [Math.round(u15 / rtTot * 100), Math.round(u60 / rtTot * 100), Math.round(over / rtTot * 100)] : [62, 28, 10];
-  const igN = real ? replies.filter(r => r.platform === 'ig').length : 412;
-  const fbN = real ? replies.filter(r => r.platform === 'fb').length : 138;
+  const rtPct = rtTot ? [Math.round(u15 / rtTot * 100), Math.round(u60 / rtTot * 100), Math.round(over / rtTot * 100)] : [0, 0, 0];
+  const igN = replies.filter(r => r.platform === 'ig').length;
+  const fbN = replies.filter(r => r.platform === 'fb').length;
   // Sentiment + top topics — real AI pass over the actual inbox messages when available,
   // representative numbers until there are messages to read.
-  const [sentiment, setSentiment] = useState([68, 24, 8]);
-  const [topics, setTopics] = useState([["Delivery & area", 96], ["Brunch pricing", 74], ["Booking & events", 58], ["Opening hours", 41]]);
-  const [insight, setInsight] = useState({ loved:"the fast replies and the new menu", watch:"a few asked about delivery times" });
+  const [sentiment, setSentiment] = useState([0, 0, 0]);
+  const [topics, setTopics] = useState([]);
+  const [insight, setInsight] = useState({ loved:"", watch:"" });
   useEffect(() => {
     const msgs = (messages || []).map(mm => mm && mm.text).filter(Boolean);
     if (!msgs.length) return;
@@ -12073,11 +12041,10 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
 
   const trendSVG = (vals) => { const W=510,H=84,pad=4,mx=Math.max(1,...vals); const pts=vals.map((v,i)=>[pad+i*((W-2*pad)/Math.max(1,vals.length-1)), H-pad-(v/mx)*(H-2*pad)]); const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' '); const area=line+' L'+(W-pad)+','+(H-pad)+' L'+pad+','+(H-pad)+' Z'; const last=pts[pts.length-1]; return '<svg viewBox="0 0 '+W+' '+(H+4)+'" style="width:100%;height:auto;display:block"><defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#4F6B8C" stop-opacity="0.3"/><stop offset="100%" stop-color="#4F6B8C" stop-opacity="0"/></linearGradient></defs><path d="'+area+'" fill="url(#tg)"/><path d="'+line+'" fill="none" stroke="#141A24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="3.5" fill="#D9A94E"/></svg>'; };
   const donutSVG = (segs) => { const c=2*Math.PI*30; let off=0, inner='<circle cx="40" cy="40" r="30" fill="none" stroke="#eee" stroke-width="11"/>'; segs.forEach(s=>{ const len=s[0]/100*c; inner+='<circle cx="40" cy="40" r="30" fill="none" stroke="'+s[1]+'" stroke-width="11" stroke-dasharray="'+len.toFixed(1)+' '+(c-len).toFixed(1)+'" stroke-dashoffset="'+(-off).toFixed(1)+'" transform="rotate(-90 40 40)"/>'; off+=len; }); return '<svg viewBox="0 0 80 80" style="width:70px;height:70px">'+inner+'</svg>'; };
-  const sparkSVG = (v) => { const mx=Math.max(...v),mn=Math.min(...v); const p=v.map((val,i)=>{const x=i*(60/(v.length-1)); const yy=14-((val-mn)/((mx-mn)||1))*12-1; return (i?'L':'M')+x.toFixed(1)+','+yy.toFixed(1);}).join(' '); return '<svg viewBox="0 0 60 16" style="width:58px;height:15px"><path d="'+p+'" fill="none" stroke="#9DB6D6" stroke-width="1.5" stroke-linecap="round"/></svg>'; };
 
-  const kpiBox = (val, label, delta, spark) => '<div style="border-top:2px solid #141A24;padding-top:9px"><div style="font-family:Georgia,serif;font-size:24px;font-weight:800">'+val+'</div><div style="font-size:9px;color:#7b8595;margin:1px 0 4px">'+label+'</div>'+sparkSVG(spark)+'<div style="font-size:9px;font-weight:700;color:#1F7A52;margin-top:3px">'+delta+'</div></div>';
+  const kpiBox = (val, label) => '<div style="border-top:2px solid #141A24;padding-top:9px"><div style="font-family:Georgia,serif;font-size:24px;font-weight:800">'+val+'</div><div style="font-size:9px;color:#7b8595;margin:1px 0 4px">'+label+'</div></div>';
   const sect = (t) => '<div style="display:flex;align-items:center;gap:7px;margin-bottom:11px"><span style="width:5px;height:5px;background:#D9A94E;border-radius:50%"></span><span style="font-size:10px;color:#9aa2af;font-weight:700;letter-spacing:0.7px">'+t+'</span></div>';
-  const platCard = (name, color, conv, ans, rt) => '<div style="border:1px solid #ece9e1;border-radius:11px;padding:13px 14px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="width:9px;height:9px;border-radius:50%;background:'+color+'"></span><span style="font-size:12px;font-weight:600">'+name+'</span></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6678;line-height:1.9"><span>Conversations</span><b style="color:#222C40">'+conv+'</b></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6678;line-height:1.9"><span>Answered</span><b style="color:#1F7A52">'+ans+'</b></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6678;line-height:1.9"><span>Avg response</span><b style="color:#222C40">'+rt+'</b></div></div>';
+  const platCard = (name, color, conv) => '<div style="border:1px solid #ece9e1;border-radius:11px;padding:13px 14px"><div style="display:flex;align-items:center;gap:7px;margin-bottom:9px"><span style="width:9px;height:9px;border-radius:50%;background:'+color+'"></span><span style="font-size:12px;font-weight:600">'+name+'</span></div><div style="display:flex;justify-content:space-between;font-size:11px;color:#5a6678;line-height:1.9"><span>Replies</span><b style="color:#222C40">'+conv+'</b></div></div>';
   const topicRow = (t) => '<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:10.5px;color:#5a6678;margin-bottom:3px"><span>'+t[0]+'</span><b style="color:#222C40">'+t[1]+'</b></div><div style="height:5px;background:#ece9e1;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+Math.round(t[1]/topics[0][1]*100)+'%;background:#4F6B8C;border-radius:3px"></div></div></div>';
   const agencyMark = agency.logo
     ? '<img src="'+agency.logo+'" style="width:34px;height:34px;border-radius:9px;object-fit:cover;background:#fff"/>'
@@ -12094,12 +12061,12 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
       + '<div style="width:46px;height:3px;background:#D9A94E;margin-top:14px;border-radius:2px"></div>'
     + '</div>'
     + '<div style="padding:20px 26px 8px">'
-      + '<div style="font-size:13px;line-height:1.65;color:#3a4761;margin-bottom:20px">A strong month for the community. The team handled <b>'+convN+'</b> conversations, answered <b>'+respRate+'%</b>, and replied in <b>'+avgRt+' minutes</b> on average'+(real?'':' (sample figures until activity is logged)')+'.</div>'
+      + '<div style="font-size:13px;line-height:1.65;color:#3a4761;margin-bottom:20px">'+(convN>0?'This month the team handled <b>'+convN+'</b> conversations, answered <b>'+respRate+'%</b>, and replied in <b>'+avgRt+' minutes</b> on average.':'No conversations have been logged for this client yet this month.')+'</div>'
       + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:24px">'
-        + kpiBox(convN, 'Conversations', '▲ 12%', [3,4,3,5,4,6,5,7])
-        + kpiBox(respRate+'%', 'Answered', '▲ 3 pts', [4,4,5,5,6,6,6,7])
-        + kpiBox(avgRt+'m', 'First response', '▼ 18%', [8,7,7,6,6,5,5,4])
-        + kpiBox(aiPct+'%', 'AI-assisted', '▲ 9%', [3,4,4,5,5,6,6,7])
+        + kpiBox(convN, 'Conversations')
+        + kpiBox(respRate+'%', 'Answered')
+        + kpiBox(avgRt+'m', 'First response')
+        + kpiBox(aiPct+'%', 'AI-assisted')
       + '</div>'
       + sect('CONVERSATIONS ACROSS '+monthLabel.split(' ')[0].toUpperCase())
       + '<div style="margin-bottom:22px">'+trendSVG(trend)+'</div>'
@@ -12107,18 +12074,12 @@ function EngagementReport({ clientId, clientName, messages, th, L, onClose }) {
       + '<div style="display:flex;height:11px;border-radius:6px;overflow:hidden;margin-bottom:8px"><div style="width:'+rtPct[0]+'%;background:#141A24"></div><div style="width:'+rtPct[1]+'%;background:#5E708C"></div><div style="width:'+rtPct[2]+'%;background:#D8C7A0"></div></div>'
       + '<div style="display:flex;gap:16px;font-size:10px;color:#5a6678;margin-bottom:24px"><span><b style="color:#222C40">'+rtPct[0]+'%</b> under 15m</span><span><b style="color:#222C40">'+rtPct[1]+'%</b> 15&ndash;60m</span><span><b style="color:#222C40">'+rtPct[2]+'%</b> over 1h</span></div>'
       + sect('BY PLATFORM')
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:24px">'+platCard('Instagram','#C13584',igN,'96%','21m')+platCard('Facebook','#1877F2',fbN,'92%','31m')+'</div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:24px">'+platCard('Instagram','#C13584',igN)+platCard('Facebook','#1877F2',fbN)+'</div>'
       + '<div style="display:grid;grid-template-columns:1.05fr 1fr;gap:20px;margin-bottom:22px">'
         + '<div>'+sect('SENTIMENT')+'<div style="display:flex;align-items:center;gap:13px">'+donutSVG([[sentiment[0],'#1F7A52'],[sentiment[1],'#8aa0bd'],[sentiment[2],'#C97B5A']])+'<div style="font-size:11px;line-height:2;color:#5a6678"><span style="color:#1F7A52">&#9679;</span> Positive <b style="color:#222C40">'+sentiment[0]+'%</b><br><span style="color:#8aa0bd">&#9679;</span> Neutral <b style="color:#222C40">'+sentiment[1]+'%</b><br><span style="color:#C97B5A">&#9679;</span> Negative <b style="color:#222C40">'+sentiment[2]+'%</b></div></div></div>'
-        + '<div>'+sect('TOP TOPICS')+topics.map(topicRow).join('')+'</div>'
+        + (topics.length?'<div>'+sect('TOP TOPICS')+topics.map(topicRow).join('')+'</div>':'')
       + '</div>'
       + ((insight.loved || insight.watch) ? '<div style="background:#F3F6F2;border-left:3px solid #1F7A52;border-radius:0 8px 8px 0;padding:11px 13px;font-size:11.5px;color:#33404f;line-height:1.5;margin-bottom:22px">'+(insight.loved?'<b>What people loved:</b> '+insight.loved+'. ':'')+(insight.watch?'<b style="color:#8a6516">Watch:</b> '+insight.watch+'.':'')+'</div>' : '')
-      + sect('HIGHLIGHTS')
-      + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">'
-        + '<div style="background:#F3F6F2;border-left:3px solid #1F7A52;border-radius:0 8px 8px 0;padding:10px 13px;font-size:11.5px;color:#33404f;line-height:1.5">&ldquo;Best brunch in town, hands down&rdquo; &mdash; <span style="color:#7b8595">became a 6-person booking the same day.</span></div>'
-        + '<div style="background:#FBF4EC;border-left:3px solid #B8893E;border-radius:0 8px 8px 0;padding:10px 13px;font-size:11.5px;color:#33404f;line-height:1.5">A delivery complaint resolved in <b>9 minutes</b> &mdash; <span style="color:#7b8595">&ldquo;amazing service, thank you&rdquo;.</span></div>'
-        + '<div style="background:#F1F4F8;border-left:3px solid #4F6B8C;border-radius:0 8px 8px 0;padding:10px 13px;font-size:11.5px;color:#33404f;line-height:1.5"><b>9 catering enquiries</b> captured from comments &mdash; <span style="color:#7b8595">passed to the events team.</span></div>'
-      + '</div>'
     + '</div>'
     + '<div style="background:#0D0F14;padding:14px 26px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #D9A94E">'
       + '<div style="display:flex;align-items:center;gap:8px"><img src="'+TAWASLO_LOGO+'" style="width:18px;height:18px;object-fit:contain"/><span style="font-size:10.5px;color:#9aa6b8">Powered by <b style="color:#fff">Tawaslo</b> · tawaslo.com</span></div>'
@@ -15460,9 +15421,9 @@ function OnboardingHero() {
   }, [realClientId]);
 
   const steps = [
-    { key:'connect', label:'Connect', title:'Bring your channels in', narrative:"Plug in Instagram, Facebook or LinkedIn. It takes about 30 seconds — and it unlocks everything else.", icon:Link, done: accCount > 0, page:'social', cta:'Connect a channel' },
-    { key:'post', label:'Create', title:'Craft your first post', narrative:"Write it yourself, or let the AI draft a bilingual caption. Publish now, or schedule it for the perfect moment.", icon:Edit3, done: postCount > 0, page:'publisher', cta:'Open the composer' },
-    { key:'grow', label:'Grow', title:'Watch it take off', narrative:"Reach, engagement and your best-performing content — all in one beautiful view, updated in real time.", icon:BarChart2, done: seenAnalytics, page:'analytics', cta:'See my analytics' },
+    { key:'connect', label:'Connect', title:'Connect your accounts', narrative:"Link Instagram, Facebook or LinkedIn. Takes about 30 seconds.", icon:Link, done: accCount > 0, page:'social', cta:'Connect accounts' },
+    { key:'post', label:'Create', title:'Write your first post', narrative:"Write it yourself, or have the AI draft a caption in Arabic and English. Post now, or schedule it.", icon:Edit3, done: postCount > 0, page:'publisher', cta:'Open the composer' },
+    { key:'grow', label:'Grow', title:'See your results', narrative:"Reach, engagement and your top posts, updated as data comes in.", icon:BarChart2, done: seenAnalytics, page:'analytics', cta:'See analytics' },
   ];
   const doneCount = steps.filter(s => s.done).length;
   const pct = Math.round(doneCount / steps.length * 100);
@@ -15509,7 +15470,7 @@ function OnboardingHero() {
   };
 
   return (
-    <div className="tw-jny" style={{ position:"relative", overflow:"hidden", background:`linear-gradient(135deg, ${th.accent}1c, ${th.accent2}12 50%, ${th.surface})`, border:`1px solid ${th.border}`, borderRadius:20, marginBottom:22, boxShadow:"0 18px 48px rgba(0,0,0,0.34)" }}>
+    <div className="tw-jny" style={{ position:"relative", overflow:"hidden", background:th.card, border:`1px solid ${th.border}`, borderRadius:20, marginBottom:22, boxShadow:"none" }}>
       <style>{`
         .tw-jny{animation:jnyIn .55s cubic-bezier(.2,.7,.2,1) both;}
         @keyframes jnyIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
@@ -15522,14 +15483,14 @@ function OnboardingHero() {
         .tw-jfocus{animation:jswap .35s ease both;}
         @media(max-width:980px){.tw-jvis{display:none;}}
       `}</style>
-      <div style={{ position:"absolute", top:-70, right:-30, width:340, height:240, background:`radial-gradient(ellipse, ${th.accent}33, transparent 70%)`, filter:"blur(34px)", pointerEvents:"none" }}/>
+      
       <div style={{ height:4, background:th.border }}><div style={{ height:"100%", width:`${pct}%`, background:th.gradient, transition:"width .6s ease" }}/></div>
       <button onClick={dismiss} title="Dismiss" style={{ position:"absolute", top:16, right:16, background:"none", border:"none", color:th.text2, cursor:"pointer", display:"flex", zIndex:3 }}><XCircle size={18}/></button>
 
       <div style={{ position:"relative", zIndex:1, display:"flex", gap:30, padding:"22px 26px", flexWrap:"wrap" }}>
         {/* LEFT — the path */}
         <div style={{ width:260, flexShrink:0 }}>
-          <div style={{ fontSize:10.5, fontWeight:700, letterSpacing:1.4, color:th.accent, textTransform:"uppercase", marginBottom:3 }}>Your setup journey</div>
+          <div style={{ fontSize:12, fontWeight:600, color:th.text2, marginBottom:3 }}>Getting started</div>
           <div style={{ fontSize:16, fontWeight:700, marginBottom:18 }}>{allDone ? "All set" : `Step ${current + 1} of ${steps.length}`}</div>
           {steps.map((s,i)=>{ const isCur = i === current && !allDone; const last = i === steps.length - 1; return (
             <div key={s.key} className="tw-jnode" onClick={()=>setFocus(i)} style={{ display:"flex", gap:12, opacity: s.done || isCur ? 1 : 0.55 }}>
@@ -15551,9 +15512,9 @@ function OnboardingHero() {
         <div key={allDone ? 'done' : step.key} className="tw-jfocus" style={{ flex:1, minWidth:280, display:"flex", flexDirection:"column", justifyContent:"center" }}>
           {allDone ? (
             <>
-              <div style={{ width:56, height:56, borderRadius:16, background:th.gradient, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16, boxShadow:`0 12px 30px ${th.accent}55` }}><Sparkles size={26} color="#fff"/></div>
-              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're all set, {selClient?.name || "let's grow"}!</div>
-              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.6, maxWidth:460, marginBottom:20 }}>Your workspace is ready. Channels connected, first post out, analytics live — now the fun part: growing your audience.</div>
+              <div style={{ width:56, height:56, borderRadius:16, background:th.card2, border:`1px solid ${th.border}`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:16 }}><CheckCircle size={26} color={th.success}/></div>
+              <div style={{ fontSize:22, fontWeight:700, letterSpacing:-0.4, marginBottom:8 }}>You're set up{selClient?.name ? ", "+selClient.name : ""}.</div>
+              <div style={{ fontSize:13.5, color:th.text2, lineHeight:1.6, maxWidth:460, marginBottom:20 }}>Accounts connected, first post published, analytics on. From here it's about posting consistently.</div>
               <div style={{ display:"flex", gap:10 }}>
                 <button className="tw-jcta" onClick={()=>setPage('publisher')} style={{ padding:"11px 20px", borderRadius:11, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", display:"flex", alignItems:"center", gap:7 }}><Edit3 size={15}/>Create a post</button>
                 <button onClick={dismiss} style={{ padding:"11px 20px", borderRadius:11, background:"transparent", border:`1px solid ${th.border}`, color:th.text2, fontSize:13, fontWeight:600, cursor:"pointer" }}>Dismiss</button>
