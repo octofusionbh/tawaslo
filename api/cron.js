@@ -382,4 +382,123 @@ export default async function handler(req, res) {
 
   // ── Monthly client reports — call /api/cron?key=SECRET&task=monthly_reports
   //    on the 1st of each month. Independent of the publishing gate below.
-  if (req.query && req.query
+  if (req.query && req.query.task === 'monthly_reports') {
+    try { return await runMonthlyReports(res); }
+    catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
+  }
+
+  // ── Timed reservation notifications: reminders, no-shows, post-visit thank-you.
+  //    Call /api/cron?key=SECRET&task=notify_scheduled every ~10 min from your cron.
+  if (req.query && req.query.task === 'notify_scheduled') {
+    try {
+      const nowMs = Date.now();
+      const nowIso = new Date(nowMs).toISOString();
+      const soonIso = new Date(nowMs + 3 * 3600000).toISOString();
+      const graceIso = new Date(nowMs - 20 * 60000).toISOString();
+      const endedIso = new Date(nowMs - 2 * 3600000).toISOString();
+      let fired = 0;
+      const fire = async (b, event) => {
+        try { const r = await fetch(`${SITE}/api/cron`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'notify', kind: 'booking', id: b.id, event }) }); const j = await r.json(); return !!(j && j.ok); } catch (e) { return false; }
+      };
+      const mark = async (b, key) => { const nn = { ...(b.notified || {}), [key]: true }; try { await sb(`bookings?id=eq.${b.id}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ notified: nn }) }); } catch (e) {} };
+      const rr = await sb(`bookings?status=eq.confirmed&starts_at=gte.${encodeURIComponent(nowIso)}&starts_at=lte.${encodeURIComponent(soonIso)}&select=*&limit=40`);
+      for (const b of (rr.ok ? await rr.json() : [])) { if (b.notified && b.notified.reminder) continue; if (await fire(b, 'reminder')) { await mark(b, 'reminder'); fired++; } }
+      const nr = await sb(`bookings?status=eq.confirmed&starts_at=lte.${encodeURIComponent(graceIso)}&select=*&limit=40`);
+      for (const b of (nr.ok ? await nr.json() : [])) { if (b.notified && b.notified.noshow) continue; if (await fire(b, 'noshow')) { await mark(b, 'noshow'); fired++; } }
+      const tr = await sb(`bookings?status=eq.seated&starts_at=lte.${encodeURIComponent(endedIso)}&select=*&limit=40`);
+      for (const b of (tr.ok ? await tr.json() : [])) { if (b.notified && b.notified.thanks) continue; if (await fire(b, 'thanks')) { await mark(b, 'thanks'); fired++; } }
+      return res.status(200).json({ ok: true, fired });
+    } catch (e) { return res.status(200).json({ ok: false, error: e.message }); }
+  }
+
+  // ── SAFETY GATE ──────────────────────────────────────────────────────
+  // Auto-publishing stays OFF until you explicitly enable it (set PUBLISH_ENABLED=1
+  // in Vercel). This guarantees no approved/scheduled test post can ever go live by
+  // accident during setup. Flip it on only when you're truly ready to publish for real.
+  if (process.env.PUBLISH_ENABLED !== '1') {
+    return res.status(200).json({ ok: true, published: 0, message: 'auto-publishing disabled — set PUBLISH_ENABLED=1 in Vercel to enable' });
+  }
+
+  const nowIso = new Date().toISOString();
+  const results = [];
+
+  try {
+    // 1) Find up to 2 due posts (keeps each run under the 10s limit; cron runs often).
+    //    Approval gate: only publish posts that were never sent for approval
+    //    (no token) OR have been approved by the client. Anything still pending
+    //    or with changes requested is held back until it's approved.
+    const dueRes = await sb(
+      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&or=(appr_token.is.null,appr_status.eq.approved)&select=*&order=scheduled_at.asc&limit=2`
+    );
+    const due = await dueRes.json();
+    if (!Array.isArray(due) || due.length === 0) {
+      return res.status(200).json({ ok: true, published: 0, message: 'nothing due' });
+    }
+
+    for (const post of due) {
+      try {
+        // Claim the post (scheduled → publishing) so overlapping runs can't double-publish it.
+        await sb(`posts?id=eq.${post.id}&status=eq.scheduled`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'publishing' }),
+        });
+
+        // Look up the connected account's token for this post.
+        const accRes = await sb(
+          `social_accounts?account_id=eq.${encodeURIComponent(post.account_id)}&select=access_token,platform&limit=1`
+        );
+        const accArr = await accRes.json();
+        const acc = Array.isArray(accArr) ? accArr[0] : null;
+        if (!acc || !acc.access_token) {
+          await sb(`posts?id=eq.${post.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'failed' }) });
+          results.push({ id: post.id, ok: false, error: 'no connected account / token' });
+          continue;
+        }
+
+        const media = post.image_url || '';
+        const isVideo = /\.(mp4|mov|webm|m4v)(\?|$)/i.test(media);
+        // Preserve the Instagram format chosen at schedule time (Story / Reel / feed).
+        // Without this, a scheduled Story or Reel would publish as a normal feed post.
+        const igFmt = post.post_type === 'Story' ? 'story' : post.post_type === 'Reel' ? 'reel' : 'feed';
+
+        // Publish through the existing publisher (handles IG/FB/LinkedIn).
+        const pubRes = await fetch(`${SITE}/api/meta-publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: post.platform,
+            accountId: post.account_id,
+            accessToken: acc.access_token,
+            caption: post.caption || '',
+            imageUrl: media && !isVideo ? media : null,
+            videoUrl: isVideo ? media : null,
+            igFormat: igFmt,
+            firstComment: post.first_comment || null,
+          }),
+        });
+        const pub = await pubRes.json();
+        const ok = !!pub.success;
+        // Always update status (works even before the link columns exist).
+        await sb(`posts?id=eq.${post.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: ok ? 'published' : 'failed' }),
+        });
+        // Then record the live link + platform id (no-ops harmlessly if columns not added yet).
+        if (ok) {
+          await sb(`posts?id=eq.${post.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ external_id: pub.postId || null, permalink: pub.permalink || null, published_at: new Date().toISOString() }),
+          });
+        }
+        results.push({ id: post.id, ok, error: ok ? undefined : (pub.error || 'publish failed') });
+      } catch (e) {
+        await sb(`posts?id=eq.${post.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'failed' }) });
+        results.push({ id: post.id, ok: false, error: e.message });
+      }
+    }
+
+    return res.status(200).json({ ok: true, published: results.filter(r => r.ok).length, results });
+  } catch (e) {
+    return res.status(200).json({ ok: false, error: e.message });
+  }
+}
