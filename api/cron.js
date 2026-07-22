@@ -8,7 +8,7 @@
 //   SUPABASE_SERVICE_ROLE_KEY    — Supabase → Settings → API → service_role (server-only; bypasses RLS)
 //   SUPABASE_URL  (optional)     — defaults to the project URL below
 //   SITE_URL      (optional)     — defaults to https://tawaslo.com (used to call /api/meta-publish)
-export const config = { maxDuration: 10 };
+export const config = { maxDuration: 60 };
 
 const SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
