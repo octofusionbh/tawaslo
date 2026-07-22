@@ -8263,10 +8263,10 @@ function SocialAccountsPage() {
     if (!guardConnect()) return;
     const redirectUri = `https://tawaslo.com/api/instagram-oauth`;
     const IG_APP_ID = '3569589083219608';
-    // Full scope: basic + publish + insights (analytics) + comments & messages (Inbox).
+    // Connect scope = ONLY the approved permissions (basic + publish + insights).
     // The earlier "couldn't connect" error was the tester/dev-role issue, not these scopes,
-    // and the app's "Manage messaging & content" use case is configured — so these are safe.
-    const scope = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights,instagram_business_manage_comments,instagram_business_manage_messages';
+    // Comments & messages (Inbox) were App Review rejected — set REACT_APP_IG_INBOX=1 to re-add once re-approved.
+    const IG_CORE = 'instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights'; const scope = IG_CORE + (process.env.REACT_APP_IG_INBOX === '1' ? ',instagram_business_manage_comments,instagram_business_manage_messages' : '');
     // Store current page so callback can return here
     if (realClientId) sessionStorage.setItem('ig_redirect_client', realClientId);
     // force_reauth=true makes Instagram always show the login + permission screen,
