@@ -7391,6 +7391,9 @@ function PublisherPage() {
           if (acc.platform === 'ig') srow.post_type = igFormat === 'story' ? 'Story' : igFormat === 'reel' ? 'Reel' : (imgs.length > 1 ? 'Carousel' : 'Single');
           if (postLabel) srow.label = postLabel;
           if (firstComment) srow.first_comment = firstComment;
+          if (imgs.length > 1) srow.image_urls = imgs;
+          if (multiCap) srow.slide_captions = slideCaps;
+          if (imgAlts.some(a => a)) srow.alt_texts = imgAlts;
           if (apprTok) { srow.appr_token = apprTok; srow.appr_status = 'pending'; }
           const { error } = await supabase.from('posts').insert([srow]);
           if (error) { ok = false; lastErr = error.message; }
