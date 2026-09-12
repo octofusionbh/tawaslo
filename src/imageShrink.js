@@ -45,3 +45,16 @@ export const extensionForBlob = (blob, fallback = 'jpg') => {
   if (type === 'image/svg+xml') return 'svg';
   return fallback;
 };
+
+// A deliberately tiny copy of an image, for the Planner, Calendar and reports.
+// Around 20-40 kB at 400px, against roughly a megabyte for the full picture, so
+// a whole year of posts costs less than a single unshrunk upload. Once a post is
+// live, Instagram hosts the real thing and this is all we need to keep.
+export const makeThumbBlob = (blob) => shrinkImageBlob(blob, { max: 400, quality: 0.62 });
+
+// Where a full image's thumbnail lives: alongside it, under a thumbs/ folder.
+// Deriving it from the full path means nothing else has to carry the pairing.
+export const thumbPathFor = (path) => {
+  const at = String(path || '').lastIndexOf('/');
+  return at < 0 ? `thumbs/${path}` : `${path.slice(0, at)}/thumbs${path.slice(at)}`;
+};

@@ -66,7 +66,7 @@ import "./dashboard-accessibility.css";
 import "./notification-center.css";
 import { useMobileWeb, useCompactNavigation, mobileWebNow, canPublishOnWeb, mobilePage, stopMobilePublishing } from "./workspaceResponsive";
 import "./workspace-responsive.css";
-import { shrinkImageBlob, extensionForBlob } from "./imageShrink";
+import { shrinkImageBlob, extensionForBlob, makeThumbBlob, thumbPathFor } from "./imageShrink";
 import "./type-scale-mobile.css";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
@@ -8286,7 +8286,18 @@ function PublisherPage() {
         const { error } = await supabase.storage.from('media').upload(path, blob, { upsert: true, contentType: blob.type || (isVideo ? file.type : 'image/jpeg') });
         if (error) throw error;
         const { data: urlData } = supabase.storage.from('media').getPublicUrl(path);
-        setMedia(prev => prev.map(m => m.id === id ? { ...m, url: urlData.publicUrl, uploading: false } : m));
+        // A tiny companion copy, so the Planner, Calendar and reports still show
+        // the post after the full image is removed from storage on publish.
+        let thumbUrl = null;
+        if (isImage) {
+          try {
+            const thumb = await makeThumbBlob(blob);
+            const tpath = thumbPathFor(path);
+            const { error: thumbError } = await supabase.storage.from('media').upload(tpath, thumb, { upsert: true, contentType: thumb.type || 'image/jpeg' });
+            if (!thumbError) thumbUrl = supabase.storage.from('media').getPublicUrl(tpath).data.publicUrl;
+          } catch (e) { /* the post is still fine without one */ }
+        }
+        setMedia(prev => prev.map(m => m.id === id ? { ...m, url: urlData.publicUrl, thumbUrl, uploading: false } : m));
       } catch (err) {
         const big = /exceeded|maximum allowed size|too large|413/i.test(err.message || '');
         setMediaWarning(big ? (isVideo ? 'This video is too large for storage — try a shorter or compressed clip, or raise the bucket limit in Supabase.' : 'This image is still too large — try a smaller file.') : ('Upload failed: ' + err.message));
@@ -8465,7 +8476,7 @@ function PublisherPage() {
       resetComposer(); setTab('drafts'); return;
     }
     if (!realClientId) return;
-    const row = { client_id: realClientId, platform: selPlats[0] || 'ig', caption, image_url: images[0]?.url || video?.url || null, status: 'draft' };
+    const row = { client_id: realClientId, platform: selPlats[0] || 'ig', caption, image_url: images[0]?.url || video?.url || null, thumb_url: images[0]?.thumbUrl || null, status: 'draft' };
     if (editingDraftId) await supabase.from('posts').update(row).eq('id', editingDraftId);
     else await supabase.from('posts').insert([row]);
     resetComposer(); loadDrafts(); setTab("drafts");
@@ -8517,7 +8528,7 @@ function PublisherPage() {
           if (repeatType === "daily") d.setDate(d.getDate() + n);
           else if (repeatType === "weekly") d.setDate(d.getDate() + n * 7);
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
-          const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption: effCaption, image_url: imgs[0] || video?.url || null, status: 'scheduled', scheduled_at: d.toISOString() };
+          const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption: effCaption, image_url: imgs[0] || video?.url || null, thumb_url: images[0]?.thumbUrl || null, status: 'scheduled', scheduled_at: d.toISOString() };
           if (acc.platform === 'ig') srow.post_type = igFormat === 'story' ? 'Story' : igFormat === 'reel' ? 'Reel' : (imgs.length > 1 ? 'Carousel' : 'Single');
           if (postLabel) srow.label = postLabel;
           if (firstComment) srow.first_comment = firstComment;
@@ -8538,8 +8549,20 @@ function PublisherPage() {
         // Record the published post (with its live link) so it shows in history & reports.
         if (data.success) {
           try {
-            const prow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, status: 'published', scheduled_at: new Date().toISOString() };
+            const prow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption, image_url: imgs[0] || video?.url || null, thumb_url: images[0]?.thumbUrl || null, status: 'published', scheduled_at: new Date().toISOString() };
             if (postLabel) prow.label = postLabel;
+            // Instagram now hosts the picture, so the full-size copy here is a
+            // duplicate. Keep the small thumbnail for Planner, Calendar and
+            // reports, and hand the bucket its space back.
+            if (prow.thumb_url && prow.image_url && prow.image_url !== prow.thumb_url) {
+              const marker = '/storage/v1/object/public/media/';
+              const at = String(prow.image_url).indexOf(marker);
+              if (at >= 0) {
+                const fullPath = decodeURIComponent(String(prow.image_url).slice(at + marker.length).split('?')[0]);
+                prow.image_url = prow.thumb_url;
+                try { await supabase.storage.from('media').remove([fullPath]); } catch (e) { /* the post is live either way */ }
+              }
+            }
             const { data: ins } = await supabase.from('posts').insert([prow]).select();
             if (ins && ins[0]) await supabase.from('posts').update({ external_id: data.postId || null, permalink: data.permalink || null, published_at: new Date().toISOString() }).eq('id', ins[0].id);
           } catch (e) { /* link columns may not exist yet — non-fatal */ }

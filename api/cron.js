@@ -27,6 +27,42 @@ function sb(path, opts = {}) {
   });
 }
 
+// ── Reclaiming storage once a post is live ───────────────────────
+// The moment Instagram accepts a post it hosts the picture itself, so the
+// full-size copy in our bucket is a duplicate. Storing those duplicates is what
+// filled the previous project to 1.8 GB and got it restricted. We keep only the
+// small thumbnail the composer uploaded alongside, which is what the Planner,
+// Calendar and reports display.
+
+// The path inside the bucket, recovered from a public storage URL. Returns null
+// for anything that is not ours - an Instagram CDN link, say, or a blank field.
+function storagePathFromUrl(url) {
+  const marker = '/storage/v1/object/public/media/';
+  const at = String(url || '').indexOf(marker);
+  if (at < 0) return null;
+  const path = String(url).slice(at + marker.length).split('?')[0];
+  return path ? decodeURIComponent(path) : null;
+}
+
+// Best effort by design: a post that published successfully must never be
+// reported as failed because its leftover file could not be removed.
+async function dropPublishedMedia(post) {
+  try {
+    if (!post || !post.thumb_url) return;              // nothing to fall back to
+    const full = storagePathFromUrl(post.image_url);
+    const thumb = storagePathFromUrl(post.thumb_url);
+    if (!full || !thumb || full === thumb) return;     // already swapped, or not ours
+    await sb(`posts?id=eq.${post.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ image_url: post.thumb_url }),
+    });
+    await fetch(`${SUPA}/storage/v1/object/media/${full.split('/').map(encodeURIComponent).join('/')}`, {
+      method: 'DELETE',
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+    });
+  } catch (e) { /* the post is live either way */ }
+}
+
 // ── Monthly client report email (sent via Resend) ─────────────────────────
 async function resendSend({ from, to, subject, html, replyTo }) {
   const key = process.env.RESEND_API_KEY;
@@ -493,6 +529,7 @@ export default async function handler(req, res) {
             method: 'PATCH',
             body: JSON.stringify({ external_id: pub.postId || null, permalink: pub.permalink || null, published_at: new Date().toISOString() }),
           });
+          await dropPublishedMedia(post);
         }
         results.push({ id: post.id, ok, error: ok ? undefined : (pub.error || 'publish failed') });
       } catch (e) {
