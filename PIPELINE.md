@@ -73,3 +73,22 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Loyalty | Member memory (favourite, note) | 🟥 columns on `loyalty_cards` |
 | Loyalty | Business type, program name, qualifying action, expiry | 🟥 columns on `loyalty_programs` |
 | Loyalty | Card serial number | 🟥 no serial column |
+
+## Added while wiring Reviews, Guests and Fill My Tables
+
+| Page | Missing | Needs |
+|---|---|---|
+| Reviews | Rating trend ("+0.3 this month") | 🟦 compare periods |
+| Reviews | Customer signals (quality, service, value, speed) | 🟨 analyse review text |
+| Reviews | "Opportunity this week" | 🟦 product thinking |
+| Reviews | Would-recommend %, response rate | 🟥 columns |
+| Reviews | Touchpoints board, private-feedback prompt | 🟥 columns on `review_settings` |
+| Reviews | Review tags, replies and status | 🟥 columns on `reviews` (replies are session-only today) |
+| Guests | Remembered spend | 🟥 column on `guests` |
+| Guests | Preferred table or seat | 🟥 column |
+| Guests | Country-code picker | 🟦 one `phone` column today |
+| Guests | "Returning guests %" / "Known preferences %" | 🟦 define the measure |
+| Fill My Tables | Recoverable covers, expected-lift band | 🟦 needs a model |
+| Fill My Tables | Floor-plan dots | 🟥 no booking-to-table link |
+| Fill My Tables | Per-guest signals (near the venue, no booking) | 🟨 location + booking join |
+| Fill My Tables | Audience presets (regulars, nearby, no booking) | 🟥 no stored equivalent |

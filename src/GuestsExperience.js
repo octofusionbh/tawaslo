@@ -39,6 +39,12 @@ const SEGMENTS = [
   { id:'terrace', label:'Terrace people', count:47, note:'Prefer outdoor or sunset-side seating', color:'aqua', filter:g=>(g.seat||'').toLowerCase().includes('terrace') },
 ];
 
+const LIVE_SEGMENTS = [
+  { id:'regulars', label:'Regulars', note:'Four or more recorded visits', color:'violet', filter:g=>g.visits>=4 },
+  { id:'quiet', label:'We miss you', note:'No visit recorded for 45+ days', color:'coral', filter:g=>g.lastVisitDays!=null&&g.lastVisitDays>=45 },
+  { id:'birthdays', label:'Birthday fortnight', note:'Birthday in the next fourteen days', color:'gold', filter:g=>g.birthdayIn<=14 },
+];
+
 const emptyGuest = { id:'', firstName:'', lastName:'', code:'+973', phone:'', email:'', birthday:'', birthdayIn:365, visits:0, spend:0, lastVisit:'Not visited yet', usual:'', allergies:'None recorded', seat:'No preference yet', notes:'', vip:false, marketing:false, emailOptin:false, source:'Manual', occasions:[] };
 
 function readGuests() {
@@ -58,7 +64,7 @@ function fullName(guest) { return `${guest.firstName || ''} ${guest.lastName || 
 function initials(guest) { return `${guest.firstName?.[0] || ''}${guest.lastName?.[0] || ''}`.toUpperCase() || 'G'; }
 function money(value) { return `BHD ${Number(value || 0).toFixed(3)}`; }
 
-function GuestEditor({ guest, onClose, onSave, onDelete }) {
+function GuestEditor({ guest, onClose, onSave, onDelete, live = false }) {
   const [draft, setDraft] = useState(guest);
   const [error, setError] = useState('');
   const firstInput = useRef(null);
@@ -72,7 +78,7 @@ function GuestEditor({ guest, onClose, onSave, onDelete }) {
   const submit = event => {
     event.preventDefault();
     if (!draft.firstName.trim()) { setError('Add a first name so the team knows who to welcome.'); return; }
-    onSave({ ...draft, id:draft.id || `guest-${Date.now()}` });
+    onSave({ ...draft, id:draft.id || (live ? '' : `guest-${Date.now()}`) });
   };
   return <div className="gu-overlay" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <section className="gu-editor" role="dialog" aria-modal="true" aria-labelledby="gu-editor-title">
@@ -81,10 +87,12 @@ function GuestEditor({ guest, onClose, onSave, onDelete }) {
         <div className="gu-form-grid">
           <label>First name<input ref={firstInput} value={draft.firstName} onChange={e=>change('firstName',e.target.value)} /></label>
           <label>Last name<input value={draft.lastName} onChange={e=>change('lastName',e.target.value)} /></label>
-          <label className="gu-phone-field">WhatsApp number<span><select aria-label="Country code" value={draft.code} onChange={e=>change('code',e.target.value)}><option>+973</option><option>+966</option><option>+971</option><option>+965</option><option>+974</option><option>+968</option><option>+44</option><option>+1</option></select><input aria-label="Phone number" inputMode="tel" value={draft.phone} onChange={e=>change('phone',e.target.value)} /></span></label>
+          {live
+            ? <label>WhatsApp number<input inputMode="tel" value={draft.phone} onChange={e=>change('phone',e.target.value)} placeholder="+973 3600 1122" /></label>
+            : <label className="gu-phone-field">WhatsApp number<span><select aria-label="Country code" value={draft.code} onChange={e=>change('code',e.target.value)}><option>+973</option><option>+966</option><option>+971</option><option>+965</option><option>+974</option><option>+968</option><option>+44</option><option>+1</option></select><input aria-label="Phone number" inputMode="tel" value={draft.phone} onChange={e=>change('phone',e.target.value)} /></span></label>}
           <label>Email<input type="email" value={draft.email} onChange={e=>change('email',e.target.value)} /></label>
           <label>Birthday<input type="date" value={draft.birthday} onChange={e=>change('birthday',e.target.value)} /></label>
-          <label>Preferred table or area<input value={draft.seat} onChange={e=>change('seat',e.target.value)} placeholder="Terrace · table 08" /></label>
+          {!live && <label>Preferred table or area<input value={draft.seat} onChange={e=>change('seat',e.target.value)} placeholder="Terrace · table 08" /></label>}
           <label className="gu-form-wide">Usual order<input value={draft.usual} onChange={e=>change('usual',e.target.value)} placeholder="What do they come back for?" /></label>
           <label className="gu-form-wide">Allergies or dietary needs<input value={draft.allergies} onChange={e=>change('allergies',e.target.value)} placeholder="Keep this specific and visible" /></label>
           <label className="gu-form-wide">Host notes<textarea rows="3" value={draft.notes} onChange={e=>change('notes',e.target.value)} placeholder="A useful detail for the next welcome…" /></label>
@@ -101,26 +109,26 @@ function GuestEditor({ guest, onClose, onSave, onDelete }) {
   </div>;
 }
 
-function GuestProfile({ guest, onEdit, notify }) {
+function GuestProfile({ guest, onEdit, onPrepare, live = false }) {
   if (!guest) return null;
   const allergy = guest.allergies && guest.allergies !== 'None recorded';
   return <aside className="gu-profile" aria-label={`${fullName(guest)} profile`}>
-    <div className="gu-profile-art"><span className="gu-profile-orbit"/><span className="gu-profile-avatar">{initials(guest)}</span><div>{guest.vip && <span><Star size={12} fill="currentColor"/>VIP regular</span>}<h3>{fullName(guest)}</h3><p>{guest.visits} visits · {money(guest.spend)} remembered</p></div></div>
-    <div className="gu-profile-actions"><button type="button" onClick={()=>notify(`A warm WhatsApp draft for ${guest.firstName} is ready to review.`)} disabled={!guest.marketing}><FaWhatsapp/>Prepare WhatsApp</button><button type="button" aria-label={`Edit ${fullName(guest)}`} onClick={onEdit}><Edit3 size={16}/></button></div>
+    <div className="gu-profile-art"><span className="gu-profile-orbit"/><span className="gu-profile-avatar">{initials(guest)}</span><div>{guest.vip && <span><Star size={12} fill="currentColor"/>VIP regular</span>}<h3>{fullName(guest)}</h3><p>{guest.visits} visits{live ? '' : ` · ${money(guest.spend)} remembered`}</p></div></div>
+    <div className="gu-profile-actions"><button type="button" onClick={()=>onPrepare(guest,'whatsapp')} disabled={!guest.marketing||(live&&!guest.phone)}><FaWhatsapp/>Prepare WhatsApp</button><button type="button" aria-label={`Edit ${fullName(guest)}`} onClick={onEdit}><Edit3 size={16}/></button></div>
     {!guest.marketing && <p className="gu-private-note"><ShieldCheck size={15}/>No marketing consent. Service messages only.</p>}
     {allergy && <div className="gu-allergy"><AlertTriangle size={17}/><span><strong>Tell the floor and kitchen</strong><small>{guest.allergies}</small></span></div>}
     <div className="gu-memory-list">
       <div><Utensils size={15}/><span><small>The usual</small><strong>{guest.usual || 'Still learning'}</strong></span></div>
-      <div><MapPin size={15}/><span><small>Feels at home</small><strong>{guest.seat}</strong></span></div>
+      {!live && <div><MapPin size={15}/><span><small>Feels at home</small><strong>{guest.seat}</strong></span></div>}
       <div><CalendarDays size={15}/><span><small>Last visit</small><strong>{guest.lastVisit}</strong></span></div>
       <div><HeartHandshake size={15}/><span><small>Host note</small><strong>{guest.notes || 'No note yet'}</strong></span></div>
     </div>
-    <div className="gu-contact"><span><Phone size={13}/>{guest.code} {guest.phone || 'No phone'}</span><span><Mail size={13}/>{guest.email || 'No email'}</span></div>
-    <div className="gu-source"><span>Memory built from</span><div>{['Reservations','Pickup','Loyalty','Reviews'].map(source=><i key={source} data-active={source.startsWith(guest.source)}>{source}</i>)}</div></div>
+    <div className="gu-contact"><span><Phone size={13}/>{live ? (guest.phone || 'No phone') : `${guest.code} ${guest.phone || 'No phone'}`}</span><span><Mail size={13}/>{guest.email || 'No email'}</span></div>
+    {!live && <div className="gu-source"><span>Memory built from</span><div>{['Reservations','Pickup','Loyalty','Reviews'].map(source=><i key={source} data-active={source.startsWith(guest.source)}>{source}</i>)}</div></div>}
   </aside>;
 }
 
-function GuestBook({ guests, selectedId, setSelectedId, onEdit, notify }) {
+function GuestBook({ guests, selectedId, setSelectedId, onEdit, onPrepare, live = false }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const filtered = useMemo(() => guests.filter(guest => {
@@ -148,19 +156,19 @@ function GuestBook({ guests, selectedId, setSelectedId, onEdit, notify }) {
         })}
         {!filtered.length && <div className="gu-list-empty"><Search size={25}/><strong>No guest matches this view.</strong><span>Try a different name or filter.</span></div>}
       </div>
-      <GuestProfile guest={selected} onEdit={()=>onEdit(selected)} notify={notify}/>
+      <GuestProfile guest={selected} onEdit={()=>onEdit(selected)} onPrepare={onPrepare} live={live}/>
     </div>
   </section>;
 }
 
-function Moments({ guests, notify }) {
+function Moments({ guests, onPrepare, live = false }) {
   const upcoming = guests.filter(g=>g.birthdayIn<=14).sort((a,b)=>a.birthdayIn-b.birthdayIn);
   const [auto, setAuto] = useState({ birthday:true, returnVisit:true, consent:true });
   const toggle = key => setAuto(current=>({ ...current,[key]:!current[key] }));
   return <section className="gu-moments">
     <header><span>Moments, not blasts</span><h2>Reach out when it<br/><em>means something.</em></h2><p>Birthdays, milestones and quiet regulars become thoughtful prompts—not noisy campaigns.</p></header>
     <div className="gu-moment-stage">
-      <div className="gu-birthday-radar"><header><div><Gift size={19}/><span><strong>Birthday fortnight</strong><small>{upcoming.length} people in this sample</small></span></div><i>Next 14 days</i></header><div className="gu-moment-line">{upcoming.map((guest,index)=><article key={guest.id}><span className="gu-date"><strong>{guest.birthdayIn===0?'Today':guest.birthdayIn===1?'Tomorrow':`In ${guest.birthdayIn} days`}</strong><small>{new Date(`${guest.birthday}T12:00:00`).toLocaleDateString('en',{month:'short',day:'numeric'})}</small></span><span className="gu-moment-person"><i>{initials(guest)}</i><span><strong>{fullName(guest)}</strong><small>{guest.visits} visits · {guest.usual.split(' · ')[0]}</small></span></span><button type="button" disabled={!guest.marketing} onClick={()=>notify(`${guest.firstName}’s birthday message is ready to personalise.`)}>{guest.marketing?<><Edit3 size={15}/>Prepare message</>:<><ShieldCheck size={15}/>No opt-in</>}</button>{index<upcoming.length-1&&<b aria-hidden="true"/>}</article>)}</div></div>
+      <div className="gu-birthday-radar"><header><div><Gift size={19}/><span><strong>Birthday fortnight</strong><small>{live ? `${upcoming.length} with a birthday ahead` : `${upcoming.length} people in this sample`}</small></span></div><i>Next 14 days</i></header><div className="gu-moment-line">{!upcoming.length&&<p>{live?'No birthday in the next fourteen days.':'No upcoming birthday in this sample.'}</p>}{upcoming.map((guest,index)=><article key={guest.id}><span className="gu-date"><strong>{guest.birthdayIn===0?'Today':guest.birthdayIn===1?'Tomorrow':`In ${guest.birthdayIn} days`}</strong><small>{new Date(`${guest.birthday}T12:00:00`).toLocaleDateString('en',{month:'short',day:'numeric'})}</small></span><span className="gu-moment-person"><i>{initials(guest)}</i><span><strong>{fullName(guest)}</strong><small>{guest.visits} visits{(guest.usual||'').split(' · ')[0] ? ` · ${(guest.usual||'').split(' · ')[0]}` : ''}</small></span></span><button type="button" disabled={!guest.marketing||!!guest.momentDone} onClick={()=>onPrepare(guest,'birthday')}>{!guest.marketing?<><ShieldCheck size={15}/>No opt-in</>:guest.momentDone?<><Check size={15}/>Already sent</>:<><Edit3 size={15}/>Prepare message</>}</button>{index<upcoming.length-1&&<b aria-hidden="true"/>}</article>)}</div></div>
       <aside className="gu-automation"><span>Quiet automation</span><h3>The team stays human.<br/>Tawaslo remembers.</h3><p>Prepare the right prompt for the right person, then let a human review it.</p>{[
         ['birthday','Birthday reminders','Surface a draft seven days before'],
         ['returnVisit','Regular-guest check-ins','Notice when a familiar face goes quiet'],
@@ -170,38 +178,62 @@ function Moments({ guests, notify }) {
   </section>;
 }
 
-function Segments({ guests, onOpenFillTables }) {
-  const [selected, setSelected] = useState(SEGMENTS[0].id);
-  const segment = SEGMENTS.find(item=>item.id===selected) || SEGMENTS[0];
+function Segments({ guests, onOpenFillTables, live = false }) {
+  const list = live ? LIVE_SEGMENTS : SEGMENTS;
+  const [selected, setSelected] = useState(list[0].id);
+  const segment = list.find(item=>item.id===selected) || list[0];
   const matches = guests.filter(segment.filter);
   return <section className="gu-segments">
     <header><span>Living audiences</span><h2>Invite the right people.<br/><em>For the right reason.</em></h2><p>Segments update from real guest behaviour and only include people whose consent fits the message.</p></header>
-    <div className="gu-segment-shell"><div className="gu-segment-list">{SEGMENTS.map(item=><button type="button" key={item.id} data-color={item.color} aria-pressed={selected===item.id} onClick={()=>setSelected(item.id)}><span>{item.label}</span><strong>{item.count}</strong><small>{item.note}</small><ArrowRight size={17}/></button>)}</div><aside className="gu-segment-preview" data-color={segment.color}><span>Audience preview</span><h3>{segment.label}</h3><p>{segment.note}. Marketing consent is checked again before anything can be prepared.</p><div>{matches.length?matches.map(guest=><span key={guest.id}><i>{initials(guest)}</i><strong>{fullName(guest)}</strong><small>{guest.marketing?'Contactable':'Service only'}</small></span>):<span><strong>No sample matches yet</strong></span>}</div><button type="button" onClick={onOpenFillTables}>Use in Fill My Tables <ArrowRight size={16}/></button><small><ShieldCheck size={13}/>Preview only. Nothing is sent automatically.</small></aside></div>
+    <div className="gu-segment-shell"><div className="gu-segment-list">{list.map(item=><button type="button" key={item.id} data-color={item.color} aria-pressed={selected===item.id} onClick={()=>setSelected(item.id)}><span>{item.label}</span><strong>{live?guests.filter(item.filter).length:item.count}</strong><small>{item.note}</small><ArrowRight size={17}/></button>)}</div><aside className="gu-segment-preview" data-color={segment.color}><span>Audience preview</span><h3>{segment.label}</h3><p>{segment.note}. Marketing consent is checked again before anything can be prepared.</p><div>{matches.length?matches.map(guest=><span key={guest.id}><i>{initials(guest)}</i><strong>{fullName(guest)}</strong><small>{guest.marketing?'Contactable':'Service only'}</small></span>):<span><strong>{live?'No guest matches yet':'No sample matches yet'}</strong></span>}</div><button type="button" onClick={onOpenFillTables}>Use in Fill My Tables <ArrowRight size={16}/></button><small><ShieldCheck size={13}/>Preview only. Nothing is sent automatically.</small></aside></div>
   </section>;
 }
 
-export default function GuestsExperience({ dark, onOpenFillTables }) {
-  const [guests, setGuests] = useState(readGuests);
+export default function GuestsExperience({
+  dark, onOpenFillTables,
+  liveGuests = null, clientName = '', onSaveGuest = null, onDeleteGuest = null, onPrepareMessage = null,
+}) {
+  const live = liveGuests !== null && liveGuests !== undefined;
+  const [guests, setGuests] = useState(() => (live ? liveGuests : readGuests()));
   const [tab, setTab] = useState('book');
   const [selectedId, setSelectedId] = useState(guests[0]?.id || '');
   const [editing, setEditing] = useState(null);
   const [toast, setToast] = useState('');
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY,JSON.stringify(guests)); } catch (_) {} }, [guests]);
+  useEffect(() => { if (live) return; try { localStorage.setItem(STORAGE_KEY,JSON.stringify(guests)); } catch (_) {} }, [live, guests]);
+  useEffect(() => { if (live) setGuests(liveGuests); }, [live, liveGuests]);
   const notify = message => { setToast(message); window.setTimeout(()=>setToast(''),2300); };
-  const save = guest => { setGuests(current => current.some(item=>item.id===guest.id)?current.map(item=>item.id===guest.id?guest:item):[guest,...current]); setSelectedId(guest.id); setEditing(null); notify(`${fullName(guest)}’s guest memory is saved in this preview.`); };
-  const remove = guest => { if (!window.confirm(`Remove ${fullName(guest)} from this sample guest book?`)) return; setGuests(current=>current.filter(item=>item.id!==guest.id)); setSelectedId(current=>current===guest.id?(guests.find(item=>item.id!==guest.id)?.id||''):current); setEditing(null); notify('Guest removed from this preview.'); };
-  const totals = { total:248 + guests.length-SAMPLE_GUESTS.length, returning:64, profiles:84, moments:guests.filter(g=>g.birthdayIn<=14).length };
+  const merge = guest => setGuests(current => current.some(item=>item.id===guest.id)?current.map(item=>item.id===guest.id?guest:item):[guest,...current]);
+  const save = async guest => {
+    if (live) {
+      const result = onSaveGuest ? await onSaveGuest(guest) : null;
+      if (result && result.error) { notify(result.error); return; }
+      const saved = (result && result.guest) || guest;
+      merge(saved); setSelectedId(saved.id); setEditing(null); notify(`${fullName(saved)}’s guest memory is saved.`);
+      return;
+    }
+    merge(guest); setSelectedId(guest.id); setEditing(null); notify(`${fullName(guest)}’s guest memory is saved in this preview.`);
+  };
+  const remove = async guest => {
+    if (!window.confirm(live?`Remove ${fullName(guest)} from the guest book?`:`Remove ${fullName(guest)} from this sample guest book?`)) return;
+    if (live) { const result = onDeleteGuest ? await onDeleteGuest(guest) : null; if (result && result.error) { notify(result.error); return; } }
+    setGuests(current=>current.filter(item=>item.id!==guest.id)); setSelectedId(current=>current===guest.id?(guests.find(item=>item.id!==guest.id)?.id||''):current); setEditing(null); notify(live?'Guest removed.':'Guest removed from this preview.');
+  };
+  const prepare = async (guest, kind) => {
+    if (live && onPrepareMessage) { const message = await onPrepareMessage(guest, kind); if (message) notify(message); return; }
+    notify(kind==='birthday'?`${guest.firstName}’s birthday message is ready to personalise.`:`A warm WhatsApp draft for ${guest.firstName} is ready to review.`);
+  };
+  const totals = { total:live?guests.length:248 + guests.length-SAMPLE_GUESTS.length, returning:64, profiles:84, moments:guests.filter(g=>g.birthdayIn<=14).length };
   return <main className="tw-guests" data-theme={dark?'dark':'light'}>
-    <div className="gu-preview-bar"><span>Guest Memory preview · Sample profiles · No message is sent automatically</span><span className="gu-preview-status"><ShieldCheck size={14}/>Private by design</span></div>
-    <header className="gu-heading"><div><span><Users size={16}/>Guests / Marina Social Club</span><h1>Know the people.<br/><em>Not just the bookings.</em></h1><p>A respectful memory for every return—what they love, what keeps them safe, and what makes the welcome feel personal.</p></div><button type="button" onClick={()=>setEditing({...emptyGuest})}><Plus size={17}/>Add guest</button></header>
+    {!live && <div className="gu-preview-bar"><span>Guest Memory preview · Sample profiles · No message is sent automatically</span><span className="gu-preview-status"><ShieldCheck size={14}/>Private by design</span></div>}
+    <header className="gu-heading"><div><span><Users size={16}/>Guests{clientName?` / ${clientName}`:' / Marina Social Club'}</span><h1>Know the people.<br/><em>Not just the bookings.</em></h1><p>A respectful memory for every return—what they love, what keeps them safe, and what makes the welcome feel personal.</p></div><button type="button" onClick={()=>setEditing({...emptyGuest})}><Plus size={17}/>Add guest</button></header>
     <nav className="gu-tabs" aria-label="Guest workspace">{TABS.map(([id,label,Icon])=><button type="button" key={id} aria-pressed={tab===id} onClick={()=>setTab(id)}><Icon size={16}/>{label}{id==='moments'&&totals.moments?<b>{totals.moments}</b>:null}</button>)}</nav>
     <section className="gu-hero"><div className="gu-hero-copy"><span>One living guest memory</span><h2>Every return should<br/>feel remembered.</h2><p>Reservations, pickup, loyalty and reviews quietly become useful context for the next welcome.</p><div><button type="button" onClick={()=>setTab('book')}>Open guest book <ArrowRight size={16}/></button><button type="button" onClick={()=>setTab('moments')}>See upcoming moments</button></div><small><ShieldCheck size={14}/>Consent stays visible wherever guest data is used.</small></div><div className="gu-constellation" aria-hidden="true"><span className="gu-ring gu-ring-one"/><span className="gu-ring gu-ring-two"/><span className="gu-ring gu-ring-three"/><div className="gu-core"><Users size={21}/><strong>{totals.total}</strong><small>guest memories</small></div>{guests.slice(0,5).map((guest,index)=><span className={`gu-orbit-person gu-person-${index+1}`} key={guest.id}><i>{initials(guest)}</i><small>{guest.firstName}</small></span>)}</div></section>
-    <section className="gu-metrics" aria-label="Guest relationship summary"><div><span>Returning guests</span><strong>{totals.returning}%</strong><small>came back in 90 days</small></div><div><span>Known preferences</span><strong>{totals.profiles}%</strong><small>profiles with useful context</small></div><div><span>Upcoming moments</span><strong>{totals.moments}</strong><small>birthdays in 14 days</small></div><div><span>Contactable</span><strong>{guests.filter(g=>g.marketing).length}/{guests.length}</strong><small>with clear opt-in</small></div></section>
-    {tab==='book'&&<GuestBook guests={guests} selectedId={selectedId} setSelectedId={setSelectedId} onEdit={guest=>setEditing({...guest})} notify={notify}/>} 
-    {tab==='moments'&&<Moments guests={guests} notify={notify}/>} 
-    {tab==='segments'&&<Segments guests={guests} onOpenFillTables={onOpenFillTables}/>} 
-    <footer className="gu-foot"><span><Check size={14}/>Sample edits save on this device</span><span>Guest consent remains visible in every workflow</span></footer>
-    {editing&&<GuestEditor guest={editing} onClose={()=>setEditing(null)} onSave={save} onDelete={remove}/>} 
+    <section className="gu-metrics" aria-label="Guest relationship summary" style={live?{gridTemplateColumns:'repeat(2,1fr)'}:undefined}>{!live && <div><span>Returning guests</span><strong>{totals.returning}%</strong><small>came back in 90 days</small></div>}{!live && <div><span>Known preferences</span><strong>{totals.profiles}%</strong><small>profiles with useful context</small></div>}<div><span>Upcoming moments</span><strong>{totals.moments}</strong><small>birthdays in 14 days</small></div><div><span>Contactable</span><strong>{guests.filter(g=>g.marketing).length}/{guests.length}</strong><small>with clear opt-in</small></div></section>
+    {tab==='book'&&<GuestBook guests={guests} selectedId={selectedId} setSelectedId={setSelectedId} onEdit={guest=>setEditing({...guest})} onPrepare={prepare} live={live}/>} 
+    {tab==='moments'&&<Moments guests={guests} onPrepare={prepare} live={live}/>} 
+    {tab==='segments'&&<Segments guests={guests} onOpenFillTables={onOpenFillTables} live={live}/>} 
+    <footer className="gu-foot"><span><Check size={14}/>{live?'Edits save to this workspace':'Sample edits save on this device'}</span><span>Guest consent remains visible in every workflow</span></footer>
+    {editing&&<GuestEditor guest={editing} onClose={()=>setEditing(null)} onSave={save} onDelete={remove} live={live}/>} 
     {toast&&<div className="gu-toast" role="status"><MessageCircle size={15}/>{toast}</div>}
   </main>;
 }
