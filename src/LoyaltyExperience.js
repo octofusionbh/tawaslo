@@ -23,6 +23,9 @@ const TABS = [
   { id: 'design', label: 'Design & rules', Icon: Palette },
 ];
 
+// The customer card only renders these stamp icons and these two moods; see tawaslo-loyalty-branding.sql.
+const LIVE_STAMP_ICONS = ['star', 'heart', 'gift', 'coffee'];
+const LIVE_CARD_THEMES = ['paper', 'night'];
 const BRAND_COLORS = ['#245f55', '#c94d3f', '#7b5262', '#365f87', '#725fb6', '#bd7b27', '#292a2d'];
 const ACCENT_COLORS = ['#f0b94f', '#ff8072', '#48dfba', '#9b8cff', '#f3d6a1', '#f08f38', '#e8e8f2'];
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -65,6 +68,7 @@ const BUSINESS_TYPES = [
 
 const earnAction = program => EARN_ACTIONS.find(item => item.id === program.earnAction) || EARN_ACTIONS[0];
 const earnUnit = (program, count) => count === 1 ? earnAction(program).label.toLowerCase() : earnAction(program).plural;
+const brandInitials = name => String(name || '').split(/\s+/).filter(Boolean).map(part => part[0]).slice(0, 3).join('').toUpperCase();
 const safeGuestUrl = value => /^https:\/\/[^\s]+$/i.test(String(value || '').trim()) ? String(value).trim() : '#';
 
 const memberCopy = program => program.guestLanguage === 'ar' ? {
@@ -111,10 +115,10 @@ function MemberCard({ data, member, compact = false }) {
   const remaining = Math.max(0, goal - value);
   return <article className="ly-member-card" dir={program.guestLanguage === 'ar' ? 'rtl' : 'ltr'} data-theme={program.cardTheme} data-compact={compact} style={{ '--ly-brand': program.brandColor, '--ly-accent': program.accentColor }}>
     <div className="ly-card-art" aria-hidden="true"><i /><i /><i /><i /></div>
-    <span className="ly-card-serial" aria-hidden="true">MSC · MEMBER PASS · 2025</span>
+    {data.live ? null : <span className="ly-card-serial" aria-hidden="true">MSC · MEMBER PASS · 2025</span>}
     <header>
-      <div className="ly-card-lockup"><span>M</span><p><strong>Marina</strong><small>Social Club</small></p></div>
-      <span className="ly-card-kind"><i />{copy.club}</span>
+      <div className="ly-card-lockup">{data.live ? <><span>{brandInitials(data.brand)}</span><p><strong>{data.brand}</strong></p></> : <><span>M</span><p><strong>Marina</strong><small>Social Club</small></p></>}</div>
+      {data.live ? null : <span className="ly-card-kind"><i />{copy.club}</span>}
     </header>
     <div className="ly-card-copy"><small>{copy.reward}</small><h3>{program.reward}</h3><p>{compact ? member.name.split(' ')[0] : member.name}</p></div>
     <section className="ly-card-journey">
@@ -124,7 +128,7 @@ function MemberCard({ data, member, compact = false }) {
       </div>
       <p>{remaining === 0 ? copy.ready : `${remaining} ${program.type === 'points' ? copy.points : earnUnit(program, remaining)} to your next reward`}</p>
     </section>
-    <footer><span><small>{copy.since}</small><b>2025</b></span><span><small>{copy.card}</small><b>{member.code}</b></span><WalletCards size={20} /></footer>
+    <footer>{data.live && !member.since ? null : <span><small>{copy.since}</small><b>{data.live ? member.since : '2025'}</b></span>}<span><small>{copy.card}</small><b>{member.code}</b></span><WalletCards size={20} /></footer>
   </article>;
 }
 
@@ -136,19 +140,20 @@ function Progress({ data, member }) {
 function SharePanel({ data, qr, onClose, onCopy, copied }) {
   const origin = typeof window === 'undefined' ? 'https://tawaslo.com' : window.location.origin;
   const url = `${origin}/loyalty/${data.share.slug}`;
-  const wa = `https://wa.me/?text=${encodeURIComponent(`Marina Social Club - your loyalty card: ${url}`)}`;
+  const brand = data.live ? data.brand : 'Marina Social Club';
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${brand} - your loyalty card: ${url}`)}`;
   return createPortal(<div className="ly-overlay" role="presentation" onClick={onClose}>
     <section className="ly-share" role="dialog" aria-modal="true" aria-labelledby="ly-share-title" onClick={event => event.stopPropagation()}>
       <button type="button" className="ly-close" aria-label="Close share card" onClick={onClose}><X size={19} /></button>
       <span>Customer card</span><h2 id="ly-share-title">One link. Every return.</h2>
       <p>Place the QR at checkout, on a receipt, or share the card directly with a customer anywhere in the world.</p>
       <div className="ly-share-body">
-        <figure>{qr ? <img src={qr} alt="Loyalty card QR code" /> : <QrCode size={90} />}<figcaption>Marina Social Club<br /><small>Scan to join</small></figcaption></figure>
+        <figure>{qr ? <img src={qr} alt="Loyalty card QR code" /> : <QrCode size={90} />}<figcaption>{brand}<br /><small>Scan to join</small></figcaption></figure>
         <div><label>Customer loyalty link<input readOnly value={url} /></label>
           <div className="ly-share-actions">
             <button type="button" onClick={onCopy}><Copy size={16} />{copied ? 'Copied' : 'Copy link'}</button>
             <a href={wa} target="_blank" rel="noreferrer"><FaWhatsapp />Share to WhatsApp</a>
-            {qr && <a href={qr} download="marina-loyalty-qr.png"><QrCode size={16} />Download QR</a>}
+            {qr && <a href={qr} download={data.live ? 'loyalty-card-qr.png' : 'marina-loyalty-qr.png'}><QrCode size={16} />Download QR</a>}
           </div>
         </div>
       </div>
@@ -168,6 +173,8 @@ function GuestPreview({ data, member, onClose }) {
   const [error, setError] = useState('');
   const phoneValid = /^\+?[\d\s()-]{7,}$/.test(phone.trim());
   const guestUrl = safeGuestUrl(data.program.guestActionUrl);
+  const brandMark = data.live ? brandInitials(data.brand) : 'MSC';
+  const brandName = data.live ? data.brand : 'Marina Social Club';
   const joining = stage === 'join';
   const previewMember = path === 'join'
     ? { ...member, name: firstName.trim() ? `${firstName.trim()} Member` : member.name, phone: phone || member.phone }
@@ -185,7 +192,7 @@ function GuestPreview({ data, member, onClose }) {
       <button type="button" className="ly-close" aria-label="Close customer preview" onClick={onClose}><X size={19} /></button>
       <div className="ly-phone-top"><span>9:41</span><i /></div>
       {stage === 'welcome' && <div className="ly-join-welcome">
-        <div className="ly-guest-brand"><span>MSC</span><small>Marina Social Club</small><h2 id="ly-preview-title">A little more to look forward to.</h2><p>Join {data.program.programName} and collect progress with every qualifying {earnAction(data.program).label.toLowerCase()}.</p></div>
+        <div className="ly-guest-brand"><span>{brandMark}</span><small>{brandName}</small><h2 id="ly-preview-title">A little more to look forward to.</h2><p>Join {data.program.programName} and collect progress with every qualifying {earnAction(data.program).label.toLowerCase()}.</p></div>
         <div className="ly-join-reward"><Gift size={20} /><span><small>Your next reward</small><strong>{data.program.reward}</strong></span><b>{rewardGoal(data.program)} {data.program.type === 'points' ? 'points' : earnUnit(data.program, rewardGoal(data.program))}</b></div>
         {data.program.enabled ? <button type="button" className="ly-guest-book" onClick={() => begin('join')}>Join in under a minute <ArrowRight size={16} /></button> : <div className="ly-paused-notice" role="status"><LockKeyhole size={17} /><span><strong>New memberships are paused.</strong><small>Existing members can still open and redeem their cards.</small></span></div>}
         <button type="button" className="ly-journey-link" onClick={() => begin('returning')}>I already have a card</button>
@@ -211,10 +218,10 @@ function GuestPreview({ data, member, onClose }) {
         <button type="button" className="ly-journey-link" onClick={() => setStage('card')}>Use a secure sign-in link instead</button>
       </form>}
       {stage === 'card' && <div className="ly-card-arrival">
-        <div className="ly-guest-brand"><span>MSC</span><small>Marina Social Club</small><h2 id="ly-preview-title">{arabic ? `يسعدنا عودتك، ${previewMember.name.split(' ')[0]}.` : path === 'returning' ? `Welcome back, ${previewMember.name.split(' ')[0]}.` : `Your card is ready, ${previewMember.name.split(' ')[0]}.`}</h2></div>
+        <div className="ly-guest-brand"><span>{brandMark}</span><small>{brandName}</small><h2 id="ly-preview-title">{arabic ? `يسعدنا عودتك، ${previewMember.name.split(' ')[0]}.` : path === 'returning' ? `Welcome back, ${previewMember.name.split(' ')[0]}.` : `Your card is ready, ${previewMember.name.split(' ')[0]}.`}</h2></div>
         <MemberCard data={data} member={previewMember} compact />
         <div className="ly-guest-reward"><Gift size={18} /><span><strong>{data.program.reward}</strong><small>{rewardProgress(data.program, previewMember) >= 100 ? (arabic ? 'جاهزة للاستمتاع بها في المرة القادمة.' : 'Ready to enjoy next time.') : (arabic ? `${rewardGoal(data.program) - rewardValue(data.program, previewMember)} زيارات متبقية.` : `${rewardGoal(data.program) - rewardValue(data.program, previewMember)} more ${data.program.type === 'points' ? 'points' : earnUnit(data.program, rewardGoal(data.program) - rewardValue(data.program, previewMember))} to go.`)}</small></span></div>
-        <a className="ly-guest-book" href={guestUrl} onClick={event => { if (guestUrl === '#') event.preventDefault(); }} target={guestUrl === '#' ? undefined : '_blank'} rel={guestUrl === '#' ? undefined : 'noreferrer'} aria-disabled={guestUrl === '#'}>{data.program.guestAction} <ArrowRight size={16} /></a>
+        {data.live ? null : <a className="ly-guest-book" href={guestUrl} onClick={event => { if (guestUrl === '#') event.preventDefault(); }} target={guestUrl === '#' ? undefined : '_blank'} rel={guestUrl === '#' ? undefined : 'noreferrer'} aria-disabled={guestUrl === '#'}>{data.program.guestAction} <ArrowRight size={16} /></a>}
         <button type="button" className="ly-journey-link" onClick={() => setStage('welcome')}>Back to signup preview</button>
       </div>}
       <small className="ly-powered">Powered by Tawaslo</small>
@@ -241,7 +248,8 @@ function AddMemberPanel({ onClose, onSave }) {
 
 function Overview({ data, summary, onTab, onShare, onPreview, onHostTest }) {
   const feature = data.members[0];
-  const ready = data.members.find(member => rewardProgress(data.program, member) >= 100) || data.members[1];
+  // A real club can be empty on day one, so every panel below is guarded rather than assuming a member exists.
+  const ready = data.members.find(member => rewardProgress(data.program, member) >= 100) || data.members[1] || feature || null;
   const close = data.members.filter(member => {
     const progress = rewardProgress(data.program, member);
     return progress >= 70 && progress < 100;
@@ -251,22 +259,22 @@ function Overview({ data, summary, onTab, onShare, onPreview, onHostTest }) {
       <div className="ly-hero-copy"><span>Return, remembered</span><h2>Turn one good experience<br />into the next.</h2><p>A digital loyalty program that feels like the brand. No app, no plastic card, and no awkward signup at the counter.</p>
         <div><button type="button" onClick={() => onTab('design')}><Palette size={17} />Edit program</button><button type="button" onClick={onShare}><FaWhatsapp />Share customer card</button></div>
       </div>
-      <div className="ly-card-stage"><span className="ly-card-caption"><i />Live card · customer view</span><button type="button" aria-label="Preview customer loyalty card" onClick={onPreview}><MemberCard data={data} member={feature} /><span>Tap to open customer view <ArrowRight size={14} /></span></button></div>
+      {feature ? <div className="ly-card-stage"><span className="ly-card-caption"><i />Live card · customer view</span><button type="button" aria-label="Preview customer loyalty card" onClick={onPreview}><MemberCard data={data} member={feature} /><span>Tap to open customer view <ArrowRight size={14} /></span></button></div> : null}
     </section>
 
     <section className="ly-pulse">
-      <div><span>This month</span><strong>{summary.repeatRate}%</strong><small>of members returned</small></div>
+      {summary.repeatRate == null ? null : <div><span>This month</span><strong>{summary.repeatRate}%</strong><small>of members returned</small></div>}
       <div><strong>{summary.members}</strong><small>regulars remembered</small></div>
       <div><strong>{summary.ready}</strong><small>rewards waiting</small></div>
       <div><strong>{summary.redemptions}</strong><small>little thank-yous enjoyed</small></div>
     </section>
 
-    <section className="ly-rhythm"><header><div><span>Recent return activity</span><h3>Every return leaves a trace.</h3></div><small>Live sample activity</small></header><div>{data.activity.slice(0, 4).map(item => <article key={item.id} data-tone={item.tone}><time>{item.time}</time><i /><strong>{item.name}</strong><span>{item.action}</span></article>)}</div></section>
+    {data.live ? null : <section className="ly-rhythm"><header><div><span>Recent return activity</span><h3>Every return leaves a trace.</h3></div><small>Live sample activity</small></header><div>{data.activity.slice(0, 4).map(item => <article key={item.id} data-tone={item.tone}><time>{item.time}</time><i /><strong>{item.name}</strong><span>{item.action}</span></article>)}</div></section>}
 
     <section className="ly-notice-grid">
-      <article className="ly-ready"><div><Award size={22} /><span>Reward ready</span></div><h3>{ready.name}</h3><p>{ready.visits} {earnUnit(data.program, ready.visits)} remembered · {ready.redeemed} rewards already enjoyed</p><Progress data={data} member={ready} /><button type="button" onClick={() => onHostTest(ready.id)}>Test in host view <ArrowRight size={15} /></button></article>
+      {ready ? <article className="ly-ready"><div><Award size={22} /><span>Reward ready</span></div><h3>{ready.name}</h3><p>{ready.visits} {earnUnit(data.program, ready.visits)} remembered · {ready.redeemed} rewards already enjoyed</p><Progress data={data} member={ready} /><button type="button" onClick={() => onHostTest(ready.id)}>Test in host view <ArrowRight size={15} /></button></article> : null}
       <article className="ly-near"><header><div><span>Almost there</span><h3>A gentle nudge, never spam.</h3></div><TicketCheck size={22} /></header>{close.slice(0, 3).map(member => { const remaining = rewardGoal(data.program) - rewardValue(data.program, member); return <div key={member.id}><span>{member.name.split(' ')[0]}<small>{remaining} {data.program.type === 'points' ? 'points' : earnUnit(data.program, remaining)} away</small></span><Progress data={data} member={member} /></div>; })}</article>
-      <article className="ly-opportunity"><span>Return opportunity</span><h3>Invite familiar faces back.</h3><p>Four regulars have not returned in six weeks. Prepare a warm message for the brand’s quieter hours.</p><button type="button" onClick={onShare}><FaWhatsapp />Prepare return invitation</button></article>
+      {data.live ? null : <article className="ly-opportunity"><span>Return opportunity</span><h3>Invite familiar faces back.</h3><p>Four regulars have not returned in six weeks. Prepare a warm message for the brand’s quieter hours.</p><button type="button" onClick={onShare}><FaWhatsapp />Prepare return invitation</button></article>}
     </section>
   </>;
 }
@@ -318,7 +326,7 @@ function Members({ data, setSelectedId, onHostTest, onAdd }) {
     const search = !query.trim() || `${member.name} ${member.phone} ${member.code}`.toLowerCase().includes(query.toLowerCase());
     return bucket && search;
   }), [data, filter, query]);
-  return <section className="ly-members"><header><div><span>Customer memory</span><h2>Know the people who come back.</h2></div><button type="button" onClick={onAdd}><UserPlus size={16} />Add member</button></header><div className="ly-member-tools"><label><Search size={16} /><input aria-label="Search loyalty members" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search members" /></label><nav aria-label="Member filters">{LOYALTY_FILTERS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}</nav></div><div className="ly-member-list"><header><span>Member</span><span>Last seen</span><span>Progress</span><span>Memory</span><span /></header>{members.map(member => <article key={member.id}><div className="ly-member-person"><i>{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</i><span><strong>{member.name}</strong><small>{member.phone} · {member.code}</small></span></div><span className="ly-last-seen">{member.lastVisit}</span><div className="ly-member-progress"><strong>{rewardValue(data.program, member)} / {rewardGoal(data.program)}</strong><Progress data={data} member={member} /></div><span className="ly-memory"><strong>{member.favorite}</strong><small>{member.note}</small></span><button type="button" aria-label={`Test ${member.name} in host view`} onClick={() => { setSelectedId(member.id); onHostTest(member.id); }}><ArrowRight size={16} /></button></article>)}{members.length === 0 && <p className="ly-empty">No members match this view.</p>}</div></section>;
+  return <section className="ly-members"><header><div><span>Customer memory</span><h2>Know the people who come back.</h2></div><button type="button" onClick={onAdd}><UserPlus size={16} />Add member</button></header><div className="ly-member-tools"><label><Search size={16} /><input aria-label="Search loyalty members" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search members" /></label><nav aria-label="Member filters">{LOYALTY_FILTERS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}</nav></div><div className="ly-member-list"><header><span>Member</span><span>Last seen</span><span>Progress</span><span>Memory</span><span /></header>{members.map(member => <article key={member.id}><div className="ly-member-person"><i>{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</i><span><strong>{member.name}</strong><small>{member.phone} · {member.code}</small></span></div><span className="ly-last-seen">{member.lastVisit}</span><div className="ly-member-progress"><strong>{rewardValue(data.program, member)} / {rewardGoal(data.program)}</strong><Progress data={data} member={member} /></div><span className="ly-memory">{data.live ? null : <><strong>{member.favorite}</strong><small>{member.note}</small></>}</span><button type="button" aria-label={`Test ${member.name} in host view`} onClick={() => { setSelectedId(member.id); onHostTest(member.id); }}><ArrowRight size={16} /></button></article>)}{members.length === 0 && <p className="ly-empty">No members match this view.</p>}</div></section>;
 }
 
 function AgencyMembers({ data, setSelectedId, onHostTest, onPreview }) {
@@ -333,15 +341,15 @@ function AgencyMembers({ data, setSelectedId, onHostTest, onPreview }) {
 
   return <section className="ly-members ly-agency-members">
     <header><div><span>Customer insight</span><h2>Know the people who come back.</h2><p>Review customer progress here. Signup, earning, and redemption happen with the host.</p></div><button type="button" onClick={onPreview}><Eye size={16} />Preview customer card</button></header>
-    <div className="ly-member-tools"><label><Search size={16} /><input aria-label="Search loyalty customers" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search customers" /></label><nav aria-label="Customer filters">{LOYALTY_FILTERS.map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}</nav></div>
-    <div className="ly-member-list"><header><span>Customer</span><span>Last seen</span><span>Progress</span><span>Memory</span><span /></header>{members.map(member => <article key={member.id}><div className="ly-member-person"><i>{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</i><span><strong>{member.name}</strong><small>{member.phone} · {member.code}</small></span></div><span className="ly-last-seen">{member.lastVisit}</span><div className="ly-member-progress"><strong>{rewardValue(data.program, member)} / {rewardGoal(data.program)}</strong><Progress data={data} member={member} /></div><span className="ly-memory"><strong>{member.favorite}</strong><small>{member.note}</small></span><button type="button" aria-label={`Test ${member.name} in Host Test`} onClick={() => { setSelectedId(member.id); onHostTest(member.id); }}><ShieldCheck size={16} /></button></article>)}{members.length === 0 && <p className="ly-empty">No customers match this view.</p>}</div>
+    <div className="ly-member-tools"><label><Search size={16} /><input aria-label="Search loyalty customers" value={query} onChange={event => setQuery(event.target.value)} placeholder="Search customers" /></label><nav aria-label="Customer filters">{LOYALTY_FILTERS.filter(item => !(data.live && item.id === 'quiet')).map(item => <button type="button" key={item.id} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}</button>)}</nav></div>
+    <div className="ly-member-list"><header><span>Customer</span><span>Last seen</span><span>Progress</span><span>Memory</span><span /></header>{members.map(member => <article key={member.id}><div className="ly-member-person"><i>{member.name.split(' ').map(part => part[0]).slice(0, 2).join('')}</i><span><strong>{member.name}</strong><small>{member.phone} · {member.code}</small></span></div><span className="ly-last-seen">{member.lastVisit}</span><div className="ly-member-progress"><strong>{rewardValue(data.program, member)} / {rewardGoal(data.program)}</strong><Progress data={data} member={member} /></div><span className="ly-memory">{data.live ? null : <><strong>{member.favorite}</strong><small>{member.note}</small></>}</span><button type="button" aria-label={`Test ${member.name} in Host Test`} onClick={() => { setSelectedId(member.id); onHostTest(member.id); }}><ShieldCheck size={16} /></button></article>)}{members.length === 0 && <p className="ly-empty">No customers match this view.</p>}</div>
   </section>;
 }
 
 function LoyaltyDesignPreview({ data, onPreview, dark, className, previewRef }) {
   const { program } = data;
   const sample = data.members[0];
-  return <aside ref={previewRef} className={`ly-design-preview ${className}`} data-theme={dark ? 'dark' : 'light'} style={{ '--ly-brand': program.brandColor, '--ly-accent': program.accentColor }}><div className="ly-preview-title"><span>Live customer card</span><small><i data-enabled={program.enabled} />{program.enabled ? 'Customer-ready' : 'Program paused'}</small></div><MemberCard data={data} member={sample} compact /><p>{program.welcome}</p><button type="button" onClick={onPreview}><Eye size={16} />Open full customer view</button></aside>;
+  return <aside ref={previewRef} className={`ly-design-preview ${className}`} data-theme={dark ? 'dark' : 'light'} style={{ '--ly-brand': program.brandColor, '--ly-accent': program.accentColor }}><div className="ly-preview-title"><span>Live customer card</span><small><i data-enabled={program.enabled} />{program.enabled ? 'Customer-ready' : 'Program paused'}</small></div>{sample ? <MemberCard data={data} member={sample} compact /> : null}<p>{program.welcome}</p>{sample ? <button type="button" onClick={onPreview}><Eye size={16} />Open full customer view</button> : null}</aside>;
 }
 
 function LoyaltyDesignPortalPreview({ data, onPreview, dark }) {
@@ -388,9 +396,8 @@ function LoyaltyDesignPortalPreview({ data, onPreview, dark }) {
   return typeof document === 'undefined' ? null : createPortal(<LoyaltyDesignPreview data={data} onPreview={onPreview} dark={dark} className="ly-design-preview-portal" previewRef={previewRef} />, document.body);
 }
 
-function DesignRules({ data, setData, onPreview, dark }) {
+function DesignRules({ data, onPreview, dark, patch }) {
   const program = data.program;
-  const patch = update => setData(current => updateLoyaltyProgram(current, update));
   const action = earnAction(program);
   return <section className="ly-design">
     <header><span>Program studio</span><h2>Make returning feel like the brand.</h2><p>Set the reward logic, customer experience, and the card people keep on their phone.</p></header>
@@ -398,30 +405,31 @@ function DesignRules({ data, setData, onPreview, dark }) {
       <div className="ly-rules">
         <section>
           <div className="ly-section-heading"><div><span>Program basics</span><h3>Name it and make it live</h3></div><button type="button" className="ly-status-toggle" aria-pressed={program.enabled} onClick={() => patch({ enabled: !program.enabled })}><i />{program.enabled ? 'Active' : 'Paused'}</button></div>
-          <div className="ly-rule-grid"><label>Business type<select value={program.businessType} onChange={event => patch({ businessType: event.target.value })}>{BUSINESS_TYPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Program name<input value={program.programName} maxLength="36" onChange={event => patch({ programName: event.target.value })} /></label></div>
-          <p className="ly-field-note">Business type keeps future suggestions relevant without limiting your reward options. The program name appears on the customer card.</p>
+          {/* clients.business_type uses its own vocabulary and loyalty_programs stores no program name, so neither control can round-trip. */}
+          {data.live ? null : <><div className="ly-rule-grid"><label>Business type<select value={program.businessType} onChange={event => patch({ businessType: event.target.value })}>{BUSINESS_TYPES.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Program name<input value={program.programName} maxLength="36" onChange={event => patch({ programName: event.target.value })} /></label></div>
+          <p className="ly-field-note">Business type keeps future suggestions relevant without limiting your reward options. The program name appears on the customer card.</p></>}
           <p className="ly-field-note">Pausing keeps member progress but stops new earning.</p>
         </section>
 
         <section>
           <span>Reward logic</span><h3>How customers earn</h3>
           <div className="ly-type-choice"><button type="button" aria-pressed={program.type === 'stamps'} onClick={() => patch({ type: 'stamps' })}><TicketCheck size={18} /><strong>Actions</strong><small>One stamp per qualifying action</small></button><button type="button" aria-pressed={program.type === 'points'} onClick={() => patch({ type: 'points' })}><CircleDollarSign size={18} /><strong>Points</strong><small>Flexible for higher-value programs</small></button></div>
-          <div className="ly-rule-grid"><label>Qualifying action<select value={program.earnAction} onChange={event => patch({ earnAction: event.target.value })}>{EARN_ACTIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label>Reward<input value={program.reward} maxLength="60" onChange={event => patch({ reward: event.target.value })} /></label></div>
-          <div className="ly-rule-grid">{program.type === 'stamps' ? <label>{action.label}s required<input type="number" min="2" max="20" value={program.stampGoal} onChange={event => patch({ stampGoal: Number(event.target.value) })} /></label> : <><label>Points per {action.label.toLowerCase()}<input type="number" min="1" value={program.pointsPerVisit} onChange={event => patch({ pointsPerVisit: Number(event.target.value) })} /></label><label>Points required<input type="number" min="10" value={program.pointsGoal} onChange={event => patch({ pointsGoal: Number(event.target.value) })} /></label></>}<label>Expiry window<select value={program.expiryDays} onChange={event => patch({ expiryDays: Number(event.target.value) })}><option value="90">90 days</option><option value="180">180 days</option><option value="365">1 year</option><option value="730">2 years</option></select></label></div>
+          <div className="ly-rule-grid">{data.live ? null : <label>Qualifying action<select value={program.earnAction} onChange={event => patch({ earnAction: event.target.value })}>{EARN_ACTIONS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>}<label>Reward<input value={program.reward} maxLength="60" onChange={event => patch({ reward: event.target.value })} /></label></div>
+          <div className="ly-rule-grid">{program.type === 'stamps' ? <label>{action.label}s required<input type="number" min="2" max="20" value={program.stampGoal} onChange={event => patch({ stampGoal: Number(event.target.value) })} /></label> : <><label>Points per {action.label.toLowerCase()}<input type="number" min="1" value={program.pointsPerVisit} onChange={event => patch({ pointsPerVisit: Number(event.target.value) })} /></label><label>Points required<input type="number" min="10" value={program.pointsGoal} onChange={event => patch({ pointsGoal: Number(event.target.value) })} /></label></>}{data.live ? null : <label>Expiry window<select value={program.expiryDays} onChange={event => patch({ expiryDays: Number(event.target.value) })}><option value="90">90 days</option><option value="180">180 days</option><option value="365">1 year</option><option value="730">2 years</option></select></label>}</div>
         </section>
 
-        <section>
+        {data.live ? null : <section>
           <span>Global customer experience</span><h3>Language and next step</h3>
           <div className="ly-rule-grid"><label>Customer card language<select value={program.guestLanguage} onChange={event => patch({ guestLanguage: event.target.value })}><option value="workspace">Use workspace language</option><option value="en">English</option><option value="ar">Arabic · RTL</option></select></label><label>Button label<input value={program.guestAction} maxLength="48" onChange={event => patch({ guestAction: event.target.value })} /></label></div>
           <label>Button destination<input type="url" value={program.guestActionUrl} onChange={event => patch({ guestActionUrl: event.target.value })} placeholder="https://yourwebsite.com" aria-describedby="ly-destination-help" /><small className="ly-input-help" id="ly-destination-help" data-error={program.guestActionUrl && safeGuestUrl(program.guestActionUrl) === '#'}>{program.guestActionUrl && safeGuestUrl(program.guestActionUrl) === '#' ? 'Use a complete, secure https:// link.' : 'Where the customer button opens, such as a shop, product, booking, menu, or website.'}</small></label>
           <p className="ly-world-note"><Globe2 size={16} />International phone numbers, universal links and QR work globally. Messaging remains optional for businesses that use it.</p>
-        </section>
+        </section>}
 
         <section>
           <span>Card art direction</span><h3>Colour, mood and symbol</h3>
-          <div className="ly-color-grid"><ColorControl label="Brand colour" value={program.brandColor} presets={BRAND_COLORS} onChange={brandColor => patch({ brandColor })} /><ColorControl label="Highlight colour" value={program.accentColor} presets={ACCENT_COLORS} onChange={accentColor => patch({ accentColor })} /></div>
-          <fieldset className="ly-choice-group"><legend>Reward symbol</legend><p>Choose a clear mark that suits the business. The selected symbol appears on every progress stamp.</p><div className="ly-symbol-grid">{STAMP_SYMBOLS.map(({ id, label, Icon }) => <button type="button" key={id} aria-label={`Use ${label} reward symbol`} aria-pressed={program.stampIcon === id} onClick={() => patch({ stampIcon: id })}><Icon size={18} aria-hidden="true" /><span>{label}</span></button>)}</div></fieldset>
-          <fieldset className="ly-choice-group"><legend>Card mood</legend><div className="ly-theme-choice">{[['tide', 'Sunset tide'], ['paper', 'Pearl paper'], ['night', 'After dark']].map(([id, label]) => <button type="button" key={id} aria-pressed={program.cardTheme === id} onClick={() => patch({ cardTheme: id })}>{label}</button>)}</div></fieldset>
+          <div className="ly-color-grid"><ColorControl label="Brand colour" value={program.brandColor} presets={BRAND_COLORS} onChange={brandColor => patch({ brandColor })} />{data.live ? null : <ColorControl label="Highlight colour" value={program.accentColor} presets={ACCENT_COLORS} onChange={accentColor => patch({ accentColor })} />}</div>
+          <fieldset className="ly-choice-group"><legend>Reward symbol</legend><p>Choose a clear mark that suits the business. The selected symbol appears on every progress stamp.</p><div className="ly-symbol-grid">{STAMP_SYMBOLS.filter(({ id }) => !data.live || LIVE_STAMP_ICONS.includes(id)).map(({ id, label, Icon }) => <button type="button" key={id} aria-label={`Use ${label} reward symbol`} aria-pressed={program.stampIcon === id} onClick={() => patch({ stampIcon: id })}><Icon size={18} aria-hidden="true" /><span>{label}</span></button>)}</div></fieldset>
+          <fieldset className="ly-choice-group"><legend>Card mood</legend><div className="ly-theme-choice">{[['tide', 'Sunset tide'], ['paper', 'Pearl paper'], ['night', 'After dark']].filter(([id]) => !data.live || LIVE_CARD_THEMES.includes(id)).map(([id, label]) => <button type="button" key={id} aria-pressed={program.cardTheme === id} onClick={() => patch({ cardTheme: id })}>{label}</button>)}</div></fieldset>
           <label>Welcome note<textarea rows="3" maxLength="180" value={program.welcome} onChange={event => patch({ welcome: event.target.value })} /><small className="ly-character-count">{program.welcome.length}/180</small></label>
         </section>
       </div>
@@ -431,8 +439,12 @@ function DesignRules({ data, setData, onPreview, dark }) {
   </section>;
 }
 
-export default function LoyaltyExperience({ dark, setDark, onOpenHostTest = () => {} }) {
-  const [data, setData] = useState(() => readLoyaltyPreview());
+export default function LoyaltyExperience({ dark, setDark, onOpenHostTest = () => {}, liveData = null, clientName = '', onProgramChange = null }) {
+  // Live mode exists so paying clients never see a sample figure rendered as their own: every control and
+  // statistic whose value has no column in the workspace database is hidden below rather than filled from
+  // the design fixture. It rides on `data` because every child already receives it.
+  const live = liveData !== null && liveData !== undefined;
+  const [data, setData] = useState(() => live ? { ...liveData, live: true, brand: clientName } : readLoyaltyPreview());
   const [tab, setTab] = useState('overview');
   const [selectedId, setSelectedId] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
@@ -440,13 +452,33 @@ export default function LoyaltyExperience({ dark, setDark, onOpenHostTest = () =
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState('');
-  const summary = useMemo(() => loyaltySummary(data), [data]);
+  // loyaltySummary() normalises against the fixture, which would invent member details and a repeat rate.
+  const summary = useMemo(() => {
+    if (!live) return loyaltySummary(data);
+    const goal = rewardGoal(data.program);
+    const members = data.members;
+    return {
+      members: members.length,
+      active: members.length,
+      ready: members.filter(member => rewardValue(data.program, member) >= goal).length,
+      close: members.filter(member => { const progress = rewardProgress(data.program, member); return progress >= 70 && progress < 100; }).length,
+      redemptions: members.reduce((sum, member) => sum + (Number(member.redeemed) || 0), 0),
+      // Nothing records how many members returned this month, so the tile that showed it is hidden.
+      repeatRate: null,
+    };
+  }, [data, live]);
   const feature = data.members[0];
   const openHostTest = memberId => {
     setSelectedId(memberId || feature?.id || '');
     onOpenHostTest();
   };
-  useEffect(() => { saveLoyaltyPreview(data); }, [data]);
+  useEffect(() => { if (!live) saveLoyaltyPreview(data); }, [data, live]);
+  // Program edits go straight to the workspace row; updateLoyaltyProgram() would re-normalise live
+  // members against the fixture and fill their blank columns with sample text.
+  const patchProgram = update => {
+    setData(current => live ? { ...current, program: { ...current.program, ...update } } : updateLoyaltyProgram(current, update));
+    if (live && onProgramChange) onProgramChange(update);
+  };
   useEffect(() => {
     const origin = typeof window === 'undefined' ? 'https://tawaslo.com' : window.location.origin;
     QRCode.toDataURL(`${origin}/loyalty/${data.share.slug}`, { width: 360, margin: 1, color: { dark: '#16332d', light: '#fffaf0' } }).then(setQr).catch(() => setQr(''));
@@ -458,16 +490,16 @@ export default function LoyaltyExperience({ dark, setDark, onOpenHostTest = () =
     setCopied(true); window.setTimeout(() => setCopied(false), 1500);
   };
   return <main className="tw-loyalty" data-theme={dark ? 'dark' : 'light'}>
-    <div className="ly-preview-bar"><span>Loyalty preview · Sample members · Nothing is sent automatically</span><button type="button" aria-label={dark ? 'Use light Loyalty theme' : 'Use dark Loyalty theme'} onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div>
-    <header className="ly-heading"><div><span><Award size={16} />Loyalty / Marina Social Club</span><h1>Make coming back <em>feel personal.</em></h1><p>Run the reward, remember the customer, and give every regular a beautiful card without asking them to download another app.</p></div><div><button type="button" onClick={() => setGuestOpen(true)}><Eye size={16} />Customer view</button><button type="button" onClick={() => setShareOpen(true)}><Link2 size={16} />Link & QR</button></div></header>
+    <div className="ly-preview-bar">{live ? <span/> : <span>Loyalty preview · Sample members · Nothing is sent automatically</span>}<button type="button" aria-label={dark ? 'Use light Loyalty theme' : 'Use dark Loyalty theme'} onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div>
+    <header className="ly-heading"><div><span><Award size={16} />{live ? (clientName ? `Loyalty / ${clientName}` : 'Loyalty') : 'Loyalty / Marina Social Club'}</span><h1>Make coming back <em>feel personal.</em></h1><p>Run the reward, remember the customer, and give every regular a beautiful card without asking them to download another app.</p></div><div>{feature ? <button type="button" onClick={() => setGuestOpen(true)}><Eye size={16} />Customer view</button> : null}<button type="button" onClick={() => setShareOpen(true)}><Link2 size={16} />Link & QR</button></div></header>
     <section className="ly-agency-boundary"><ShieldCheck size={20} /><div><strong>The agency builds and reviews the loyalty program.</strong><span>Customer signup, earning, redemption, and counter activity belong to the future Host dashboard.</span></div><button type="button" onClick={() => openHostTest()}>Test the host flow<ArrowRight size={16} /></button></section>
     <nav className="ly-tabs" aria-label="Loyalty setup sections">{TABS.map(item => <button type="button" key={item.id} aria-pressed={tab === item.id} onClick={() => setTab(item.id)}><item.Icon size={16} />{item.label}</button>)}<button type="button" className="ly-host-test-tab tw-host-test-launch" onClick={() => openHostTest()}><ShieldCheck size={16} />Host Test</button></nav>
     {tab === 'overview' && <Overview data={data} summary={summary} onTab={setTab} onShare={() => setShareOpen(true)} onPreview={() => setGuestOpen(true)} onHostTest={openHostTest} />}
     {tab === 'members' && <AgencyMembers data={data} setSelectedId={setSelectedId} onHostTest={openHostTest} onPreview={() => setGuestOpen(true)} />}
-    {tab === 'design' && <DesignRules data={data} setData={setData} onPreview={() => setGuestOpen(true)} dark={dark} />}
-    <footer className="ly-foot"><span><Check size={14} />Sample changes save on this device</span><span>No customer is contacted from this preview</span></footer>
+    {tab === 'design' && <DesignRules data={data} patch={patchProgram} onPreview={() => setGuestOpen(true)} dark={dark} />}
+    <footer className="ly-foot"><span><Check size={14} />{live ? 'Program changes save to this workspace' : 'Sample changes save on this device'}</span><span>No customer is contacted from this {live ? 'page' : 'preview'}</span></footer>
     {shareOpen && <SharePanel data={data} qr={qr} onClose={() => setShareOpen(false)} onCopy={copy} copied={copied} />}
-    {guestOpen && <GuestPreview data={data} member={feature} onClose={() => setGuestOpen(false)} />}
+    {guestOpen && feature && <GuestPreview data={data} member={feature} onClose={() => setGuestOpen(false)} />}
     {toast && <div className="ly-toast" role="status">{toast}</div>}
   </main>;
 }

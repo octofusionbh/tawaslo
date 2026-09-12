@@ -1,0 +1,75 @@
+# Tawaslo — Build pipeline (after the Codex redesign is wired)
+
+Everything here was **designed by Codex but has no real source yet**, so it is hidden on
+live data rather than faked. This is the to-build list once every page is converted.
+
+Status key: 🟥 needs a database column · 🟨 needs an integration or API · 🟦 needs product thinking
+
+## Schema gaps — restaurant suite
+
+| Page | Missing | Needs |
+|---|---|---|
+| Reservations | Bookings on/off switch | 🟥 `booking_settings.enabled` |
+| Reservations | Minimum notice, book-ahead window | 🟥 two columns on `booking_settings` |
+| Reservations | Table turn duration, held-slot grace | 🟥 columns on `booking_settings` |
+| Reservations | Largest online party | 🟥 own column (today's `capacity` is seats-per-slot) |
+| Reservations | Table "out of service" | 🟥 `dining_tables.out_of_service` |
+| Reservations | Space type (indoor / outdoor / separate floor) | 🟥 `dining_rooms.type` |
+| Reservations | Table width and depth | 🟥 two columns on `dining_tables` |
+| Reservations | Guest experience / booking preview tab | 🟦 depends on all of the above |
+| Menu | Featured dish | 🟥 `menu_items.featured` |
+| Menu | Multiple menus per client | 🟥 today one `menus` row per client |
+| Menu | Menu type, introduction, service note | 🟥 columns on `menus` |
+| Menu | Brand colours + font | 🟥 `menus.theme` is a preset name, not a palette |
+| Menu | Dish photos, plate artwork, visual layout | 🟥 no photo column on `menu_items` |
+| Menu | Preparation time in minutes | 🟥 `menu_items.lead_hours` is whole hours |
+| Menu | Category guest note | 🟥 categories are bare strings |
+| Menu | Menu import | 🟨 no backend |
+| Guests | Lifetime spend, visit count, tags | 🟥 columns on `guests` + reliable guest matching |
+
+## Missing signals — analytics and dashboard
+
+| Page | Missing | Needs |
+|---|---|---|
+| Analytics | Impressions, profile views | 🟨 retired by Meta — find a replacement metric |
+| Analytics | Facebook / LinkedIn / TikTok figures | 🟨 only Instagram is wired today |
+| Analytics | Audience quality (returning, engaged, non-follower) | 🟨 derive from Meta insights |
+| Analytics | Channel comparison table, top post | 🟨 needs per-network analytics |
+| Analytics | Link clicks | 🟨 join `short_links` clicks to posts |
+| Dashboard | Creative signals (best time, strongest format) | 🟦 real analysis over the client's own history |
+| Dashboard | "Ideas for you" | 🟨 wire to the real Suggested engine |
+| Dashboard | "Needs changes" vs "awaiting approval" split | 🟥 approvals need a status of their own |
+| Inbox | Priority, mood, AI reply suggestions | 🟨 AI pass over each message |
+
+## Features Abdulla asked for
+
+| Item | Notes |
+|---|---|
+| Alt text | Already applies to image posts; extend across media library and approvals |
+| Reel music | Track choice on reels |
+| Google / Apple sign-in | After launch, once sign-ups reopen |
+| Code splitting | Bundle is ~780 kB gzip; needs TawasaloApp.js split by route |
+
+## Housekeeping
+
+| Item | Notes |
+|---|---|
+| Old media URLs | Posts still point at the old Supabase project's storage — needs re-upload |
+| Every `*classic` route | Old pages kept reachable as a fallback; remove once the new ones are proven |
+
+## Added while wiring Orders and Loyalty
+
+| Page | Missing | Needs |
+|---|---|---|
+| Orders | Service types (delivery, shipping) | 🟥 only pickup exists on `menus` |
+| Orders | Location, business timezone, tax display | 🟥 columns on `menus` |
+| Orders | Scheduled-orders toggle | 🟥 `pickup_days_ahead` is always in force |
+| Orders | Live order destination, order email, reference prefix | 🟥 `order_no` is random today |
+| Orders | Customer status updates, checkout languages and note | 🟥 columns |
+| Orders | Link and QR | 🟨 ShareGenerator builds demo URLs |
+| Loyalty | "63% of members returned" | 🟨 needs a return-rate calculation |
+| Loyalty | Recent return activity feed | 🟥 no activity table |
+| Loyalty | "Regulars who have not returned" + Bring-back filter | 🟦 needs lapsed-member logic |
+| Loyalty | Member memory (favourite, note) | 🟥 columns on `loyalty_cards` |
+| Loyalty | Business type, program name, qualifying action, expiry | 🟥 columns on `loyalty_programs` |
+| Loyalty | Card serial number | 🟥 no serial column |
