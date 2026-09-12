@@ -148,3 +148,17 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Reports | Performance and Campaign report templates | 🟨 only the Business report has a generator |
 | Invoicing | Invoice defaults screen | 🟦 no real target yet |
 | Win Clients | Proposals | 🟥 no proposals table — drafts are per-browser. The real `prospect_audits` table serves a different feature (public pitch pages) |
+
+## Social connection health (found during the pre-launch sweep)
+
+| Item | What is wrong now | Needs |
+|---|---|---|
+| **LinkedIn tokens expire at 60 days** | `api/linkedin-oauth.js` already stores the `refresh_token` LinkedIn sends back, but nothing ever uses it. When the 60 days run out the connection silently dies. | 🟥 a daily cron step that refreshes LinkedIn tokens before they lapse. YouTube already refreshes; Facebook and Instagram never expire (page tokens), so this is LinkedIn-only. |
+| **No "reconnect" indicator anywhere** | Nothing checks whether a stored token still works. A dead token shows up as a post that quietly fails to publish — no badge, no email, nothing in Social Accounts. | 🟥 add `token_status`, `token_checked_at` and `token_error` to `social_accounts`; cron pings each token daily and writes the result; Social Accounts shows a red "Reconnect" chip with a one-click re-auth. |
+| **No alert when a scheduled post fails to publish** | `api/cron.js` marks the post failed and moves on. | 🟨 depends on the health check above — same notification path. |
+
+## Type scale
+
+| Item | What is wrong now | Needs |
+|---|---|---|
+| Micro-type is 7–10.5px across the redesign | 1,647 CSS rules set text below 11px — labels, chips, filter buttons, stat sub-copy. Deliberate on desktop, hard to read on a phone. | 🟦 a design decision. `src/type-scale-mobile.css` is generated and ready to drop in if we want the phone-only bump. |
