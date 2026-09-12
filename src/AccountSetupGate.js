@@ -46,6 +46,16 @@ export default function AccountSetupGate({user,onReady,onSignOut,loadError,onRet
     }catch(_){setError('Choose a PNG, JPG or WebP logo under 5 MB. If it still will not save, you can add it later.')}
     finally{if(activeRef.current)setBusy(false)}
   };
+  // A plain page load is not account setup. Reusing the setup card for it put a
+  // headline, a paragraph about saving details that are not being saved, and a
+  // contact-support link in front of a wait that is usually a second long. The
+  // quiet version below is for that case; the full card still handles real setup
+  // and anything that went wrong.
+  if(loadingOnly&&!loadError)return <main className="ax-shell ax-shell-light ax-gate-quiet" aria-busy="true">
+    <div className="ax-quiet-mark"><img src="/logo-transparent.png" alt="" width="34" height="34"/><strong>Tawaslo</strong></div>
+    <div className="ax-quiet-bar" aria-hidden="true"><i/></div>
+    <p className="ax-quiet-note" role="status">Loading your workspace</p>
+  </main>;
   const ready=result?.status==='ready';
   const needsLogo=result?.status==='logo-required';
   const message=loadError||error;

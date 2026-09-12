@@ -36,7 +36,7 @@ function InvoiceExample({ settings, agency }) {
     <div className={`set-paper set-paper-${settings.template}`} style={{ '--invoice-accent': settings.accent }}>
       <div className="set-paper-top"><strong>{agency.logo && <img src={agency.logo} alt=""/>}{agency.name}</strong><span>INVOICE<br/>EXAMPLE</span></div>
       <div className="set-paper-title">Good work.<br/>Beautifully billed.</div>
-      <div className="set-paper-client"><span>PREPARED FOR</span><strong>{live?'Your client':'Sample client'}</strong></div>
+      <div className="set-paper-client"><span>PREPARED FOR</span><strong>Your client</strong></div>
       <div className="set-paper-line"><span>Creative services</span><span>{money(250)}</span></div>
       <div className="set-paper-total"><strong>Total</strong><strong>{money(250)}</strong></div>
       <p>{settings.notes || 'Thank you for creating with us.'}</p>

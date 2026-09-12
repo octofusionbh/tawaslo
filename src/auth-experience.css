@@ -1085,3 +1085,18 @@
   .ax-setup-summary>div{flex-direction:column;gap:5px}
   .ax-setup-summary strong{text-align:left}
 }
+
+/* The quiet loading screen shown while the session is being checked.
+   Deliberately almost empty: a wordmark, a moving line, and one short status
+   line for screen readers. Anything more reads as a problem rather than a wait. */
+.ax-gate-quiet{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px}
+.ax-quiet-mark{display:flex;align-items:center;gap:12px}
+.ax-quiet-mark img{width:34px;height:34px;object-fit:contain}
+.ax-quiet-mark strong{font-family:'Plus Jakarta Sans',system-ui,sans-serif;font-size:26px;font-weight:800;letter-spacing:-.03em;color:#17182d}
+.ax-quiet-bar{position:relative;width:min(190px,60vw);height:3px;border-radius:99px;background:rgba(23,24,45,.09);overflow:hidden}
+.ax-quiet-bar>i{position:absolute;inset-block:0;left:0;width:42%;border-radius:99px;background:linear-gradient(90deg,#6550f4,#ff7468);animation:ax-quiet-slide 1.15s ease-in-out infinite}
+@keyframes ax-quiet-slide{0%{transform:translateX(-110%)}100%{transform:translateX(275%)}}
+.ax-quiet-note{margin:0;font-size:13px;font-weight:600;color:#6b6e84;letter-spacing:.01em}
+@media(prefers-reduced-motion:reduce){
+  .ax-quiet-bar>i{animation:none;width:100%;opacity:.55}
+}
