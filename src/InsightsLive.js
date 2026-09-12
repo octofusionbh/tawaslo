@@ -10,7 +10,7 @@ import { CrisisExperience, ImpactExperience, ReportsExperience, VenueReportExper
 const PERIOD_DAYS = { '7 days': 7, '30 days': 30, '90 days': 90 };
 const DAY = 86400000;
 const ORIGIN = typeof window !== 'undefined' && window.location ? window.location.origin : 'https://tawaslo.com';
-const SOURCE_LABEL = { bio: 'Bio link', concierge: 'AI concierge', whatsapp: 'WhatsApp', manual: 'Walk-in', walkin: 'Walk-in', online: 'Online', other: 'Other' };
+const SOURCE_LABEL = { bio: 'Bio link', concierge: 'AI concierge', whatsapp: 'WhatsApp', manual: 'Walk-in', walkin: 'Walk-in', online: 'Online', order: 'Online order', other: 'Other' };
 
 const count = value => Number(value || 0).toLocaleString();
 const sourceLabel = value => SOURCE_LABEL[String(value || 'other')] || String(value || 'other');
@@ -62,7 +62,7 @@ export function VenueReportLive({ client = null } = {}) {
       try {
         const [bookingRes, orderRes, menuRes] = await Promise.all([
           supabase.from('bookings').select('party_size,status,source,starts_at,customer_phone').eq('client_id', clientId).gte('starts_at', start.toISOString()),
-          supabase.from('orders').select('total,status,source,currency,created_at').eq('client_id', clientId).gte('created_at', start.toISOString()),
+          supabase.from('orders').select('total,status,currency,created_at').eq('client_id', clientId).gte('created_at', start.toISOString()),
           supabase.from('menus').select('slug,currency').eq('client_id', clientId).limit(1),
         ]);
         if (!active) return;
@@ -99,7 +99,7 @@ export function VenueReportLive({ client = null } = {}) {
         const bySource = {};
         const add = (key, field) => { const name = sourceLabel(key); bySource[name] = bySource[name] || { bookings: 0, orders: 0 }; bySource[name][field] += 1; };
         bookings.forEach(row => add(row.source, 'bookings'));
-        orders.forEach(row => add(row.source, 'orders'));
+        orders.forEach(() => add('order', 'orders'));
         const total = bookings.length + orders.length;
         const rows = Object.entries(bySource)
           .map(([name, value]) => ({ name, ...value, total: value.bookings + value.orders }))

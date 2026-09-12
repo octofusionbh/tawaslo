@@ -21527,7 +21527,7 @@ function LinkInBioBuilderPage() {
   useEffect(() => {
     if (!selClient?.name) { setLoading(false); setRow(r => r || defaultRow()); return; }
     setLoading(true);
-    supabase.from('clients').select('id,logo').eq('name', selClient.name).limit(1)
+    supabase.from('clients').select('id').eq('name', selClient.name).limit(1)
       .then(({ data }) => { if (data && data[0]) setCid(data[0].id); else { setRow(defaultRow()); setLoading(false); } })
       .catch(() => { setRow(defaultRow()); setLoading(false); });
   }, [selClient]);
@@ -22082,8 +22082,8 @@ function ClientPortalPage({ token }) {
   const [client, setClient] = useState(undefined); // undefined=loading, null=not found
   const [posts, setPosts] = useState([]);
   useEffect(() => {
-    supabase.from('clients').select('id,name,logo').eq('portal_token', token).limit(1).then(({ data }) => {
-      const c = data && data[0]; setClient(c || null);
+    supabase.from('clients').select('id,name,logo_url').eq('portal_token', token).limit(1).then(({ data }) => {
+      const c = data && data[0]; setClient(c ? { ...c, logo: c.logo_url || null } : null);
       if (c) {
         supabase.from('posts').select('id,caption,image_url,scheduled_at,status,appr_status,appr_token,label').eq('client_id', c.id).order('scheduled_at', { ascending: true })
           .then(({ data: ps }) => { if (ps) setPosts(ps); });
