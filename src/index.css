@@ -460,3 +460,13 @@ svg:has(> .tw-mark-l) > .tw-mark-r { display:none; }
 @media(max-width:560px){.tw-zero-ui .tw-scroll-area{padding:16px 12px 38px!important}.tw-zero-ui .tw-page-in{min-width:0}}
 @media(max-width:1100px){.tw-occasion-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.tw-occasion-item:nth-child(2){border-right:0}.tw-occasion-item:nth-child(-n+2){border-bottom:1px solid rgba(128,128,128,.16)}}
 @media(max-width:560px){.tw-occasion-head{align-items:flex-start;flex-direction:column}.tw-occasion-grid{grid-template-columns:1fr}.tw-occasion-item{border-right:0!important;border-bottom:1px solid rgba(128,128,128,.16)!important}.tw-occasion-item:last-child{border-bottom:0!important}}
+
+/* Theme lives in Settings, not on individual pages.
+   Codex's redesign gave eighteen pages their own dark/light toggle, so the
+   workspace theme could be changed from a corner of Planner, Menu, Approvals and
+   the rest — inconsistent, and confusing next to the real setting. They are
+   hidden here rather than cut out of eighteen components, which keeps the change
+   to one rule and reversible. Every one of them carries the same accessible
+   name, which is what this matches. */
+button[aria-label^="Use light "][aria-label$=" theme"],
+button[aria-label^="Use dark "][aria-label$=" theme"]{display:none!important}

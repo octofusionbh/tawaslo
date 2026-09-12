@@ -30,7 +30,7 @@
 .ov-chart-key{height:2px;width:14px;background:var(--ov-coral)}
 .ov-chart-hint{margin-inline-start:auto;font-size:9px}
 .ov-chart-readout strong{color:var(--ov-ink)}
-.ov-chart{display:block;width:100%;height:auto;max-height:230px;overflow:visible}
+.ov-chart{display:block;width:100%;height:auto;max-height:230px;overflow:hidden}
 .ov-chart text{font-size:10px;fill:var(--ov-muted);font-family:inherit}
 .ov-chart-grid{stroke:var(--ov-line);stroke-dasharray:3 4;stroke-width:.8}
 .ov-chart-line{stroke:var(--ov-coral);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}

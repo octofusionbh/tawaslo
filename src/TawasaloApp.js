@@ -734,7 +734,7 @@ function useIsMobile(bp = 820) {
 // Heavy "build & configure" tools — hidden from the phone menu and gated with a
 // friendly note if reached, but fully available on desktop. (Hootsuite's model.)
 // Retired from this isolated redesign, without deleting the feature implementations.
-const RETIRED_DASHBOARD_PAGES = new Set(["command", "pilot", "autopilot", "recycle"]);
+const RETIRED_DASHBOARD_PAGES = new Set(["command", "pilot", "autopilot", "recycle", "htlab", "streams", "suggested"]);
 const DEFERRED_PREVIEW_PAGES = new Set(["streams", "listening"]);
 const isDeferredPreviewPage = (page, preview) => preview === "occasions-editorial" && DEFERRED_PREVIEW_PAGES.has(page);
 const dashboardPageOrHome = (page) => RETIRED_DASHBOARD_PAGES.has(page) ? "dashboard" : page;
@@ -4517,7 +4517,8 @@ function ClientsLive() {
   }));
 
   const open = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('overview'); };
-  return <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={(client)=>{open(client);setPage('settings');}} onAddClient={()=>setPage('settings')}/>;
+  const manage = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('clientsclassic'); };
+  return <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={manage} onAddClient={()=>setPage('clientsclassic')}/>;
 }
 
 const CHANNEL_META = { ig:{channel:'Instagram',Icon:FaInstagram,color:'#f14b8b'}, fb:{channel:'Facebook',Icon:FaFacebook,color:'#498af2'}, li:{channel:'LinkedIn',Icon:FaLinkedin,color:'#5fa8ff'}, tt:{channel:'TikTok',Icon:FaTiktok,color:'#ff6f78'} };
@@ -4557,6 +4558,7 @@ function TeamLive() {
   const load = useCallback(async (owner) => {
     const { data } = await getTeam(owner);
     const rows = (data || []).map(m => ({
+      id: m.id,
       name: m.name || (m.email || '').split('@')[0],
       email: m.email,
       role: m.role || 'Editor',
@@ -4582,7 +4584,21 @@ function TeamLive() {
     if (!error) load(ownerId);
     return !error;
   };
-  return <TeamExperience liveMembers={members || []} pendingInvites={pending} onInvite={invite}/>;
+  // The role dropdown and the per-member menu had no handlers, so a role change
+  // only moved in the browser and the menu did nothing. Both write for real now.
+  const changeRole = async (member, role) => {
+    if (!member?.id) return false;
+    const { error } = await updateTeamMemberRole(member.id, role);
+    if (!error && ownerId) load(ownerId);
+    return !error;
+  };
+  const removeMember = async (member) => {
+    if (!member?.id) return false;
+    const { error } = await removeTeamMember(member.id);
+    if (!error && ownerId) load(ownerId);
+    return !error;
+  };
+  return <TeamExperience liveMembers={members || []} pendingInvites={pending} onInvite={invite} onChangeRole={changeRole} onRemoveMember={removeMember}/>;
 }
 
 // The redesigned media library, running on this workspace's real storage folder.
@@ -22774,6 +22790,7 @@ export default function TawasloApp() {
     if (page==="autopilot") return <CampaignAutopilotPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return workspacePreview ? <ClientsExperience/> : <ClientsLive/>;
+    if (page==="clientsclassic") return <ClientsPage/>;
     if (page==="socialmanage") return <SocialAccountsPage/>;
     if (page==="social") return workspacePreview ? <SocialAccountsExperience/> : <SocialAccountsLive/>;
     if (page==="business") return <BusinessProfilePage/>;
