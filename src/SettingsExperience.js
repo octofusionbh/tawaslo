@@ -46,9 +46,14 @@ function InvoiceExample({ settings, agency }) {
   </aside>;
 }
 
-export default function SettingsExperience({ dark, setDark, onNameChange = () => {}, onAgencyLogoChange = () => {} }) {
-  const [saved, setSaved] = useState(readPreviewSettings);
-  const [draft, setDraft] = useState(readPreviewSettings);
+export default function SettingsExperience({ dark, setDark, onNameChange = () => {}, onAgencyLogoChange = () => {}, initial = null, onPersist = null }) {
+  // `initial` seeds the form from the signed-in account; `onPersist` writes the
+  // sections that belong on the server (profile and agency) back to Supabase.
+  // Notifications, appearance and regional stay per-browser, as they always were.
+  const seed = () => { const base = readPreviewSettings(); return initial ? { ...base, ...initial } : base; };
+  const [saved, setSaved] = useState(seed);
+  const [draft, setDraft] = useState(seed);
+  useEffect(() => { if (initial) { setSaved(current => ({ ...current, ...initial })); setDraft(current => ({ ...current, ...initial })); } }, [initial]);
   const entryTarget = useRef(null);
   const [active, setActive] = useState(() => {
     try {
@@ -123,7 +128,9 @@ export default function SettingsExperience({ dark, setDark, onNameChange = () =>
     }
     setSaved(current => ({ ...current, [key]: result.value }));
     setDraft(current => ({ ...current, [key]: result.value }));
-    setMessages(current => ({ ...current, [key]: key === 'support' ? 'Draft saved in this browser. Nothing was sent.' : 'Saved in this browser.' }));
+    const remote = onPersist && (key === 'profile' || key === 'agency');
+    if (remote) onPersist(key, result.value).then(ok => setMessages(current => ({ ...current, [key]: ok ? 'Saved to your account.' : 'Saved here, but we could not reach your account.' }))).catch(() => {});
+    setMessages(current => ({ ...current, [key]: remote ? 'Saving…' : (key === 'support' ? 'Draft saved in this browser. Nothing was sent.' : 'Saved in this browser.') }));
     if (key === 'profile') onNameChange(result.value.name);
     if (key === 'agency') onAgencyLogoChange(result.value.logo || '');
     return true;

@@ -4171,6 +4171,79 @@ function AgencyDashboard() {
   );
 }
 
+// Billing on the real subscription. Checkout stays with Polar (merchant of
+// record) exactly as the old page did — no card details pass through Tawaslo.
+const POLAR_CHECKOUT = {
+  Essential:    { monthly: "https://buy.polar.sh/polar_cl_t90FjtEJfhm4tH5iA87Fu3sNSCvamHtkd9yDk1GnMiz", annual: "https://buy.polar.sh/polar_cl_x3acgLGUejk77aFLPYoPTjDZmpd4yQmLsS4uQ4cDoBA" },
+  Professional: { monthly: "https://buy.polar.sh/polar_cl_2bKo134bQOslnmpGWX8WzjIKS8rMJ6bZHQTku0E4bJn", annual: "https://buy.polar.sh/polar_cl_sUVmyeTEGGjBcb8mRXKuj6TLgwDoUQEJp8Ooh26bitb" },
+  Enterprise:   { monthly: "https://buy.polar.sh/polar_cl_zw3oznG33atWqGUsrXZYwH2B7gblW9pYhlofT1ceE0x", annual: "https://buy.polar.sh/polar_cl_YqtKEfHdKdPbJjC9tFSpcyP4eO2hwsyClMqOm223tWL" },
+  Studio:       { monthly: process.env.REACT_APP_POLAR_STUDIO_M || "", annual: process.env.REACT_APP_POLAR_STUDIO_Y || "" },
+};
+
+function BillingLive({ dark }) {
+  const { userEmail, userPlan } = useApp();
+  const [sub, setSub] = useState(null);
+  useEffect(() => {
+    let active = true;
+    if (!userEmail) return undefined;
+    supabase.from('subscriptions').select('*').eq('email', userEmail).order('updated_at', { ascending: false }).limit(1)
+      .then(({ data }) => { if (active) setSub((data && data[0]) || null); });
+    return () => { active = false; };
+  }, [userEmail]);
+
+  const wallet = aiCreditWalletOf(userEmail, userPlan);
+  const live = {
+    planName: sub?.plan || userPlan || 'Free trial',
+    statusNote: sub
+      ? `${sub.status === 'active' ? 'Active' : sub.status || 'Inactive'}${sub.current_period_end ? ' · renews ' + new Date(sub.current_period_end).toLocaleDateString([], { day:'numeric', month:'long', year:'numeric' }) : ''}`
+      : 'No paid subscription yet.',
+    creditsLabel: wallet.unlimited ? 'Unlimited' : `${wallet.remaining} left`,
+  };
+
+  const checkout = (plan, period) => {
+    const links = POLAR_CHECKOUT[plan?.name];
+    const url = links && (period === 'annual' ? links.annual : links.monthly);
+    if (!url) return;
+    const target = url + (userEmail ? `?customer_email=${encodeURIComponent(userEmail)}` : '');
+    try { window.open(target, '_blank', 'noopener'); } catch (e) { window.location.href = target; }
+  };
+
+  return <BillingExperience dark={dark} live={live} onCheckout={checkout}/>;
+}
+
+// Settings on the signed-in account: name, agency details and logo are read from
+// and written to the profile; per-browser preferences stay per-browser.
+function SettingsLive({ dark, setDark, onNameChange, onAgencyLogoChange }) {
+  const { userEmail, userName, userCompany, userAgencyLogo } = useApp();
+  const [userId, setUserId] = useState(null);
+  const [initial, setInitial] = useState(null);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) return;
+      setUserId(user.id);
+      const { data } = await getProfile(user.id);
+      if (!active) return;
+      setInitial({
+        profile: { name: data?.name || userName || '' },
+        agency: { name: data?.company_name || userCompany || '', email: data?.email || userEmail || '', website: data?.website || '', logo: data?.agency_logo || userAgencyLogo || '' },
+      });
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const persist = async (section, value) => {
+    if (!userId) return false;
+    try {
+      if (section === 'profile') { const { error } = await updateProfile(userId, { name: value.name }); return !error; }
+      const { error } = await updateProfile(userId, { company_name: value.name, website: value.website || '' });
+      return !error;
+    } catch (e) { return false; }
+  };
+  return <SettingsExperience dark={dark} setDark={setDark} onNameChange={onNameChange} onAgencyLogoChange={onAgencyLogoChange} initial={initial} onPersist={persist}/>;
+}
+
 // Analytics and short links on real records. Meta retired impressions and
 // profile views, so those tiles are dropped rather than filled with estimates.
 function AnalyticsLive() {
@@ -22481,7 +22554,8 @@ export default function TawasloApp() {
       if (page==="apiusage") return <OwnerApiUsagePage/>;
       if (page==="payouts")  return <OwnerPayoutsPage/>;
       if (page==="team")     return <OwnerTeamPage/>;
-      if (page==="settings") return workspacePreview ? <SettingsExperience dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/> : <SettingsPage/>;
+      if (page==="settings") return workspacePreview ? <SettingsExperience dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/> : <SettingsLive dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/>;
+      if (page==="settingsclassic") return <SettingsPage/>;
       return <Placeholder icon={Settings} badge="Coming soon" title={page.charAt(0).toUpperCase()+page.slice(1)} description="This section of the owner console is on the way."/>;
     }
     if (mobileWeb && DESKTOP_ONLY.has(page)) return <AgencyDashboard/>;
@@ -22540,8 +22614,9 @@ export default function TawasloApp() {
     if (page==="inbox") return workspacePreview && selClient?.id === "preview-marina" ? <InboxExperience/> : <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return workspacePreview ? <TeamExperience/> : <TeamLive/>;
-    if (page==="billing") return workspacePreview ? <BillingExperience dark={dark}/> : <BillingPage/>;
-    if (page==="agencysets") return workspacePreview ? <SettingsExperience dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/> : <SettingsPage/>;
+    if (page==="billing") return workspacePreview ? <BillingExperience dark={dark}/> : <BillingLive dark={dark}/>;
+    if (page==="billingclassic") return <BillingPage/>;
+    if (page==="agencysets") return workspacePreview ? <SettingsExperience dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/> : <SettingsLive dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/>;
     const SOON = {
       streams: { Icon:Radio, title:"Streams", desc:"Monitor mentions, hashtags and keywords across your connected networks in live, side-by-side columns \u2014 a real-time pulse of every conversation about your brand.", features:["Custom keyword & hashtag columns","Brand mention monitoring","Side-by-side multi-network view"], ctaLabel:"Open Listening", ctaPage:"listening" },
       campaigns: { Icon:Megaphone, title:"Campaigns", desc:"Group posts into campaigns, track them together, and measure performance against a goal \u2014 perfect for launches, seasonal pushes and client retainers.", features:["Bundle posts into one campaign","Campaign-level analytics","Goal & budget tracking"], ctaLabel:"Plan a post", ctaPage:"planner" },
