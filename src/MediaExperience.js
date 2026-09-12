@@ -38,7 +38,7 @@ export default function MediaExperience({dark=false,setDark=()=>{},mobileWeb=fal
   function dragLeave(event){event.preventDefault();dragDepth.current=Math.max(0,dragDepth.current-1);if(!dragDepth.current)setDropActive(false);}
   function drop(event){event.preventDefault();dragDepth.current=0;setDropActive(false);upload(event.dataTransfer?.files);}
   function openPublisher(){try{if(selected.localUrl)sessionStorage.setItem('tw_studio_media',selected.localUrl);}catch(_){}onOpenPublisher(selected);}
-  function openStudio(){try{sessionStorage.setItem('tw_studio_imgprompt',`Edit ${selected.title} for Marina Social Club. Keep the current visual direction.`);}catch(_){}onOpenStudio(selected);}
+  function openStudio(){try{sessionStorage.setItem('tw_studio_imgprompt',`Edit ${selected.title} for ${clientName||'Marina Social Club'}. Keep the current visual direction.`);}catch(_){}onOpenStudio(selected);}
   return <main className={`tw-media-library${dropActive?' ml-is-dropping':''}`} data-media-theme={dark?'dark':'light'} onDragEnter={dragEnter} onDragOver={event=>event.preventDefault()} onDragLeave={dragLeave} onDrop={drop}>
     <header className="ml-heading">
       <div className="ml-heading-copy">

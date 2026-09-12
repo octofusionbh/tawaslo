@@ -40,6 +40,7 @@ function ConversationItem({item,active,onSelect}){
 }
 
 export default function InboxExperience({ liveItems = null, clientName = '', onReply = null, loading = false, error = '' } = {}){
+  const live = liveItems !== null && liveItems !== undefined;
   const source = liveItems || CONVERSATIONS;
   const [items,setItems]=useState(source);
   const [selectedId,setSelectedId]=useState(source[0]?.id ?? null);
@@ -89,7 +90,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
   return <main className="ib-experience">
     <header className="ib-hero">
       <div className="ib-title-block">
-        <span className="ib-kicker"><AtSign size={15}/>Marina Social Club / Social Inbox</span>
+        <span className="ib-kicker"><AtSign size={15}/>{live?`${clientName||'Workspace'} / Social Inbox`:'Marina Social Club / Social Inbox'}</span>
         <h1>Every conversation, in one place.</h1>
         <p>Comments, mentions and messages, sorted by what needs you first.</p>
       </div>
@@ -132,7 +133,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
             </div>
 
             <footer className="ib-composer">
-              <div className="ib-compose-label"><span>Reply as Marina Social Club</span><span>{draft.length}/600</span></div>
+              <div className="ib-compose-label"><span>{live?`Reply as ${clientName||'your workspace'}`:'Reply as Marina Social Club'}</span><span>{draft.length}/600</span></div>
               <div className="ib-compose-row"><textarea rows="2" value={draft} onChange={event=>setDraft(event.target.value.slice(0,600))} onKeyDown={event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendReply();}}} placeholder={`Reply to ${selected.name.split(' ')[0]}…`}/><button type="button" disabled={!draft.trim()} onClick={sendReply}><Send size={17}/>Send reply</button></div>
               <div className="ib-compose-foot"><span>Enter to send · Shift + Enter for a new line</span><button type="button"><ChevronDown size={14}/>Saved replies</button></div>
             </footer>

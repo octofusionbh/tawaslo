@@ -4292,7 +4292,7 @@ function plannerPostFromRow(row) {
     title: (firstLine || 'Untitled post').slice(0, 100),
     caption: (rest.join('\n') || firstLine || '').slice(0, 2200),
     art: 'sea',
-    image: media[0] || null,
+    image: media[0] || row.image_url || null,
     status: PLANNER_STATUS_IN[row.status] || 'draft',
     version: 1,
     notes: [],
@@ -4307,7 +4307,7 @@ function usePlannerStore() {
   useEffect(() => {
     let active = true;
     if (!clientId) { setCache({}); return undefined; }
-    supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls').eq('client_id', clientId).limit(1000)
+    supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls,image_url').eq('client_id', clientId).limit(1000)
       .then(({ data }) => {
         if (!active) return;
         const byMonth = {};
