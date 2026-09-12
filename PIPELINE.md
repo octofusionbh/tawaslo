@@ -106,3 +106,18 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Campaigns | Posts belonging to a campaign | 🟥 `posts.campaign_id` does not exist |
 | Campaigns | Approval progress, content progress | 🟦 depends on the link above |
 | Campaigns | Campaign artwork / contact sheet | 🟦 depends on the link above |
+
+## Added while wiring Suggested and Link in bio
+
+| Page | Missing | Needs |
+|---|---|---|
+| Suggested | Priority rank, "rising locally" signal, act-this-week moment | 🟦 an actual ranking model |
+| Suggested | Suggested platform, format and timing | 🟦 product thinking |
+| Suggested | "Why it fits this brand" | 🟨 AI pass against the brand voice |
+| Suggested | Category tabs | 🟥 RSS items carry no category |
+| Link in bio | Page views, unique views, click rate | 🟥 nothing records a bio page view — needs a view counter |
+| Link in bio | Subscribers / email signup | 🟨 no signup implementation at all |
+| Link in bio | Traffic sources, 14-day activity chart | 🟥 depends on the view counter |
+| Link in bio | **QR code** | 🟨 Codex's generator draws a random pattern, NOT a scannable code. The `qrcode` package is already installed — small job, real value |
+| Link in bio | Campaign attribution, scheduled content, owned audience | 🟨 advertised but unimplemented |
+| Link in bio | Several bio pages per client | 🟦 the redesign models exactly one |

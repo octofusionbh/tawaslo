@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, AtSign, BarChart3, CalendarClock, Check, Copy, Download, Eye, EyeOff, ExternalLink, Globe2, Image as ImageIcon, LayoutGrid, Link2, Mail, MapPin, Moon, Palette, Plus, QrCode, Save, Settings2, Star, Sun, Trash2, Users, X } from 'lucide-react';
 import { FaFacebook, FaInstagram, FaLinkedin, FaPinterest, FaSnapchatGhost, FaTelegram, FaTiktok, FaTwitter, FaWhatsapp, FaYoutube } from 'react-icons/fa';
 import { Artwork } from './CalendarExperience';
@@ -45,7 +45,8 @@ function SocialLinks({
 function MiniSiteCanvas({
   page,
   onPreviewAction = () => {},
-  publicView = false
+  publicView = false,
+  live = false
 }) {
   const theme = activeLinkBioTheme(page.theme),
     visibleLinks = page.links.filter(link => link.visible),
@@ -77,7 +78,7 @@ function MiniSiteCanvas({
         }}>{link.layout === 'featured' && <Artwork post={{
             art: link.art
           }} compact />}<span>{String(index + 1).padStart(2, '0')}</span><span className="lb-public-copy"><strong>{link.title}</strong><small>{LINK_TYPE_NAMES[link.type] || 'Explore'}</small></span>{link.highlight && <Star size={12} fill="currentColor" aria-label="Prioritized" />}<ExternalLink size={16} aria-hidden="true" /></a>)}</section>)}</nav>
-    {page.subscribeEnabled && <section className="lb-subscribe"><span>Updates</span><strong>{page.subscribeTitle}</strong><div><input aria-label="Email address preview" placeholder="Email address" readOnly /><button type="button" onClick={() => onPreviewAction('Email signup')}>Join</button></div></section>}
+    {page.subscribeEnabled && !live && <section className="lb-subscribe"><span>Updates</span><strong>{page.subscribeTitle}</strong><div><input aria-label="Email address preview" placeholder="Email address" readOnly /><button type="button" onClick={() => onPreviewAction('Email signup')}>Join</button></div></section>}
     {page.socialPosition !== 'top' && <SocialLinks items={enabledSocials} onPreviewAction={onPreviewAction} position="bottom" />}
     <footer><span>{page.title}</span><a className="lb-tawaslo-credit" href="https://tawaslo.com" target="_blank" rel="noreferrer" aria-label="Visit Tawaslo website">Made with <strong>Tawaslo</strong><ExternalLink size={10} aria-hidden="true" /></a></footer>
   </article>;
@@ -93,19 +94,32 @@ function QrPreview({
 }
 export default function LinkBioExperience({
   dark = false,
-  setDark = () => {}
+  setDark = () => {},
+  livePage = null,
+  clientName = '',
+  liveError = '',
+  onSavePage = null
 }) {
-  const initial = useMemo(() => readLinkBio(), []),
+  // A live bio_pages row records link clicks and nothing else. Views, click rate,
+  // subscribers, traffic sources and the decorative QR matrix have no source behind
+  // them, so they stay behind this flag instead of being shown to a paying client.
+  const live = livePage !== null && livePage !== undefined;
+  const loadedRef = useRef(livePage);
+  const initial = useMemo(() => live ? { data: livePage, error: liveError } : readLinkBio(), []),
     [page, setPage] = useState(initial.data),
     [storageError, setStorageError] = useState(initial.error),
     [notice, setNotice] = useState(''),
     [visitor, setVisitor] = useState(() => linkBioVisitorMode(window.location.search)),
     [tab, setTab] = useState('build'),
     [socialPicker, setSocialPicker] = useState(false),
+    [saving, setSaving] = useState(false),
     [blockPicker, setBlockPicker] = useState(false);
+  // The published page is served from /bio/<slug>; the preview keeps its own wording.
   const visitorUrl = `${window.location.origin}/?page=linkbio&occasions=editorial&bioView=visitor`,
-    publicUrl = `${window.location.origin}/${page.slug}`,
+    publicUrl = live ? `${window.location.origin}/bio/${page.slug}` : `${window.location.origin}/${page.slug}`,
+    publicPrefix = live ? `${window.location.origin.replace(/^https?:\/\//, '')}/bio/` : 'tawaslo.com/',
     summary = linkBioSummary(page);
+  useEffect(() => { if (live && livePage !== loadedRef.current) { loadedRef.current = livePage; setPage(livePage); setStorageError(liveError); } }, [live, livePage, liveError]);
   useEffect(() => {
     const sync = () => setVisitor(linkBioVisitorMode(window.location.search));
     window.addEventListener('popstate', sync);
@@ -184,7 +198,18 @@ export default function LinkBioExperience({
     });
     setNotice('Social profile removed from this page.');
   }
-  function save() {
+  async function save() {
+    if (live) {
+      if (!onSavePage || saving) return;
+      setSaving(true);
+      const result = await onSavePage(page);
+      setSaving(false);
+      if (result && result.error) { setStorageError(result.error); setNotice(''); return; }
+      setStorageError('');
+      if (result && result.page) setPage(result.page);
+      setNotice('Page saved.');
+      return;
+    }
     const result = saveLinkBio(page);
     if (result.ok) {
       setPage(result.data);
@@ -237,21 +262,21 @@ export default function LinkBioExperience({
     anchor.click();
     setNotice('QR preview downloaded. Test the production QR before printing.');
   }
-  if (visitor) return <main className="tw-link-bio lb-visitor-stage" data-link-bio-theme={dark ? 'dark' : 'light'}><div className="lb-visitor-toolbar"><button type="button" className="lb-text-action" onClick={showEditor}>Back to editor</button><div><button type="button" className="lb-icon" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Link in bio theme' : 'Use dark Link in bio theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button><button type="button" className="lb-button" onClick={() => copyLink(visitorUrl)}><Copy size={16} />Copy link</button></div></div><div className="lb-visitor-label"><span>Visitor preview</span><strong>{page.title}</strong></div><MiniSiteCanvas page={page} onPreviewAction={previewAction} publicView /><div className="lb-toast" role="status">{notice}</div></main>;
+  if (visitor) return <main className="tw-link-bio lb-visitor-stage" data-link-bio-theme={dark ? 'dark' : 'light'}><div className="lb-visitor-toolbar"><button type="button" className="lb-text-action" onClick={showEditor}>Back to editor</button><div><button type="button" className="lb-icon" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Link in bio theme' : 'Use dark Link in bio theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button><button type="button" className="lb-button" onClick={() => copyLink(visitorUrl)}><Copy size={16} />Copy link</button></div></div><div className="lb-visitor-label"><span>Visitor preview</span><strong>{page.title}</strong></div><MiniSiteCanvas page={page} onPreviewAction={previewAction} publicView live={live} /><div className="lb-toast" role="status">{notice}</div></main>;
   const activeSocials = page.socials.filter(item => item.enabled);
   return <main className="tw-link-bio" data-link-bio-theme={dark ? 'dark' : 'light'}>
-    <div className="lb-preview-line"><span>Design preview · Local mini-site · Nothing is published</span><button type="button" className="lb-icon" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Link in bio theme' : 'Use dark Link in bio theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div>
-  <header className="lb-heading"><div><span className="lb-kicker"><img src="/logo-transparent.png" width="22" height="22" alt="" />{page.title} / Link in bio</span><h1>One link. A whole world.</h1><p>Build a branded mini-site that turns attention into clicks, visits, sales, bookings, and an audience you own.</p></div><div className="lb-heading-actions"><button type="button" className="lb-text-action" onClick={showVisitor}><Eye size={17} />Visitor view</button><button type="button" className="lb-button lb-primary" onClick={save}><Save size={17} />Save page</button></div></header>
+    <div className="lb-preview-line"><span>{live ? `Public page · ${publicPrefix}${page.slug}` : 'Design preview · Local mini-site · Nothing is published'}</span><button type="button" className="lb-icon" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Link in bio theme' : 'Use dark Link in bio theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div>
+  <header className="lb-heading"><div><span className="lb-kicker"><img src="/logo-transparent.png" width="22" height="22" alt="" />{live ? `${clientName || page.title} / Link in bio` : `${page.title} / Link in bio`}</span><h1>One link. A whole world.</h1><p>Build a branded mini-site that turns attention into clicks, visits, sales, bookings, and an audience you own.</p></div><div className="lb-heading-actions"><button type="button" className="lb-text-action" onClick={showVisitor}><Eye size={17} />Visitor view</button><button type="button" className="lb-button lb-primary" onClick={save} disabled={live && (saving || !onSavePage)}><Save size={17} />{saving ? 'Saving…' : 'Save page'}</button></div></header>
     {storageError && <p className="lb-error" role="alert">{storageError}</p>}<div className="lb-toast" role="status">{notice}</div>
-    <nav className="lb-studio-tabs" aria-label="Link in bio studio">{STUDIO_TABS.map(([id, label, Icon]) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} /><span>{label}</span>{id === 'insights' && <b>{LINK_BIO_INSIGHTS.clickRate}%</b>}</button>)}</nav>
+    <nav className="lb-studio-tabs" aria-label="Link in bio studio">{STUDIO_TABS.map(([id, label, Icon]) => <button type="button" key={id} aria-current={tab === id ? 'page' : undefined} onClick={() => setTab(id)}><Icon size={16} /><span>{label}</span>{id === 'insights' && !live && <b>{LINK_BIO_INSIGHTS.clickRate}%</b>}</button>)}</nav>
     <div className="lb-workspace">
       <section className="lb-editor" aria-label="Edit Link in bio page">
-        {tab === 'build' && <BuildEditor page={page} setPage={setPage} setField={setField} setNotice={setNotice} updateLink={updateLink} addBlock={addBlock} removeLink={removeLink} blockPicker={blockPicker} setBlockPicker={setBlockPicker} activeSocials={activeSocials} socialPicker={socialPicker} setSocialPicker={setSocialPicker} addSocial={addSocial} removeSocial={removeSocial} updateSocial={updateSocial} />} 
+        {tab === 'build' && <BuildEditor live={live} page={page} setPage={setPage} setField={setField} setNotice={setNotice} updateLink={updateLink} addBlock={addBlock} removeLink={removeLink} blockPicker={blockPicker} setBlockPicker={setBlockPicker} activeSocials={activeSocials} socialPicker={socialPicker} setSocialPicker={setSocialPicker} addSocial={addSocial} removeSocial={removeSocial} updateSocial={updateSocial} />} 
         {tab === 'design' && <DesignEditor page={page} setField={setField} setFeatured={setFeatured} />} 
-        {tab === 'insights' && <InsightsEditor page={page} summary={summary} />} 
-        {tab === 'share' && <ShareEditor page={page} setField={setField} publicUrl={publicUrl} copyLink={copyLink} downloadQr={downloadQr} />} 
+        {tab === 'insights' && <InsightsEditor page={page} summary={summary} live={live} />} 
+        {tab === 'share' && <ShareEditor page={page} setField={setField} publicUrl={publicUrl} publicPrefix={publicPrefix} copyLink={copyLink} downloadQr={downloadQr} live={live} />} 
       </section>
-      <aside className="lb-live" aria-label="Live visitor page preview"><div className="lb-live-heading"><div><span>Live page</span><strong>tawaslo.com/{page.slug}</strong></div><button type="button" className="lb-text-action" onClick={() => copyLink(publicUrl)}><Copy size={15} />Copy</button></div><MiniSiteCanvas page={page} onPreviewAction={previewAction} /><p className="lb-local-note"><Link2 size={14} />This local preview saves drafts in this browser. Publishing, forms, analytics, integrations, and a scannable production QR require the live product backend.</p></aside>
+      <aside className="lb-live" aria-label="Live visitor page preview"><div className="lb-live-heading"><div><span>Live page</span><strong>{publicPrefix}{page.slug}</strong></div><button type="button" className="lb-text-action" onClick={() => copyLink(publicUrl)}><Copy size={15} />Copy</button></div><MiniSiteCanvas page={page} onPreviewAction={previewAction} live={live} />{live ? <p className="lb-local-note"><Link2 size={14} />Only visible links are published. Hidden links keep their click history and can be shown again at any time.</p> : <p className="lb-local-note"><Link2 size={14} />This local preview saves drafts in this browser. Publishing, forms, analytics, integrations, and a scannable production QR require the live product backend.</p>}</aside>
     </div>
   </main>;
 }
@@ -270,7 +295,8 @@ function BuildEditor({
   setSocialPicker,
   addSocial,
   removeSocial,
-  updateSocial
+  updateSocial,
+  live = false
 }) {
   const [collectionsOpen, setCollectionsOpen] = useState(false),
     [collectionName, setCollectionName] = useState(''),
@@ -359,7 +385,7 @@ function BuildEditor({
                 url: event.target.value
               })} placeholder={catalog?.placeholder || 'https://example.com/profile'} /></label></div>;
         })}</div></section>
-  <section className="lb-edit-section"><div className="lb-section-heading"><span>Audience</span><p>Give people a reason to return even after social reach changes.</p></div><div className="lb-audience-editor"><button type="button" aria-pressed={page.subscribeEnabled} onClick={() => setField('subscribeEnabled', !page.subscribeEnabled)}><Users size={17} /><span><strong>Email signup</strong><small>{page.subscribeEnabled ? 'Shown on the public page' : 'Hidden from visitors'}</small></span><Check size={16} /></button><label>Signup invitation<input disabled={!page.subscribeEnabled} value={page.subscribeTitle} maxLength={90} onChange={event => setField('subscribeTitle', event.target.value)} /></label></div></section>
+  {!live && <section className="lb-edit-section"><div className="lb-section-heading"><span>Audience</span><p>Give people a reason to return even after social reach changes.</p></div><div className="lb-audience-editor"><button type="button" aria-pressed={page.subscribeEnabled} onClick={() => setField('subscribeEnabled', !page.subscribeEnabled)}><Users size={17} /><span><strong>Email signup</strong><small>{page.subscribeEnabled ? 'Shown on the public page' : 'Hidden from visitors'}</small></span><Check size={16} /></button><label>Signup invitation<input disabled={!page.subscribeEnabled} value={page.subscribeTitle} maxLength={90} onChange={event => setField('subscribeTitle', event.target.value)} /></label></div></section>}
   </>;
 }
 function DesignEditor({
@@ -381,8 +407,15 @@ function DesignEditor({
 }
 function InsightsEditor({
   page,
-  summary
+  summary,
+  live = false
 }) {
+  // Nothing records a page view, a subscriber or a traffic source, so a live page
+  // shows the clicks it actually counts and says plainly that the rest is missing.
+  if (live) {
+    const ranked = [...page.links].sort((a, b) => b.clicks - a.clicks);
+    return <section className="lb-insights"><div className="lb-section-heading"><span>Performance</span><p>Link clicks counted on the published page.</p></div><div className="lb-metrics"><div><strong>{summary.totalClicks.toLocaleString()}</strong><span>clicks on visible links</span></div><div><strong>{summary.visible}</strong><span>visible links</span></div></div><div className="lb-insight-grid"><section><span>Clicks by link</span>{ranked.length ? ranked.map((link, index) => <div className="lb-performance-row" key={link.id}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{link.title}</strong><small>{link.visible ? 'Published' : 'Hidden'}</small></span><em>{link.clicks.toLocaleString()}</em></div>) : <p className="lb-local-note">No links on this page yet.</p>}</section></div><p className="lb-local-note"><BarChart3 size={14} />Clicks are the only measurement this page records. Views, click rate, subscribers and traffic sources are not tracked.</p></section>;
+  }
   return <section className="lb-insights"><div className="lb-section-heading"><span>Performance</span><p>Sample data showing what the full product should help the team decide.</p></div><div className="lb-metrics"><div><strong>{LINK_BIO_INSIGHTS.views.toLocaleString()}</strong><span>views</span></div><div><strong>{LINK_BIO_INSIGHTS.clicks.toLocaleString()}</strong><span>clicks</span></div><div><strong>{LINK_BIO_INSIGHTS.clickRate}%</strong><span>click rate</span></div><div><strong>{LINK_BIO_INSIGHTS.subscribers}</strong><span>new subscribers</span></div></div><div className="lb-activity"><div><span>Activity</span><strong>{LINK_BIO_INSIGHTS.period}</strong></div><div className="lb-bars">{LINK_BIO_INSIGHTS.days.map((value, index) => <i key={index} style={{
           height: `${Math.round(value / 1.5)}%`
         }} title={`${value} visits`} />)}</div></div><div className="lb-insight-grid"><section><span>Top content</span>{[...page.links].sort((a, b) => b.clicks - a.clicks).map((link, index) => <div className="lb-performance-row" key={link.id}><b>{String(index + 1).padStart(2, '0')}</b><span><strong>{link.title}</strong><small>{link.group} · {link.layout}</small></span><em>{link.clicks.toLocaleString()}</em></div>)}</section><section><span>Traffic sources</span>{LINK_BIO_INSIGHTS.sources.map(source => <div className="lb-source-row" key={source.label}><span>{source.label}</span><i><b style={{
@@ -393,17 +426,19 @@ function ShareEditor({
   page,
   setField,
   publicUrl,
+  publicPrefix = 'tawaslo.com/',
   copyLink,
-  downloadQr
+  downloadQr,
+  live = false
 }) {
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`${page.seoTitle}\n${publicUrl}`)}`;
   return <section className="lb-share">
     <div className="lb-section-heading"><span>Share</span><p>Make the page easy to discover online and easy to carry into the real world.</p></div>
     <div className="lb-share-grid">
-      <section className="lb-qr-panel"><QrPreview value={publicUrl} color={page.qrColor} /><div><span>QR preview</span><strong>Menus, table cards, windows, invitations.</strong><label>QR color<input type="color" value={page.qrColor} onChange={event => setField('qrColor', event.target.value)} /></label><button type="button" className="lb-button" onClick={downloadQr}><Download size={16} />Download SVG preview</button></div></section>
-      <section className="lb-page-address"><Globe2 size={22} /><span>Public address</span><label>Page name<div><b>tawaslo.com/</b><input value={page.slug} maxLength={60} onChange={event => setField('slug', event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></div></label><div className="lb-share-actions"><button type="button" className="lb-text-action" onClick={() => copyLink(publicUrl)}><Copy size={15} />Copy address</button><a className="lb-button lb-whatsapp-share" href={whatsappUrl} target="_blank" rel="noreferrer"><FaWhatsapp />Share to WhatsApp</a></div><small>A production page can also use the client’s own domain.</small></section>
+      {!live && <section className="lb-qr-panel"><QrPreview value={publicUrl} color={page.qrColor} /><div><span>QR preview</span><strong>Menus, table cards, windows, invitations.</strong><label>QR color<input type="color" value={page.qrColor} onChange={event => setField('qrColor', event.target.value)} /></label><button type="button" className="lb-button" onClick={downloadQr}><Download size={16} />Download SVG preview</button></div></section>}
+      <section className="lb-page-address"><Globe2 size={22} /><span>Public address</span><label>Page name<div><b>{publicPrefix}</b><input value={page.slug} maxLength={60} onChange={event => setField('slug', event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></div></label><div className="lb-share-actions"><button type="button" className="lb-text-action" onClick={() => copyLink(publicUrl)}><Copy size={15} />Copy address</button><a className="lb-button lb-whatsapp-share" href={whatsappUrl} target="_blank" rel="noreferrer"><FaWhatsapp />Share to WhatsApp</a></div><small>A production page can also use the client’s own domain.</small></section>
     </div>
-    <section className="lb-seo"><div><span>Search and sharing</span><p>Control how this page looks when it appears in Google, WhatsApp, and social messages.</p></div><label>Meta title <small>{page.seoTitle.length}/60</small><input value={page.seoTitle} maxLength={60} onChange={event => setField('seoTitle', event.target.value)} /></label><label>Meta description <small>{page.seoDescription.length}/155</small><textarea rows={3} value={page.seoDescription} maxLength={155} onChange={event => setField('seoDescription', event.target.value)} /></label><article className="lb-share-card"><span>tawaslo.com/{page.slug}</span><strong>{page.seoTitle}</strong><p>{page.seoDescription}</p></article></section>
-    <section className="lb-connectors"><div><Settings2 size={18} /><span><strong>Campaign attribution</strong><small>UTM source, campaign, and referrer reporting on every block.</small></span><Check size={16} /></div><div><CalendarClock size={18} /><span><strong>Scheduled content</strong><small>Show or retire links around launches, menus, and events.</small></span><Check size={16} /></div><div><Users size={18} /><span><strong>Owned audience</strong><small>Email signup and future notification controls in one guest list.</small></span><Check size={16} /></div></section>
+    <section className="lb-seo"><div><span>Search and sharing</span><p>Control how this page looks when it appears in Google, WhatsApp, and social messages.</p></div><label>Meta title <small>{page.seoTitle.length}/60</small><input value={page.seoTitle} maxLength={60} onChange={event => setField('seoTitle', event.target.value)} /></label><label>Meta description <small>{page.seoDescription.length}/155</small><textarea rows={3} value={page.seoDescription} maxLength={155} onChange={event => setField('seoDescription', event.target.value)} /></label><article className="lb-share-card"><span>{publicPrefix}{page.slug}</span><strong>{page.seoTitle}</strong><p>{page.seoDescription}</p></article></section>
+    {!live && <section className="lb-connectors"><div><Settings2 size={18} /><span><strong>Campaign attribution</strong><small>UTM source, campaign, and referrer reporting on every block.</small></span><Check size={16} /></div><div><CalendarClock size={18} /><span><strong>Scheduled content</strong><small>Show or retire links around launches, menus, and events.</small></span><Check size={16} /></div><div><Users size={18} /><span><strong>Owned audience</strong><small>Email signup and future notification controls in one guest list.</small></span><Check size={16} /></div></section>}
   </section>;
 }
