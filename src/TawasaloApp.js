@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, createContext, useContext, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, createContext, useContext, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { APPROVAL_IMAGES } from "./approvalImages";
 import DashboardOverview from "./DashboardOverview";
@@ -4169,6 +4169,83 @@ function AgencyDashboard() {
       </div>
     </div>
   );
+}
+
+// The redesigned media library, running on this workspace's real storage folder.
+// Files are read from and written to the same `media` bucket path the old page used.
+function MediaLibrary({ dark, setDark, mobileWeb, onOpenPublisher, onOpenStudio }) {
+  const { selClient } = useApp();
+  const [assets, setAssets] = useState(null);
+  const [uid, setUid] = useState(null);
+  const clientId = selClient?.id ? String(selClient.id) : 'general';
+
+  const folderOf = (userId) => `${userId}/${clientId}`;
+  const prettyName = (name) => String(name).replace(/^[a-z]+__/i, '').replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || name;
+  const sinceLabel = (iso) => {
+    if (!iso) return '';
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  };
+
+  const load = useCallback(async (userId) => {
+    if (!userId) return;
+    const { data } = await supabase.storage.from('media').list(folderOf(userId), { limit: 200, sortBy: { column: 'created_at', order: 'desc' } });
+    const files = (data || []).filter(f => f.name && /\.(png|jpe?g|gif|webp|mp4|mov|webm)$/i.test(f.name));
+    setAssets(files.map(f => {
+      const video = /\.(mp4|mov|webm)$/i.test(f.name);
+      const tag = f.name.includes('__') ? f.name.split('__')[0].toLowerCase() : '';
+      const bytes = Number(f.metadata?.size || 0);
+      const { data: url } = supabase.storage.from('media').getPublicUrl(`${folderOf(userId)}/${f.name}`);
+      return {
+        id: f.id || f.name,
+        title: prettyName(f.name),
+        fileName: f.name,
+        kind: video ? 'video' : 'photo',
+        platform: ['ig','fb','li','tt'].includes(tag) ? tag : 'ig',
+        collection: 'Library',
+        width: 0, height: 0,
+        size: bytes ? `${Math.max(0.1, bytes / 1024 / 1024).toFixed(1)} MB` : '—',
+        added: sinceLabel(f.created_at),
+        usage: 0,
+        status: 'ready',
+        shape: 'square',
+        alt: '',
+        history: [],
+        localUrl: url.publicUrl,
+      };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientId]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) { setAssets([]); return; }
+      setUid(user.id);
+      load(user.id);
+    })();
+    return () => { active = false; };
+  }, [load]);
+
+  const handleUpload = async (files) => {
+    if (!uid || !files?.length) return;
+    for (const file of files) {
+      try {
+        const blob = file.type.startsWith('image/') ? await shrinkImageBlob(file, { max: 1920, quality: 0.85 }) : file;
+        const ext = blob.type === 'image/jpeg' ? 'jpg' : (file.name.split('.').pop() || 'jpg');
+        const path = `${folderOf(uid)}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+        await supabase.storage.from('media').upload(path, blob, { upsert: true, contentType: blob.type || file.type });
+      } catch (e) { /* the tile stays as a local preview until the next refresh */ }
+    }
+    load(uid);
+  };
+
+  return <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={onOpenPublisher} onOpenStudio={onOpenStudio}
+    liveAssets={assets} clientName={selClient?.name || ''} onUpload={handleUpload}/>;
 }
 
 function MediaPage() {
@@ -22280,7 +22357,7 @@ export default function TawasloApp() {
     /> : <AIStudioPage/>;
     if (page==="campaigns") return workspacePreview && selClient?.id === "preview-marina" ? <CampaignsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
-    if (page==="media") return workspacePreview && selClient?.id === "preview-marina" ? <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <MediaPage/>;
+    if (page==="media") return workspacePreview && selClient?.id === "preview-marina" ? <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <MediaLibrary dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/>;
     if (page==="analytics") return workspacePreview ? <AnalyticsExperience/> : <AnalyticsPage/>;
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return workspacePreview ? <ReportsExperience/> : <ReportsPage/>;
