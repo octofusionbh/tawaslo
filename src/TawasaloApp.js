@@ -4171,8 +4171,70 @@ function AgencyDashboard() {
   );
 }
 
+// Analytics and short links on real records. Meta retired impressions and
+// profile views, so those tiles are dropped rather than filled with estimates.
+function AnalyticsLive() {
+  const { selClient } = useApp();
+  const [live, setLive] = useState(null);
+  useEffect(() => {
+    let active = true;
+    if (!selClient?.id) { setLive(null); return undefined; }
+    (async () => {
+      const { data: rows } = await supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false);
+      const ig = (rows || []).find(a => a.platform === 'ig' && a.account_id && a.access_token);
+      const followers = (rows || []).reduce((sum, a) => sum + (a.followers_count || 0), 0);
+      if (!ig) { if (active) setLive({ profile: { audience: followers ? compactNumber(followers) : '—', reach: '—', impressions: '—', engagement: '—', clicks: '—', views: '—', activity: Array.from({length:14},()=>0) } }); return; }
+      try {
+        const res = await fetch('/api/instagram-analytics', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: ig.account_id, accessToken: ig.access_token }) });
+        const data = await res.json();
+        if (!active) return;
+        const s = data?.summary || {};
+        const chart = Array.isArray(data?.chartData) ? data.chartData : [];
+        setLive({ profile: {
+          audience: compactNumber(followers || data?.profile?.followers || 0),
+          reach: compactNumber(s.totalReach || 0),
+          impressions: '—',
+          engagement: `${Number(s.engagementRate || 0).toFixed(1)}%`,
+          clicks: '—',
+          views: compactNumber(s.totalViews || 0),
+          activity: chart.length ? chart.map(x => Number(x.reach ?? x.value ?? 0)) : Array.from({length:14},()=>0),
+        }});
+      } catch (e) { if (active) setLive({ profile: { audience: compactNumber(followers), reach:'—', impressions:'—', engagement:'—', clicks:'—', views:'—', activity: Array.from({length:14},()=>0) } }); }
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+  if (!live) return <AnalyticsExperience/>;
+  return <AnalyticsExperience live={live} clientName={selClient?.name || ''}/>;
+}
+
+function ShortLinksLive() {
+  const { selClient } = useApp();
+  const [rows, setRows] = useState(null);
+  const origin = typeof window !== 'undefined' ? window.location.origin.replace(/^https?:\/\//, '') : 'tawaslo.com';
+  const load = useCallback(async () => {
+    if (!selClient?.id) { setRows([]); return; }
+    const { data } = await supabase.from('short_links').select('*').eq('client_id', selClient.id).order('created_at', { ascending: false }).limit(100);
+    setRows((data || []).map(row => [
+      row.label || row.url || row.code,
+      `${origin}/s/${row.code}`,
+      String(row.clicks ?? 0),
+      row.source || 'Link',
+    ]));
+  }, [selClient, origin]);
+  useEffect(() => { load(); }, [load]);
+  const create = async (label) => {
+    if (!selClient?.id) return false;
+    const code = Math.random().toString(36).slice(2, 7);
+    const { error } = await supabase.from('short_links').insert([{ code, url: label, client_id: selClient.id }]);
+    if (!error) load();
+    return !error;
+  };
+  return <LinksExperience liveLinks={rows || []} clientName={selClient?.name || ''} onCreate={create}/>;
+}
+
 // Redesigned agency-admin screens (clients, social accounts, team), each backed
 // by the same records the old pages used.
+const compactNumber = (n) => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(n) || 0);
 const ACCENTS = ['#ff7a6d', '#4bd9be', '#9b87ff', '#6ca8ff', '#f2b651', '#f58ea2'];
 const initialsOf = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
@@ -22443,7 +22505,7 @@ export default function TawasloApp() {
     if (page==="filltables") return workspacePreview ? <FillTablesExperience dark={dark} onOpenGuests={()=>setPage('guests')}/> : <FillTablesPage/>;
     if (page==="venuereport") return workspacePreview ? <VenueReportExperience/> : <VenueReportPage/>;
     if (page==="prospect") return workspacePreview && selClient?.id === "preview-marina" ? <WinClientsExperience dark={dark} setDark={setDark} agencyName={userCompany||"Your agency"}/> : <ProspectAuditPage/>;
-    if (page==="shortlinks") return workspacePreview ? <LinksExperience/> : <ShortLinksPage/>;
+    if (page==="shortlinks") return workspacePreview ? <LinksExperience/> : <ShortLinksLive/>;
     if (page==="suggested") return workspacePreview && selClient?.id === "preview-marina" ? <SuggestedExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
     if (page==="reelstudio") return workspacePreview && selClient?.id === "preview-marina" ? <ReelStudioExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <ReelStudioPage/>;
@@ -22466,7 +22528,7 @@ export default function TawasloApp() {
     if (page==="campaigns") return workspacePreview && selClient?.id === "preview-marina" ? <CampaignsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
     if (page==="media") return workspacePreview && selClient?.id === "preview-marina" ? <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <MediaLibrary dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/>;
-    if (page==="analytics") return workspacePreview ? <AnalyticsExperience/> : <AnalyticsPage/>;
+    if (page==="analytics") return workspacePreview ? <AnalyticsExperience/> : <AnalyticsLive/>;
     if (page==="ads") return <AdsPage/>;
     if (page==="reports") return workspacePreview ? <ReportsExperience/> : <ReportsPage/>;
     if (page==="invoicing") return workspacePreview ? <InvoicingExperience/> : <InvoicingPage/>;
