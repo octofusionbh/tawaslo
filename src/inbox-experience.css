@@ -136,3 +136,6 @@
 :root:not([data-tw-theme="dark"]) .ib-compose-row textarea::placeholder{color:#8a8da2}
 :root:not([data-tw-theme="dark"]) .ib-compose-foot button{color:#5c6075}
 :root:not([data-tw-theme="dark"]) .ib-toast{background:#0f3b34;color:#eafaf5}
+
+/* Inbox with nothing to show: one centred panel instead of the two-column stage. */
+.ib-workspace-empty{display:flex;height:auto;min-height:300px;max-height:none;align-items:center;justify-content:center}

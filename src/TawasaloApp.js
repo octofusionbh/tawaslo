@@ -4179,8 +4179,19 @@ const inboxAgo = (iso) => {
   return `${Math.floor(secs / 86400)}d`;
 };
 
+// Meta's token errors are written for developers. Say what it means for the person reading it.
+const inboxErrorCopy = (raw) => {
+  const text = String(raw || '');
+  if (!text) return '';
+  if (/session has been invalidated|Session has expired|expired|OAuthException|access token/i.test(text))
+    return 'Instagram signed this account out. That happens after a password change or a Meta security check. Reconnect it and comments and messages come straight back.';
+  if (/permission|scope/i.test(text))
+    return 'This account is missing a permission Instagram needs for the inbox. Reconnect it and approve every prompt.';
+  return text;
+};
+
 function InboxLive() {
-  const { selClient } = useApp();
+  const { selClient, setPage } = useApp();
   const [items, setItems] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [error, setError] = useState('');
@@ -4207,7 +4218,7 @@ function InboxLive() {
         }
       }
       if (!active) return;
-      setError(lastError);
+      setError(inboxErrorCopy(lastError));
       collected.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
       setItems(collected.map(m => ({
         id: String(m.id),
@@ -4245,7 +4256,7 @@ function InboxLive() {
   };
 
   if (!items) return <InboxPage/>;
-  return <InboxExperience liveItems={items} clientName={selClient?.name || ''} onReply={reply} error={error}/>;
+  return <InboxExperience liveItems={items} clientName={selClient?.name || ''} onReply={reply} error={error} onReconnect={() => setPage('social')}/>;
 }
 
 // Planner on the workspace's real posts. The planner model only needs a

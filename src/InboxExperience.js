@@ -39,7 +39,7 @@ function ConversationItem({item,active,onSelect}){
   </button></li>;
 }
 
-export default function InboxExperience({ liveItems = null, clientName = '', onReply = null, loading = false, error = '' } = {}){
+export default function InboxExperience({ liveItems = null, clientName = '', onReply = null, loading = false, error = '', onReconnect = null } = {}){
   const live = liveItems !== null && liveItems !== undefined;
   const source = liveItems || CONVERSATIONS;
   const [items,setItems]=useState(source);
@@ -59,7 +59,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
   const unread=items.filter(item=>item.unread).length;
   const waiting=items.filter(item=>item.type!=='mention'&&!sent.some(reply=>reply.id===item.id)).length;
   const counts=Object.fromEntries(FILTERS.map(([key])=>[key,key==='all'?items.length:items.filter(item=>item.type===key).length]));
-  const suggestions=selected.suggestions.map((copy,index)=>selected.type==='mention'&&tone==='Professional'?copy.replace('love this','appreciate the mention'):tone==='Apologetic'&&index===0?`Thanks for your patience. ${copy}`:copy);
+  const suggestions=((selected&&selected.suggestions)||[]).map((copy,index)=>selected.type==='mention'&&tone==='Professional'?copy.replace('love this','appreciate the mention'):tone==='Apologetic'&&index===0?`Thanks for your patience. ${copy}`:copy);
 
   useEffect(()=>{
     if(filtered.length&&!filtered.some(item=>item.id===selectedId)){
@@ -86,6 +86,24 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
     window.setTimeout(()=>setNotice(''),2400);
   }
   function clearFilters(){setFilter('all');setChannel('all');setQuery('');}
+
+  if(!selected) return <main className="ib-experience">
+    <header className="ib-hero">
+      <div className="ib-title-block">
+        <span className="ib-kicker"><AtSign size={15}/>{live?`${clientName||'Workspace'} / Social Inbox`:'Marina Social Club / Social Inbox'}</span>
+        <h1>Every conversation, in one place.</h1>
+        <p>Comments, mentions and messages, sorted by what needs you first.</p>
+      </div>
+    </header>
+    <section className="ib-workspace ib-workspace-empty">
+      <div className="ib-empty">
+        <MessageCircle size={27}/>
+        <strong>{error?'This account needs reconnecting':loading?'Loading conversations':'No conversations yet'}</strong>
+        <span>{error?String(error):loading?'Reading comments and messages from the connected accounts.':'Comments and direct messages from the connected accounts land here as they arrive.'}</span>
+        {error&&onReconnect&&<button type="button" onClick={onReconnect}>Open Social Accounts</button>}
+      </div>
+    </section>
+  </main>;
 
   return <main className="ib-experience">
     <header className="ib-hero">
@@ -142,8 +160,8 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
           <aside className="ib-assist" aria-label="AI reply assistant">
             <header><span><MessageCircle size={16}/>AI reply</span><small>Optional · Uses brand voice</small></header>
             <div className="ib-tones">{['Warm','Professional','Apologetic'].map(option=><button type="button" key={option} aria-pressed={tone===option} onClick={()=>setTone(option)}>{option}</button>)}</div>
-            <div className="ib-suggestion"><p>{suggestions[suggestionPage%suggestions.length]}</p><button type="button" onClick={()=>setDraft(suggestions[suggestionPage%suggestions.length])}>Use this reply<CornerUpLeft size={14}/></button></div>
-            <button type="button" className="ib-regenerate" onClick={()=>setSuggestionPage(page=>(page+1)%suggestions.length)}><RefreshCw size={14}/>Show another option</button>
+            {suggestions.length?<><div className="ib-suggestion"><p>{suggestions[suggestionPage%suggestions.length]}</p><button type="button" onClick={()=>setDraft(suggestions[suggestionPage%suggestions.length])}>Use this reply<CornerUpLeft size={14}/></button></div>
+            <button type="button" className="ib-regenerate" onClick={()=>setSuggestionPage(page=>(page+1)%suggestions.length)}><RefreshCw size={14}/>Show another option</button></>:<div className="ib-suggestion"><p>Write your reply below \u2014 suggested replies are coming to live conversations.</p></div>}
             <div className="ib-ai-note"><Clock3 size={14}/><span>You review every AI reply before it is sent.</span></div>
           </aside>
         </div>
