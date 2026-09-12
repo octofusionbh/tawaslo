@@ -29,6 +29,10 @@ function Status({ status }) { return <span className={`cal-status cal-status-${s
 
 // Native artwork, not screenshots or claimed live social posts. Text stays crisp at every size.
 export function Artwork({ post, slide = 0, compact = false }) {
+  // A stored image can 404 (an older upload, a moved bucket). Fall back to the
+  // plain titled tile rather than leaving a broken-image icon on the card.
+  const [broken, setBroken] = useState(false);
+  useEffect(() => { setBroken(false); }, [post.image]);
   const designs = {
     sunset: ['GOLDEN', 'HOUR', 'A LITTLE LONGER BY THE WATER'],
     table: ['Sunday', 'slows down.', 'LUNCH AT MARINA SOCIAL CLUB'],
@@ -38,10 +42,10 @@ export function Artwork({ post, slide = 0, compact = false }) {
   };
   const lines = designs[post.art] || designs.sea;
   // A real post carries its own artwork; the sample set is only used when it does not.
-  if (post.image) return <div className={`cal-art cal-art-photo ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post artwork'}>
-    <img className="cal-art-image" src={post.image} alt="" aria-hidden="true"/>
+  if (post.image && !broken) return <div className={`cal-art cal-art-photo ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post artwork'}>
+    <img className="cal-art-image" src={post.image} alt="" aria-hidden="true" onError={() => setBroken(true)}/>
   </div>;
-  if (post.image === null) return <div className={`cal-art cal-art-empty ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post without artwork'}>
+  if (post.image === null || broken) return <div className={`cal-art cal-art-empty ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post without artwork'}>
     <span className="cal-art-brand">{(post.title || 'Post').slice(0, 28)}</span>
   </div>;
   const image=ARTWORK_IMAGES[post.art]||ARTWORK_IMAGES.sea;
