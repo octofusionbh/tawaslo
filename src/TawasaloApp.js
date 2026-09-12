@@ -4547,7 +4547,7 @@ function SocialAccountsLive() {
       });
     return () => { active = false; };
   }, [selClient]);
-  return <SocialAccountsExperience liveAccounts={rows || []} clientName={selClient?.name || ''} onConnect={()=>setPage('socialmanage')} onManageAccount={()=>setPage('socialmanage')}/>;
+  return <SocialAccountsExperience liveAccounts={rows || []} clientName={selClient?.name || ''} onConnect={(key)=>{ try { if (key) sessionStorage.setItem('tw_connect_platform', key); } catch (e) {} setPage('socialmanage'); }} onManageAccount={()=>setPage('socialmanage')}/>;
 }
 
 function TeamLive() {
@@ -9734,6 +9734,17 @@ function SocialAccountsPage() {
     { key:'yt', name:'YouTube', desc:YOUTUBE_CLIENT_ID ? L('Channel & Shorts','القناة والشورتس') : L('Coming soon','قريباً'), color:'#FF0000', Icon:FaYoutube, onConnect:connectYoutube, live:!!YOUTUBE_CLIENT_ID },
     { key:'gb', name:'Google Business', desc:GOOGLE_CLIENT_ID ? L('Reviews, hours & posts','المراجعات والأوقات والمنشورات') : L('Coming soon','قريباً'), color:'#4285F4', Icon:FaGoogle, onConnect:connectGoogleBusiness, live:!!GOOGLE_CLIENT_ID },
   ];
+  // Arriving from the "choose the account type" step: open that network's own
+  // connection right away, so picking one actually did something. The flag is
+  // cleared first, so a later visit to this page does not reopen it.
+  useEffect(() => {
+    let choice = null;
+    try { choice = sessionStorage.getItem('tw_connect_platform'); sessionStorage.removeItem('tw_connect_platform'); } catch (e) {}
+    if (!choice) return;
+    const net = NETWORKS.find(n => n.key === choice);
+    if (net && net.live && typeof net.onConnect === 'function') { try { net.onConnect(); } catch (e) {} }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const countOf = (k) => accounts.filter(a => a.platform === k).length;
   const platformsConnected = [...new Set(accounts.map(a => a.platform))].length;
   const gradText = { background:th.gradient, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text" };

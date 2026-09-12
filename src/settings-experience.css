@@ -137,3 +137,20 @@
 @container (max-width:430px){.tw-settings-experience{padding:16px}.set-page-header{grid-template-columns:1fr;padding:21px 19px;border-radius:23px}.set-local-note{grid-row:2;width:max-content}.set-hero-summary{grid-template-columns:1fr 1fr}.set-hero-summary>div{padding:11px;min-height:61px}.set-section>header{align-items:flex-start}.set-field-grid{grid-template-columns:1fr}.set-form-footer{align-items:stretch}.set-form-footer>div{width:100%}.set-form-footer button{flex:1}.set-theme-options{grid-template-columns:1fr}.set-theme-sample{height:70px}.set-page-footer{flex-direction:column}}
 @container (max-width:320px){.set-hero-summary{grid-template-columns:1fr}}
 @media(prefers-reduced-motion:reduce){.tw-settings-experience *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+/* Light theme for the workspace-control redesign.
+   The redesign block above paints every surface with a dark gradient and never
+   offered a light variant, so in light mode the page kept its dark panels while
+   the palette above supplied dark text — the heading was nearly invisible
+   against its own card. These restate the same surfaces in light, matching the
+   paper and line colours the rest of the light workspace uses. */
+.tw-settings-experience[data-theme="light"] .set-page-header{background:radial-gradient(circle at 85% 5%,rgba(126,111,255,.16),transparent 34%),radial-gradient(circle at 55% 110%,rgba(73,217,190,.12),transparent 38%),linear-gradient(135deg,#ffffff,#f4f3fd);border-color:#e2e0ef}
+.tw-settings-experience[data-theme="light"] .set-local-note{background:rgba(23,24,45,.035);border-color:#e2e0ef}
+.tw-settings-experience[data-theme="light"] .set-hero-summary>div{background:rgba(23,24,45,.03);border-color:#e2e0ef;color:#5f4fd6}
+.tw-settings-experience[data-theme="light"] .set-nav{background:linear-gradient(145deg,#ffffff,#f7f6fd);border-color:#e2e0ef;box-shadow:0 14px 38px rgba(23,24,45,.07)}
+.tw-settings-experience[data-theme="light"] .set-nav button:hover{background:rgba(23,24,45,.05)}
+.tw-settings-experience[data-theme="light"] .set-nav button[aria-current]{color:#1b1c2e;box-shadow:inset 0 0 0 1px rgba(101,80,244,.28)}
+.tw-settings-experience[data-theme="light"] .set-section{background:linear-gradient(145deg,#ffffff,#f8f7fd);border-color:#e2e0ef;box-shadow:0 14px 40px rgba(23,24,45,.06)}
+.tw-settings-experience[data-theme="light"] :is(.set-identity,.set-form-footer,.set-toggle-row,.set-detail-row,.set-theme-options>button,.set-faq details){background:rgba(23,24,45,.028);border-color:#e2e0ef}
+.tw-settings-experience[data-theme="light"] .set-field :is(input,textarea,select){background:#ffffff;border-color:#cfcddd}
+.tw-settings-experience[data-theme="light"][data-layout=single] .set-nav{background:rgba(23,24,45,.04)}

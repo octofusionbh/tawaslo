@@ -120,3 +120,10 @@
 .tw-billing-experience[data-area=credits] .bill-footer{margin-top:18px}
 @container (max-width:780px){.bill-ai-heading{grid-template-columns:1fr;gap:12px}.bill-ai-tools{grid-template-columns:1fr}.bill-ai-layout{grid-template-columns:1fr}.tw-billing-experience[data-area=credits] .bill-account-summary{width:auto;max-width:none}}
 @container (max-width:460px){.tw-billing-experience[data-area=credits]{padding-top:12px}.tw-billing-experience[data-area=credits] .bill-hero{padding:18px}.tw-billing-experience[data-area=credits] .bill-account-summary{display:none}.tw-billing-experience[data-area=credits] .bill-heading h1{font-size:29px}.bill-ai-heading{padding:16px}.bill-ai-heading h2{font-size:25px}.bill-ai-panel{padding:16px}.bill-ai-tools article{grid-template-columns:34px minmax(0,1fr) auto}.bill-ai-tools article>b{grid-column:auto}.bill-ai-note{align-items:flex-start}}
+
+/* Light theme for the AI-credits redesign, for the same reason as Settings:
+   the block above hardcodes dark panels with no light counterpart. */
+.tw-billing-experience[data-theme="light"] .bill-ai-heading{background:radial-gradient(circle at 84% 0,rgba(122,108,255,.12),transparent 34%),linear-gradient(145deg,#ffffff,#f5f4fd);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-ai-balance{background:rgba(23,24,45,.035);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-ai-tools article{background:rgba(23,24,45,.028);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-ai-panel{background:linear-gradient(145deg,#ffffff,#f8f7fd);border-color:#e2e0ef;box-shadow:0 14px 40px rgba(23,24,45,.06)}
