@@ -133,3 +133,18 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Competitor | Per-post creative brief | 🟨 AI pass per post |
 | Steal This | Post titles and formats | 🟨 posts carry only captions |
 | Steal This | Takeaway and pre-filled brief | 🟨 were canned copy; needs a real AI pass |
+
+## Added while wiring the last seven pages
+
+| Page | Missing | Needs |
+|---|---|---|
+| Best Time | **The whole page** | 🟨 never had a backend — the old page is hardcoded too, and says so. Needs Instagram insights access |
+| Venue Report | Previous-period comparison line | 🟥 no stored prior series |
+| Venue Report | Reach, attributed value and signal per source | 🟨 needs attribution |
+| Crisis | Positive / neutral sentiment split | 🟨 only a negative keyword pass exists; needs real sentiment |
+| Impact | Discovered → clicked → returned → completed funnel | 🟨 nothing links an outcome to a touchpoint |
+| Impact | Attributed value, return on content, assisted journeys | 🟨 depends on the funnel |
+| Reports | **Saved report library** | 🟥 there is no reports table — reports are generated on demand |
+| Reports | Performance and Campaign report templates | 🟨 only the Business report has a generator |
+| Invoicing | Invoice defaults screen | 🟦 no real target yet |
+| Win Clients | Proposals | 🟥 no proposals table — drafts are per-browser. The real `prospect_audits` table serves a different feature (public pitch pages) |

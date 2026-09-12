@@ -49,6 +49,9 @@ import {
   AnalyticsExperience, BestTimeExperience, CrisisExperience, ImpactExperience,
   LinksExperience, ReportsExperience, VenueReportExperience,
 } from "./InsightsExperience";
+import { VenueReportLive, CrisisLive, ImpactLive, ReportsLive } from "./InsightsLive";
+import InvoicingLive from "./InvoicingLive";
+import WinClientsLive from "./WinClientsLive";
 import {
   ClientsExperience, InvoicingExperience, SocialAccountsExperience, TeamExperience,
 } from "./WorkspaceAdminExperience";
@@ -22777,8 +22780,10 @@ export default function TawasloApp() {
     if (page==="guestsclassic") return <GuestsPage/>;
     if (page==="filltables") return workspacePreview ? <FillTablesExperience dark={dark} onOpenGuests={()=>setPage('guests')}/> : <FillTablesLive client={selClient} dark={dark} onOpenGuests={()=>setPage('guests')}/>;
     if (page==="filltablesclassic") return <FillTablesPage/>;
-    if (page==="venuereport") return workspacePreview ? <VenueReportExperience/> : <VenueReportPage/>;
-    if (page==="prospect") return workspacePreview && selClient?.id === "preview-marina" ? <WinClientsExperience dark={dark} setDark={setDark} agencyName={userCompany||"Your agency"}/> : <ProspectAuditPage/>;
+    if (page==="venuereport") return workspacePreview ? <VenueReportExperience/> : <VenueReportLive client={selClient}/>;
+    if (page==="venuereportclassic") return <VenueReportPage/>;
+    if (page==="prospect") return workspacePreview && selClient?.id === "preview-marina" ? <WinClientsExperience dark={dark} setDark={setDark} agencyName={userCompany||"Your agency"}/> : <WinClientsLive dark={dark} setDark={setDark} agencyName={userCompany||"Your agency"}/>;
+    if (page==="prospectclassic") return <ProspectAuditPage/>;
     if (page==="shortlinks") return workspacePreview ? <LinksExperience/> : <ShortLinksLive/>;
     if (page==="suggested") return workspacePreview && selClient?.id === "preview-marina" ? <SuggestedExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <SuggestedLive client={selClient} dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/>;
     if (page==="suggestedclassic") return <SuggestedPage/>;
@@ -22823,10 +22828,14 @@ export default function TawasloApp() {
     if (page==="media") return workspacePreview && selClient?.id === "preview-marina" ? <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <MediaLibrary dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/>;
     if (page==="analytics") return workspacePreview ? <AnalyticsExperience/> : <AnalyticsLive/>;
     if (page==="ads") return <AdsPage/>;
-    if (page==="reports") return workspacePreview ? <ReportsExperience/> : <ReportsPage/>;
-    if (page==="invoicing") return workspacePreview ? <InvoicingExperience/> : <InvoicingPage/>;
-    if (page==="crisis") return workspacePreview ? <CrisisExperience/> : <CrisisRadarPage/>;
-    if (page==="impact") return workspacePreview ? <ImpactExperience/> : <ImpactPage/>;
+    if (page==="reports") return workspacePreview ? <ReportsExperience/> : <ReportsLive client={selClient}/>;
+    if (page==="reportsclassic") return <ReportsPage/>;
+    if (page==="invoicing") return workspacePreview ? <InvoicingExperience/> : <InvoicingLive clients={clients}/>;
+    if (page==="invoicingclassic") return <InvoicingPage/>;
+    if (page==="crisis") return workspacePreview ? <CrisisExperience/> : <CrisisLive client={selClient} onOpenInbox={()=>setPage('inbox')} onConnectAccounts={()=>setPage('social')}/>;
+    if (page==="crisisclassic") return <CrisisRadarPage/>;
+    if (page==="impact") return workspacePreview ? <ImpactExperience/> : <ImpactLive client={selClient}/>;
+    if (page==="impactclassic") return <ImpactPage/>;
     if (page==="besttime") return workspacePreview ? <BestTimeExperience/> : <BestTimePage/>;
     if (page==="recycle") return <ContentRecyclerPage/>;
     if (page==="htlab") return workspacePreview ? (selClient?.id === "preview-marina" ? <AIStudioExperience initialTool="hashtags" dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <AIStudioPage initialTool="hashtags"/>) : <HashtagLabPage/>;

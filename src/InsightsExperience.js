@@ -71,18 +71,37 @@ function useToast() {
   return [toast,notify];
 }
 
-export function VenueReportExperience() {
+// Sample figures stay in named constants so the design still renders untouched when
+// no live report is supplied.
+const venueSampleStats=[
+  {label:'Customer actions',value:'1,284',trend:'+18%',note:' across purchases, bookings and visits'},
+  {label:'Social reach',value:'1.24M',trend:'+12%',note:' compared with the prior period',tone:'aqua'},
+  {label:'Attributed value',value:'BHD 8,420',trend:'+9%',note:' from tracked links and campaigns',tone:'coral'},
+  {label:'Repeat customers',value:'64%',trend:'+6 pts',note:' returned during this period',tone:'gold'},
+];
+const venueSampleChannels={head:['Source','Reach','Actions','Attributed value','Signal'],rows:[['Instagram','684K','624','BHD 4,180','Leading'],['Facebook','312K','286','BHD 1,960','Steady'],['Direct & link in bio','—','228','BHD 1,620','Growing'],['Google & reviews','94K','146','BHD 660','Healthy']]};
+const venueSampleAxis=['Week 1','Week 2','Week 3','Now'];
+
+export function VenueReportExperience({ live=null, clientName='', onPeriodChange=null, onCopyShareLink=null, onExportPdf=null } = {}) {
   const [period,setPeriod]=useState('30 days');
   const [toast,notify]=useToast();
+  // A live report carries only what the workspace records. The prior-period line, the
+  // "what matters next" recommendation and per-source attribution have no stored source,
+  // so they are hidden rather than estimated.
+  const run=(handler,fallback)=>{if(!handler){notify(fallback);return;}Promise.resolve(handler()).then(message=>notify(typeof message==='string'&&message?message:fallback)).catch(()=>notify('That did not complete. Try again.'));};
+  const changePeriod=value=>{setPeriod(value);if(onPeriodChange)onPeriodChange(value);};
+  const stats=live?(live.stats||[]):venueSampleStats;
+  const momentum=live?live.momentum:{values:activity,axis:venueSampleAxis};
+  const channels=live?live.channels:venueSampleChannels;
   return <main className="suite-page suite-page--report">
-    <div className="suite-preview"><span>Business report · Sample connected data</span><span><ShieldCheck size={14}/>Agency preview</span></div>
-    <PageIntro eyebrow="Marina Social Club / Business report" title={<>The whole business,<br/><em>in one honest view.</em></>} copy="Bring customer activity, social performance and commercial results together—without turning the report into a wall of charts." actions={<><button type="button" className="suite-secondary" onClick={()=>notify('Share link copied for review.')}><Copy size={16}/>Copy share link</button><button type="button" className="suite-primary" onClick={()=>notify('PDF report prepared.')}><Download size={16}/>Export PDF</button></>}><PeriodSwitch value={period} onChange={setPeriod}/></PageIntro>
-    <section className="suite-stat-grid" aria-label="Business performance summary"><Stat label="Customer actions" value="1,284" trend="+18%" note=" across purchases, bookings and visits"/><Stat label="Social reach" value="1.24M" trend="+12%" note=" compared with the prior period" tone="aqua"/><Stat label="Attributed value" value="BHD 8,420" trend="+9%" note=" from tracked links and campaigns" tone="coral"/><Stat label="Repeat customers" value="64%" trend="+6 pts" note=" returned during this period" tone="gold"/></section>
-    <section className="suite-dashboard-grid">
-      <article className="suite-panel suite-panel--wide"><header><div><span>Business momentum</span><h2>Attention that became action.</h2></div><span className="suite-chip suite-chip--good"><TrendingUp size={13}/>Healthy growth</span></header><div className="suite-chart-wrap"><MiniLine compare label={`Business momentum for ${period}`}/><div className="suite-axis"><span>Week 1</span><span>Week 2</span><span>Week 3</span><span>Now</span></div></div><div className="suite-legend"><span><i/>Customer actions</span><span><i/>Previous period</span></div></article>
-      <aside className="suite-panel suite-focus"><span>What matters next</span><h2>Turn Friday interest into repeat visits.</h2><p>Your strongest social attention arrives 18–26 hours before the weekend. The customers who return most often respond to useful reminders, not broad discounts.</p><button type="button" onClick={()=>notify('A campaign brief was prepared for AI Studio.')}>Prepare a campaign brief <ArrowRight size={16}/></button><small><Target size={13}/>Recommendation based on this sample period</small></aside>
-    </section>
-    <section className="suite-panel suite-table-panel"><header><div><span>Channel contribution</span><h2>Where the result began.</h2></div><button type="button" onClick={()=>notify('The full contribution report is ready.')}>View full detail <ArrowRight size={15}/></button></header><div className="suite-data-table"><div className="suite-row suite-row--head"><span>Source</span><span>Reach</span><span>Actions</span><span>Attributed value</span><span>Signal</span></div>{[['Instagram','684K','624','BHD 4,180','Leading'],['Facebook','312K','286','BHD 1,960','Steady'],['Direct & link in bio','—','228','BHD 1,620','Growing'],['Google & reviews','94K','146','BHD 660','Healthy']].map(row=><div className="suite-row" key={row[0]}>{row.map((cell,index)=><span key={cell}>{index===0?<strong>{cell}</strong>:cell}</span>)}</div>)}</div></section>
+    {!live&&<div className="suite-preview"><span>Business report · Sample connected data</span><span><ShieldCheck size={14}/>Agency preview</span></div>}
+    <PageIntro eyebrow={live?`${clientName||'Workspace'} / Business report`:"Marina Social Club / Business report"} title={<>The whole business,<br/><em>in one honest view.</em></>} copy="Bring customer activity, social performance and commercial results together—without turning the report into a wall of charts." actions={<><button type="button" className="suite-secondary" onClick={()=>run(onCopyShareLink,'Share link copied for review.')}><Copy size={16}/>Copy share link</button><button type="button" className="suite-primary" onClick={()=>run(onExportPdf,'PDF report prepared.')}><Download size={16}/>Export PDF</button></>}><PeriodSwitch value={period} onChange={changePeriod}/></PageIntro>
+    {stats.length>0&&<section className="suite-stat-grid" aria-label="Business performance summary">{stats.map(stat=><Stat key={stat.label} label={stat.label} value={stat.value} trend={stat.trend} note={stat.note} tone={stat.tone||'violet'}/>)}</section>}
+    {momentum&&Array.isArray(momentum.values)&&momentum.values.length>1&&<section className="suite-dashboard-grid" style={live?{gridTemplateColumns:'minmax(0,1fr)'}:undefined}>
+      <article className="suite-panel suite-panel--wide"><header><div><span>Business momentum</span><h2>Attention that became action.</h2></div>{!live&&<span className="suite-chip suite-chip--good"><TrendingUp size={13}/>Healthy growth</span>}</header><div className="suite-chart-wrap"><MiniLine values={momentum.values} compare={!live} label={`Business momentum for ${period}`}/><div className="suite-axis">{(momentum.axis||venueSampleAxis).map((item,index)=><span key={index}>{item}</span>)}</div></div><div className="suite-legend"><span><i/>Customer actions</span>{!live&&<span><i/>Previous period</span>}</div></article>
+      {!live&&<aside className="suite-panel suite-focus"><span>What matters next</span><h2>Turn Friday interest into repeat visits.</h2><p>Your strongest social attention arrives 18–26 hours before the weekend. The customers who return most often respond to useful reminders, not broad discounts.</p><button type="button" onClick={()=>notify('A campaign brief was prepared for AI Studio.')}>Prepare a campaign brief <ArrowRight size={16}/></button><small><Target size={13}/>Recommendation based on this sample period</small></aside>}
+    </section>}
+    {channels&&Array.isArray(channels.rows)&&channels.rows.length>0&&<section className="suite-panel suite-table-panel"><header><div><span>Channel contribution</span><h2>Where the result began.</h2></div>{!live&&<button type="button" onClick={()=>notify('The full contribution report is ready.')}>View full detail <ArrowRight size={15}/></button>}</header><div className="suite-data-table"><div className="suite-row suite-row--head">{channels.head.map((cell,index)=><span key={index}>{cell}</span>)}</div>{channels.rows.map((row,rowIndex)=><div className="suite-row" key={rowIndex}>{row.map((cell,index)=><span key={index}>{index===0?<strong>{cell}</strong>:cell}</span>)}</div>)}</div></section>}
     <Toast text={toast}/>
   </main>;
 }
@@ -125,28 +144,63 @@ export function BestTimeExperience() {
   </main>;
 }
 
-export function CrisisExperience() {
+const crisisSampleSignals=[
+  {id:'delivery',title:'Delivery timing',meta:'3 comments · Within normal range',warn:false},
+  {id:'availability',title:'Product availability',meta:'2 mentions · Within normal range',warn:false},
+  {id:'service',title:'Service experience',meta:'1 message · Human review recommended',warn:true},
+];
+const crisisSampleVolume=[19,17,22,28,24,31,36,34,48,54,51,58,62,57];
+const crisisLevelLabel={calm:'Normal',watch:'Watch',alert:'Alert'};
+
+export function CrisisExperience({ live=null, clientName='', onRescan=null, onOpenInbox=null, onConnectAccounts=null } = {}) {
   const [scanning,setScanning]=useState(false);
   const [toast,notify]=useToast();
-  const rescan=()=>{setScanning(true);window.setTimeout(()=>{setScanning(false);notify('Scan complete. No unusual spike detected.');},900);};
+  // Monitoring reads comments and DMs. Nothing classifies tone beyond the negative
+  // keyword pass, so the positive/neutral split is hidden on live data instead of guessed.
+  const run=(handler,fallback)=>{if(!handler){notify(fallback);return;}Promise.resolve(handler()).then(message=>notify(typeof message==='string'&&message?message:fallback)).catch(()=>notify('That did not complete. Try again.'));};
+  const rescan=()=>{
+    if(onRescan){setScanning(true);Promise.resolve(onRescan()).then(message=>{setScanning(false);notify(typeof message==='string'&&message?message:'Scan complete.');}).catch(()=>{setScanning(false);notify('The scan could not finish.');});return;}
+    setScanning(true);window.setTimeout(()=>{setScanning(false);notify('Scan complete. No unusual spike detected.');},900);
+  };
+  const busy=scanning||(live?live.scanning===true:false);
+  const connected=live?live.connected!==false:true;
+  const signals=live?(live.signals||[]):crisisSampleSignals;
+  const volume=live?live.volume:crisisSampleVolume;
+  const showVolume=Array.isArray(volume)&&volume.length>1;
+  const showSignals=signals.length>0;
+  const level=live?(live.level||'calm'):'calm';
   return <main className="suite-page">
-    <div className="suite-preview"><span>Crisis Radar · Sample monitoring · No automatic replies</span><span className="suite-chip suite-chip--good"><ShieldCheck size={13}/>Normal</span></div>
-    <PageIntro eyebrow="Marina Social Club / Crisis Radar" title={<>Know early.<br/><em>Respond with care.</em></>} copy="Watch public comments, mentions and messages for sudden changes in tone—then bring a human in before anything is sent." actions={<button type="button" className="suite-secondary" onClick={rescan} disabled={scanning}><RefreshCw className={scanning?'suite-spin':''} size={16}/>{scanning?'Scanning…':'Rescan now'}</button>}/>
-    <section className="suite-health"><div className="suite-health-orbit"><ShieldCheck size={34}/><span>Normal</span></div><div><span>Current signal</span><h2>No unusual negativity spike.</h2><p>Conversation volume is 8% above the normal Friday range, while sentiment remains steady. Two messages need a human reply.</p><div><span><i className="good"/>Positive 71%</span><span><i/>Neutral 21%</span><span><i className="warn"/>Negative 8%</span></div></div><button type="button" onClick={()=>notify('The two priority conversations are ready in Inbox.')}>Review 2 conversations <ArrowRight size={16}/></button></section>
-    <section className="suite-dashboard-grid"><article className="suite-panel suite-panel--wide"><header><div><span>Conversation signal</span><h2>Volume rose. Sentiment held.</h2></div><span className="suite-chip">Last 24 hours</span></header><div className="suite-chart-wrap"><MiniLine values={[19,17,22,28,24,31,36,34,48,54,51,58,62,57]} label="Conversation volume in the last 24 hours"/><div className="suite-axis"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>Now</span></div></div></article><aside className="suite-panel suite-action-list"><header><div><span>Watch list</span><h2>Signals worth a look.</h2></div></header>{[['Delivery timing','3 comments','normal'],['Product availability','2 mentions','normal'],['Service experience','1 message','review']].map(([name,count,status])=><button type="button" key={name} onClick={()=>notify(`${name} conversations opened.`)}><i className={status==='review'?'warn':''}><MessageCircleWarning size={15}/></i><span>{name}<small>{count} · {status==='review'?'Human review recommended':'Within normal range'}</small></span><ArrowRight size={15}/></button>)}</aside></section>
+    {!live&&<div className="suite-preview"><span>Crisis Radar · Sample monitoring · No automatic replies</span><span className="suite-chip suite-chip--good"><ShieldCheck size={13}/>Normal</span></div>}
+    <PageIntro eyebrow={live?`${clientName||'Workspace'} / Crisis Radar`:"Marina Social Club / Crisis Radar"} title={<>Know early.<br/><em>Respond with care.</em></>} copy="Watch public comments, mentions and messages for sudden changes in tone—then bring a human in before anything is sent." actions={<button type="button" className="suite-secondary" onClick={rescan} disabled={busy}><RefreshCw className={busy?'suite-spin':''} size={16}/>{busy?'Scanning…':'Rescan now'}</button>}/>
+    <section className="suite-health"><div className="suite-health-orbit">{level==='alert'?<AlertTriangle size={34}/>:<ShieldCheck size={34}/>}<span>{live?(crisisLevelLabel[level]||'Normal'):'Normal'}</span></div><div><span>Current signal</span><h2>{live?(live.title||'No unusual negativity spike.'):'No unusual negativity spike.'}</h2><p>{live?(live.summary||''):'Conversation volume is 8% above the normal Friday range, while sentiment remains steady. Two messages need a human reply.'}</p>{live?(connected&&typeof live.scanned==='number'?<div><span><i className="warn"/>Negative {live.rate}%</span><span><i/>{live.scanned.toLocaleString()} messages read</span>{typeof live.negative24==='number'&&<span><i className="warn"/>{live.negative24} in the last 24 hours</span>}</div>:null):<div><span><i className="good"/>Positive 71%</span><span><i/>Neutral 21%</span><span><i className="warn"/>Negative 8%</span></div>}</div>{live?(connected?(signals.length>0?<button type="button" onClick={()=>run(onOpenInbox,'Inbox opened.')}>Review {signals.length} conversation{signals.length===1?'':'s'} <ArrowRight size={16}/></button>:null):<button type="button" onClick={()=>run(onConnectAccounts,'Account settings opened.')}>Connect accounts <ArrowRight size={16}/></button>):<button type="button" onClick={()=>notify('The two priority conversations are ready in Inbox.')}>Review 2 conversations <ArrowRight size={16}/></button>}</section>
+    {(showVolume||showSignals)&&<section className="suite-dashboard-grid" style={showVolume&&showSignals?undefined:{gridTemplateColumns:'minmax(0,1fr)'}}>{showVolume&&<article className="suite-panel suite-panel--wide"><header><div><span>Conversation signal</span><h2>{live?'Conversation volume.':'Volume rose. Sentiment held.'}</h2></div><span className="suite-chip">Last 24 hours</span></header><div className="suite-chart-wrap"><MiniLine values={volume} label="Conversation volume in the last 24 hours"/><div className="suite-axis"><span>12 AM</span><span>6 AM</span><span>12 PM</span><span>Now</span></div></div></article>}{showSignals&&<aside className="suite-panel suite-action-list"><header><div><span>Watch list</span><h2>Signals worth a look.</h2></div></header>{signals.map(item=><button type="button" key={item.id} onClick={()=>live?run(onOpenInbox?()=>onOpenInbox(item):null,'Inbox opened.'):notify(`${item.title} conversations opened.`)}><i className={item.warn?'warn':''}><MessageCircleWarning size={15}/></i><span>{item.title}<small>{item.meta}</small></span><ArrowRight size={15}/></button>)}</aside>}</section>}
     <section className="suite-note"><AlertTriangle size={18}/><div><strong>Monitoring supports judgment—it does not replace it.</strong><span>Tawaslo never hides, deletes or answers a sensitive conversation without your team’s decision.</span></div></section>
     <Toast text={toast}/>
   </main>;
 }
 
-export function ImpactExperience() {
+const impactSampleStats=[
+  {label:'Tracked actions',value:'1,284',trend:'+18%',note:' customer outcomes'},
+  {label:'Attributed value',value:'BHD 8,420',trend:'+9%',note:' from connected journeys',tone:'aqua'},
+  {label:'Return on content',value:'4.6×',trend:'+0.7×',note:' value per BHD spent',tone:'coral'},
+  {label:'Assisted journeys',value:'38%',note:' used more than one touchpoint',tone:'gold'},
+];
+const impactSampleBreakdown={eyebrow:'Value by source',title:'What assisted the outcome.',rows:[{label:'Instagram',value:'42%',width:82},{label:'Link in bio',value:'27%',width:61},{label:'Google & reviews',value:'19%',width:47},{label:'Direct',value:'12%',width:31}]};
+
+export function ImpactExperience({ live=null, clientName='', onPeriodChange=null, onExport=null } = {}) {
   const [period,setPeriod]=useState('30 days');
   const [toast,notify]=useToast();
+  // Nothing in the workspace links a customer outcome back through a chain of
+  // touchpoints, so the journey funnel is hidden on live data rather than modelled.
+  const run=(handler,fallback)=>{if(!handler){notify(fallback);return;}Promise.resolve(handler()).then(message=>notify(typeof message==='string'&&message?message:fallback)).catch(()=>notify('That did not complete. Try again.'));};
+  const changePeriod=value=>{setPeriod(value);if(onPeriodChange)onPeriodChange(value);};
+  const stats=live?(live.stats||[]):impactSampleStats;
+  const breakdown=live?live.breakdown:impactSampleBreakdown;
   return <main className="suite-page">
-    <div className="suite-preview"><span>Impact · Sample attribution · Currency BHD</span><span><Target size={14}/>Connected touchpoints</span></div>
-    <PageIntro eyebrow="Marina Social Club / Impact" title={<>From attention<br/><em>to business value.</em></>} copy="Understand which content and links helped a customer buy, book, visit or enquire—without pretending every result has one cause." actions={<button type="button" className="suite-primary" onClick={()=>notify('Impact report prepared.')}><Download size={16}/>Export impact</button>}><PeriodSwitch value={period} onChange={setPeriod}/></PageIntro>
-    <section className="suite-stat-grid"><Stat label="Tracked actions" value="1,284" trend="+18%" note=" customer outcomes"/><Stat label="Attributed value" value="BHD 8,420" trend="+9%" note=" from connected journeys" tone="aqua"/><Stat label="Return on content" value="4.6×" trend="+0.7×" note=" value per BHD spent" tone="coral"/><Stat label="Assisted journeys" value="38%" note=" used more than one touchpoint" tone="gold"/></section>
-      <section className="suite-dashboard-grid"><article className="suite-panel suite-panel--wide suite-journey"><header><div><span>Customer journey</span><h2>One result. Several useful moments.</h2></div><span className="suite-chip">Most common path</span></header><div className="suite-journey-line">{[[Share2,'Discovered','8,420'],[MousePointerClick,'Clicked','2,184'],[Users,'Returned','1,284'],[CheckCircle2,'Completed','426']].map(([Icon,label,value],index)=><div key={label}><i><Icon size={18}/></i><strong>{value}</strong><span>{label}</span>{index<3&&<b><ArrowRight size={14}/></b>}</div>)}</div><p>Completed can mean a purchase, booking, lead, sign-up or another goal chosen for the client.</p></article><aside className="suite-panel suite-breakdown"><header><div><span>Value by source</span><h2>What assisted the outcome.</h2></div></header>{[['Instagram','42%',82],['Link in bio','27%',61],['Google & reviews','19%',47],['Direct','12%',31]].map(([label,value,width])=><div className="suite-progress" key={label}><span><strong>{label}</strong><b>{value}</b></span><i><b style={{width:`${width}%`}}/></i></div>)}</aside></section>
+    {!live&&<div className="suite-preview"><span>Impact · Sample attribution · Currency BHD</span><span><Target size={14}/>Connected touchpoints</span></div>}
+    <PageIntro eyebrow={live?`${clientName||'Workspace'} / Impact`:"Marina Social Club / Impact"} title={<>From attention<br/><em>to business value.</em></>} copy="Understand which content and links helped a customer buy, book, visit or enquire—without pretending every result has one cause." actions={<button type="button" className="suite-primary" onClick={()=>run(onExport,'Impact report prepared.')}><Download size={16}/>Export impact</button>}><PeriodSwitch value={period} onChange={changePeriod}/></PageIntro>
+    {stats.length>0&&<section className="suite-stat-grid">{stats.map(stat=><Stat key={stat.label} label={stat.label} value={stat.value} trend={stat.trend} note={stat.note} tone={stat.tone||'violet'}/>)}</section>}
+      {(!live||(breakdown&&breakdown.rows&&breakdown.rows.length>0))&&<section className="suite-dashboard-grid" style={live?{gridTemplateColumns:'minmax(0,1fr)'}:undefined}>{!live&&<article className="suite-panel suite-panel--wide suite-journey"><header><div><span>Customer journey</span><h2>One result. Several useful moments.</h2></div><span className="suite-chip">Most common path</span></header><div className="suite-journey-line">{[[Share2,'Discovered','8,420'],[MousePointerClick,'Clicked','2,184'],[Users,'Returned','1,284'],[CheckCircle2,'Completed','426']].map(([Icon,label,value],index)=><div key={label}><i><Icon size={18}/></i><strong>{value}</strong><span>{label}</span>{index<3&&<b><ArrowRight size={14}/></b>}</div>)}</div><p>Completed can mean a purchase, booking, lead, sign-up or another goal chosen for the client.</p></article>}{breakdown&&breakdown.rows&&breakdown.rows.length>0&&<aside className="suite-panel suite-breakdown"><header><div><span>{breakdown.eyebrow}</span><h2>{breakdown.title}</h2></div></header>{breakdown.rows.map(row=><div className="suite-progress" key={row.label}><span><strong>{row.label}</strong><b>{row.value}</b></span><i><b style={{width:`${row.width}%`}}/></i></div>)}</aside>}</section>}
     <section className="suite-note suite-note--info"><ShieldCheck size={18}/><div><strong>Transparent attribution</strong><span>Every figure shows its source and confidence. Unknown journeys stay unknown instead of being forced into a channel.</span></div></section>
     <Toast text={toast}/>
   </main>;
@@ -158,16 +212,30 @@ const reportRows=[
   ['Customer & loyalty','Marina Social Club','26 Aug 2026','Draft'],
   ['Executive snapshot','Marina Social Club','1 Aug 2026','Sent'],
 ];
-export function ReportsExperience() {
+const reportSampleTemplates=[
+  {id:'performance',title:'Performance report',copy:'Reach, engagement and content results'},
+  {id:'business',title:'Business report',copy:'Customer actions and attributed value'},
+  {id:'campaign',title:'Campaign report',copy:'One campaign from brief to outcome'},
+];
+const reportTemplateIcons={performance:BarChart3,business:TrendingUp,campaign:Target};
+
+export function ReportsExperience({ live=null, clientName='', onCreateReport=null, onUseTemplate=null, onOpenReport=null, onToggleSchedule=null } = {}) {
   const [query,setQuery]=useState('');
   const [toast,notify]=useToast();
-  const visible=reportRows.filter(row=>row.join(' ').toLowerCase().includes(query.toLowerCase()));
+  // Reports are generated on demand; the workspace keeps no saved-report record, so the
+  // library only appears when a caller supplies real rows.
+  const run=(handler,fallback)=>{if(!handler){notify(fallback);return;}Promise.resolve(handler()).then(message=>notify(typeof message==='string'&&message?message:fallback)).catch(()=>notify('That did not complete. Try again.'));};
+  const templates=live?(live.templates||[]):reportSampleTemplates;
+  const library=live?live.library:{rows:reportRows};
+  const rows=library&&Array.isArray(library.rows)?library.rows:[];
+  const schedule=live?live.schedule:null;
+  const visible=rows.filter(row=>row.join(' ').toLowerCase().includes(query.toLowerCase()));
   return <main className="suite-page">
-    <div className="suite-preview"><span>Reports · Sample workspace</span><span><FileBarChart size={14}/>4 report types</span></div>
-    <PageIntro eyebrow="Agency reporting" title={<>A report clients<br/><em>will actually read.</em></>} copy="Build clear, branded reports around the questions that matter—then share a live link or a polished PDF." actions={<button type="button" className="suite-primary" onClick={()=>notify('A new report draft was created.')}><Plus size={16}/>Create report</button>}/>
-    <section className="suite-template-grid">{[['Performance report','Reach, engagement and content results',BarChart3],['Business report','Customer actions and attributed value',TrendingUp],['Campaign report','One campaign from brief to outcome',Target]].map(([title,copy,Icon])=><button type="button" key={title} onClick={()=>notify(`${title} draft created.`)}><i><Icon size={21}/></i><strong>{title}</strong><span>{copy}</span><b>Use template <ArrowRight size={14}/></b></button>)}</section>
-    <section className="suite-panel suite-table-panel"><header><div><span>Report library</span><h2>Recent reports.</h2></div><label className="suite-search"><Search size={16}/><input aria-label="Search reports" placeholder="Search reports" value={query} onChange={event=>setQuery(event.target.value)}/></label></header><div className="suite-data-table"><div className="suite-row suite-row--head"><span>Report</span><span>For</span><span>Updated</span><span>Status</span><span/></div>{visible.map(row=><div className="suite-row" key={row[0]}>{row.map((cell,index)=><span key={cell}>{index===0?<strong>{cell}</strong>:index===3?<i className={`suite-status suite-status--${cell.toLowerCase()}`}>{cell}</i>:cell}</span>)}<button type="button" aria-label={`Open ${row[0]}`} onClick={()=>notify(`${row[0]} opened.`)}><ArrowRight size={16}/></button></div>)}</div></section>
-    <section className="suite-note suite-note--info"><CalendarDays size={18}/><div><strong>Monthly delivery can be automated.</strong><span>Choose the reporting day, reviewers and recipients. Your team still approves every report before it is sent.</span></div><button type="button" onClick={()=>notify('Report schedules opened.')}>Manage schedules</button></section>
+    {!live&&<div className="suite-preview"><span>Reports · Sample workspace</span><span><FileBarChart size={14}/>4 report types</span></div>}
+    <PageIntro eyebrow={live?`${clientName||'Workspace'} / Reporting`:"Agency reporting"} title={<>A report clients<br/><em>will actually read.</em></>} copy="Build clear, branded reports around the questions that matter—then share a live link or a polished PDF." actions={<button type="button" className="suite-primary" onClick={()=>run(onCreateReport,'A new report draft was created.')}><Plus size={16}/>Create report</button>}/>
+    {templates.length>0&&<section className="suite-template-grid">{templates.map(item=>{const Icon=reportTemplateIcons[item.id]||FileBarChart;return <button type="button" key={item.id} onClick={()=>live?run(onUseTemplate?()=>onUseTemplate(item.id):null,`${item.title} prepared.`):notify(`${item.title} draft created.`)}><i><Icon size={21}/></i><strong>{item.title}</strong><span>{item.copy}</span><b>Use template <ArrowRight size={14}/></b></button>;})}</section>}
+    {rows.length>0&&<section className="suite-panel suite-table-panel"><header><div><span>Report library</span><h2>Recent reports.</h2></div><label className="suite-search"><Search size={16}/><input aria-label="Search reports" placeholder="Search reports" value={query} onChange={event=>setQuery(event.target.value)}/></label></header><div className="suite-data-table"><div className="suite-row suite-row--head"><span>Report</span><span>For</span><span>Updated</span><span>Status</span><span/></div>{visible.map((row,rowIndex)=><div className="suite-row" key={rowIndex}>{row.map((cell,index)=><span key={index}>{index===0?<strong>{cell}</strong>:index===3?<i className={`suite-status suite-status--${String(cell).toLowerCase()}`}>{cell}</i>:cell}</span>)}<button type="button" aria-label={`Open ${row[0]}`} onClick={()=>live?run(onOpenReport?()=>onOpenReport(row):null,`${row[0]} opened.`):notify(`${row[0]} opened.`)}><ArrowRight size={16}/></button></div>)}</div></section>}
+    {(!live||schedule)&&<section className="suite-note suite-note--info"><CalendarDays size={18}/><div><strong>Monthly delivery can be automated.</strong><span>{live?(schedule.enabled?`This report is sent monthly${schedule.email?` to ${schedule.email}`:''}.`:'Monthly delivery is off for this client.'):'Choose the reporting day, reviewers and recipients. Your team still approves every report before it is sent.'}</span></div><button type="button" onClick={()=>live?run(onToggleSchedule?()=>onToggleSchedule(!schedule.enabled):null,'Monthly delivery updated.'):notify('Report schedules opened.')}>{live?(schedule.enabled?'Turn off monthly delivery':'Turn on monthly delivery'):'Manage schedules'}</button></section>}
     <Toast text={toast}/>
   </main>;
 }
