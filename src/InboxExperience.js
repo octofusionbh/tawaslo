@@ -39,9 +39,11 @@ function ConversationItem({item,active,onSelect}){
   </button></li>;
 }
 
-export default function InboxExperience(){
-  const [items,setItems]=useState(CONVERSATIONS);
-  const [selectedId,setSelectedId]=useState(CONVERSATIONS[0].id);
+export default function InboxExperience({ liveItems = null, clientName = '', onReply = null, loading = false, error = '' } = {}){
+  const source = liveItems || CONVERSATIONS;
+  const [items,setItems]=useState(source);
+  const [selectedId,setSelectedId]=useState(source[0]?.id ?? null);
+  useEffect(()=>{ if(liveItems){ setItems(liveItems); setSelectedId(current => liveItems.some(i=>i.id===current) ? current : (liveItems[0]?.id ?? null)); } },[liveItems]);
   const [filter,setFilter]=useState('all');
   const [channel,setChannel]=useState('all');
   const [query,setQuery]=useState('');
@@ -78,7 +80,8 @@ export default function InboxExperience(){
     setSent(current=>[...current.filter(reply=>reply.id!==selected.id),{id:selected.id,text}]);
     setItems(current=>current.map(item=>item.id===selected.id?{...item,unread:false}:item));
     setDraft('');
-    setNotice(`Reply ready in this preview for ${selected.name}.`);
+    if (onReply) { onReply(selected, text).then(ok => setNotice(ok ? `Reply sent to ${selected.name}.` : `Could not send that reply to ${selected.name}.`)).catch(() => setNotice('Could not send that reply.')); }
+    else setNotice(`Reply ready in this preview for ${selected.name}.`);
     window.setTimeout(()=>setNotice(''),2400);
   }
   function clearFilters(){setFilter('all');setChannel('all');setQuery('');}

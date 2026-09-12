@@ -4171,6 +4171,87 @@ function AgencyDashboard() {
   );
 }
 
+// Inbox on the real Instagram comments and DMs the old page already fetched.
+// Priority, mood and AI reply suggestions were fixtures, so they are left empty
+// and the screen falls back to its own empty handling.
+const inboxAgo = (iso) => {
+  if (!iso) return '';
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  if (secs < 60) return 'now';
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h`;
+  return `${Math.floor(secs / 86400)}d`;
+};
+
+function InboxLive() {
+  const { selClient } = useApp();
+  const [items, setItems] = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    if (!selClient?.id) { setItems([]); return undefined; }
+    (async () => {
+      const { data: rows } = await supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false);
+      const igs = (rows || []).filter(a => a.platform === 'ig' && a.account_id && a.access_token);
+      if (!active) return;
+      setAccounts(igs);
+      if (!igs.length) { setItems([]); return; }
+      const collected = [];
+      let lastError = '';
+      for (const acc of igs) {
+        for (const type of ['comments', 'messages']) {
+          try {
+            const res = await fetch('/api/instagram-inbox', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ accountId: acc.account_id, accessToken: acc.access_token, type }) });
+            const data = await res.json();
+            if (Array.isArray(data?.data)) collected.push(...data.data.map(m => ({ ...m, accountId: acc.account_id, accessToken: acc.access_token })));
+            else if (data?.error && type === 'comments') lastError = data.error;
+          } catch (e) { if (type === 'comments') lastError = e.message; }
+        }
+      }
+      if (!active) return;
+      setError(lastError);
+      collected.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+      setItems(collected.map(m => ({
+        id: String(m.id),
+        type: m.type === 'dm' ? 'dm' : 'comment',
+        platform: 'instagram',
+        name: m.from || 'Instagram user',
+        handle: m.from ? '@' + String(m.from).replace(/^@/, '') : '',
+        time: inboxAgo(m.time),
+        unread: false,
+        priority: '',
+        tone: '#577b9b',
+        preview: String(m.text || '').slice(0, 120),
+        text: String(m.text || ''),
+        post: m.mediaCaption || (m.type === 'dm' ? 'Direct message' : 'Instagram'),
+        mood: '',
+        suggestions: [],
+        _raw: m,
+      })));
+    })();
+    return () => { active = false; };
+  }, [selClient]);
+
+  const reply = async (item, text) => {
+    const raw = item?._raw;
+    if (!raw) return false;
+    try {
+      const res = await fetch('/api/instagram-inbox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId: raw.accountId, accessToken: raw.accessToken, type: 'reply', commentId: raw.id, message: text }),
+      });
+      const data = await res.json();
+      return !data?.error;
+    } catch (e) { return false; }
+  };
+
+  if (!items) return <InboxPage/>;
+  return <InboxExperience liveItems={items} clientName={selClient?.name || ''} onReply={reply} error={error}/>;
+}
+
 // Planner on the workspace's real posts. The planner model only needs a
 // getItem/setItem store, so we give it one backed by the posts table: reads come
 // from a hydrated cache, writes go straight back to Supabase.
@@ -4199,7 +4280,7 @@ function plannerPostFromRow(row) {
   };
 }
 
-function PlannerLive({ dark, setDark, mobileWeb }) {
+function usePlannerStore() {
   const { selClient } = useApp();
   const [cache, setCache] = useState(null);   // monthKey -> planner state
   const clientId = selClient?.id;
@@ -4251,8 +4332,19 @@ function PlannerLive({ dark, setDark, mobileWeb }) {
     };
   }, [cache, clientId]);
 
+  return { store, clientId, clientName: selClient?.name || '' };
+}
+
+function PlannerLive({ dark, setDark, mobileWeb }) {
+  const { store, clientId, clientName } = usePlannerStore();
   if (!store) return <CalendarPage/>;
-  return <PlannerExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} live clientName={selClient?.name || ''}/>;
+  return <PlannerExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} live clientName={clientName}/>;
+}
+
+function ApprovalsLive({ dark, setDark, mobileWeb }) {
+  const { store, clientId, clientName } = usePlannerStore();
+  if (!store) return <ApprovalsPage/>;
+  return <ApprovalsExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} clientName={clientName}/>;
 }
 
 // Billing on the real subscription. Checkout stays with Polar (merchant of
@@ -22672,7 +22764,8 @@ export default function TawasloApp() {
     if (page==="publisher") return <PublisherPage/>;
     if (page==="planner") return workspacePreview && selClient?.id === "preview-marina" ? <PlannerExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <PlannerLive dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
     if (page==="plannerclassic") return <CalendarPage/>;
-    if (page==="approvals") return workspacePreview && selClient?.id === "preview-marina" ? <ApprovalsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <ApprovalsPage/>;
+    if (page==="approvals") return workspacePreview && selClient?.id === "preview-marina" ? <ApprovalsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <ApprovalsLive dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
+    if (page==="approvalsclassic") return <ApprovalsPage/>;
     if (page==="calendar") return workspacePreview && selClient?.id === "preview-marina" ? <CalendarExperience dark={dark} setDark={setDark}/> : <CalendarRoomPage/>;
     if (page==="aistudio") return workspacePreview && selClient?.id === "preview-marina" ? <AIStudioExperience
       initialSavedId={insightStudioId}
@@ -22696,7 +22789,8 @@ export default function TawasloApp() {
     if (page==="besttime") return workspacePreview ? <BestTimeExperience/> : <BestTimePage/>;
     if (page==="recycle") return <ContentRecyclerPage/>;
     if (page==="htlab") return workspacePreview ? (selClient?.id === "preview-marina" ? <AIStudioExperience initialTool="hashtags" dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <AIStudioPage initialTool="hashtags"/>) : <HashtagLabPage/>;
-    if (page==="inbox") return workspacePreview && selClient?.id === "preview-marina" ? <InboxExperience/> : <InboxPage/>;
+    if (page==="inbox") return workspacePreview && selClient?.id === "preview-marina" ? <InboxExperience/> : <InboxLive/>;
+    if (page==="inboxclassic") return <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
     if (page==="agencyteam") return workspacePreview ? <TeamExperience/> : <TeamLive/>;
     if (page==="billing") return workspacePreview ? <BillingExperience dark={dark}/> : <BillingLive dark={dark}/>;

@@ -20,9 +20,9 @@ function Disclosure({className,id,label,children}) {
 }
 const formatDate=(cursor,day)=>new Date(cursor.getFullYear(),cursor.getMonth(),day).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
 
-export default function ApprovalsExperience({dark=false,setDark=()=>{},mobileWeb=false}) {
+export default function ApprovalsExperience({dark=false,setDark=()=>{},mobileWeb=false,store=null,clientName=''}) {
   const [cursor,setCursor]=useState(()=>parseCalendarMonth(new URLSearchParams(window.location.search).get('reviewMonth')));
-  const [loaded,setLoaded]=useState(()=>readPlannerMonth(cursor));
+  const [loaded,setLoaded]=useState(()=>readPlannerMonth(cursor, store));
   const [group,setGroup]=useState('all');
   const [query,setQuery]=useState('');
   const [network,setNetwork]=useState('all');
@@ -53,7 +53,7 @@ export default function ApprovalsExperience({dark=false,setDark=()=>{},mobileWeb
   const month=cursor.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
   const shortMonth=cursor.toLocaleDateString('en-GB',{month:'short',year:'numeric'});
 
-  useEffect(()=>{const sync=e=>{if(e.key===plannerStorageKey(cursor))setLoaded(readPlannerMonth(cursor));};window.addEventListener('storage',sync);return()=>window.removeEventListener('storage',sync);},[cursor]);
+  useEffect(()=>{const sync=e=>{if(e.key===plannerStorageKey(cursor))setLoaded(readPlannerMonth(cursor, store));};window.addEventListener('storage',sync);return()=>window.removeEventListener('storage',sync);},[cursor]);
   useEffect(()=>{try{localStorage.setItem(APPROVAL_PREF_KEY,String(clientApprovalRequired));}catch(_){}},[clientApprovalRequired]);
   useEffect(()=>{const warn=e=>{if(dirty){e.preventDefault();e.returnValue='';}};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn);},[dirty]);
   useEffect(()=>{
@@ -112,14 +112,14 @@ export default function ApprovalsExperience({dark=false,setDark=()=>{},mobileWeb
   function focusReview(){detailHeading.current?.focus({preventScroll:reviewPanel.current?.closest('.tw-review-experience')?.dataset.stationary==='true'});}
   function openPost(id){guard(()=>{if(!filtered.some(p=>p.id===id)){setGroup('all');setQuery('');setNetwork('all');}setSelectedId(id);setDetailOpen(true);setSlide(0);setError('');setNotice('');requestAnimationFrame(focusReview);});}
   function changeGroup(value){guard(()=>{setGroup(value);setSelectedId(null);setDetailOpen(false);setSlide(0);setError('');setNotice('');});}
-  function changeMonth(direction){guard(()=>{const next=new Date(cursor.getFullYear(),cursor.getMonth()+direction,1);setCursor(next);setLoaded(readPlannerMonth(next));setGroup('all');setQuery('');setNetwork('all');setSelectedId(null);setDetailOpen(false);setNotice('');setError('');setSlide(0);const url=new URL(window.location.href);url.searchParams.set('reviewMonth',monthKey(next));window.history.replaceState(window.history.state,'',url);});}
+  function changeMonth(direction){guard(()=>{const next=new Date(cursor.getFullYear(),cursor.getMonth()+direction,1);setCursor(next);setLoaded(readPlannerMonth(next, store));setGroup('all');setQuery('');setNetwork('all');setSelectedId(null);setDetailOpen(false);setNotice('');setError('');setSlide(0);const url=new URL(window.location.href);url.searchParams.set('reviewMonth',monthKey(next));window.history.replaceState(window.history.state,'',url);});}
   function clearFilters(){guard(()=>{setGroup('all');setQuery('');setNetwork('all');setSelectedId(null);setDetailOpen(false);});}
   function beginRevision(){if(!editable||!canPublishOnWeb()||selected?.status!=='changes')return;setSelectedId(selected.id);setRevision({id:selected.id,version:selected.version,caption:selected.caption});setCaption(selected.caption);setNote('');setCompare(false);setNotice('');setError('');}
   function cancelRevision(){guard(()=>{setRevision(null);setError('');requestAnimationFrame(focusReview);});}
   function saveRevision(event){
     event.preventDefault();
     if(!editable||!canPublishOnWeb()){setError('Revisions are available on desktop web. Your edits have not been saved.');return;}
-    const result=commitPlannerChange(cursor,data=>reviseApproval(data,revision.id,caption,note,revision.version));
+    const result=commitPlannerChange(cursor,data=>reviseApproval(data,revision.id,caption,note,revision.version),store);
     if(!result.ok){setError(result.error);return;}
     setLoaded({data:result.data,error:''});setGroup('all');setQuery('');setNetwork('all');setSelectedId(result.post.id);setRevision(null);setError('');setCompare(false);
     setNotice(`Version ${result.post.version} saved for client review. No notification was sent and nothing was published.`);
@@ -133,7 +133,7 @@ export default function ApprovalsExperience({dark=false,setDark=()=>{},mobileWeb
       if(!post)return {ok:false,error:'This post is no longer available in the review.'};
       const updated={...post,status:'approved',approvedBy:'Agency',approvedAt:Date.now(),notes:[...post.notes,{author:'Agency',kind:'approved',version:post.version,text:'Approved by me.'}]};
       return {ok:true,post:updated,data:{...data,posts:data.posts.map(item=>item.id===post.id?updated:item),activity:[{text:`${post.title} approved by your team`,at:Date.now()},...data.activity].slice(0,20)}};
-    });
+    },store);
     if(!result.ok){setError(result.error);return;}
     setLoaded({data:result.data,error:''});setSelectedId(result.post.id);setError('');setNotice(`Version ${result.post.version} approved by you. Nothing was published.`);requestAnimationFrame(focusReview);
   }
