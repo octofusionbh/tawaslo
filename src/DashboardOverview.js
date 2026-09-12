@@ -24,7 +24,7 @@ const CHANNEL_FIXTURES = {
 
 // This review screen deliberately uses fixtures, never production totals.
 // The surrounding app only mounts it in the isolated editorial design preview.
-export default function DashboardOverview({ client, accounts, onNavigate, lang, aiCredits = { used: 0, remaining: 5, limit: 5, extra: 0, unlimited: false } }) {
+export default function DashboardOverview({ client, accounts, onNavigate, lang, aiCredits = { used: 0, remaining: 5, limit: 5, extra: 0, unlimited: false }, live = null }) {
   const mobileWeb = useMobileWeb();
   const ar = lang === "ar";
   const t = (en, arabic) => ar ? arabic : en;
@@ -38,7 +38,7 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
   const activeNetwork = activeAccount ? (NETWORKS[activeAccount.platform] || { name: activeAccount.platform, Icon: ChartNoAxesCombined, color: "#6C6286" }) : null;
   const ActiveNetworkIcon = activeNetwork?.Icon || ChartNoAxesCombined;
   const scopeKey = activeAccount?.platform || "all";
-  const scopeFixture = CHANNEL_FIXTURES[scopeKey] || CHANNEL_FIXTURES.all;
+  const scopeFixture = live ? (live.scopes[scopeKey] || live.scopes.all) : (CHANNEL_FIXTURES[scopeKey] || CHANNEL_FIXTURES.all);
   const scopedAccounts = activeAccount ? [activeAccount] : accounts;
   const chooseScope = id => { setActiveScope(id); setActivePoint(null); };
   const isReach = metric === "reach";
@@ -73,12 +73,13 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
     { name: t("Scheduled", "مجدولة"), count: scopeFixture.scheduled, key: "scheduled", page: "planner" },
     { name: t("Published", "منشورة"), count: scopeFixture.published, key: "published", page: "planner" },
   ];
-  const nextPosts = [
+  const sampleNextPosts = [
     { platform: "ig", day: t("Today", "اليوم"), time: "6:30 PM", title: t("Golden hour, by the water.", "الساعة الذهبية على البحر."), description: t("Carousel · 4 photos", "منشور متعدد · ٤ صور"), format: "01" },
     { platform: "tt", day: t("Tomorrow", "غداً"), time: "7:00 PM", title: t("Your Thursday plans found you.", "لقينا لك خطة الخميس."), description: t("Video · 18 seconds", "فيديو · ١٨ ثانية"), format: "02" },
     { platform: "li", day: t("Tuesday", "الثلاثاء"), time: "10:00 AM", title: t("A new season of hospitality.", "موسم جديد من الضيافة."), description: t("Image post", "منشور بصورة"), format: "03" },
     { platform: "fb", day: t("Wednesday", "الأربعاء"), time: "5:45 PM", title: t("A table worth gathering around.", "طاولة تستحق أن نجتمع حولها."), description: t("Landscape photo", "صورة أفقية"), format: "04" },
   ];
+  const nextPosts = live ? live.nextPosts : sampleNextPosts;
   const scopedNextPosts = activeAccount ? nextPosts.filter(post => post.platform === activeAccount.platform) : nextPosts;
   const signalSets = {
     all: [
@@ -91,8 +92,8 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
     li: [[t("Best moment", "أفضل وقت"), t("Tue · 10 AM", "الثلاثاء · ١٠ ص"), t("Professional reach is strongest then.", "الوصول المهني أقوى في هذا الوقت.")],[t("Strongest theme", "أقوى موضوع"), t("Hospitality stories", "قصص الضيافة"), t("34% more clicks than announcements.", "نقرات أكثر بنسبة ٣٤٪ من الإعلانات.")],[t("Click rate", "معدل النقر"), "2.4%", t("led by people-and-culture posts.", "تقوده منشورات الأشخاص والثقافة.")]],
     tt: [[t("Best moment", "أفضل وقت"), t("Thu · 8 PM", "الخميس · ٨ م"), t("Completion rate peaks at night.", "يبلغ إكمال المشاهدة ذروته مساءً.")],[t("Strongest format", "أقوى صيغة"), t("Under 20 seconds", "أقل من ٢٠ ثانية"), t("Short edits hold attention longer.", "المقاطع القصيرة تحافظ على الانتباه.")],[t("Completion", "إكمال المشاهدة"), "38%", t("watched the latest reel to the end.", "شاهدوا أحدث فيديو حتى النهاية.")]],
   };
-  const signals = signalSets[scopeKey] || signalSets.all;
-  const suggestedIdeas = SAMPLE_SUGGESTED_IDEAS.slice(0, 3);
+  const signals = live ? (live.signals || []) : (signalSets[scopeKey] || signalSets.all);
+  const suggestedIdeas = live ? [] : SAMPLE_SUGGESTED_IDEAS.slice(0, 3);
   const openSuggested = ideaId => {
     try {
       if (ideaId) sessionStorage.setItem("tw_suggested_dashboard_idea", ideaId);
@@ -100,8 +101,10 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
     } catch (_) {}
     onNavigate("suggested");
   };
-  const changesCount = Math.max(1, Math.round(scopeFixture.review * .3));
-  const waitingCount = Math.max(0, scopeFixture.review - changesCount);
+  // On real data we only know how many posts are in review, not how that splits
+  // between "needs changes" and "awaiting approval" — so we show the one number.
+  const changesCount = live ? 0 : Math.max(1, Math.round(scopeFixture.review * .3));
+  const waitingCount = live ? scopeFixture.review : Math.max(0, scopeFixture.review - changesCount);
   const statItems = [
     { name: t("Total audience", "إجمالي الجمهور"), value: compact(totalFollowers), detail: scopeDetail },
     { name: t("Accounts reached", "الحسابات التي تم الوصول إليها"), value: scopeFixture.reachLabel, detail: t("Last 14 days", "آخر ١٤ يوماً") },
@@ -121,7 +124,7 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
           {!mobileWeb&&<button data-publishing-action="true" className="ov-primary" onClick={() => onNavigate("publisher")}><Plus size={16} aria-hidden="true"/>{t("Create post", "إنشاء منشور")}</button>}
         </div>
       </header>
-      <div className="ov-context"><span>{t("Design preview · Sample data", "معاينة التصميم · بيانات تجريبية")}</span><time>{new Date().toLocaleDateString(ar ? "ar-BH" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</time></div>
+      <div className="ov-context"><span>{live ? (client?.name || t("Live workspace", "مساحة عمل مباشرة")) : t("Design preview · Sample data", "معاينة التصميم · بيانات تجريبية")}</span><time>{new Date().toLocaleDateString(ar ? "ar-BH" : "en-GB", { weekday: "long", day: "numeric", month: "long" })}</time></div>
 
       {accounts.length > 0 && <section className="ov-scope" aria-label={t("Dashboard account view", "نطاق حسابات لوحة التحكم")}>
         <div className="ov-scope-copy"><span>{t("Viewing performance for", "عرض أداء")}</span><strong>{scopeTitle}</strong><small>{scopeSubtitle}</small></div>
@@ -147,23 +150,23 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
             {[0, 4, 8, 13].map(i => <text key={i} x={xy[i][0]} y="202" textAnchor={i === 0 ? "start" : i === 13 ? "end" : "middle"}>{dates[i]}</text>)}
           </svg>
           <div className="ov-chart-footer"><button className="ov-text-button" onClick={() => onNavigate("analytics")}>{t("View analytics", "عرض التحليلات")}<ArrowUpRight size={15} aria-hidden="true"/></button><button className="ov-muted-button" aria-expanded={showData} onClick={() => setShowData(!showData)}>{showData ? t("Hide data", "إخفاء البيانات") : t("View chart data", "عرض بيانات الرسم")}</button></div>
-          {showData && <table className="ov-data-table"><caption>{t("Sample daily performance", "الأداء اليومي التجريبي")}</caption><thead><tr><th>{t("Date", "التاريخ")}</th><th>{t("Reach", "الوصول")}</th><th>{t("Engagement", "التفاعل")}</th></tr></thead><tbody>{dates.map((date, i) => <tr key={date}><th scope="row">{date}</th><td>{scopeFixture.dailyReach[i].toLocaleString()}</td><td>{scopeFixture.dailyEngagement[i]}%</td></tr>)}</tbody></table>}
+          {showData && <table className="ov-data-table"><caption>{live ? t("Daily performance", "الأداء اليومي") : t("Sample daily performance", "الأداء اليومي التجريبي")}</caption><thead><tr><th>{t("Date", "التاريخ")}</th><th>{t("Reach", "الوصول")}</th><th>{t("Engagement", "التفاعل")}</th></tr></thead><tbody>{dates.map((date, i) => <tr key={date}><th scope="row">{date}</th><td>{scopeFixture.dailyReach[i].toLocaleString()}</td><td>{scopeFixture.dailyEngagement[i]}%</td></tr>)}</tbody></table>}
         </section>
         <aside className="ov-attention" aria-labelledby="ov-attention-title">
           <div className="ov-section-heading"><div><h2 id="ov-attention-title">{t("Needs attention", "يحتاج إلى اهتمامك")}</h2><p>{scopeTitle} · {t("A short list. A clear next step.", "قائمة مختصرة وخطوة تالية واضحة.")}</p></div><span className="ov-attention-total">{scopeFixture.review}</span></div>
-          <button className="ov-task" onClick={() => onNavigate("approvals")}><MessageSquare size={18} aria-hidden="true"/><span><strong>{changesCount} {t(changesCount === 1 ? "post needs changes" : "posts need changes", "منشورات تحتاج إلى تعديل")}</strong><small>{t("Client feedback is ready to review.", "ملاحظات العميل جاهزة للمراجعة.")}</small></span><ArrowUpRight size={16} aria-hidden="true"/></button>
+          {changesCount > 0 && <button className="ov-task" onClick={() => onNavigate("approvals")}><MessageSquare size={18} aria-hidden="true"/><span><strong>{changesCount} {t(changesCount === 1 ? "post needs changes" : "posts need changes", "منشورات تحتاج إلى تعديل")}</strong><small>{t("Client feedback is ready to review.", "ملاحظات العميل جاهزة للمراجعة.")}</small></span><ArrowUpRight size={16} aria-hidden="true"/></button>}
           <button className="ov-task" onClick={() => onNavigate("approvals")}><Clock3 size={18} aria-hidden="true"/><span><strong>{waitingCount} {t(waitingCount === 1 ? "post awaiting approval" : "posts awaiting approval", "منشورات تنتظر الموافقة")}</strong><small>{t("Check the client approval queue.", "راجع قائمة موافقات العميل.")}</small></span><ArrowUpRight size={16} aria-hidden="true"/></button>
           <div className="ov-next-step"><CheckCheck size={17} aria-hidden="true"/><p><strong>{t("Your next 3 days are covered.", "محتوى الأيام الثلاثة القادمة جاهز.")}</strong><span>{scopeFixture.scheduled} {t("posts are scheduled. Keep the next week moving in Planner.", "منشوراً مجدولاً. حضّر الأسبوع القادم في المخطط.")}</span></p></div>
           <button className="ov-text-button" onClick={() => onNavigate("planner")}>{t("Open planner", "فتح المخطط")}<ArrowRight size={15} aria-hidden="true"/></button>
         </aside>
       </div>
 
-      <section className="ov-signals" aria-labelledby="ov-signals-title">
+      {signals.length > 0 && <section className="ov-signals" aria-labelledby="ov-signals-title">
         <div className="ov-signals-heading"><span>{t("Creative signals", "إشارات إبداعية")}</span><h2 id="ov-signals-title">{t("What is shaping results", "ما الذي يشكّل النتائج")}</h2><p>{scopeTitle}</p></div>
         {signals.map(([label,value,note]) => <div className="ov-signal" key={label}><span>{label}</span><strong>{value}</strong><small>{note}</small></div>)}
-      </section>
+      </section>}
 
-      <section className="ov-ideas" aria-labelledby="ov-ideas-title">
+      {suggestedIdeas.length > 0 && <section className="ov-ideas" aria-labelledby="ov-ideas-title">
         <div className="ov-ideas-heading">
           <div><span><CalendarDays size={14} aria-hidden="true"/>{t("Daily briefing", "موجز يومي")}</span><h2 id="ov-ideas-title">{t("Ideas for you", "أفكار لك")}</h2><p>{t("Three timely directions, already shaped for Marina.", "ثلاثة اتجاهات مناسبة ومهيأة لمارينا.")}</p></div>
           <button className="ov-ideas-all" onClick={() => openSuggested()}>{t("View all ideas", "عرض كل الأفكار")}<ArrowUpRight size={15} aria-hidden="true"/></button>
@@ -175,7 +178,7 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
             <ArrowUpRight size={16} aria-hidden="true"/>
           </button>)}
         </div>
-      </section>
+      </section>}
 
       <section className="ov-pipeline" aria-labelledby="ov-pipeline-title">
         <div className="ov-pipeline-heading"><h2 id="ov-pipeline-title">{t("Content pipeline", "مسار المحتوى")}</h2><p>{t("From first draft to published.", "من المسودة الأولى إلى النشر.")}</p></div>
@@ -184,7 +187,7 @@ export default function DashboardOverview({ client, accounts, onNavigate, lang, 
 
       <div className="ov-bottom-grid">
         <section aria-labelledby="ov-upcoming-title"><div className="ov-section-heading"><div><h2 id="ov-upcoming-title">{t("Next to go live", "المنشورات القادمة")}</h2><p>{t("Scheduled in your workspace timezone.", "مجدولة حسب التوقيت المحلي لمساحة العمل.")}</p></div><button className="ov-text-button" onClick={() => onNavigate("planner")}>{t("View all", "عرض الكل")}<ArrowUpRight size={15} aria-hidden="true"/></button></div>
-          <div className="ov-post-list">{scopedNextPosts.map(post => { const network = NETWORKS[post.platform]; const Icon = network.Icon; return <button className="ov-post" key={post.platform} onClick={() => onNavigate("planner")}><div className="ov-post-time"><strong>{post.day}</strong><span>{post.time}</span></div><div className={`ov-post-art ov-art-${post.platform}`} aria-hidden="true">{post.platform === "ig" ? <><span>MARINA</span><i/><small>GOLDEN HOUR</small></> : post.platform === "tt" ? <><span>MEET YOU<br/>BY THE BAY.</span><i/></> : <><span>A NEW<br/>SEASON.</span><small>MARINA SOCIAL CLUB</small></>}</div><span className="ov-post-copy"><strong>{post.title}</strong><small><Icon color={network.color} aria-hidden="true"/>{network.name}<span>·</span>{post.description}</small></span><ArrowUpRight size={16} aria-hidden="true"/></button>; })}</div>
+          <div className="ov-post-list">{scopedNextPosts.length === 0 && <p className="ov-empty">{t("Nothing scheduled yet. Plan a post and it will appear here.", "\u0644\u0627 \u064a\u0648\u062c\u062f \u0645\u062d\u062a\u0648\u0649 \u0645\u062c\u062f\u0648\u0644 \u0628\u0639\u062f.")}</p>}{scopedNextPosts.map(post => { const network = NETWORKS[post.platform] || { Icon: ChartNoAxesCombined, name: post.platform, color: "#6C6286" }; const Icon = network.Icon; return <button className="ov-post" key={post.id || post.platform} onClick={() => onNavigate("planner")}><div className="ov-post-time"><strong>{post.day}</strong><span>{post.time}</span></div><div className={`ov-post-art ov-art-${post.platform}`} aria-hidden="true">{post.platform === "ig" ? <><span>MARINA</span><i/><small>GOLDEN HOUR</small></> : post.platform === "tt" ? <><span>MEET YOU<br/>BY THE BAY.</span><i/></> : <><span>A NEW<br/>SEASON.</span><small>MARINA SOCIAL CLUB</small></>}</div><span className="ov-post-copy"><strong>{post.title}</strong><small><Icon color={network.color} aria-hidden="true"/>{network.name}<span>·</span>{post.description}</small></span><ArrowUpRight size={16} aria-hidden="true"/></button>; })}</div>
         </section>
         <section className="ov-channels" aria-labelledby="ov-channels-title"><div className="ov-section-heading"><div><h2 id="ov-channels-title">{t("Your channels", "منصاتك")}</h2><p>{t("Audience by network. Select one to focus.", "الجمهور حسب المنصة. اختر منصة للتركيز.")}</p></div><span className="ov-small-note">{accounts.length} {t("connected", "مرتبطة")}</span></div>
           {accounts.map(account => { const network = NETWORKS[account.platform] || { Icon: ChartNoAxesCombined, name: account.platform, color: "#6C6286" }; const Icon = network.Icon; return <button className="ov-channel" aria-pressed={scopeId === account.id} onClick={() => chooseScope(account.id)} key={account.id}><Icon className="ov-network-icon" color={network.color} aria-hidden="true"/><span className="ov-channel-body"><span><strong>{network.name}</strong><span>{compact(account.followers_count || 0)}</span></span><span className="ov-channel-track"><i style={{ width: `${(account.followers_count || 0) / Math.max(allFollowers, 1) * 100}%`, backgroundColor: network.color }}/></span></span></button>; })}

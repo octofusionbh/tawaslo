@@ -441,3 +441,6 @@
   .ov-ai-meter{width:100%}
   .ov-ai-copy>span{align-items:baseline;flex-direction:row;gap:8px}
 }
+
+/* Empty state for the "Next to go live" list when a workspace has nothing scheduled. */
+.ov-empty{margin:0;padding:18px 2px;color:var(--ov-muted,#6b6f80);font-size:13px;line-height:1.6}

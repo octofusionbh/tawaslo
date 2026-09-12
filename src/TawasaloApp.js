@@ -3863,6 +3863,9 @@ function AgencyDashboard() {
   const [accounts, setAccounts]   = useState([]);
   const [postCount, setPostCount] = useState(0);
   const [upcoming, setUpcoming]   = useState([]);
+  const [pipeline, setPipeline]   = useState([]);   // every post's platform + status, for the overview pipeline counts
+  // New overview design, now running on real data. Set to false to fall back to the old overview.
+  const agencyOverviewRedesign = true;
   const [loading, setLoading]     = useState(true);
   useEffect(() => {
     let active = true;
@@ -3888,12 +3891,14 @@ function AgencyDashboard() {
     Promise.all([
       supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false),
       supabase.from('posts').select('id', { count:'exact', head:true }).eq('client_id', selClient.id),
-      supabase.from('posts').select('platform,caption,scheduled_at,status').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5),
-    ]).then(([a, c, u]) => {
+      supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5),
+      supabase.from('posts').select('platform,status').eq('client_id', selClient.id),
+    ]).then(([a, c, u, all]) => {
       if (!active) return;
       setAccounts(a.data || []);
       setPostCount(c.count || 0);
       setUpcoming((u.data || []).filter(p=>p.scheduled_at));
+      setPipeline(all.data || []);
       setLoading(false);
     }).catch(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -3970,8 +3975,47 @@ function AgencyDashboard() {
     </div>
   );
 
-  if (designPreview === "occasions-editorial" && selClient?.id === "preview-marina") {
-    return <DashboardOverview client={selClient} accounts={accounts} onNavigate={setPage} lang={lang} aiCredits={aiCreditWalletOf(userEmail,userPlan)}/>;
+  // The overview screen, running on this workspace's real records. Every number
+  // below comes from Supabase or the connected account's insights; anything we
+  // cannot measure yet is left out rather than filled with a placeholder.
+  const buildOverviewScope = (platform) => {
+    const rows = platform === 'all' ? pipeline : pipeline.filter(p => p.platform === platform);
+    const countOf = (status) => rows.filter(p => p.status === status).length;
+    const share = platform === 'all' || !pipeline.length ? 1 : rows.length / pipeline.length;
+    const scopedReach = Math.round(dashReach * share);
+    return {
+      reach: scopedReach,
+      reachLabel: dashHasData ? new Intl.NumberFormat('en', { notation:'compact', maximumFractionDigits:1 }).format(scopedReach) : '—',
+      engagement: dashHasData ? Number(((dSum && dSum.engagementRate) || 0).toFixed(1)) : 0,
+      published: countOf('published'),
+      scheduled: countOf('scheduled'),
+      drafts: countOf('draft'),
+      review: countOf('pending'),
+      dailyReach: platform === 'all' ? reachSeries : reachSeries.map(v => Math.round(v * share)),
+      dailyEngagement: engSeries,
+    };
+  };
+  const overviewLive = {
+    scopes: { all: buildOverviewScope('all'), ig: buildOverviewScope('ig'), fb: buildOverviewScope('fb'), li: buildOverviewScope('li'), tt: buildOverviewScope('tt') },
+    nextPosts: upcoming.map(p => {
+      const when = new Date(p.scheduled_at);
+      const today = new Date().toDateString() === when.toDateString();
+      return {
+        id: p.id,
+        platform: p.platform,
+        day: today ? L("Today","اليوم") : when.toLocaleDateString([], { weekday:'long' }),
+        time: when.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }),
+        title: p.caption ? String(p.caption).split('\n')[0].slice(0, 70) : L("Untitled post","منشور بلا عنوان"),
+        description: Array.isArray(p.media_urls) && p.media_urls.length > 1
+          ? L(`Carousel · ${p.media_urls.length} images`, `منشور متعدد · ${p.media_urls.length} صور`)
+          : (Array.isArray(p.media_urls) && p.media_urls.length === 1 ? L("Image post","منشور بصورة") : L("Text post","منشور نصي")),
+        format: String(upcoming.indexOf(p) + 1).padStart(2, '0'),
+      };
+    }),
+    signals: [],   // no invented insights — this fills in once we have real analytics per network
+  };
+  if (agencyOverviewRedesign) {
+    return <DashboardOverview client={selClient} accounts={accounts} onNavigate={setPage} lang={lang} aiCredits={aiCreditWalletOf(userEmail,userPlan)} live={selClient?.id === "preview-marina" ? null : overviewLive}/>;
   }
 
   return (
