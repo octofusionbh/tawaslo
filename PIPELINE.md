@@ -121,3 +121,15 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Link in bio | **QR code** | 🟨 Codex's generator draws a random pattern, NOT a scannable code. The `qrcode` package is already installed — small job, real value |
 | Link in bio | Campaign attribution, scheduled content, owned audience | 🟨 advertised but unimplemented |
 | Link in bio | Several bio pages per client | 🟦 the redesign models exactly one |
+
+## Added while wiring Competitor and Steal This
+
+| Page | Missing | Needs |
+|---|---|---|
+| Competitor | Month-by-month benchmark | 🟨 the trends API is a one-shot lookup, not a history |
+| Competitor | Our own account as a baseline row, "X points above/below us" | 🟦 run the same lookup on our own handle and compare |
+| Competitor | Posts this month | 🟨 `postCount` is lifetime only |
+| Competitor | Content mix by format | 🟨 the API does not report format |
+| Competitor | Per-post creative brief | 🟨 AI pass per post |
+| Steal This | Post titles and formats | 🟨 posts carry only captions |
+| Steal This | Takeaway and pre-filled brief | 🟨 were canned copy; needs a real AI pass |

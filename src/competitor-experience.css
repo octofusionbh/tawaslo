@@ -25,3 +25,10 @@
 .tw-competitor-experience .cp-method summary{min-height:44px}
 .tw-competitor-experience .cp-button.cp-primary:hover:not(:disabled){background:var(--cp-accent);color:var(--cp-on-accent);filter:brightness(.96)}
 @media(prefers-reduced-motion:reduce){.tw-competitor-experience *{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* Live mode shows the competitor's real thumbnail where the sample page draws artwork. */
+.cp-art-live{display:block;object-fit:cover;background:var(--cp-art-bg);padding:0}
+.cp-art-empty{display:grid;place-items:center;text-align:center;color:var(--cp-muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
+.cp-insight ul,.cp-insight ol{margin:0;padding-inline-start:17px;color:var(--cp-muted);font-size:12px;line-height:1.8}
+.cp-post-source{display:inline-flex;align-items:center;gap:5px;color:var(--cp-accent);text-decoration:none;font-weight:600}
+.cp-post-source:hover{text-decoration:underline}

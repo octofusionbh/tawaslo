@@ -25,3 +25,7 @@
 .sp-detail>figure{margin:0 auto}
 .sp-filterbar button{min-width:44px}
 @media(max-width:767px){.sp-preview>.sp-icon{top:10px;right:12px}}
+
+/* Live mode shows the competitor's real thumbnail where the sample page draws artwork. */
+.sp-art-live{display:block;object-fit:cover;width:100%;padding:0;background:var(--sp-art-paper)}
+.sp-art-empty{display:grid;place-items:center;text-align:center;color:var(--sp-muted);font-size:11px;letter-spacing:.04em;text-transform:uppercase}
