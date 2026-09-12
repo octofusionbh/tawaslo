@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orderlo - hero reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0E1512; --ink2:#4A5751; --line:#E7E9E5;
+  --grn:#1C7A5A; --grn-d:#0F5C42; --grn-l:#EAF6F0;
+  --bg:#FFFFFF; --wash:#F4F8F5; --gold:#B9935A;
+  --sh:0 24px 60px -20px rgba(14,40,30,.28), 0 8px 20px -12px rgba(14,40,30,.16);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+a{text-decoration:none;color:inherit}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.82);backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--line)}
+.navin{display:flex;align-items:center;justify-content:space-between;height:72px}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:22px;letter-spacing:-.02em}
+.brand svg{display:block}
+.nlinks{display:flex;align-items:center;gap:34px}
+.nlinks a{font-size:15px;font-weight:500;color:var(--ink2)}
+.nlinks a:hover{color:var(--ink)}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;border-radius:12px;padding:12px 22px;transition:.18s;cursor:pointer;border:0}
+.btn-p{background:var(--grn);color:#fff;box-shadow:0 8px 18px -8px rgba(28,122,90,.6)}
+.btn-p:hover{background:var(--grn-d);transform:translateY(-1px)}
+.btn-g{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn-g:hover{border-color:#C9D2CC;background:var(--wash)}
+
+/* hero */
+.hero{position:relative;overflow:hidden;padding:72px 0 40px}
+.hero:before{content:"";position:absolute;top:-260px;right:-160px;width:640px;height:640px;border-radius:50%;
+  background:radial-gradient(circle at center, rgba(28,122,90,.14), rgba(28,122,90,0) 68%);z-index:0}
+.heroin{position:relative;z-index:1;display:grid;grid-template-columns:1.02fr 1fr;gap:52px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:9px;background:var(--grn-l);color:var(--grn-d);
+  font-weight:600;font-size:13px;padding:7px 14px;border-radius:999px;letter-spacing:.01em}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--grn);display:inline-block}
+h1{font-size:64px;line-height:1.02;letter-spacing:-.035em;font-weight:800;margin:22px 0 0}
+h1 .u{position:relative;white-space:nowrap}
+h1 .u:after{content:"";position:absolute;left:0;right:0;bottom:6px;height:14px;background:rgba(185,147,90,.32);z-index:-1;border-radius:3px}
+.sub{font-size:19px;line-height:1.6;color:var(--ink2);max-width:520px;margin:24px 0 0;font-weight:400}
+.cta{display:flex;gap:14px;margin:34px 0 0}
+.assure{display:flex;align-items:center;gap:22px;margin:22px 0 0;color:var(--ink2);font-size:14px;font-weight:500}
+.assure span{display:flex;align-items:center;gap:7px}
+.assure svg{color:var(--grn)}
+
+/* product shot */
+.shot{position:relative}
+.frame{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--sh);overflow:hidden}
+.fbar{display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line);background:#FBFCFB}
+.fbar b{width:11px;height:11px;border-radius:50%;background:#E2E5E1;display:inline-block}
+.fbar .url{margin-left:12px;font-size:12px;color:#9AA5A0;font-weight:500}
+.pos{display:grid;grid-template-columns:150px 1fr;height:392px}
+.rail{background:#0F1A15;padding:18px 12px;color:#8FA69A}
+.rl-b{display:flex;align-items:center;gap:8px;color:#fff;font-weight:700;font-size:15px;margin:0 4px 18px}
+.rl{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500;padding:9px 10px;border-radius:9px;margin-bottom:3px}
+.rl.on{background:rgba(28,122,90,.22);color:#fff}
+.rl .d{width:14px;height:14px;border-radius:4px;background:currentColor;opacity:.7}
+.main{background:#F7F9F8;padding:16px;display:grid;grid-template-columns:1fr 168px;gap:14px}
+.mtop{grid-column:1/-1;display:flex;align-items:baseline;justify-content:space-between}
+.mtop b{font-size:15px;font-weight:700}
+.mtop span{font-size:11px;color:#8B958F;font-weight:500}
+.chips{grid-column:1;display:flex;gap:7px;margin:-4px 0 2px}
+.chip{font-size:11px;font-weight:600;padding:5px 11px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink2)}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.grid{grid-column:1;display:grid;grid-template-columns:repeat(3,1fr);gap:9px;align-content:start}
+.tile{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tile .im{height:52px;background-size:cover;background-position:center}
+.tile .tt{padding:8px 9px 9px}
+.tile .nm{font-size:11.5px;font-weight:600;line-height:1.2}
+.tile .pr{font-size:11px;color:var(--grn);font-weight:700;margin-top:3px}
+.ord{grid-column:2;grid-row:2/4;background:#fff;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column}
+.oh{padding:11px 12px;font-size:12px;font-weight:700;border-bottom:1px solid var(--line)}
+.ol{display:flex;justify-content:space-between;padding:8px 12px;font-size:11.5px}
+.ol .n{color:var(--ink)}.ol .q{color:#9AA5A0}
+.of{margin-top:auto;padding:11px 12px;border-top:1px solid var(--line)}
+.of .r{display:flex;justify-content:space-between;font-size:11px;color:var(--ink2);margin-bottom:5px}
+.of .r.ac{color:var(--grn);font-weight:600}
+.of .r.t{color:var(--ink);font-weight:700;font-size:13px}
+.pay{background:var(--grn);color:#fff;text-align:center;font-size:12px;font-weight:700;padding:10px;border-radius:9px;margin-top:9px}
+.float{position:absolute;left:-26px;bottom:34px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--sh);padding:13px 16px;display:flex;align-items:center;gap:12px}
+.float .ic{width:38px;height:38px;border-radius:10px;background:var(--grn-l);color:var(--grn-d);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+.float .bg{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.float .sm{font-size:11.5px;color:var(--ink2);font-weight:500}
+
+/* trust */
+.trust{padding:44px 0 8px}
+.trust p{text-align:center;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:#9AA5A0;font-weight:700;margin-bottom:22px}
+.logos{display:flex;align-items:center;justify-content:center;gap:52px;flex-wrap:wrap;opacity:.62}
+.logos span{font-weight:800;font-size:20px;letter-spacing:-.02em;color:var(--ink2)}
+@media(max-width:940px){.heroin{grid-template-columns:1fr;gap:40px}h1{font-size:46px}.float{display:none}}
+</style>
+</head>
+<body>
+
+<div class="nav"><div class="wrap navin">
+  <a class="brand" href="#">
+    <svg width="30" height="30" viewBox="0 0 48 48" fill="none"><path d="M14 14 h20 a10 10 0 0 1 0 20 h-20 a10 10 0 0 1 0 -20 z" stroke="#0E1512" stroke-width="3.6"/><circle cx="14" cy="14" r="4" fill="#0E1512"/><circle cx="34" cy="34" r="4" fill="#1C7A5A"/></svg>
+    Orderlo
+  </a>
+  <div class="nlinks">
+    <a href="#">Product</a><a href="#">Pricing</a><a href="#">For agencies</a>
+    <a class="btn btn-p" href="#">Start free</a>
+  </div>
+</div></div>
+
+<header class="hero"><div class="wrap heroin">
+  <div>
+    <span class="pill"><i></i> The venue operating system</span>
+    <h1>Run your whole<br>venue from <span class="u">one screen</span>.</h1>
+    <p class="sub">Point of sale, menus, pickup orders, reservations, loyalty and gift cards in one calm system your whole team can run. Live this afternoon.</p>
+    <div class="cta">
+      <a class="btn btn-p" href="#">Start free
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      <a class="btn btn-g" href="#">See what it does</a>
+    </div>
+    <div class="assure">
+      <span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 12l4 4L19 6"/></svg> No card to start</span>
+      <span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 12l4 4L19 6"/></svg> No hardware</span>
+      <span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M5 12l4 4L19 6"/></svg> Set up in minutes</span>
+    </div>
+  </div>
+
+  <div class="shot">
+    <div class="frame">
+      <div class="fbar"><b></b><b></b><b></b><span class="url">app.orderlo.store</span></div>
+      <div class="pos">
+        <div class="rail">
+          <div class="rl-b">
+            <svg width="18" height="18" viewBox="0 0 48 48" fill="none"><path d="M14 14 h20 a10 10 0 0 1 0 20 h-20 a10 10 0 0 1 0 -20 z" stroke="#fff" stroke-width="3.6"/><circle cx="14" cy="14" r="4" fill="#fff"/><circle cx="34" cy="34" r="4" fill="#1C7A5A"/></svg>
+            Orderlo
+          </div>
+          <div class="rl"><span class="d"></span>Dashboard</div>
+          <div class="rl on"><span class="d"></span>Point of sale</div>
+          <div class="rl"><span class="d"></span>Menu</div>
+          <div class="rl"><span class="d"></span>Reservations</div>
+          <div class="rl"><span class="d"></span>Orders</div>
+          <div class="rl"><span class="d"></span>Loyalty</div>
+          <div class="rl"><span class="d"></span>Reports</div>
+        </div>
+        <div class="main">
+          <div class="mtop"><b>Point of sale</b><span>Till open · 09:14 · Owner</span></div>
+          <div class="chips"><span class="chip on">All</span><span class="chip">Coffee</span><span class="chip">Pastries</span><span class="chip">Cold</span></div>
+          <div class="grid">
+            <div class="tile"><div class="im" style="background-image:url('img/demo-flat-white.png')"></div><div class="tt"><div class="nm">Flat White</div><div class="pr">USD 5.50</div></div></div>
+            <div class="tile"><div class="im" style="background-image:url('img/demo-flat-white.png')"></div><div class="tt"><div class="nm">Cortado</div><div class="pr">USD 4.75</div></div></div>
+            <div class="tile"><div class="im" style="background-image:url('img/demo-flat-white.png')"></div><div class="tt"><div class="nm">V60</div><div class="pr">USD 6.00</div></div></div>
+            <div class="tile"><div class="im" style="background-image:url('img/demo-cinnamon-roll.png')"></div><div class="tt"><div class="nm">Cinnamon Roll</div><div class="pr">USD 6.50</div></div></div>
+            <div class="tile"><div class="im" style="background-image:url('img/demo-chicken-bowl.png')"></div><div class="tt"><div class="nm">Chicken Bowl</div><div class="pr">USD 16.00</div></div></div>
+            <div class="tile"><div class="im" style="background-image:url('img/demo-caprese-toastie.png')"></div><div class="tt"><div class="nm">Caprese Toastie</div><div class="pr">USD 13.50</div></div></div>
+          </div>
+          <div class="ord">
+            <div class="oh">Current order</div>
+            <div class="ol"><span class="n">Flat White</span><span class="q">×2</span></div>
+            <div class="ol"><span class="n">Croissant</span><span class="q">×1</span></div>
+            <div class="ol"><span class="n">Cortado</span><span class="q">×1</span></div>
+            <div class="of">
+              <div class="r"><span>Items</span><span>USD 22.50</span></div>
+              <div class="r ac"><span>New customer</span><span>− 0.790</span></div>
+              <div class="r t"><span>Total</span><span>USD 24.50</span></div>
+              <div class="pay">Charge USD 24.50</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="float">
+      <div class="ic">✦</div>
+      <div><div class="bg">+38%</div><div class="sm">repeat guests this month</div></div>
+    </div>
+  </div>
+</div></header>
+
+<section class="trust"><div class="wrap">
+  <p>Built for hospitality teams worldwide</p>
+  <div class="logos">
+    <span>L'ORTO</span><span>Marina Café</span><span>Adliya Roast</span><span>Seef Bistro</span><span>Block 338</span>
+  </div>
+</div></section>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Orderlo">
+  <style>
+    .m{stroke:#1A1B1E;}
+    @media (prefers-color-scheme: dark){ .m{stroke:#FFFFFF;} }
+  </style>
+  <path class="m" d="M24 6a18 18 0 1 1-12.7 5.3" fill="none" stroke-width="4" stroke-linecap="round"/>
+</svg>

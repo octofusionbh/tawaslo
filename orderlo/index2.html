@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orderlo · the venue operating system</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#F6F2EA;--surface:#fff;--surface2:#FBF8F2;--line:#E8E2D7;--line2:#DAD3C6;--tx:#181A1C;--t2:#5C5A53;--t3:#8B877C;--ac:#2C6A57;--ac2:#348069;--acsoft:#EAF1EE;--gold:#C4A76A;--shadow:0 40px 90px -40px rgba(24,26,20,.45);--shadow2:0 20px 50px -28px rgba(24,26,20,.30);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--tx);font-family:Inter,-apple-system,'Segoe UI',sans-serif;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+  .serif{font-family:'Fraunces',Georgia,serif;letter-spacing:-.02em;font-weight:600;}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 30px;}
+  a{color:inherit;text-decoration:none;}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:12px;padding:14px 24px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.18s;}
+  .btn.p{background:var(--ac);color:#fff;letter-spacing:.3px;}.btn.p:hover{background:var(--ac2);transform:translateY(-2px);}
+  .btn.g{background:var(--surface);color:var(--tx);border:1px solid var(--line2);}.btn.g:hover{border-color:var(--t3);}
+  .rv{opacity:0;transform:translateY(24px);transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1);}
+  .rv.in{opacity:1;transform:none;}
+  @keyframes hover{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+  @keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes pulse{0%,100%{opacity:.4;transform:scale(1)}50%{opacity:1;transform:scale(1.2)}}
+  /* nav */
+  .bar{position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 78%,transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);}
+  .barin{display:flex;align-items:center;height:72px;gap:24px;}
+  .brand{display:flex;align-items:center;gap:9px;}.brand .w{font-family:'Fraunces',Georgia,serif;font-size:20px;font-weight:600;}
+  .links{margin-left:auto;display:flex;align-items:center;gap:26px;font-size:14px;color:var(--t2);}
+  .links a:hover{color:var(--tx);}
+  @media(max-width:800px){.links a.hide{display:none;}}
+  /* HERO */
+  .hero{position:relative;padding:56px 0 92px;overflow:hidden;}
+  .heroin{position:relative;display:grid;grid-template-columns:1fr 1.12fr;gap:52px;align-items:center;z-index:1;}
+  @media(max-width:960px){.heroin{grid-template-columns:1fr;gap:44px;text-align:center;}}
+  .glow{position:absolute;width:760px;height:520px;right:-140px;top:-120px;background:radial-gradient(closest-side,color-mix(in srgb,var(--ac) 15%,transparent),transparent);filter:blur(24px);z-index:0;pointer-events:none;}
+  .glow.g2{width:520px;height:360px;left:-160px;top:140px;background:radial-gradient(closest-side,color-mix(in srgb,var(--gold) 20%,transparent),transparent);}
+  .eyebrow{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);}
+  h1{font-family:'Fraunces',Georgia,serif;font-size:60px;line-height:1.02;letter-spacing:-2px;margin:22px 0 0;font-weight:600;}
+  h1 em{font-style:italic;color:var(--ac);}
+  @media(max-width:960px){h1{font-size:44px;letter-spacing:-1px;}}
+  .lede{font-size:18px;color:var(--t2);max-width:480px;margin:20px 0 0;line-height:1.62;}.lede b{color:var(--tx);}
+  @media(max-width:960px){.lede{margin-left:auto;margin-right:auto;}}
+  .cta{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap;}
+  @media(max-width:960px){.cta{justify-content:center;}}
+  .trust{display:flex;align-items:center;gap:10px;margin-top:22px;font-size:13px;color:var(--t3);}
+  @media(max-width:960px){.trust{justify-content:center;}}
+  .stars{color:var(--gold);letter-spacing:3px;font-size:13px;}
+  /* device: browser */
+  .shot{position:relative;}
+  .browser{background:var(--surface);border:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:var(--shadow);overflow:hidden;}
+  .bhead{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface2);}
+  .bdot{width:11px;height:11px;border-radius:50%;background:#E3DCCF;}
+  .burl{margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;font-size:12px;color:var(--t3);padding:5px 44px;}
+  /* mini POS */
+  .pos{display:flex;height:430px;font-size:12px;}
+  .prail{width:150px;flex:0 0 150px;border-right:1px solid var(--line);padding:12px 10px;display:flex;flex-direction:column;gap:2px;background:var(--surface);}
+  .plogo{display:flex;align-items:center;gap:8px;padding:4px 6px 12px;}.plogo b{font-family:'Fraunces',Georgia,serif;font-size:15px;}
+  .pnav{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;color:var(--t2);font-size:12px;}
+  .pnav.on{background:var(--acsoft);color:var(--ac);font-weight:600;}
+  .pnav i{width:13px;height:13px;border:1.4px solid currentColor;border-radius:4px;opacity:.75;}
+  .pmain{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .ptop{height:46px;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px;gap:8px;}
+  .ptop .tt{font-family:'Fraunces',Georgia,serif;font-size:14px;}
+  .pbody{flex:1;display:flex;gap:12px;padding:12px;min-height:0;}
+  .pmenu{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .pchips{display:flex;gap:6px;margin-bottom:9px;}
+  .pchip{font-size:11px;padding:5px 10px;border-radius:14px;border:1px solid var(--line);color:var(--t2);}
+  .pchip.on{background:var(--ac);color:#fff;border-color:var(--ac);}
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;overflow:hidden;}
+  .ptile{border:1px solid var(--line);border-radius:9px;padding:8px;display:flex;flex-direction:column;min-height:104px;}
+  .pthumb{height:48px;border-radius:6px;margin-bottom:7px;position:relative;overflow:hidden;flex:0 0 auto;}
+  .pt1{background:linear-gradient(135deg,#c9a882,#7a5230)}.pt2{background:linear-gradient(135deg,#b98d5f,#5e3a1e)}.pt3{background:linear-gradient(135deg,#d8b48a,#8a5a2b)}.pt4{background:linear-gradient(135deg,#e6c48f,#b07d3a)}
+  .ptn{font-size:11.5px;font-weight:600;line-height:1.2;min-height:2.4em;}.ptp{font-size:11px;color:var(--t3);margin-top:auto;white-space:nowrap;}
+  .porder{width:186px;flex:0 0 186px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;}
+  .poh{padding:9px 11px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;}
+  .pline{display:flex;align-items:center;gap:6px;padding:7px 10px;border-bottom:1px solid var(--surface2);font-size:11.5px;}
+  .pline .n{flex:1;}.pline .q{color:var(--t3);}.pmuted{color:var(--t3);}
+  .pfoot{margin-top:auto;padding:11px;border-top:1px solid var(--line);}
+  .pr{display:flex;justify-content:space-between;font-size:11.5px;color:var(--t2);padding:2px 0;}.pr.ac{color:var(--ac);}.pr b{color:var(--tx);}
+  .pcharge{margin-top:8px;background:var(--ac);color:#fff;text-align:center;border-radius:8px;padding:10px;font-size:12.5px;font-weight:600;}
+  /* marquee */
+  .strip{border-top:1px solid var(--line);border-bottom:1px solid var(--line);overflow:hidden;padding:20px 0;background:var(--surface2);margin-top:70px;}
+  .track{display:flex;align-items:center;gap:16px;width:max-content;animation:marquee 34s linear infinite;white-space:nowrap;}
+  .track:hover{animation-play-state:paused;}
+  .track .mf{font-size:11.5px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--ac);margin:0 30px 0 14px;}
+  .track .it{font-family:'Fraunces',Georgia,serif;font-size:19px;color:var(--tx);}
+  .track .dot{color:var(--t3);opacity:.5;font-size:14px;}
+  
+  /* feature rows */
+  section{padding:96px 0;}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;}
+  .row.rev .txt{order:2;}
+  @media(max-width:860px){.row{grid-template-columns:1fr;gap:36px;}.row.rev .txt{order:0;}}
+  .k{font-size:11.5px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--gold);}
+  .txt h2{font-family:'Fraunces',Georgia,serif;font-size:40px;line-height:1.08;letter-spacing:-1px;margin:14px 0 16px;font-weight:600;}
+  .txt p{font-size:16.5px;color:var(--t2);line-height:1.65;max-width:460px;}
+  .flist{margin-top:22px;display:flex;flex-direction:column;gap:11px;}
+  .flist div{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;color:var(--t2);}
+  .flist svg{flex-shrink:0;margin-top:3px;color:var(--ac);}
+  /* phone */
+  .phone{width:280px;margin:0 auto;background:#0c0b08;border-radius:34px;padding:9px;box-shadow:var(--shadow);}
+  .pscreen{background:var(--surface);border-radius:26px;overflow:hidden;}
+  .pcover{background:var(--ac);color:#fff;text-align:center;padding:22px 16px 16px;}
+  .pcover .nm{font-family:'Fraunces',Georgia,serif;font-size:24px;}
+  .pcover .sb{font-size:11px;opacity:.85;margin-top:2px;}
+  .plang{display:inline-flex;background:rgba(255,255,255,.16);border-radius:16px;padding:2px;margin-top:10px;font-size:11px;}
+  .plang b{padding:4px 11px;border-radius:14px;}.plang b.on{background:#fff;color:var(--ac);}
+  .pgtabs{display:flex;gap:6px;padding:12px 14px 6px;}
+  .pgtab{font-size:11px;padding:5px 10px;border-radius:14px;border:1px solid var(--line);color:var(--t2);}
+  .pgtab.on{background:var(--tx);color:#fff;border-color:var(--tx);}
+  .pcard{display:flex;gap:10px;align-items:center;margin:0 14px 8px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px;}
+  .pcimg{width:48px;height:48px;border-radius:8px;flex:0 0 48px;position:relative;overflow:hidden;}
+  .pci{flex:1;}.pcrow{display:flex;justify-content:space-between;}.pcn{font-family:'Fraunces',Georgia,serif;font-size:13px;font-weight:600;}.pcp{color:var(--ac);font-weight:600;font-size:12px;}
+  .pcd{font-size:10.5px;color:var(--t3);margin-top:1px;}
+  .pbar{border-top:1px solid var(--line);padding:11px 14px;}
+  .pbarb{background:var(--ac);color:#fff;border-radius:9px;text-align:center;padding:11px;font-size:12.5px;font-weight:600;}
+  /* Lo chat panel */
+  .lo{width:330px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;}
+  .lohead{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);}
+  .lobadge{width:32px;height:32px;border-radius:9px;background:var(--ac);color:#fff;display:flex;align-items:center;justify-content:center;}
+  .lonm{font-weight:700;font-size:14px;}.losub{font-size:11px;color:var(--t3);}
+  .lomsgs{padding:14px;display:flex;flex-direction:column;gap:10px;}
+  .m{max-width:86%;padding:9px 12px;border-radius:13px;font-size:12.5px;line-height:1.5;}
+  .m.me{align-self:flex-end;background:var(--ac);color:#fff;border-bottom-right-radius:4px;}
+  .m.lo{align-self:flex-start;background:var(--surface2);border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .loin{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);}
+  .loin .f{flex:1;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--t3);}
+  .loin .s{width:38px;background:var(--ac);border-radius:10px;color:#fff;display:flex;align-items:center;justify-content:center;}
+  /* steps */
+  .band{background:var(--surface2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .shead{text-align:center;max-width:600px;margin:0 auto 46px;}
+  .shead .k{display:block;}.shead h2{font-family:'Fraunces',Georgia,serif;font-size:40px;letter-spacing:-1px;margin:12px 0 12px;font-weight:600;}.shead p{color:var(--t2);font-size:16px;}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  @media(max-width:820px){.steps{grid-template-columns:1fr;}}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:28px;}
+  .step .n{font-family:'Fraunces',Georgia,serif;font-size:15px;color:var(--ac);width:36px;height:36px;border-radius:50%;border:1px solid color-mix(in srgb,var(--ac) 30%,transparent);display:flex;align-items:center;justify-content:center;margin-bottom:16px;}
+  .step h3{font-family:'Fraunces',Georgia,serif;font-size:20px;margin-bottom:7px;}.step p{font-size:14px;color:var(--t2);line-height:1.6;}
+  /* pricing */
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;align-items:stretch;}
+  @media(max-width:820px){.plans{grid-template-columns:1fr;}}
+  .plan{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:30px;display:flex;flex-direction:column;transition:.18s;}
+  .plan:hover{transform:translateY(-5px);box-shadow:var(--shadow2);}
+  .plan.hot{border:1.5px solid var(--ac);}
+  .plan .tag{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--ac);}
+  .plan h3{font-family:'Fraunces',Georgia,serif;font-size:24px;margin:6px 0 8px;}
+  .plan .price{font-family:'Fraunces',Georgia,serif;font-size:36px;font-weight:600;}.plan .price span{font-family:Inter;font-size:13px;color:var(--t3);font-weight:400;}
+  .plan ul{list-style:none;margin:18px 0 24px;display:flex;flex-direction:column;gap:10px;}
+  .plan li{font-size:13.5px;color:var(--t2);display:flex;gap:9px;align-items:flex-start;}.plan li svg{flex-shrink:0;margin-top:2px;color:var(--ac);}
+  .plan .btn{margin-top:auto;justify-content:center;}
+  .ribbon{align-self:flex-start;background:var(--ac);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;padding:4px 11px;border-radius:20px;margin-bottom:12px;}
+  /* quote */
+  .quote{text-align:center;}.quote p{font-family:'Fraunces',Georgia,serif;font-size:32px;line-height:1.4;font-weight:600;max-width:760px;margin:0 auto;letter-spacing:-.5px;}.quote span{color:var(--t2);}
+  /* final */
+  .final .card{position:relative;overflow:hidden;text-align:center;background:radial-gradient(150% 190% at 12% -20%,#2f4038,#12201a);color:#EFEDE6;border-radius:30px;padding:76px 30px;}
+  .final .card::after{content:"";position:absolute;right:-8%;bottom:-70%;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--gold) 26%,transparent),transparent 66%);}
+  .final h2{font-family:'Fraunces',Georgia,serif;font-size:44px;font-weight:600;position:relative;letter-spacing:-1px;}
+  .final p{color:#CAC7BD;margin:14px 0 28px;position:relative;}
+  .final .btn.p{background:var(--gold);color:#1c1710;position:relative;box-shadow:none;}.final .btn.p:hover{background:#d3b878;}
+  /* footer */
+  footer{border-top:1px solid var(--line);padding:44px 0;}
+  .footin{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;color:var(--t3);font-size:12.5px;}
+  .footin .fl{display:flex;gap:24px;}.footin a:hover{color:var(--t2);}
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="wrap barin">
+  <a class="brand" href="index2.html"><svg width="26" height="26" viewBox="0 0 48 48" fill="none"><path d="M14 14 h20 a10 10 0 0 1 0 20 h-20 a10 10 0 0 1 0 -20 z" stroke="currentColor" stroke-width="3.6"/><circle cx="14" cy="14" r="4" fill="currentColor"/><circle cx="34" cy="34" r="4" fill="#2C6A57"/></svg><span class="w">Orderlo</span></a>
+  <div class="links"><a class="hide" href="#product">Product</a><a class="hide" href="#how">How it works</a><a class="hide" href="#pricing">Pricing</a><a class="btn p" style="padding:9px 18px" href="#">Start free</a></div>
+</div></div>
+
+<!-- HERO -->
+<header class="hero"><div class="wrap">
+  <div class="glow"></div><div class="glow g2"></div>
+  <div class="heroin">
+    <div>
+      <span class="eyebrow rv">The venue operating system</span>
+      <h1 class="rv">Run the whole venue.<br><em>Quietly.</em></h1>
+      <p class="lede rv">Menu, POS, orders, reservations, loyalty and gift cards. One calm system your team runs over WhatsApp and the web, in Arabic and English. <b>Live this afternoon.</b></p>
+      <div class="cta rv"><a class="btn p" href="#">Start free</a><a class="btn g" href="#product">See it in action</a></div>
+      <div class="trust rv"><span class="stars">★★★★★</span> No card, no hardware. Set up in minutes.</div>
+    </div>
+    <div class="shot rv" style="animation:hover 8s ease-in-out infinite;">
+    <div class="browser">
+      <div class="bhead"><span class="bdot"></span><span class="bdot"></span><span class="bdot"></span><span class="burl">app.orderlo.store</span></div>
+      <div class="pos">
+        <div class="prail">
+          <div class="plogo"><svg width="20" height="20" viewBox="0 0 48 48" fill="none"><path d="M14 14 h20 a10 10 0 0 1 0 20 h-20 a10 10 0 0 1 0 -20 z" stroke="#181A1C" stroke-width="3.6"/><circle cx="14" cy="14" r="4" fill="#181A1C"/><circle cx="34" cy="34" r="4" fill="#2C6A57"/></svg><b>Orderlo</b></div>
+          <div class="pnav"><i></i>Dashboard</div><div class="pnav on"><i></i>Point of sale</div><div class="pnav"><i></i>Menu</div><div class="pnav"><i></i>Reservations</div><div class="pnav"><i></i>Orders</div><div class="pnav"><i></i>Kitchen</div><div class="pnav"><i></i>Loyalty</div><div class="pnav"><i></i>Reports</div>
+        </div>
+        <div class="pmain">
+          <div class="ptop"><div class="tt">Point of sale</div><div class="pmuted" style="font-size:11px;">Till open · 09:14 · Owner</div></div>
+          <div class="pbody">
+            <div class="pmenu">
+              <div class="pchips"><span class="pchip on">All</span><span class="pchip">Coffee</span><span class="pchip">Pastries</span><span class="pchip">Cold Drinks</span></div>
+              <div class="pgrid">
+                <div class="ptile"><span class="pthumb pt1"><img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">Flat White</span><span class="ptp">BHD 3.000</span></div>
+                <div class="ptile"><span class="pthumb pt2"><img src="https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">Cortado</span><span class="ptp">BHD 3.000</span></div>
+                <div class="ptile"><span class="pthumb pt3"><img src="https://images.unsplash.com/photo-1541167760496-1628856ab772?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">V60</span><span class="ptp">BHD 3.000</span></div>
+                <div class="ptile"><span class="pthumb pt4"><img src="https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">Croissant</span><span class="ptp">BHD 1.600</span></div>
+                <div class="ptile"><span class="pthumb pt1"><img src="https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">Spanish Latte</span><span class="ptp">BHD 3.200</span></div>
+                <div class="ptile"><span class="pthumb pt3"><img src="https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=240&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><span class="ptn">Cheesecake</span><span class="ptp">BHD 2.500</span></div>
+              </div>
+            </div>
+            <div class="porder">
+              <div class="poh">Current order</div>
+              <div class="pline"><span class="n">Flat White</span><span class="q">×2</span><span>6.000</span></div>
+              <div class="pline"><span class="n">Croissant</span><span class="q">×1</span><span>1.600</span></div>
+              <div class="pline"><span class="n">Cortado</span><span class="q">×1</span><span>3.000</span></div>
+              <div class="pfoot">
+                <div class="pr"><span>Items</span><span>BHD 10.600</span></div>
+                <div class="pr ac"><span>New customer</span><span>− 0.790</span></div>
+                <div class="pr"><span>Total</span><b>BHD 9.810</b></div>
+                <div class="pcharge">Charge BHD 9.810</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div></header>
+
+<!-- MARQUEE -->
+<div class="strip"><div class="track">
+  <span class="mf">Made for</span><span class="it">restaurants</span><span class="dot">·</span><span class="it">cafés</span><span class="dot">·</span><span class="it">bakeries</span><span class="dot">·</span><span class="it">shops</span><span class="dot">·</span><span class="it">salons</span><span class="dot">·</span><span class="it">clinics</span><span class="dot">·</span><span class="it">gyms</span><span class="dot">·</span><span class="it">and more</span><span class="dot">·</span>
+  <span class="mf">Made for</span><span class="it">restaurants</span><span class="dot">·</span><span class="it">cafés</span><span class="dot">·</span><span class="it">bakeries</span><span class="dot">·</span><span class="it">shops</span><span class="dot">·</span><span class="it">salons</span><span class="dot">·</span><span class="it">clinics</span><span class="dot">·</span><span class="it">gyms</span><span class="dot">·</span><span class="it">and more</span>
+</div></div>
+
+<!-- FEATURE ROWS -->
+<section id="product"><div class="wrap">
+  <div class="row">
+    <div class="txt rv"><div class="k">Point of sale</div><h2>A till that does the whole job.</h2><p>Ring up sales on any tablet, no hardware to buy. Tips, split payments, gift cards, item discounts and refunds, with shift and tax reports at close.</p>
+      <div class="flist">
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Cash, card, split, or gift card</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Promotions and codes apply themselves</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>X and Z reports, cash drawer, refunds</div>
+      </div>
+    </div>
+    <div class="rv" style="animation:hover 7s ease-in-out infinite;">
+      <div class="lo" style="width:360px;box-shadow:var(--shadow2);"><div class="poh" style="padding:11px 14px;">Order · #42</div>
+        <div class="pline"><span class="n">Flat White</span><span class="q">×2</span><span>6.000</span></div>
+        <div class="pline"><span class="n">Cheesecake <span class="ac" style="color:var(--ac);font-size:10px;">On the house</span></span><span class="q">×1</span><span style="color:var(--ac);font-weight:600;">0.000</span></div>
+        <div style="padding:12px 14px;"><div class="pr"><span class="pmuted">Items</span><span>BHD 8.500</span></div><div class="pr"><span class="pmuted">VAT (incl.)</span><span>0.773</span></div><div class="pr"><span class="pmuted">Total</span><b>BHD 8.500</b></div><div class="pcharge" style="margin-top:9px;">Take payment</div></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="guest" style="padding-top:0;"><div class="wrap">
+  <div class="row rev">
+    <div class="txt rv"><div class="k">Your menu, their phone</div><h2>A menu worth showing off.</h2><p>Guests open a branded, bilingual menu by QR or a WhatsApp link. Daily and seasonal menus switch on by date, with festive covers you design in your own colours.</p>
+      <div class="flist">
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Arabic and English, right to left</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Order for pickup, book a table</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Seasonal menus and custom banners</div>
+      </div>
+    </div>
+    <div class="rv" style="animation:hover 8s ease-in-out infinite;">
+      <div class="phone"><div class="pscreen">
+        <div class="pcover"><div class="nm">Marina Café</div><div class="sb">Adliya · Manama</div><div class="plang"><b class="on">English</b><b>العربية</b></div></div>
+        <div class="pgtabs"><span class="pgtab on">Coffee</span><span class="pgtab">Pastries</span><span class="pgtab">Cold</span></div>
+        <div class="pcard"><span class="pcimg pt1"><img src="https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><div class="pci"><div class="pcrow"><span class="pcn">Flat White</span><span class="pcp">BHD 3.0</span></div><div class="pcd">Small batch, fresh each morning.</div></div></div>
+        <div class="pcard"><span class="pcimg pt4"><img src="https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=160&q=60&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.remove()"></span><div class="pci"><div class="pcrow"><span class="pcn">Butter Croissant</span><span class="pcp">BHD 1.6</span></div><div class="pcd">Flaky, baked in house daily.</div></div></div>
+        <div class="pbar"><div class="pbarb">View order · BHD 7.600</div></div>
+      </div></div>
+    </div>
+  </div>
+</div></section>
+
+<section id="lo" style="padding-top:0;"><div class="wrap">
+  <div class="row">
+    <div class="txt rv"><div class="k">Meet Lo</div><h2>Run the venue by chatting.</h2><p>Lo is the assistant built into your dashboard. Tell it what you need in plain words and it does it, in seconds, so you are not hunting through settings on a busy night.</p>
+      <div class="flist">
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>“Add Latte for 1.6 to Drinks”</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>“86 the cheesecake”, “pause online orders”</div>
+        <div><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Message the team, add a walk-in</div>
+      </div>
+    </div>
+    <div class="rv" style="animation:hover 7.5s ease-in-out infinite;">
+      <div class="lo">
+        <div class="lohead"><span class="lobadge">✦</span><div><div class="lonm">Lo</div><div class="losub">Your assistant · runs the venue</div></div></div>
+        <div class="lomsgs">
+          <div class="m me">add Latte for 1.6 to Drinks</div>
+          <div class="m lo">Added “Latte” to Drinks at BHD 1.600. Opening the Menu so you can see it.</div>
+          <div class="m me">86 the cheesecake</div>
+          <div class="m lo">Marked “Cheesecake” as sold out, on the guest menu and the POS.</div>
+        </div>
+        <div class="loin"><span class="f">Ask Lo, or type a command…</span><span class="s">➤</span></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<!-- HOW -->
+<section id="how" class="band"><div class="wrap">
+  <div class="shead rv"><span class="k">How it works</span><h2>Live this afternoon.</h2><p>No installer, no waiting on a technician. Three steps and you are taking orders.</p></div>
+  <div class="steps">
+    <div class="step rv"><div class="n">1</div><h3>Build your menu</h3><p>Add items, prices and photos, or import them. Turn on the modules you want, off the ones you do not.</p></div>
+    <div class="step rv"><div class="n">2</div><h3>Share your link</h3><p>Guests scan your QR or tap your WhatsApp link and see your branded menu, in Arabic and English.</p></div>
+    <div class="step rv"><div class="n">3</div><h3>Serve the room</h3><p>Orders, bookings and payments flow to one board. Your team looks after guests, not a call log.</p></div>
+  </div>
+</div></section>
+
+<!-- PRICING -->
+<section id="pricing"><div class="wrap">
+  <div class="shead rv"><span class="k">Pricing</span><h2>Start free. Grow when you are ready.</h2><p>Fourteen days free on any plan. No card to start, cancel anytime.</p></div>
+  <div class="plans">
+    <div class="plan rv"><div class="tag">Starter</div><h3>Get going</h3><div class="price">Free<span> / 14 days</span></div><ul>
+      <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Menu, QR &amp; guest ordering</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Counter POS</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Reservations</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>One venue</li>
+    </ul><a class="btn g" href="#">Start free</a></div>
+    <div class="plan hot rv"><div class="ribbon">Most popular</div><div class="tag">Pro</div><h3>Run the venue</h3><div class="price">BHD ••<span> / month</span></div><ul>
+      <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Everything in Starter</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Promotions, loyalty &amp; gift cards</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Kitchen display &amp; full POS</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Reports &amp; Excel export</li>
+    </ul><a class="btn p" href="#">Start free</a></div>
+    <div class="plan rv"><div class="tag">Brand</div><h3>Multi-venue</h3><div class="price">Custom</div><ul>
+      <li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Everything in Pro</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Many branches, one view</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Own-brand app option</li><li><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l4 4L19 6"/></svg>Priority support</li>
+    </ul><a class="btn g" href="#">Talk to us</a></div>
+  </div>
+</div></section>
+
+<section class="quote"><div class="wrap rv"><p>You opened a café, not a call centre. <span>Orderlo takes the admin off your hands, and hands the room back to your team.</span></p></div></section>
+
+<section class="final"><div class="wrap"><div class="card rv">
+  <h2 class="serif">Open Orderlo this afternoon.</h2>
+  <p>Fourteen days free. No card, no hardware, no installer.</p>
+  <a class="btn p" href="#">Start free</a>
+</div></div></section>
+
+<footer><div class="wrap footin">
+  <a class="brand" href="index2.html"><svg width="24" height="24" viewBox="0 0 48 48" fill="none"><path d="M14 14 h20 a10 10 0 0 1 0 20 h-20 a10 10 0 0 1 0 -20 z" stroke="currentColor" stroke-width="3.6"/><circle cx="14" cy="14" r="4" fill="currentColor"/><circle cx="34" cy="34" r="4" fill="#2C6A57"/></svg></a>
+  <div class="fl"><a href="#product">Product</a><a href="#pricing">Pricing</a><a href="#">For agencies</a><a href="#">Talk to us</a></div>
+  <div>Orderlo · Manama, Bahrain</div>
+</div></footer>
+
+<script>
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.14});
+  document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

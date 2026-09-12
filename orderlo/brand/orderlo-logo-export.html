@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orderlo — logo exporter (real Georgia)</title>
+<style>
+  body{margin:0;background:#F7F4EF;color:#1A1B1E;font-family:Georgia,serif;-webkit-font-smoothing:antialiased;padding:40px 20px;}
+  .wrap{max-width:760px;margin:0 auto;}
+  h1{font-size:28px;margin:0 0 6px;}
+  .sub{font-family:Arial,sans-serif;font-size:14px;color:#615F58;margin-bottom:26px;line-height:1.5;}
+  .preview{background:#fff;border:1px solid #E6E0D6;border-radius:16px;padding:34px;display:flex;align-items:center;justify-content:center;min-height:130px;margin-bottom:8px;}
+  .preview.dark{background:#0E1013;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 8px;font-family:Arial,sans-serif;}
+  button{font-family:Arial,sans-serif;font-size:13.5px;font-weight:600;border:1px solid #1A1B1E;background:#1A1B1E;color:#fff;border-radius:10px;padding:11px 16px;cursor:pointer;}
+  button.alt{background:#fff;color:#1A1B1E;}
+  button:hover{opacity:.9;}
+  .lbl{font-family:Arial,sans-serif;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8B877C;margin:24px 0 4px;}
+  canvas{max-width:100%;height:auto;}
+  .note{font-family:Arial,sans-serif;font-size:12.5px;color:#8B877C;margin-top:20px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Orderlo logo exporter</h1>
+  <div class="sub">This page draws the logo in <b>your browser's Georgia</b> — the same font as the website. Pick a version, choose a size, and download a crisp PNG. (You must be on Windows/Mac, where Georgia lives.)</div>
+
+  <div class="lbl">Preview</div>
+  <div class="preview" id="prevWrap"><canvas id="prev"></canvas></div>
+
+  <div class="lbl">Full logo</div>
+  <div class="row">
+    <button onclick="dl(false,'#1A1B1E',null,4)">Ink · transparent PNG</button>
+    <button onclick="dl(false,'#FFFFFF','#0E1013',4)" >White · on black PNG</button>
+    <button class="alt" onclick="dl(false,'#1A1B1E','#FFFFFF',4)">Ink · on white PNG</button>
+  </div>
+
+  <div class="lbl">Icon only (the “O”)</div>
+  <div class="row">
+    <button onclick="dl(true,'#1A1B1E',null,6)">Ink · transparent</button>
+    <button onclick="dl(true,'#FFFFFF','#0E1013',6)">White · on black</button>
+    <button class="alt" onclick="dl(true,'#1A1B1E','#FFFFFF',6)">Ink · on white</button>
+  </div>
+
+  <div class="note">Tip: for an Instagram profile picture, use the <b>icon on black</b> — Instagram crops to a circle, and the “O” alone reads best small. For posts and headers, use the full logo.</div>
+</div>
+
+<canvas id="work" style="display:none"></canvas>
+<script>
+const FS=200, R=70, LW=19, PAD=40, GAP=8;
+function deg(d){return d*Math.PI/180;}
+function measure(markOnly){
+  const c=document.getElementById('work'), x=c.getContext('2d');
+  x.font='600 '+FS+'px Georgia';
+  const capsTop=PAD, baseline=PAD+140, cy=PAD+R;
+  const cx=PAD+R+LW/2;
+  const oRight=cx+R+LW/2;
+  let W,H;
+  if(markOnly){ W=oRight+PAD; H=(cy+R+LW/2)+PAD; }
+  else { const tw=x.measureText('rderlo').width; W=oRight+GAP+tw+PAD; H=(baseline+ (FS*0.24))+PAD; }
+  return {W,H,cx,cy,baseline,oRight};
+}
+function draw(ctx,scale,markOnly,color,bg){
+  const m=measure(markOnly);
+  const W=Math.ceil(m.W*scale), H=Math.ceil(m.H*scale);
+  ctx.canvas.width=W; ctx.canvas.height=H;
+  ctx.clearRect(0,0,W,H);
+  if(bg){ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);}
+  ctx.save(); ctx.scale(scale,scale);
+  // O — open ring, gap upper-left
+  ctx.strokeStyle=color; ctx.lineWidth=LW; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(m.cx,m.cy,R, deg(275), deg(225)+2*Math.PI, false); ctx.stroke();
+  if(!markOnly){
+    ctx.fillStyle=color; ctx.font='600 '+FS+'px Georgia'; ctx.textBaseline='alphabetic';
+    ctx.fillText('rderlo', m.oRight+GAP, m.baseline);
+  }
+  ctx.restore();
+  return {W,H};
+}
+function renderPreview(){
+  const c=document.getElementById('prev'), x=c.getContext('2d');
+  draw(x,1.4,false,'#1A1B1E',null);
+  c.style.width=(c.width/2)+'px';
+}
+function dl(markOnly,color,bg,scale){
+  const c=document.getElementById('work'), x=c.getContext('2d');
+  draw(x,scale,markOnly,color,bg);
+  const a=document.createElement('a');
+  a.download='orderlo-'+(markOnly?'icon':'logo')+'-'+(color==='#FFFFFF'?'white':'ink')+(bg?(bg==='#FFFFFF'?'-onwhite':'-onblack'):'-transparent')+'.png';
+  a.href=c.toDataURL('image/png'); a.click();
+}
+document.fonts && document.fonts.ready.then(renderPreview); renderPreview();
+</script>
+</body>
+</html>

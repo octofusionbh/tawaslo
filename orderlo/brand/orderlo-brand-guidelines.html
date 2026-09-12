@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orderlo — Brand Guidelines</title>
+<style>
+  :root{--ink:#1A1B1E;--t2:#5C5A53;--t3:#8B877C;--line:#E6E0D6;--paper:#F7F4EF;--card:#FFFFFF;--ac:#2C6A57;--ac2:#348069;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--paper);color:var(--ink);font-family:'Inter',-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;line-height:1.6;}
+  .serif{font-family:'Georgia','Times New Roman',serif;letter-spacing:-.015em;font-weight:600;}
+  .wrap{max-width:920px;margin:0 auto;padding:0 32px;}
+  /* cover */
+  .cover{min-height:78vh;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid var(--line);}
+  .cover .logo{margin-bottom:34px;}
+  .cover h1{font-family:Georgia,serif;font-size:56px;font-weight:600;line-height:1.05;margin-bottom:14px;}
+  .cover p{font-size:18px;color:var(--t2);max-width:520px;}
+  .meta{margin-top:40px;font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);}
+  /* sections */
+  section{padding:74px 0;border-bottom:1px solid var(--line);}
+  .sec-no{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--ac);font-weight:600;margin-bottom:14px;}
+  h2{font-family:Georgia,serif;font-size:32px;font-weight:600;margin-bottom:16px;}
+  h3{font-size:16px;font-weight:600;margin:26px 0 10px;}
+  p.body{font-size:15.5px;color:var(--t2);max-width:640px;margin-bottom:14px;}
+  p.body b{color:var(--ink);}
+  /* logo displays */
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0;}
+  @media(max-width:640px){.panels{grid-template-columns:1fr;}}
+  .panel{border-radius:16px;padding:48px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);}
+  .panel.light{background:var(--card);}
+  .panel.dark{background:#141518;border-color:#141518;}
+  .cap{font-size:12px;color:var(--t3);text-align:center;margin-top:8px;}
+  .clearbox{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:40px;display:flex;justify-content:center;position:relative;}
+  /* colors */
+  .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px;}
+  @media(max-width:720px){.swatches{grid-template-columns:1fr 1fr;}}
+  .sw{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--card);}
+  .sw .chip{height:96px;}
+  .sw .info{padding:12px 14px;}
+  .sw .nm{font-size:13.5px;font-weight:600;}
+  .sw .hex{font-size:12px;color:var(--t3);margin-top:2px;font-family:ui-monospace,Menlo,monospace;}
+  .sw .use{font-size:11.5px;color:var(--t3);margin-top:6px;line-height:1.4;}
+  /* type */
+  .typedemo{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:32px;margin-top:20px;}
+  .type-serif{font-family:Georgia,serif;font-weight:600;font-size:44px;line-height:1.1;margin-bottom:6px;}
+  .type-sans{font-size:16px;color:var(--t2);}
+  .scale{font-family:Georgia,serif;color:var(--t3);border-top:1px solid var(--line);margin-top:22px;padding-top:18px;font-size:13px;line-height:2.2;}
+  /* voice */
+  .vgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+  @media(max-width:640px){.vgrid{grid-template-columns:1fr;}}
+  .vcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;}
+  .vcard .h{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .vcard.yes .h{color:var(--ac);}
+  .vcard.no .h{color:#B4553F;}
+  .vcard ul{list-style:none;font-size:14px;color:var(--t2);}
+  .vcard li{padding:5px 0 5px 18px;position:relative;}
+  .vcard li:before{content:"";position:absolute;left:0;top:12px;width:6px;height:6px;border-radius:50%;background:var(--t3);}
+  /* dos */
+  .dos{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px;}
+  @media(max-width:640px){.dos{grid-template-columns:1fr;}}
+  .do{border:1px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;}
+  .do .box{height:120px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--line);}
+  .do .lb{padding:12px 16px;font-size:13px;}
+  .do .lb.ok{color:var(--ac);}
+  .do .lb.bad{color:#B4553F;}
+  footer{padding:50px 0;text-align:center;color:var(--t3);font-size:12.5px;}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover"><div class="wrap">
+  <div class="logo">
+    <svg viewBox="0 0 176 48" height="40" fill="none" aria-label="Orderlo"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#1A1B1E" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg>
+  </div>
+  <h1>Brand<br>Guidelines</h1>
+  <p>How Orderlo looks, sounds and holds itself together — the logo, the colours, the type and the tone.</p>
+  <div class="meta">Version 1.0 · An Octo Fusion product · Manama, Bahrain</div>
+</div></div>
+
+<!-- 01 IDEA -->
+<section><div class="wrap">
+  <div class="sec-no">01 — The idea</div>
+  <h2>An open door, in one letter.</h2>
+  <p class="body">Orderlo runs the front-of-house admin for restaurants, cafés, shops and services — orders, pickups, reservations and loyalty, over WhatsApp — so their teams can look after the room instead of the phone.</p>
+  <p class="body">The mark is an <b>open "O"</b>: a ring with a gap, like a table set and ready, or a door left open for a guest. It reads as hospitality and as the first letter of the name at the same time. Calm, confident, welcoming — never loud.</p>
+</div></section>
+
+<!-- 02 LOGO -->
+<section><div class="wrap">
+  <div class="sec-no">02 — Logo</div>
+  <h2>The logo</h2>
+  <p class="body">The primary logo is the aperture "O" set as the first letter of the wordmark. It is monochrome by design — <b>ink on light backgrounds, white on dark</b> — so it never competes with a photograph or a colour.</p>
+  <div class="panels">
+    <div>
+      <div class="panel light"><svg viewBox="0 0 176 48" height="34" fill="none"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#1A1B1E" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div>
+      <div class="cap">Ink · on light backgrounds</div>
+    </div>
+    <div>
+      <div class="panel dark"><svg viewBox="0 0 176 48" height="34" fill="none"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#FFFFFF" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#FFFFFF" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div>
+      <div class="cap">White · on dark backgrounds</div>
+    </div>
+  </div>
+
+  <h3>The mark alone</h3>
+  <p class="body">For favicons, app icons and tight spaces, the aperture "O" stands on its own.</p>
+  <div class="panels">
+    <div><div class="panel light"><svg width="52" height="52" viewBox="0 0 48 48" fill="none"><path d="M24 6a18 18 0 1 1-12.7 5.3" stroke="#1A1B1E" stroke-width="4" stroke-linecap="round"/></svg></div><div class="cap">Mark · ink</div></div>
+    <div><div class="panel dark"><svg width="52" height="52" viewBox="0 0 48 48" fill="none"><path d="M24 6a18 18 0 1 1-12.7 5.3" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/></svg></div><div class="cap">Mark · white</div></div>
+  </div>
+
+  <h3>Clear space &amp; minimum size</h3>
+  <p class="body">Keep clear space around the logo equal to the height of the "O". Don't let type, edges or other marks crowd it. Minimum sizes: <b>logo 90px wide</b> on screen, <b>mark 20px</b>.</p>
+</div></section>
+
+<!-- 03 MISUSE -->
+<section><div class="wrap">
+  <div class="sec-no">03 — Don'ts</div>
+  <h2>Keep it honest</h2>
+  <div class="dos">
+    <div class="do"><div class="box"><svg viewBox="0 0 176 48" height="26" fill="none"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#2C6A57" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div><div class="lb bad">Don't colour the "O" separately</div></div>
+    <div class="do"><div class="box"><svg viewBox="0 0 176 48" height="26" fill="none" style="transform:skewX(-12deg)"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#1A1B1E" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div><div class="lb bad">Don't slant, stretch or distort</div></div>
+    <div class="do"><div class="box"><svg viewBox="0 0 176 48" height="26" fill="none"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#1A1B1E" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Arial,sans-serif" font-weight="700" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div><div class="lb bad">Don't swap the typeface</div></div>
+    <div class="do"><div class="box" style="background:#3a5c8a"><svg viewBox="0 0 176 48" height="26" fill="none"><path d="M20 9a15 15 0 1 1-10.6 4.4" stroke="#1A1B1E" stroke-width="3.7" stroke-linecap="round"/><text x="39" y="37" fill="#1A1B1E" font-family="Georgia,serif" font-weight="600" font-size="40" letter-spacing="-0.6">rderlo</text></svg></div><div class="lb bad">Don't place ink logo on low-contrast colour</div></div>
+  </div>
+</div></section>
+
+<!-- 04 COLOUR -->
+<section><div class="wrap">
+  <div class="sec-no">04 — Colour</div>
+  <h2>Palette</h2>
+  <p class="body">Orderlo is mostly <b>ink and paper</b>, warmed by a single deep-green accent used sparingly — on buttons, links and small highlights, never on the logo.</p>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#1A1B1E"></div><div class="info"><div class="nm">Ink</div><div class="hex">#1A1B1E</div><div class="use">Text, logo, dark surfaces</div></div></div>
+    <div class="sw"><div class="chip" style="background:#F7F4EF"></div><div class="info"><div class="nm">Paper</div><div class="hex">#F7F4EF</div><div class="use">Primary background</div></div></div>
+    <div class="sw"><div class="chip" style="background:#2C6A57"></div><div class="info"><div class="nm">Accent · Green</div><div class="hex">#2C6A57</div><div class="use">Buttons, links, highlights</div></div></div>
+    <div class="sw"><div class="chip" style="background:#FFFFFF;box-shadow:inset 0 0 0 1px #E6E0D6"></div><div class="info"><div class="nm">Surface</div><div class="hex">#FFFFFF</div><div class="use">Cards, panels</div></div></div>
+  </div>
+  <div class="swatches" style="margin-top:14px;">
+    <div class="sw"><div class="chip" style="background:#5C5A53"></div><div class="info"><div class="nm">Muted</div><div class="hex">#5C5A53</div><div class="use">Secondary text</div></div></div>
+    <div class="sw"><div class="chip" style="background:#E6E0D6"></div><div class="info"><div class="nm">Line</div><div class="hex">#E6E0D6</div><div class="use">Borders, dividers</div></div></div>
+    <div class="sw"><div class="chip" style="background:#128C4B"></div><div class="info"><div class="nm">WhatsApp</div><div class="hex">#128C4B</div><div class="use">WhatsApp cues only</div></div></div>
+    <div class="sw"><div class="chip" style="background:#0E1013"></div><div class="info"><div class="nm">Ink · dark mode</div><div class="hex">#0E1013</div><div class="use">Dark background</div></div></div>
+  </div>
+  <p class="body" style="margin-top:20px;">The green is deliberately restrained. If in doubt, use less of it — ink and paper carry the brand.</p>
+</div></section>
+
+<!-- 05 TYPE -->
+<section><div class="wrap">
+  <div class="sec-no">05 — Typography</div>
+  <h2>Type</h2>
+  <p class="body"><b>Headlines: a serif</b> — Georgia as the safe system default, or a refined serif like Fraunces / Canela when licensed. <b>Body: Inter</b>, or the system sans. The serif gives Orderlo its warmth and confidence; the sans keeps it clear.</p>
+  <div class="typedemo">
+    <div class="type-serif">Take the order.</div>
+    <div class="type-serif" style="color:#2C6A57">Hold the table.</div>
+    <div class="type-sans" style="margin-top:14px;">Body copy is set in Inter — plain, warm and specific. Short sentences. Real words. Nothing inflated.</div>
+    <div class="scale">
+      <div style="font-size:34px;">Display · Georgia 600</div>
+      <div style="font-size:22px;">Heading · Georgia 600</div>
+      <div style="font-family:Inter,sans-serif;font-size:15px;color:var(--t2);">Body · Inter 400 / 600</div>
+    </div>
+  </div>
+</div></section>
+
+<!-- 06 VOICE -->
+<section><div class="wrap">
+  <div class="sec-no">06 — Voice &amp; tone</div>
+  <h2>How Orderlo sounds</h2>
+  <p class="body">Warm, plain-spoken and specific — like a good operator who respects your time. We talk about the room, the order, the regular. We don't do buzzwords or hype.</p>
+  <div class="vgrid">
+    <div class="vcard yes"><div class="h">We do</div><ul><li>"You opened a café, not a call centre."</li><li>Short sentences. Real venue words.</li><li>Speak to the owner, not the industry.</li><li>Arabic &amp; English, equally at home.</li></ul></div>
+    <div class="vcard no"><div class="h">We don't</div><ul><li>"Leverage our synergistic platform."</li><li>Exclamation marks and emoji stacks.</li><li>Vague promises we can't show.</li><li>Talk down to small businesses.</li></ul></div>
+  </div>
+</div></section>
+
+<footer>Orderlo Brand Guidelines · v1.0 · An Octo Fusion product · orderlo.store</footer>
+
+</body>
+</html>

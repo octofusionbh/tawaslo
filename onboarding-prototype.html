@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tawaslo — Onboarding</title>
+<style>
+  :root{--bg:#0A0D12;--panel:#0C1016;--card:#151A22;--card2:#10141B;--bd:#222A35;--bd2:#2E3846;--tx:#F4F6FA;--t2:#9AA6B6;--t3:#5E6B7D;--ac:#7E9BC0;--ac2:#9DB6D6;--grad:linear-gradient(135deg,#7E9BC0,#5A7BA0);--ok:#34C77B;--glow:0 0 0 1px rgba(126,155,192,.5),0 10px 40px -8px rgba(126,155,192,.35);}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{background:var(--bg);color:var(--tx);font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;}
+  .serif{font-family:'Georgia','Times New Roman',serif;letter-spacing:-.01em;}
+  .app{display:flex;height:100vh;}
+  /* LEFT RAIL */
+  .rail{width:340px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--bd);padding:38px 34px;display:flex;flex-direction:column;}
+  .logo{display:flex;align-items:center;gap:10px;margin-bottom:52px;}
+  .logo .nm{font-size:18px;font-weight:600;letter-spacing:-.02em;}
+  .steps{flex:1;display:flex;flex-direction:column;gap:2px;}
+  .stp{display:flex;align-items:center;gap:14px;padding:11px 0;position:relative;}
+  .stp .num{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1.5px solid var(--bd2);color:var(--t3);background:var(--panel);transition:.3s;}
+  .stp .lb{font-size:14px;color:var(--t3);transition:.3s;font-weight:500;}
+  .stp.cur .num{border-color:var(--ac);color:var(--ac2);box-shadow:0 0 0 4px rgba(126,155,192,.12);}
+  .stp.cur .lb{color:var(--tx);}
+  .stp.done .num{background:var(--grad);border-color:transparent;color:#fff;}
+  .stp.done .lb{color:var(--t2);}
+  .stp:not(:last-child)::after{content:"";position:absolute;left:13.5px;top:39px;bottom:-2px;width:1.5px;background:var(--bd);}
+  .stp.done:not(:last-child)::after{background:linear-gradient(#7E9BC0,var(--bd));}
+  .quote{font-size:12.5px;color:var(--t3);line-height:1.7;border-top:1px solid var(--bd);padding-top:20px;}
+  /* RIGHT */
+  .main{flex:1;position:relative;overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:40px;}
+  .stage{width:100%;max-width:560px;}
+  .kick{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ac2);font-weight:600;margin-bottom:14px;}
+  h1{font-size:34px;font-weight:600;line-height:1.12;margin-bottom:12px;}
+  .sub{font-size:15px;color:var(--t2);margin-bottom:30px;line-height:1.6;max-width:460px;}
+  input{width:100%;background:var(--card2);border:1.5px solid var(--bd);border-radius:13px;padding:16px 17px;color:var(--tx);font-size:16px;outline:none;font-family:inherit;transition:.15s;}
+  input::placeholder{color:var(--t3);}
+  input:focus{border-color:var(--ac);box-shadow:0 0 0 4px rgba(126,155,192,.12);}
+  .field{margin-bottom:14px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;}
+  .opt{position:relative;background:var(--card);border:1.5px solid var(--bd);border-radius:16px;padding:19px;cursor:pointer;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease;}
+  .opt:hover{transform:translateY(-3px);border-color:var(--bd2);}
+  .opt.sel{border-color:var(--ac);box-shadow:var(--glow);}
+  .opt .tile{width:42px;height:42px;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;margin-bottom:13px;transition:.16s;}
+  .opt.sel .tile{background:rgba(126,155,192,.14);}
+  .opt .t{font-size:15.5px;font-weight:600;margin-bottom:4px;}
+  .opt .d{font-size:12.5px;color:var(--t2);line-height:1.5;}
+  .opt .chk{position:absolute;top:15px;right:15px;width:20px;height:20px;border-radius:50%;background:var(--grad);display:none;align-items:center;justify-content:center;}
+  .opt.sel .chk{display:flex;}
+  .opt .hint{font-size:11px;color:var(--ac2);margin-top:10px;display:none;}
+  .opt.sel .hint{display:block;}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;}
+  .chip{background:var(--card);border:1.5px solid var(--bd);border-radius:12px;padding:12px 17px;cursor:pointer;font-size:14px;transition:.15s;display:inline-flex;align-items:center;gap:9px;color:var(--t2);}
+  .chip:hover{border-color:var(--bd2);color:var(--tx);}
+  .chip.sel{border-color:var(--ac);background:rgba(126,155,192,.1);color:var(--ac2);box-shadow:var(--glow);}
+  .foot{display:flex;justify-content:space-between;align-items:center;margin-top:34px;}
+  .btn{border:none;border-radius:13px;padding:14px 28px;font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:8px;transition:.15s;}
+  .btn.p{background:var(--grad);color:#fff;box-shadow:0 8px 24px -8px rgba(126,155,192,.6);}
+  .btn.p:hover{filter:brightness(1.07);transform:translateY(-1px);}
+  .btn.p:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none;filter:none;}
+  .btn.g{background:transparent;color:var(--t2);}
+  .btn.g:hover{color:var(--tx);}
+  .skip{background:none;border:none;color:var(--t3);cursor:pointer;font-size:13px;margin-right:14px;}
+  .skip:hover{color:var(--t2);}
+  .mk svg{display:block;}
+  .anim{animation:in .4s cubic-bezier(.2,.7,.2,1) both;}
+  @keyframes in{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+  /* dashboard reveal */
+  .dwrap{max-width:920px;}
+  .dash{display:flex;background:var(--panel);border:1px solid var(--bd);border-radius:18px;overflow:hidden;height:440px;box-shadow:0 30px 80px -20px rgba(0,0,0,.7);}
+  .dside{width:210px;background:var(--card2);border-right:1px solid var(--bd);padding:16px 12px;overflow:hidden;flex-shrink:0;}
+  .dbrand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;padding:0 6px 2px;}
+  .dctx{font-size:10px;color:var(--t3);padding:0 6px;margin-bottom:14px;}
+  .dsec{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--t3);padding:9px 8px 4px;}
+  .di{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;font-size:12px;color:var(--t2);opacity:0;animation:slidein .4s ease forwards;}
+  .di.act{background:rgba(126,155,192,.13);color:var(--ac2);}
+  .di .d{width:14px;height:14px;border-radius:4px;background:var(--card);flex-shrink:0;}
+  @keyframes slidein{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:none;}}
+  .dmain{flex:1;padding:22px;}
+  .dstat{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;}
+  @media(max-width:820px){.rail{display:none;} .main{padding:26px;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="rail">
+    <div class="logo"><span class="mk"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4.6" stroke="#7E9BC0" stroke-width="1.9"/><circle cx="16" cy="12" r="4.6" stroke="#9DB6D6" stroke-width="1.9"/></svg></span><span class="nm">Tawaslo</span></div>
+    <div class="steps" id="steps"></div>
+    <div class="quote" id="quote">Set up in under two minutes. Everything tailors to how you work.</div>
+  </div>
+  <div class="main"><div class="stage" id="stage"></div></div>
+</div>
+<script>
+const ICONS = {
+  user:'<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+  users:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/>',
+  building:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M8 14h.01M16 14h.01"/>',
+  briefcase:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  utensils:'<path d="M3 2v7a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2V2"/><path d="M6 2v20"/><path d="M18 2c-1.6 0-3 1.6-3 4.5V12h3z"/><path d="M18 12v10"/>',
+  bag:'<path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  dots:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff:'<path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a15.6 15.6 0 0 1-2.3 3.2M6.6 6.6A15.7 15.7 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 4-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  arrow:'<path d="M5 12h14M12 5l7 7-7 7"/>',
+  ig:'<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/>',
+  fb:'<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
+  tt:'<path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>',
+};
+function ic(k,s=20,c='#9DB6D6',w=1.8){ return `<svg viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" width="${s}" height="${s}" style="flex-shrink:0">${ICONS[k]||''}</svg>`; }
+
+const S = { name:"", company:"", accountType:"", role:"", roleOther:"", team:"", clientName:"", industry:"", invites:[""], goals:[], epath:"", accent:"" };
+let idx = 0;
+
+const ACCT = [
+  {k:"freelancer", ic:"user", t:"Freelancer", d:"Solo, a few clients.", hint:"You'll manage Clients"},
+  {k:"agency", ic:"users", t:"Agency", d:"A team, many clients.", hint:"Clients, seats & white-label"},
+  {k:"enterprise", ic:"building", t:"Enterprise", d:"One org, its own brands.", hint:"You'll manage Accounts"},
+  {k:"single", ic:"briefcase", t:"Single brand", d:"Just my own business.", hint:"Straight to your dashboard"},
+];
+const IND = [
+  {k:"restaurant", ic:"utensils", t:"Restaurant / Café", add:"Menu, Orders, Reservations"},
+  {k:"retail", ic:"bag", t:"Shop / Retail", add:"Products & Loyalty"},
+  {k:"services", ic:"calendar", t:"Services", add:"Bookings & Guests"},
+  {k:"social", ic:"camera", t:"Social only", add:"Just the social tools"},
+  {k:"other", ic:"dots", t:"Other", add:"Core social tools"},
+];
+function roleOptions(){
+  if(S.accountType==="single"){
+    const b={restaurant:["Owner","Manager","Marketing","Head Chef","Front of House","Other"],retail:["Owner","Manager","Marketing","Merchandiser","Other"],services:["Owner","Manager","Front Desk","Marketing","Other"],social:["Owner","Creator","Marketer","Other"],other:["Owner","Manager","Marketing","Other"]};
+    return b[S.industry]||b.other;
+  }
+  if(S.accountType==="enterprise") return ["Owner / Director","Marketing Manager","Brand Manager","Social Media Lead","Other"];
+  return ["Owner / Founder","Account Manager","Social Media Manager","Content Creator","Strategist","Other"];
+}
+const noun = ()=> S.accountType==="enterprise" ? "Account" : "Client";
+
+function flow(){
+  const base=["signup","name","company","who"];
+  if(S.accountType==="single") return [...base,"goal","industry_self","role","brand","invite","connect","plan","done"];
+  if(S.accountType==="enterprise"){ const b=[...base,"epath"]; if(S.epath==="demo") return [...b,"demo"]; return [...b,"goal","role","brands","brand","invite","add_account","connect","plan","done"]; }
+  if(S.accountType==="agency"||S.accountType==="freelancer") return [...base,"goal","role","team","brand","invite","add_client","connect","plan","done"];
+  return base;
+}
+function phaseOf(step){
+  if(step==="signup") return "Create account";
+  if(["name","company","who","goal","role","team","brands"].includes(step)) return "About you";
+  if(step==="epath") return "Get started";
+  if(step==="demo") return "Talk to us";
+  if(step==="brand") return "Your brand";
+  if(step==="invite") return "Your team";
+  if(["industry_self","add_client","add_account"].includes(step)) return "First "+noun().toLowerCase();
+  if(step==="connect") return "Connect";
+  if(step==="plan") return "Choose plan";
+  return "Done";
+}
+function PHASES(){ const seen=[]; flow().filter(s=>s!=="done").forEach(s=>{ const p=phaseOf(s); if(!seen.includes(p)) seen.push(p); }); return seen; }
+
+function renderRail(cur){
+  const ph=PHASES(); const order=ph;
+  const curIdx=order.indexOf(cur);
+  document.getElementById("steps").innerHTML=order.map((p,i)=>{
+    const cls=i<curIdx?"done":(i===curIdx?"cur":"");
+    const inner=i<curIdx?ic('check',14,'#fff'):(i+1);
+    return `<div class="stp ${cls}"><div class="num">${inner}</div><div class="lb">${p}</div></div>`;
+  }).join("");
+}
+
+function render(){
+  const steps=flow(); const step=steps[idx]||"who";
+  renderRail(phaseOf(step));
+  const st=document.getElementById("stage"); st.innerHTML="";
+  const box=document.createElement("div"); box.className="anim"; st.appendChild(box);
+  if(step==="done"){ document.querySelector(".main").style.alignItems="flex-start"; document.querySelector(".main").style.paddingTop="46px"; box.parentElement.style.maxWidth="960px"; } else { document.querySelector(".main").style.alignItems="center"; }
+  R[step](box);
+}
+function next(){ idx++; render(); }
+function back(){ if(idx>0){ idx--; render(); } }
+function foot(box,{ok=true,label="Continue",skip=null}={}){
+  const f=document.createElement("div"); f.className="foot";
+  const l=document.createElement("div"); if(idx>0){ const b=document.createElement("button"); b.className="btn g"; b.textContent="Back"; b.onclick=back; l.appendChild(b);}
+  const r=document.createElement("div"); r.style.display="flex"; r.style.alignItems="center";
+  if(skip){ const s=document.createElement("button"); s.className="skip"; s.textContent=skip; s.onclick=next; r.appendChild(s);}
+  const n=document.createElement("button"); n.className="btn p"; n.innerHTML=label+" "+ic('arrow',16,'#fff'); n.disabled=!ok; n.onclick=next; r.appendChild(n);
+  f.appendChild(l); f.appendChild(r); box.appendChild(f);
+}
+function kick(box,t){ const k=document.createElement("div"); k.className="kick"; k.textContent=t; box.appendChild(k); }
+function head(box,h,s){ const H=document.createElement("h1"); H.className="serif"; H.innerHTML=h; box.appendChild(H); if(s){const P=document.createElement("div");P.className="sub";P.textContent=s;box.appendChild(P);} }
+
+const R = {
+  signup(box){
+    kick(box,"Welcome to Tawaslo"); head(box,"Create your account","Start your 14-day free trial. No card needed.");
+    box.insertAdjacentHTML("beforeend",`<div class="field"><input placeholder="name@company.com" value="you@company.com"></div>`);
+    const pw=document.createElement("div"); pw.className="field"; pw.style.position="relative";
+    pw.innerHTML=`<input id="pw" type="password" placeholder="Create a password" value="supersecret" style="padding-right:88px;"><button id="pweye" type="button" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--t2);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;padding:6px;">${ic('eye',16,'#9AA6B6')}<span>Show</span></button>`;
+    box.appendChild(pw);
+    const eye=pw.querySelector("#pweye"); eye.onclick=()=>{ const el=pw.querySelector("#pw"); const p=el.type==="password"; el.type=p?"text":"password"; eye.innerHTML=(p?ic('eyeoff',16,'#9AA6B6'):ic('eye',16,'#9AA6B6'))+`<span>${p?'Hide':'Show'}</span>`; };
+    box.insertAdjacentHTML("beforeend",`<div style="display:flex;align-items:center;gap:8px;margin-top:18px;font-size:12.5px;color:var(--t3)">${ic('check',15,'#34C77B')} No card needed · Cancel anytime · We never post without your approval.</div>`);
+    foot(box,{label:"Create account"});
+  },
+  name(box){
+    kick(box,"About you"); head(box,"First, what should we call you?","We'll personalise your workspace around it.");
+    const i=document.createElement("input"); i.placeholder="Your first name"; i.value=S.name; i.oninput=e=>{S.name=e.target.value; box.querySelector(".btn.p").disabled=!S.name.trim();}; box.appendChild(i);
+    setTimeout(()=>i.focus(),80); foot(box,{ok:!!S.name.trim()});
+  },
+  company(box){
+    kick(box,"About you"); head(box,(S.name?`Nice to meet you, ${S.name}.`:"Your workspace"),"What should we name your workspace?");
+    const i=document.createElement("input"); i.placeholder="Company or brand name"; i.value=S.company; i.oninput=e=>{S.company=e.target.value; box.querySelector(".btn.p").disabled=!S.company.trim();}; box.appendChild(i);
+    setTimeout(()=>i.focus(),80); foot(box,{ok:!!S.company.trim()});
+  },
+  who(box){
+    kick(box,"About you"); head(box,"Which best describes you?","This shapes your whole dashboard — you'll only see what's relevant.");
+    const g=document.createElement("div"); g.className="grid";
+    ACCT.forEach(a=>{ const c=document.createElement("div"); c.className="opt"+(S.accountType===a.k?" sel":"");
+      c.innerHTML=`<div class="chk">${ic('check',12,'#fff')}</div><div class="tile">${ic(a.ic,21,S.accountType===a.k?'#9DB6D6':'#7E9BC0')}</div><div class="t">${a.t}</div><div class="d">${a.d}</div><div class="hint">${a.hint}</div>`;
+      c.onclick=()=>{S.accountType=a.k; idx=flow().indexOf("who"); render();}; g.appendChild(c); });
+    box.appendChild(g); foot(box,{ok:!!S.accountType});
+  },
+  goal(box){
+    kick(box,"About you"); head(box,"What do you want out of Tawaslo?","Pick what matters — we'll put it front and centre. Choose as many as you like.");
+    const opts=["Grow my audience","Save time on posting","Manage clients in one place","Sell more / take bookings","Look pro to clients","Stay consistent"];
+    const g=document.createElement("div"); g.className="chips"; box.appendChild(g);
+    const draw=()=>{ g.innerHTML=""; opts.forEach(v=>{ const on=S.goals.includes(v); const c=document.createElement("div"); c.className="chip"+(on?" sel":""); c.innerHTML=(on?ic('check',15,'#9DB6D6')+" ":"")+v; c.onclick=()=>{ if(on)S.goals=S.goals.filter(x=>x!==v); else S.goals.push(v); draw(); }; g.appendChild(c); }); };
+    draw(); foot(box,{ok:true,skip:"Skip"});
+  },
+  epath(box){
+    kick(box,"Enterprise"); head(box,"How would you like to start?","Larger organisations get a hand — or dive straight in.");
+    const g=document.createElement("div"); g.className="grid";
+    [["self","briefcase","Set it up myself","Start the free trial and build your workspace now."],["demo","users","Talk to us","We'll set up "+(S.company||"your org")+" with you — white-glove."]].forEach(([k,i,t,d])=>{ const c=document.createElement("div"); c.className="opt"+(S.epath===k?" sel":""); c.innerHTML=`<div class="chk">${ic('check',12,'#fff')}</div><div class="tile">${ic(i,21,S.epath===k?'#9DB6D6':'#7E9BC0')}</div><div class="t">${t}</div><div class="d">${d}</div>`; c.onclick=()=>{S.epath=k; idx=flow().indexOf("epath"); render();}; g.appendChild(c); });
+    box.appendChild(g); foot(box,{ok:!!S.epath});
+  },
+  demo(box){
+    kick(box,"Talk to us"); head(box,`Let's set up ${S.company||"your organisation"} together.`,"Leave your details — our team reaches out within one business day to tailor Tawaslo to your brands.");
+    box.insertAdjacentHTML("beforeend",`<div class="field"><input placeholder="Work email" value="you@company.com"></div><div class="field"><input placeholder="Phone / WhatsApp"></div><div class="field"><input placeholder="Roughly how many brands or locations?"></div>`);
+    const f=document.createElement("div"); f.className="foot";
+    f.innerHTML=`<button class="btn g" id="bk">Back</button><button class="btn p" id="bkc">Book my setup call ${ic('arrow',16,'#fff')}</button>`; box.appendChild(f);
+    f.querySelector("#bk").onclick=back;
+    f.querySelector("#bkc").onclick=()=>{ box.innerHTML=`<div class="kick">Thank you</div><h1 class="serif" style="margin-bottom:10px;">We'll be in touch, ${S.name||"there"}.</h1><div class="sub">Our team will reach out to set up ${S.company||"your organisation"}. Your trial is ready whenever you'd like to explore in the meantime.</div><div style="display:inline-flex;align-items:center;gap:8px;background:rgba(52,199,123,.12);color:#34C77B;padding:9px 15px;border-radius:20px;font-size:13px;margin-top:6px">${ic('check',15,'#34C77B')} Request received</div>`; renderRail("Talk to us"); };
+  },
+  brand(box){
+    kick(box,"Your brand"); head(box,"Make it yours","A logo and colour so the dashboard feels like home. Optional — change it any time.");
+    const row=document.createElement("div"); row.style.cssText="display:flex;align-items:center;gap:16px;margin-bottom:26px";
+    row.innerHTML=`<div style="width:60px;height:60px;border-radius:16px;background:var(--card2);border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-family:Georgia,serif;font-size:26px;font-weight:600;color:var(--ac2)">${(S.company||"T").trim()[0].toUpperCase()}</div><button class="btn g" style="border:1px solid var(--bd)">Upload logo</button>`;
+    box.appendChild(row);
+    box.insertAdjacentHTML("beforeend",`<div class="sub" style="margin:0 0 12px;font-size:13px;">Accent colour</div>`);
+    const sw=document.createElement("div"); sw.style.cssText="display:flex;gap:12px;flex-wrap:wrap";
+    [["Slate","#7E9BC0","#9DB6D6"],["Blue","#4F84E0","#7AA5F0"],["Violet","#8B6FE0","#A992F0"],["Teal","#2DBE9E","#5AD6BC"],["Rose","#E0688F","#F090AE"],["Amber","#DFA24F","#F0BE7A"]].forEach(([n,c,c2])=>{ const b=document.createElement("div"); b.title=n; b.style.cssText=`width:36px;height:36px;border-radius:50%;background:${c};cursor:pointer;border:3px solid ${(S.accent||"#7E9BC0")===c?'#fff':'transparent'};box-shadow:0 0 0 1px var(--bd);transition:.15s`; b.onclick=()=>{ S.accent=c; document.documentElement.style.setProperty('--ac',c); document.documentElement.style.setProperty('--ac2',c2); document.documentElement.style.setProperty('--grad',`linear-gradient(135deg,${c2},${c})`); render(); }; sw.appendChild(b); });
+    box.appendChild(sw); foot(box,{ok:true,skip:"Skip"});
+  },
+  plan(box){
+    kick(box,"Almost there"); head(box,"Here's the plan that fits","Start free for 14 days. Change or cancel any time — no card now.");
+    const rec = S.accountType==="enterprise" ? "Enterprise" : S.accountType==="single" ? "Solo" : (S.team==="20+"||S.team==="6–20"||S.team==="11–30"||S.team==="30+"||S.team==="4–10") ? "Studio" : "Pro";
+    const PLANS=[["Solo","For one brand","1 brand · 3 accounts"],["Pro","Freelancers & small teams","5 clients · 5 seats"],["Studio","Growing agencies","20 clients · 20 seats · white-label"],["Enterprise","Large organisations","Unlimited · SSO · priority"]];
+    const g=document.createElement("div"); g.style.cssText="display:grid;grid-template-columns:1fr 1fr;gap:12px";
+    PLANS.forEach(([n,d,f])=>{ const on=n===rec; const c=document.createElement("div"); c.className="opt"+(on?" sel":""); c.style.cursor="default";
+      c.innerHTML=`${on?`<div style="position:absolute;top:14px;right:14px;font-size:10px;font-weight:600;color:#fff;background:var(--grad);padding:3px 10px;border-radius:20px">Recommended</div>`:""}<div class="t">${n}</div><div class="d" style="margin-bottom:7px">${d}</div><div style="font-size:11.5px;color:var(--t3)">${f}</div>`; g.appendChild(c); });
+    box.appendChild(g); foot(box,{label:"Start free trial"});
+  },
+  role(box){
+    kick(box,"About you"); head(box,`And your role at ${S.company||"the team"}?`,"");
+    const opts=roleOptions(); const g=document.createElement("div"); g.className="chips"; box.appendChild(g);
+    const extra=document.createElement("div"); extra.style.marginTop="14px"; box.appendChild(extra);
+    const draw=()=>{ g.innerHTML=""; opts.forEach(v=>{ const c=document.createElement("div"); c.className="chip"+(S.role===v?" sel":""); c.textContent=v; c.onclick=()=>{S.role=v; if(v!=="Other")S.roleOther=""; draw(); if(v==="Other"){const inp=extra.querySelector("input"); if(inp)inp.focus();}}; g.appendChild(c); });
+      extra.innerHTML=""; if(S.role==="Other"){ const i=document.createElement("input"); i.placeholder="Type your role"; i.value=S.roleOther||""; i.oninput=e=>S.roleOther=e.target.value; extra.appendChild(i);} };
+    draw(); foot(box,{ok:true,skip:"Skip"});
+  },
+  team(box){
+    kick(box,"About you"); head(box,"How big is your team?","We'll suggest the right plan and seats.");
+    chips(box,["Just me","2–5","6–20","20+"],v=>S.team=v,()=>S.team); foot(box,{ok:true,skip:"Skip"});
+  },
+  brands(box){
+    kick(box,"About you"); head(box,"How many brands or locations?","Across your whole organisation.");
+    chips(box,["1–3","4–10","11–30","30+"],v=>S.team=v,()=>S.team); foot(box,{ok:true,skip:"Skip"});
+  },
+  invite(box){
+    kick(box,"Your team"); head(box,"Invite your team","A new field opens as you fill the last. You can always do this later.");
+    const LIMIT=5; const list=document.createElement("div"); box.appendChild(list);
+    if(!S.invites||!S.invites.length) S.invites=[""];
+    const draw=()=>{ list.innerHTML="";
+      S.invites.forEach((val,i)=>{ const w=document.createElement("div"); w.className="field"; const inp=document.createElement("input"); inp.placeholder=i===0?"teammate@company.com":"add another email"; inp.value=val;
+        inp.oninput=e=>{ S.invites[i]=e.target.value; if(i===S.invites.length-1 && e.target.value.trim() && S.invites.length<LIMIT){ S.invites.push(""); draw(); const all=list.querySelectorAll("input"); all[all.length-1].focus(); } };
+        w.appendChild(inp); list.appendChild(w); });
+      if(S.invites.length>=LIMIT){ const n=document.createElement("div"); n.className="sub"; n.style.margin="0"; n.textContent="That's your seat limit on the trial — upgrade to add more."; list.appendChild(n);} };
+    draw(); foot(box,{label:"Send invites",skip:"Skip for now"});
+  },
+  add_client(box){
+    kick(box,"First client"); head(box,"Add your first client","Who are they, and what do they do?");
+    const i=document.createElement("input"); i.className="field2"; i.placeholder="Client name — e.g. Marina Café"; i.value=S.clientName; i.oninput=e=>S.clientName=e.target.value; i.style.marginBottom="20px"; box.appendChild(i);
+    box.insertAdjacentHTML("beforeend",`<div class="sub" style="margin:0 0 12px;font-size:13px;">Their industry — this sets that client's tabs:</div>`);
+    industryChips(box); foot(box,{ok:true});
+  },
+  add_account(box){
+    kick(box,"First account"); head(box,"Add your first Account","A brand or venue your organisation runs.");
+    const i=document.createElement("input"); i.placeholder="Account name — e.g. Marina Group F&B"; i.value=S.clientName; i.oninput=e=>S.clientName=e.target.value; i.style.marginBottom="20px"; box.appendChild(i);
+    box.insertAdjacentHTML("beforeend",`<div class="sub" style="margin:0 0 12px;font-size:13px;">Its industry — this sets that account's tabs:</div>`);
+    industryChips(box); foot(box,{ok:true});
+  },
+  industry_self(box){
+    kick(box,"Your business"); head(box,`What kind of business is ${S.company||"it"}?`,"So we show the right tools — and hide the ones you don't need.");
+    industryChips(box,true); foot(box,{ok:!!S.industry});
+  },
+  connect(box){
+    let who, poss;
+    if(S.accountType==="single"){ who="your"; poss="your"; }
+    else { const nm=(S.clientName||"").trim(); poss = nm ? nm+"'s" : "your "+noun().toLowerCase()+"'s"; who=poss; }
+    kick(box,"Connect"); head(box, S.accountType==="single"?"Connect your first account":`Connect ${poss} account`, `Link ${S.accountType==="single"?"your":"their"} Instagram, Facebook or TikTok to start publishing. Add more any time.`);
+    const g=document.createElement("div"); g.className="chips";
+    [["Instagram","ig","#E1306C"],["Facebook","fb","#1877F2"],["TikTok","tt","#c9d3e0"]].forEach(([n,k,c])=>{ const b=document.createElement("div"); b.className="chip"; b.innerHTML=`${ic(k,17,c)} ${n}`; b.onclick=()=>b.classList.toggle("sel"); g.appendChild(b); });
+    box.appendChild(g); foot(box,{label:"Finish setup",skip:"I'll connect later"});
+  },
+  done(box){ dashboard(box); },
+};
+function chips(box,arr,set,get){ const g=document.createElement("div"); g.className="chips"; arr.forEach(v=>{ const c=document.createElement("div"); c.className="chip"+(get()===v?" sel":""); c.textContent=v; c.onclick=()=>{set(v);render();}; g.appendChild(c); }); box.appendChild(g); }
+function industryChips(box,rr){ const g=document.createElement("div"); g.className="chips"; IND.forEach(o=>{ const c=document.createElement("div"); c.className="chip"+(S.industry===o.k?" sel":""); c.innerHTML=`${ic(o.ic,16,S.industry===o.k?'#9DB6D6':'#9AA6B6')} ${o.t}`; c.onclick=()=>{S.industry=o.k; if(rr){render();}else{g.querySelectorAll(".chip").forEach(x=>x.classList.remove("sel")); c.classList.add("sel");}}; g.appendChild(c); }); box.appendChild(g); }
+
+function dashboard(box){
+  const single=S.accountType==="single"; const nL=noun();
+  const ctx=single?(S.company||"Your brand"):(S.clientName||("First "+nL.toLowerCase()));
+  const fnb=S.industry==="restaurant", services=S.industry==="services", retail=S.industry==="retail";
+  let items=[], d=0;
+  const it=(t,act)=>{ d+=0.045; return `<div class="di ${act?'act':''}" style="animation-delay:${d}s"><span class="d"></span>${t}</div>`; };
+  const sec=(t)=>`<div class="dsec">${t}</div>`;
+  let side = `<div class="dbrand"><span class="mk"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="12" r="4.6" stroke="#7E9BC0" stroke-width="1.9"/><circle cx="16" cy="12" r="4.6" stroke="#9DB6D6" stroke-width="1.9"/></svg></span>${S.company||"Tawaslo"}</div><div class="dctx">${single?"Single brand":ACCT.find(a=>a.k===S.accountType)?.t}</div>`;
+  side += sec("Manage")+it("Dashboard",1)+it("Publisher")+it("Planner")+it("Calendar")+it("Approvals");
+  side += sec("Create")+it("AI Studio")+it("Media")+it("Trending");
+  if(fnb) side += sec("Restaurant")+it("Concierge")+it("Menu")+it("Pickup Orders")+it("Reservations")+it("Loyalty")+it("Guests");
+  else if(services) side += sec("Bookings")+it("Reservations")+it("Guests")+it("Loyalty");
+  else if(retail) side += sec("Shop")+it("Products")+it("Loyalty");
+  side += sec("Analyse")+it("Analytics")+it("Reports");
+  side += sec("Account")+(single?"":it(nL+"s"))+it("Social Accounts")+it("Team")+it("Settings");
+
+  box.parentElement.classList.add("dwrap");
+  box.innerHTML = `
+    <div class="kick">You're all set</div>
+    <h1 class="serif" style="margin-bottom:10px;">Welcome in, ${S.name||"there"}.</h1>
+    <div class="sub">Your dashboard is tailored to a <b style="color:#c9d3e0">${ACCT.find(a=>a.k===S.accountType)?.t||"workspace"}</b>${S.industry?` in <b style="color:#c9d3e0">${IND.find(i=>i.k===S.industry)?.t}</b>`:""}. Watch — the sidebar only shows what's relevant to you.</div>
+    <div class="dash">
+      <div class="dside">${side}</div>
+      <div class="dmain">
+        ${single?"":`<div style="display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 13px;font-size:12.5px;margin-bottom:18px;">${nL}: <b>${ctx}</b></div>`}
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+          <div class="dstat"><div style="font-size:11px;color:var(--t2)">Followers</div><div class="serif" style="font-size:22px;font-weight:600">—</div></div>
+          <div class="dstat"><div style="font-size:11px;color:var(--t2)">Reach · 30d</div><div class="serif" style="font-size:22px;font-weight:600">—</div></div>
+          <div class="dstat"><div style="font-size:11px;color:var(--t2)">Posts</div><div class="serif" style="font-size:22px;font-weight:600">0</div></div>
+        </div>
+        <div class="dstat" style="text-align:center;padding:28px;">
+          <div style="font-size:13px;color:var(--t2);margin-bottom:8px;">Connect an account to see live numbers</div>
+          <span style="font-size:11px;color:var(--ok);background:rgba(52,199,123,.14);padding:4px 11px;border-radius:20px;">Free trial · 14 days left</span>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><button class="btn g" id="restart">${ic('eye',15,'#9AA6B6')} Try another path</button><span style="font-size:12.5px;color:var(--t3)">Prototype — restart to see a different account type</span></div>`;
+  box.querySelector("#restart").onclick=()=>{ idx=0; Object.assign(S,{accountType:"",industry:"",role:"",roleOther:"",team:"",clientName:"",invites:[""],goals:[],epath:"",accent:""}); document.documentElement.style.setProperty('--ac','#7E9BC0'); document.documentElement.style.setProperty('--ac2','#9DB6D6'); document.documentElement.style.setProperty('--grad','linear-gradient(135deg,#7E9BC0,#5A7BA0)'); box.parentElement.classList.remove("dwrap"); render(); };
+}
+document.addEventListener("keydown", e=>{ if(e.key==="Enter" && document.activeElement && document.activeElement.tagName!=="TEXTAREA"){ const b=document.querySelector(".btn.p:not(:disabled)"); if(b){ e.preventDefault(); b.click(); } } });
+render();
+</script>
+</body>
+</html>
