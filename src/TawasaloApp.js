@@ -6,6 +6,7 @@ import CalendarExperience from "./CalendarExperience";
 import PlannerExperience from "./PlannerExperience";
 import ApprovalsExperience from "./ApprovalsExperience";
 import CampaignsExperience from "./CampaignsExperience";
+import CampaignsLive from "./CampaignsLive";
 import AIStudioExperience from "./AIStudioExperience";
 import ReelStudioExperience from "./ReelStudioExperience";
 import CompetitorExperience from "./CompetitorExperience";
@@ -15,6 +16,7 @@ import MediaExperience from "./MediaExperience";
 import SuggestedExperience from "./SuggestedExperience";
 import LinkBioExperience from "./LinkBioExperience";
 import WhatsAppExperience from "./WhatsAppExperience";
+import ConciergeLive from "./ConciergeLive";
 import InboxExperience from "./InboxExperience";
 import MenuExperience from "./MenuExperience";
 import MenuLive from "./MenuLive";
@@ -22758,7 +22760,8 @@ export default function TawasloApp() {
     if (page==="ordersclassic") return <OrdersPage/>;
     if (page==="reservations") return workspacePreview && selClient?.id === "preview-marina" ? <ReservationsExperience dark={dark} setDark={setDark} onOpenHostTest={()=>setHostTestModule('reservations')}/> : <ReservationsLive client={selClient} dark={dark} setDark={setDark} onOpenHostTest={()=>setHostTestModule('reservations')}/>;
     if (page==="reservationsclassic") return <ReservationsPage/>;
-    if (page==="concierge") return workspacePreview && selClient?.id === "preview-marina" ? <WhatsAppExperience dark={dark} setDark={setDark}/> : <ConciergePage/>;
+    if (page==="concierge") return workspacePreview && selClient?.id === "preview-marina" ? <WhatsAppExperience dark={dark} setDark={setDark}/> : <ConciergeLive client={selClient} dark={dark} setDark={setDark}/>;
+    if (page==="conciergeclassic") return <ConciergePage/>;
     if (page==="loyalty") return workspacePreview && selClient?.id === "preview-marina" ? <LoyaltyExperience dark={dark} setDark={setDark} onOpenHostTest={()=>setHostTestModule('loyalty')}/> : <LoyaltyLive client={selClient} dark={dark} setDark={setDark} onOpenHostTest={()=>setHostTestModule('loyalty')}/>;
     if (page==="loyaltyclassic") return <LoyaltyPage/>;
     if (page==="reviews") return workspacePreview && selClient?.id === "preview-marina" ? <ReviewsExperience dark={dark} setDark={setDark}/> : <ReviewsLive client={selClient} dark={dark}/>;
@@ -22791,7 +22794,8 @@ export default function TawasloApp() {
       onBuyAiCredits={()=>setPage('billing')}
       aiCredits={aiCreditWalletOf(userEmail,userPlan)}
     /> : <AIStudioPage/>;
-    if (page==="campaigns") return workspacePreview && selClient?.id === "preview-marina" ? <CampaignsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CampaignsPage/>;
+    if (page==="campaigns") return workspacePreview && selClient?.id === "preview-marina" ? <CampaignsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CampaignsLive client={selClient} dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
+    if (page==="campaignsclassic") return <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
     if (page==="media") return workspacePreview && selClient?.id === "preview-marina" ? <MediaExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <MediaLibrary dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/>;
     if (page==="analytics") return workspacePreview ? <AnalyticsExperience/> : <AnalyticsLive/>;

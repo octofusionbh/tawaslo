@@ -92,3 +92,17 @@ Status key: 🟥 needs a database column · 🟨 needs an integration or API · 
 | Fill My Tables | Floor-plan dots | 🟥 no booking-to-table link |
 | Fill My Tables | Per-guest signals (near the venue, no booking) | 🟨 location + booking join |
 | Fill My Tables | Audience presets (regulars, nearby, no booking) | 🟥 no stored equivalent |
+
+## Added while wiring Concierge and Campaigns
+
+| Page | Missing | Needs |
+|---|---|---|
+| Concierge | Unread counts, Open/Done status, conversation type | 🟥 columns on `wa_threads` |
+| Concierge | Intent, priority, assigned owner | 🟥 columns |
+| Concierge | Service cue ticket ("hold this table") | 🟦 link threads to bookings |
+| Concierge | Per-message timestamps and read receipts | 🟥 `messages` stores role + content only |
+| Concierge | First-response time | 🟦 needs message timestamps first |
+| Concierge | Guest recorded spend | 🟥 column on `guests` (same gap as Guests page) |
+| Campaigns | Posts belonging to a campaign | 🟥 `posts.campaign_id` does not exist |
+| Campaigns | Approval progress, content progress | 🟦 depends on the link above |
+| Campaigns | Campaign artwork / contact sheet | 🟦 depends on the link above |
