@@ -45,20 +45,41 @@ const prettyTime = time => {
   const [hours, minutes] = String(time).split(':').map(Number);
   return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
 };
+const HOUR_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+function liveServiceHours(settings, bookings) {
+  const open = String(settings?.open || ''),
+    close = String(settings?.close || '');
+  if (HOUR_PATTERN.test(open) && HOUR_PATTERN.test(close) && timeToMinutes(close) - timeToMinutes(open) >= 60) return {
+    open,
+    close
+  };
+  const minutes = bookings.map(booking => timeToMinutes(booking.time)).filter(value => Number.isFinite(value));
+  if (!minutes.length) return null;
+  const first = Math.floor(Math.min(...minutes) / 60),
+    last = Math.min(24, Math.floor(Math.max(...minutes) / 60) + 1);
+  return {
+    open: `${String(first).padStart(2, '0')}:00`,
+    close: `${String(Math.max(first + 1, last)).padStart(2, '0')}:00`
+  };
+}
 function DayRibbon({
   day,
   setDay,
-  data
+  data,
+  days = RESERVATION_DAYS
 }) {
-  return <nav className="rv-days" aria-label="Reservation days">{RESERVATION_DAYS.map(item => {
+  return <nav className="rv-days" aria-label="Reservation days">{days.map(item => {
       const summary = reservationSummary(data.bookings, item.id);
       return <button type="button" key={item.id} aria-pressed={day === item.id} onClick={() => setDay(item.id)}><span>{item.weekday}</span><strong>{item.day}</strong><small>{summary.bookings ? `${summary.bookings} bookings` : item.label}</small></button>;
     })}</nav>;
 }
 export function ReservationShare({
-  onClose
+  onClose,
+  url: liveUrl = '',
+  venueName = 'Marina Social Club'
 }) {
-  const url = 'https://book.tawaslo.com/marina-social-club',
+  const url = liveUrl || 'https://book.tawaslo.com/marina-social-club',
+    fileSlug = venueName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'booking',
     [qr, setQr] = useState(''),
     [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -80,17 +101,22 @@ export function ReservationShare({
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   }
-  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Reserve a table at Marina Social Club\n${url}`)}`;
-  return <section className="rv-share" aria-label="Reservation link and QR"><button className="rv-share-close" type="button" aria-label="Close reservation sharing" onClick={onClose}><X size={18} /></button><div><span>Reservation link</span><h2>One link for every table.</h2><p>Place it in the bio, on Google, at the hotel desk, or print the QR for the entrance.</p><label>Guest booking link<input readOnly value={url} /></label><div><button type="button" onClick={copy}><Copy size={16} />{copied ? 'Copied' : 'Copy link'}</button><a href={qr || '#'} download="marina-social-club-booking-qr.png"><QrCode size={16} />Download QR</a><a className="rv-whatsapp-share" href={whatsappUrl} target="_blank" rel="noreferrer"><FaWhatsapp />Share to WhatsApp</a></div></div><figure>{qr ? <img src={qr} alt="QR code for Marina Social Club reservations" /> : <QrCode size={70} />}<figcaption><strong>Marina Social Club</strong><span>Reserve a table</span></figcaption></figure></section>;
+  const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(`Reserve a table at ${venueName}\n${url}`)}`;
+  return <section className="rv-share" aria-label="Reservation link and QR"><button className="rv-share-close" type="button" aria-label="Close reservation sharing" onClick={onClose}><X size={18} /></button><div><span>Reservation link</span><h2>One link for every table.</h2><p>Place it in the bio, on Google, at the hotel desk, or print the QR for the entrance.</p><label>Guest booking link<input readOnly value={url} /></label><div><button type="button" onClick={copy}><Copy size={16} />{copied ? 'Copied' : 'Copy link'}</button><a href={qr || '#'} download={`${fileSlug}-booking-qr.png`}><QrCode size={16} />Download QR</a><a className="rv-whatsapp-share" href={whatsappUrl} target="_blank" rel="noreferrer"><FaWhatsapp />Share to WhatsApp</a></div></div><figure>{qr ? <img src={qr} alt={`QR code for ${venueName} reservations`} /> : <QrCode size={70} />}<figcaption><strong>{venueName}</strong><span>Reserve a table</span></figcaption></figure></section>;
 }
 function ServiceTimeline({
   bookings,
   selectedId,
-  onSelect
+  onSelect,
+  serviceHours = null
 }) {
-  const hours = ['18:00', '19:00', '20:00', '21:00', '22:00'],
-    start = 18 * 60,
-    end = 23 * 60;
+  const startHour = serviceHours ? Math.max(0, Math.min(22, Math.floor(timeToMinutes(serviceHours.open) / 60))) : 18,
+    endHour = serviceHours ? Math.max(startHour + 1, Math.min(24, Math.ceil(timeToMinutes(serviceHours.close) / 60))) : 23,
+    hours = Array.from({
+      length: endHour - startHour
+    }, (_, index) => `${String(startHour + index).padStart(2, '0')}:00`),
+    start = startHour * 60,
+    end = endHour * 60;
   return <section className="rv-timeline" aria-label="Evening reservation timeline"><header><span>Evening service line</span><small>Swipe sideways on a phone</small></header><div className="rv-timeline-scroll"><div className="rv-timeline-stage"><div className="rv-hour-row">{hours.map(time => <span key={time}>{prettyTime(time)}</span>)}</div><div className="rv-current-line"><i /><span>Now</span></div>{bookings.filter(booking => !['cancelled', 'completed', 'no_show'].includes(booking.status)).map((booking, index) => {
           const left = Math.max(1, Math.min(92, (timeToMinutes(booking.time) - start) / (end - start) * 100)),
             width = Math.min(24, 9 + booking.party * 1.5);
@@ -106,18 +132,19 @@ function BookingCard({
   selected,
   onSelect
 }) {
-  return <button type="button" className="rv-booking-card" data-status={booking.status} aria-pressed={selected} onClick={onSelect}><span className="rv-avatar">{booking.initials}</span><span className="rv-card-time"><strong>{prettyTime(booking.time)}</strong><small>{booking.party} guests</small></span><span className="rv-card-guest"><strong>{booking.guest}</strong><small>{booking.occasion} · {booking.area}</small></span><span className="rv-card-status"><i />{STATUS[booking.status].label}</span><ChevronRight size={17} /></button>;
+  return <button type="button" className="rv-booking-card" data-status={booking.status} aria-pressed={selected} onClick={onSelect}><span className="rv-avatar">{booking.initials}</span><span className="rv-card-time"><strong>{prettyTime(booking.time)}</strong><small>{booking.party} guests</small></span><span className="rv-card-guest"><strong>{booking.guest}</strong><small>{[booking.occasion, booking.area].filter(Boolean).join(' · ')}</small></span><span className="rv-card-status"><i />{STATUS[booking.status].label}</span><ChevronRight size={17} /></button>;
 }
 function BookingDetail({
   booking,
   tables,
   onStatus,
   onAssign,
-  onCancel
+  onCancel,
+  live = false
 }) {
   if (!booking) return <aside className="rv-detail"><p>Select a reservation to see the handoff.</p></aside>;
   const next = booking.status === 'pending' || booking.status === 'waitlist' ? 'confirmed' : booking.status === 'confirmed' ? 'seated' : booking.status === 'seated' ? 'completed' : '';
-  return <aside className="rv-detail" data-status={booking.status}><header><span>Guest handoff</span><b>{STATUS[booking.status].label}</b></header><div className="rv-detail-name"><i>{booking.initials}</i><span><h3>{booking.guest}</h3><p>{booking.phone} · {booking.visits} visits · {booking.spend}</p></span></div><div className="rv-detail-moment"><span><Clock3 size={17} /><i><small>Arrival</small><strong>{prettyTime(booking.time)}</strong></i></span><span><UsersRound size={17} /><i><small>Party</small><strong>{booking.party} guests</strong></i></span></div><section><span>Host request</span><p>{booking.request || booking.note}</p><div>{booking.tags.map(tag => <em key={tag}>{tag}</em>)}</div></section><label>Table<select value={booking.tableId} onChange={event => onAssign(booking.id, event.target.value)}><option value="">Unassigned</option>{tables.filter(table => table.seats >= booking.party && !table.outOfService).map(table => <option key={table.id} value={table.id}>{table.name} · {table.area} · {table.seats} chairs</option>)}</select></label><dl><div><dt>Source</dt><dd>{booking.source}</dd></div><div><dt>Occasion</dt><dd>{booking.occasion}</dd></div></dl>{booking.whatsappStatus === 'queued' && <p className="rv-wa-note"><FaWhatsapp />Confirmation is ready for WhatsApp.</p>}{booking.source === 'AI Concierge' && <p className="rv-ai-note"><Bot size={15} />The Concierge can answer this guest’s booking questions and update them automatically.</p>}<footer>{next && <button type="button" className="rv-primary" onClick={() => onStatus(booking.id, next)}>{next === 'confirmed' ? <Check size={16} /> : next === 'seated' ? <DoorOpen size={16} /> : <CheckCircle2 size={16} />} {STATUS[booking.status].next}</button>}{!['cancelled', 'completed'].includes(booking.status) && <button type="button" className="rv-cancel" onClick={() => onCancel(booking)}><X size={16} />Cancel</button>}</footer></aside>;
+  return <aside className="rv-detail" data-status={booking.status}><header><span>Guest handoff</span><b>{STATUS[booking.status].label}</b></header><div className="rv-detail-name"><i>{booking.initials}</i><span><h3>{booking.guest}</h3><p>{live ? [booking.phone, booking.visits ? `${booking.visits} visits` : '', booking.spend].filter(Boolean).join(' · ') : `${booking.phone} · ${booking.visits} visits · ${booking.spend}`}</p></span></div><div className="rv-detail-moment"><span><Clock3 size={17} /><i><small>Arrival</small><strong>{prettyTime(booking.time)}</strong></i></span><span><UsersRound size={17} /><i><small>Party</small><strong>{booking.party} guests</strong></i></span></div>{(booking.request || booking.note || booking.tags.length > 0) && <section><span>Host request</span><p>{booking.request || booking.note}</p><div>{booking.tags.map(tag => <em key={tag}>{tag}</em>)}</div></section>}<label>Table<select value={booking.tableId} onChange={event => onAssign(booking.id, event.target.value)}><option value="">Unassigned</option>{tables.filter(table => table.seats >= booking.party && !table.outOfService).map(table => <option key={table.id} value={table.id}>{table.name} · {table.area} · {table.seats} chairs</option>)}</select></label><dl>{booking.source && <div><dt>Source</dt><dd>{booking.source}</dd></div>}{booking.occasion && <div><dt>Occasion</dt><dd>{booking.occasion}</dd></div>}</dl>{booking.whatsappStatus === 'queued' && <p className="rv-wa-note"><FaWhatsapp />Confirmation is ready for WhatsApp.</p>}{booking.source === 'AI Concierge' && <p className="rv-ai-note"><Bot size={15} />The Concierge can answer this guest’s booking questions and update them automatically.</p>}<footer>{next && <button type="button" className="rv-primary" onClick={() => onStatus(booking.id, next)}>{next === 'confirmed' ? <Check size={16} /> : next === 'seated' ? <DoorOpen size={16} /> : <CheckCircle2 size={16} />} {STATUS[booking.status].next}</button>}{!['cancelled', 'completed'].includes(booking.status) && <button type="button" className="rv-cancel" onClick={() => onCancel(booking)}><X size={16} />Cancel</button>}</footer></aside>;
 }
 export function SpaceIcon({
   type
@@ -167,7 +194,8 @@ function HostFloor({
   selectedId,
   onSelect,
   onNotice,
-  onAddWalkIn
+  onAddWalkIn,
+  live = null
 }) {
   const [mode, setMode] = useState('host'),
     [activeSpaceId, setActiveSpaceId] = useState(data.spaces[0]?.id || ''),
@@ -207,10 +235,18 @@ function HostFloor({
     freeCount = spaceTables.filter(table => !table.outOfService && !bookingFor(table.id)).length,
     reservedCount = spaceTables.filter(table => bookingFor(table.id)?.status === 'confirmed').length,
     seatedCount = spaceTables.filter(table => bookingFor(table.id)?.status === 'seated').length;
-  function setTable(id, patch) {
+  function setTable(id, patch, persist = true) {
     setData(current => updateReservationTable(current, id, patch));
+    if (live && persist) live.updateTable?.(id, patch);
   }
   function addTable() {
+    if (live) {
+      // The database mints the table id, so the reload brings it back rather
+      // than a placeholder row appearing in the layout first.
+      live.addTable?.(activeSpace?.id);
+      onNotice('Table added. Drag it into place and choose its chairs.');
+      return;
+    }
     const now = Date.now();
     setData(current => addReservationTable(current, activeSpace.id, now));
     setSelectedTableId(`table-${now}`);
@@ -226,6 +262,7 @@ function HostFloor({
         bookings
       };
     });
+    if (live) live.seatBooking?.(armedId, table.id);
     onSelect(armedId);
     setArmedId('');
     onNotice(`Guests seated at ${table.name}.`);
@@ -235,6 +272,10 @@ function HostFloor({
       ...current,
       bookings: setReservationStatus(assignReservationTable(current.bookings, booking.id, '', current.tables), booking.id, 'completed')
     }));
+    if (live) live.updateBooking?.(booking.id, {
+      status: 'completed',
+      tableId: ''
+    });
     onNotice('Visit completed and the table is free.');
   }
   function down(event, table) {
@@ -260,16 +301,32 @@ function HostFloor({
     setTable(drag.id, {
       x,
       y
-    });
+    }, false);
   }
   function up(event) {
     if (!dragRef.current) return;
     event.currentTarget.releasePointerCapture?.(event.pointerId);
-    const moved = dragRef.current.moved;
+    const {
+      moved,
+      id
+    } = dragRef.current;
     dragRef.current = null;
-    if (moved) onNotice('Table position updated.');
+    if (!moved) return;
+    if (live) {
+      const dropped = data.tables.find(table => table.id === id);
+      if (dropped) live.updateTable?.(id, {
+        x: dropped.x,
+        y: dropped.y
+      });
+    }
+    onNotice('Table position updated.');
   }
   function addSpace(input) {
+    if (live) {
+      live.addSpace?.(input);
+      onNotice(`${input.name} added to the floor plan.`);
+      return;
+    }
     const now = Date.now();
     setData(current => addReservationSpace(current, input, now));
     setActiveSpaceId(`space-${now}`);
@@ -279,19 +336,19 @@ function HostFloor({
   function confirmDelete() {
     if (!deleteRequest) return;
     if (deleteRequest.kind === 'table') {
-      setData(current => removeReservationTable(current, deleteRequest.id));
+      if (live) live.removeTable?.(deleteRequest.id);else setData(current => removeReservationTable(current, deleteRequest.id));
       setSelectedTableId('');
       onNotice('Table deleted from the layout.');
     } else {
       const nextSpace = data.spaces.find(space => space.id !== deleteRequest.id);
-      setData(current => removeReservationSpace(current, deleteRequest.id));
+      if (live) live.removeSpace?.(deleteRequest.id);else setData(current => removeReservationSpace(current, deleteRequest.id));
       setActiveSpaceId(nextSpace?.id || '');
       setSelectedTableId('');
       onNotice('Space and its tables deleted.');
     }
     setDeleteRequest(null);
   }
-  return <section className="rv-floor rv-floor-v2"><header><div><span>Host floor</span><h2>Build the room, then run it live.</h2><p>Map every floor and outdoor section. During service, choose an arrival and press a free table to seat them.</p></div><div className="rv-floor-key"><span><i />Free</span><span><i />Reserved</span><span><i />Seated</span><span><i />Out</span></div></header><div className="rv-floor-toolbar"><div><button type="button" aria-pressed={mode === 'host'} onClick={() => {
+  return <section className="rv-floor rv-floor-v2"><header><div><span>Host floor</span><h2>Build the room, then run it live.</h2><p>Map every floor and outdoor section. During service, choose an arrival and press a free table to seat them.</p></div><div className="rv-floor-key"><span><i />Free</span><span><i />Reserved</span><span><i />Seated</span>{!live && <span><i />Out</span>}</div></header><div className="rv-floor-toolbar"><div><button type="button" aria-pressed={mode === 'host'} onClick={() => {
           setMode('host');
           setSelectedTableId('');
         }}><Tablet size={15} />Host view</button>{!compactLayout && <button type="button" aria-pressed={mode === 'edit'} onClick={() => {
@@ -300,15 +357,19 @@ function HostFloor({
         }}><Edit3 size={15} />Edit layout</button>}</div><span />{mode === 'host' ? <button type="button" className="rv-floor-action" onClick={onAddWalkIn}><Plus size={15} />Walk-in</button> : <><button type="button" onClick={() => setSpaceOpen(true)}><Plus size={15} />Add space</button><button type="button" className="rv-floor-action" onClick={addTable}><Plus size={15} />Add table</button></>}</div>{compactLayout && <p className="rv-mobile-layout-note"><Tablet size={16} /><span><strong>Live host mode on phone</strong>Edit spaces, table sizes, and the floor plan from a tablet or laptop.</span></p>}<nav className="rv-spaces" aria-label="Dining spaces">{data.spaces.map(space => <button type="button" key={space.id} aria-pressed={activeSpace?.id === space.id} onClick={() => {
         setActiveSpaceId(space.id);
         setSelectedTableId('');
-      }}><SpaceIcon type={space.type} /><span><strong>{space.name}</strong><small>{space.type === 'outdoor' ? 'Outdoor' : space.type === 'floor' ? 'Separate floor' : 'Indoor'} · {data.tables.filter(table => table.spaceId === space.id).length} tables</small></span></button>)}</nav>{mode === 'host' && <section className="rv-floor-stats"><span><strong>{seatedCount}</strong>Seated</span><span><strong>{reservedCount}</strong>Reserved</span><span><strong>{freeCount}</strong>Free</span><span><strong>{waitlist.length}</strong>Waitlist</span></section>}{mode === 'edit' && activeSpace && <section className="rv-space-editor"><SpaceIcon type={activeSpace.type} /><label>Space name<input value={activeSpace.name} onChange={event => setData(current => updateReservationSpace(current, activeSpace.id, {
+      }}><SpaceIcon type={space.type} /><span><strong>{space.name}</strong><small>{[live ? '' : space.type === 'outdoor' ? 'Outdoor' : space.type === 'floor' ? 'Separate floor' : 'Indoor', `${data.tables.filter(table => table.spaceId === space.id).length} tables`].filter(Boolean).join(' · ')}</small></span></button>)}</nav>{mode === 'host' && <section className="rv-floor-stats"><span><strong>{seatedCount}</strong>Seated</span><span><strong>{reservedCount}</strong>Reserved</span><span><strong>{freeCount}</strong>Free</span><span><strong>{waitlist.length}</strong>Waitlist</span></section>}{mode === 'edit' && activeSpace && <section className="rv-space-editor"><SpaceIcon type={activeSpace.type} /><label>Space name<input value={activeSpace.name} onChange={event => setData(current => updateReservationSpace(current, activeSpace.id, {
           name: event.target.value
-        }))} /></label><label>Type<select value={activeSpace.type} onChange={event => setData(current => updateReservationSpace(current, activeSpace.id, {
+        }))} onBlur={event => {
+          if (live) live.updateSpace?.(activeSpace.id, {
+            name: event.target.value
+          });
+        }} /></label>{!live && <label>Type<select value={activeSpace.type} onChange={event => setData(current => updateReservationSpace(current, activeSpace.id, {
           type: event.target.value
-        }))}><option value="indoor">Indoor room</option><option value="outdoor">Outdoor section</option><option value="floor">Separate floor</option></select></label><button type="button" disabled={data.spaces.length === 1} onClick={() => setDeleteRequest({
+        }))}><option value="indoor">Indoor room</option><option value="outdoor">Outdoor section</option><option value="floor">Separate floor</option></select></label>}<button type="button" disabled={data.spaces.length === 1} onClick={() => setDeleteRequest({
         kind: 'space',
         id: activeSpace.id,
         label: activeSpace.name
-      })}><Trash2 size={16} />Delete space</button></section>}{armedId && <p className="rv-seat-cue"><Move size={16} />Choose a free table for <strong>{dayBookings.find(booking => booking.id === armedId)?.guest}</strong><button type="button" onClick={() => setArmedId('')}>Cancel</button></p>}<div className="rv-floor-shell rv-floor-shell-v2"><div className="rv-layout-wrap"><div className="rv-water"><span>{activeSpace?.type === 'outdoor' ? 'Open-air edge' : activeSpace?.type === 'floor' ? 'Upper level' : 'Dining room'}</span></div><div ref={canvasRef} className="rv-floor-plan rv-floor-canvas" data-editing={mode === 'edit' ? 'true' : 'false'}>{!spaceTables.length && <p className="rv-floor-empty">{mode === 'edit' ? 'Add a table, then drag it anywhere in this space.' : 'No tables are mapped in this space yet.'}</p>}{spaceTables.map(table => {
+      })}><Trash2 size={16} />Delete space</button></section>}{armedId && <p className="rv-seat-cue"><Move size={16} />Choose a free table for <strong>{dayBookings.find(booking => booking.id === armedId)?.guest}</strong><button type="button" onClick={() => setArmedId('')}>Cancel</button></p>}<div className="rv-floor-shell rv-floor-shell-v2"><div className="rv-layout-wrap"><div className="rv-water">{!live && <span>{activeSpace?.type === 'outdoor' ? 'Open-air edge' : activeSpace?.type === 'floor' ? 'Upper level' : 'Dining room'}</span>}</div><div ref={canvasRef} className="rv-floor-plan rv-floor-canvas" data-editing={mode === 'edit' ? 'true' : 'false'}>{!spaceTables.length && <p className="rv-floor-empty">{mode === 'edit' ? 'Add a table, then drag it anywhere in this space.' : 'No tables are mapped in this space yet.'}</p>}{spaceTables.map(table => {
             const booking = bookingFor(table.id),
               state = table.outOfService ? 'out' : booking?.status || 'free';
             return <button type="button" key={table.id} className="rv-table rv-table-map" data-shape={table.shape} data-state={state} aria-pressed={selectedTableId === table.id} aria-label={`${table.name}, ${activeSpace?.name}, ${table.seats} chairs, ${table.outOfService ? 'out of service' : booking ? STATUS[booking.status].label : 'free'}`} style={{
@@ -331,7 +392,11 @@ function HostFloor({
             }}><TableChairs count={table.seats} /><span>{table.name}</span><small>{table.seats} chairs</small>{booking && <b>{booking.firstName || booking.guest.split(' ')[0]}</b>}{mode === 'edit' && <Move size={13} />}</button>;
           })}<div className="rv-host-desk"><Table2 size={17} />Host</div></div></div><aside className="rv-floor-panel">{mode === 'edit' ? selectedTable ? <><header><span>Edit table</span><small>Drag it directly on the map</small></header><label>Table name<input value={selectedTable.name} onChange={event => setTable(selectedTable.id, {
               name: event.target.value
-            })} /></label><label>Number of chairs<select value={selectedTable.seats} onChange={event => setTable(selectedTable.id, {
+            }, false)} onBlur={event => {
+              if (live) live.updateTable?.(selectedTable.id, {
+                name: event.target.value
+              });
+            }} /></label><label>Number of chairs<select value={selectedTable.seats} onChange={event => setTable(selectedTable.id, {
               seats: Number(event.target.value)
             })}>{Array.from({
                 length: 20
@@ -339,13 +404,13 @@ function HostFloor({
               shape,
               width: shape === 'long' ? 132 : 82,
               depth: shape === 'long' ? 72 : 82
-            })}>{label}</button>)}</div><div className="rv-table-size"><label>Width <output>{selectedTable.width}px</output><input aria-label="Table width" type="range" min="58" max="180" value={selectedTable.width} onChange={event => setTable(selectedTable.id, {
+            })}>{label}</button>)}</div>{!live && <div className="rv-table-size"><label>Width <output>{selectedTable.width}px</output><input aria-label="Table width" type="range" min="58" max="180" value={selectedTable.width} onChange={event => setTable(selectedTable.id, {
                 width: Number(event.target.value)
               })} /></label><label>Depth <output>{selectedTable.depth}px</output><input aria-label="Table depth" type="range" min="54" max="132" value={selectedTable.depth} onChange={event => setTable(selectedTable.id, {
                 depth: Number(event.target.value)
-              })} /></label></div><button type="button" className="rv-oos" aria-pressed={selectedTable.outOfService} onClick={() => setTable(selectedTable.id, {
+              })} /></label></div>}{!live && <button type="button" className="rv-oos" aria-pressed={selectedTable.outOfService} onClick={() => setTable(selectedTable.id, {
             outOfService: !selectedTable.outOfService
-          })}><span><strong>Out of service</strong><small>Repairs, private use, or temporarily unavailable</small></span><i><b /></i></button><button type="button" className="rv-delete-table" onClick={() => setDeleteRequest({
+          })}><span><strong>Out of service</strong><small>Repairs, private use, or temporarily unavailable</small></span><i><b /></i></button>}<button type="button" className="rv-delete-table" onClick={() => setDeleteRequest({
             kind: 'table',
             id: selectedTable.id,
             label: selectedTable.name
@@ -368,7 +433,13 @@ function HostFloor({
             ...current.settings,
             hostPin: event.target.value.replace(/\D/g, '').slice(0, 4)
           }
-        }))} /></label><button type="button" onClick={() => onNotice('Host tablet preview is ready with this layout.')}><Eye size={15} />Preview host screen</button></section>{spaceOpen && <SpaceModal onClose={() => setSpaceOpen(false)} onAdd={addSpace} />}<ConfirmLayoutDelete request={deleteRequest} onClose={() => setDeleteRequest(null)} onConfirm={confirmDelete} /></section>;
+        }))} /></label><button type="button" onClick={() => {
+        if (live?.openHostScreen) {
+          live.openHostScreen();
+          return;
+        }
+        onNotice('Host tablet preview is ready with this layout.');
+      }}><Eye size={15} />Preview host screen</button></section>{spaceOpen && <SpaceModal onClose={() => setSpaceOpen(false)} onAdd={addSpace} />}<ConfirmLayoutDelete request={deleteRequest} onClose={() => setDeleteRequest(null)} onConfirm={confirmDelete} /></section>;
 }
 export function GuestBooking({
   data,
@@ -425,7 +496,8 @@ function Toggle({
 export function ReservationSettings({
   data,
   setData,
-  onSave
+  onSave,
+  live = false
 }) {
   const settings = data.settings,
     set = (field, value) => setData(current => ({
@@ -435,12 +507,13 @@ export function ReservationSettings({
         [field]: value
       }
     }));
-  return <section className="rv-settings"><header><span>Reservation settings</span><h2>Set the room’s rules once.</h2><p>The booking page, host view, WhatsApp confirmation, and Concierge use the same availability.</p></header><div className="rv-settings-grid"><Toggle label={settings.enabled ? 'Reservations open' : 'Reservations paused'} note={`${settings.open} to ${settings.close}`} checked={settings.enabled} onChange={value => set('enabled', value)} icon={<CalendarDays size={18} />} /><Toggle label="Host approval" note="Review every request before confirming" checked={settings.requiresApproval} onChange={value => set('requiresApproval', value)} icon={<CheckCircle2 size={18} />} /><Toggle label="AI Concierge" note="Answers and manages simple changes" checked={settings.concierge} onChange={value => set('concierge', value)} icon={<Bot size={18} />} /><Toggle label="WhatsApp confirmation" note="Booking, updates, reminders, and table-ready messages" checked={settings.whatsappConfirmation} onChange={value => set('whatsappConfirmation', value)} icon={<FaWhatsapp />} /><label><Clock3 size={18} /><span><strong>Table duration</strong><small>Used to calculate availability</small></span><select value={settings.turnMinutes} onChange={event => set('turnMinutes', Number(event.target.value))}>{[60, 75, 90, 105, 120, 150].map(value => <option key={value} value={value}>{value} min</option>)}</select></label><label><UsersRound size={18} /><span><strong>Largest online party</strong><small>Larger groups contact the team</small></span><select value={settings.maxParty} onChange={event => set('maxParty', Number(event.target.value))}>{[4, 6, 8, 10, 12, 16].map(value => <option key={value} value={value}>{value} guests</option>)}</select></label><label><Clock3 size={18} /><span><strong>Arrival grace</strong><small>Before releasing the table</small></span><select value={settings.holdMinutes} onChange={event => set('holdMinutes', Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} min</option>)}</select></label><label><Tablet size={18} /><span><strong>Host tablet PIN</strong><small>Four digits for the entrance screen</small></span><input aria-label="Host tablet PIN" inputMode="numeric" maxLength={4} value={settings.hostPin} onChange={event => set('hostPin', event.target.value.replace(/\D/g, '').slice(0, 4))} /></label></div><button type="button" className="rv-save-settings" onClick={onSave}><Save size={16} />Save reservation settings</button></section>;
+  return <section className="rv-settings"><header><span>Reservation settings</span><h2>Set the room’s rules once.</h2><p>The booking page, host view, WhatsApp confirmation, and Concierge use the same availability.</p></header><div className="rv-settings-grid">{!live && <Toggle label={settings.enabled ? 'Reservations open' : 'Reservations paused'} note={`${settings.open} to ${settings.close}`} checked={settings.enabled} onChange={value => set('enabled', value)} icon={<CalendarDays size={18} />} />}<Toggle label="Host approval" note="Review every request before confirming" checked={settings.requiresApproval} onChange={value => set('requiresApproval', value)} icon={<CheckCircle2 size={18} />} />{!live && <><Toggle label="AI Concierge" note="Answers and manages simple changes" checked={settings.concierge} onChange={value => set('concierge', value)} icon={<Bot size={18} />} /><Toggle label="WhatsApp confirmation" note="Booking, updates, reminders, and table-ready messages" checked={settings.whatsappConfirmation} onChange={value => set('whatsappConfirmation', value)} icon={<FaWhatsapp />} /></>}{!live && <><label><Clock3 size={18} /><span><strong>Table duration</strong><small>Used to calculate availability</small></span><select value={settings.turnMinutes} onChange={event => set('turnMinutes', Number(event.target.value))}>{[60, 75, 90, 105, 120, 150].map(value => <option key={value} value={value}>{value} min</option>)}</select></label><label><UsersRound size={18} /><span><strong>Largest online party</strong><small>Larger groups contact the team</small></span><select value={settings.maxParty} onChange={event => set('maxParty', Number(event.target.value))}>{[4, 6, 8, 10, 12, 16].map(value => <option key={value} value={value}>{value} guests</option>)}</select></label><label><Clock3 size={18} /><span><strong>Arrival grace</strong><small>Before releasing the table</small></span><select value={settings.holdMinutes} onChange={event => set('holdMinutes', Number(event.target.value))}>{[5, 10, 15, 20, 30].map(value => <option key={value} value={value}>{value} min</option>)}</select></label></>}<label><Tablet size={18} /><span><strong>Host tablet PIN</strong><small>Four digits for the entrance screen</small></span><input aria-label="Host tablet PIN" inputMode="numeric" maxLength={4} value={settings.hostPin} onChange={event => set('hostPin', event.target.value.replace(/\D/g, '').slice(0, 4))} /></label></div><button type="button" className="rv-save-settings" onClick={onSave}><Save size={16} />Save reservation settings</button></section>;
 }
 function NewReservationModal({
   day,
   onClose,
-  onAdd
+  onAdd,
+  live = false
 }) {
   const [firstName, setFirstName] = useState(''),
     [lastName, setLastName] = useState(''),
@@ -451,7 +524,7 @@ function NewReservationModal({
     [countryCode, setCountryCode] = useState('+973'),
     [phoneNumber, setPhoneNumber] = useState(''),
     [request, setRequest] = useState('');
-  return <div className="rv-overlay" role="presentation" onClick={onClose}><section role="dialog" aria-modal="true" aria-labelledby="rv-new-title" onClick={event => event.stopPropagation()}><button type="button" aria-label="Close new reservation" onClick={onClose}><X size={18} /></button><span>Host entry</span><h2 id="rv-new-title">Add a reservation</h2><p>For phone bookings and walk-ins. Add WhatsApp details now so the guest can receive updates.</p><div><label>First name<input autoFocus value={firstName} onChange={event => setFirstName(event.target.value)} placeholder="First name" /></label><label>Second name<input value={lastName} onChange={event => setLastName(event.target.value)} placeholder="Second name" /></label></div><div><label>Time<input type="time" value={time} onChange={event => setTime(event.target.value)} /></label><label>Guests<input type="number" min="1" max="30" value={party} onChange={event => setParty(event.target.value)} /></label></div><label>WhatsApp number<div className="rv-modal-phone"><select value={countryCode} onChange={event => setCountryCode(event.target.value)}>{COUNTRY_CODES.map(([code, country]) => <option key={code} value={code}>{code} · {country}</option>)}</select><input value={phoneNumber} inputMode="tel" onChange={event => setPhoneNumber(event.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Mobile number" /></div></label><label>Preferred area<select value={area} onChange={event => setArea(event.target.value)}><option>Any area</option><option>Waterfront terrace</option><option>Garden</option><option>Main dining room</option><option>Upper floor</option></select></label><label>Occasion<input value={occasion} onChange={event => setOccasion(event.target.value)} /></label><label>Request<textarea rows={2} value={request} onChange={event => setRequest(event.target.value)} placeholder="Allergies, seating, accessibility, or celebration details" /></label><button type="button" className="rv-modal-add" disabled={!firstName.trim() || !lastName.trim()} onClick={() => {
+  return <div className="rv-overlay" role="presentation" onClick={onClose}><section role="dialog" aria-modal="true" aria-labelledby="rv-new-title" onClick={event => event.stopPropagation()}><button type="button" aria-label="Close new reservation" onClick={onClose}><X size={18} /></button><span>Host entry</span><h2 id="rv-new-title">Add a reservation</h2><p>For phone bookings and walk-ins. Add WhatsApp details now so the guest can receive updates.</p><div><label>First name<input autoFocus value={firstName} onChange={event => setFirstName(event.target.value)} placeholder="First name" /></label><label>Second name<input value={lastName} onChange={event => setLastName(event.target.value)} placeholder="Second name" /></label></div><div><label>Time<input type="time" value={time} onChange={event => setTime(event.target.value)} /></label><label>Guests<input type="number" min="1" max="30" value={party} onChange={event => setParty(event.target.value)} /></label></div><label>WhatsApp number<div className="rv-modal-phone"><select value={countryCode} onChange={event => setCountryCode(event.target.value)}>{COUNTRY_CODES.map(([code, country]) => <option key={code} value={code}>{code} · {country}</option>)}</select><input value={phoneNumber} inputMode="tel" onChange={event => setPhoneNumber(event.target.value.replace(/\D/g, '').slice(0, 15))} placeholder="Mobile number" /></div></label>{!live && <label>Preferred area<select value={area} onChange={event => setArea(event.target.value)}><option>Any area</option><option>Waterfront terrace</option><option>Garden</option><option>Main dining room</option><option>Upper floor</option></select></label>}<label>Occasion<input value={occasion} onChange={event => setOccasion(event.target.value)} /></label>{!live && <label>Request<textarea rows={2} value={request} onChange={event => setRequest(event.target.value)} placeholder="Allergies, seating, accessibility, or celebration details" /></label>}<button type="button" className="rv-modal-add" disabled={!firstName.trim() || !lastName.trim()} onClick={() => {
         if (!firstName.trim() || !lastName.trim()) return;
         onAdd({
           day,
@@ -472,28 +545,80 @@ function NewReservationModal({
 function ConfirmCancel({
   booking,
   onClose,
-  onConfirm
+  onConfirm,
+  live = false
 }) {
-  return <div className="rv-overlay" role="presentation" onClick={onClose}><section className="rv-confirm" role="alertdialog" aria-modal="true" aria-labelledby="rv-cancel-title" onClick={event => event.stopPropagation()}><span><X size={19} /></span><h2 id="rv-cancel-title">Cancel this reservation?</h2><p>{booking.guest} will be removed from the active service list. A connected account would notify the guest on WhatsApp.</p><div><button type="button" onClick={onClose}>Keep reservation</button><button type="button" onClick={onConfirm}><Trash2 size={16} />Cancel reservation</button></div></section></div>;
+  return <div className="rv-overlay" role="presentation" onClick={onClose}><section className="rv-confirm" role="alertdialog" aria-modal="true" aria-labelledby="rv-cancel-title" onClick={event => event.stopPropagation()}><span><X size={19} /></span><h2 id="rv-cancel-title">Cancel this reservation?</h2><p>{booking.guest} will be removed from the active service list.{live ? '' : ' A connected account would notify the guest on WhatsApp.'}</p><div><button type="button" onClick={onClose}>Keep reservation</button><button type="button" onClick={onConfirm}><Trash2 size={16} />Cancel reservation</button></div></section></div>;
 }
-function LegacyReservationsExperience({
+export default function LegacyReservationsExperience({
   dark = false,
   setDark = () => {},
-  onOpenHostTest = () => {}
+  onOpenHostTest = () => {},
+  liveBookings = null,
+  liveSpaces = null,
+  liveTables = null,
+  liveSettings = null,
+  liveDays = null,
+  clientName = '',
+  shareUrl = '',
+  errorMessage = '',
+  onUpdateBooking = null,
+  onAddBooking = null,
+  onAssignTable = null,
+  onSeatBooking = null,
+  onSaveSettings = null,
+  onAddSpace = null,
+  onUpdateSpace = null,
+  onRemoveSpace = null,
+  onAddTable = null,
+  onUpdateTable = null,
+  onRemoveTable = null,
+  onOpenHostScreen = null
 }) {
-  const initial = useMemo(() => readReservationPreview(), []),
+  // `live` is the single switch between the isolated design preview (browser
+  // storage, sample service) and real records handed down by the page wrapper.
+  const live = Array.isArray(liveBookings),
+    initial = useMemo(() => live ? {
+      data: null,
+      error: ''
+    } : readReservationPreview(), [live]),
     menuBook = useMemo(() => readMenuBook().data, []),
     menu = menuBook.menus.find(item => item.id === menuBook.activeMenuId) || menuBook.menus[0],
-    [data, setData] = useState(initial.data),
-    [day, setDay] = useState(RESERVATION_DAYS[0].id),
+    days = liveDays && liveDays.length ? liveDays : RESERVATION_DAYS,
+    venueName = clientName || 'Marina Social Club',
+    liveData = useMemo(() => live ? {
+      settings: liveSettings || {},
+      bookings: liveBookings || [],
+      spaces: liveSpaces || [],
+      tables: liveTables || []
+    } : null, [live, liveSettings, liveBookings, liveSpaces, liveTables]),
+    [data, setData] = useState(() => liveData || initial.data),
+    [day, setDay] = useState(days[0]?.id || ''),
     [tab, setTab] = useState('service'),
     [filter, setFilter] = useState('all'),
-    [selectedId, setSelectedId] = useState(initial.data.bookings.find(booking => booking.day === RESERVATION_DAYS[0].id)?.id || ''),
+    [selectedId, setSelectedId] = useState(() => (liveData || initial.data).bookings.find(booking => booking.day === (days[0]?.id || ''))?.id || ''),
     [shareOpen, setShareOpen] = useState(false),
     [newOpen, setNewOpen] = useState(false),
     [cancelBooking, setCancelBooking] = useState(null),
     [notice, setNotice] = useState(''),
     [storageError, setStorageError] = useState(initial.error);
+  // Edits stay optimistic locally; refreshed records from the wrapper win.
+  useEffect(() => {
+    if (liveData) setData(liveData);
+  }, [liveData]);
+  const liveActions = live ? {
+    updateBooking: onUpdateBooking,
+    addBooking: onAddBooking,
+    assignTable: onAssignTable,
+    seatBooking: onSeatBooking,
+    addSpace: onAddSpace,
+    updateSpace: onUpdateSpace,
+    removeSpace: onRemoveSpace,
+    addTable: onAddTable,
+    updateTable: onUpdateTable,
+    removeTable: onRemoveTable,
+    openHostScreen: onOpenHostScreen
+  } : null;
   const dayBookings = data.bookings.filter(booking => booking.day === day && booking.status !== 'cancelled').sort((a, b) => a.time.localeCompare(b.time)),
     shown = filter === 'all' ? dayBookings : dayBookings.filter(booking => booking.status === filter),
     selected = data.bookings.find(booking => booking.id === selectedId) || dayBookings[0],
@@ -511,6 +636,9 @@ function LegacyReservationsExperience({
       ...current,
       bookings: setReservationStatus(current.bookings, id, next)
     }));
+    if (live) onUpdateBooking?.(id, {
+      status: next
+    });
     setNotice(next === 'confirmed' ? 'Reservation confirmed.' : next === 'seated' ? 'Guests seated.' : 'Visit completed.');
   }
   function assign(id, tableId) {
@@ -518,15 +646,21 @@ function LegacyReservationsExperience({
       ...current,
       bookings: assignReservationTable(current.bookings, id, tableId, current.tables)
     }));
+    if (live) onAssignTable?.(id, tableId);
     setNotice(tableId ? 'Table assigned.' : 'Table cleared.');
   }
   function add(input) {
-    setData(current => addPreviewReservation(current, input));
+    if (live) onAddBooking?.(input);else setData(current => addPreviewReservation(current, input));
     setDay(input.day);
     setTab('service');
     setNotice(data.settings.whatsappConfirmation && input.phoneNumber ? 'Reservation added and WhatsApp confirmation prepared.' : 'Reservation added to the service line.');
   }
   function save() {
+    if (live) {
+      onSaveSettings?.(data.settings);
+      setNotice('Reservation settings saved.');
+      return;
+    }
     const result = saveReservationPreview(data);
     if (result.ok) {
       setData(result.data);
@@ -534,10 +668,15 @@ function LegacyReservationsExperience({
       setNotice('Reservation workspace saved in this browser.');
     } else setStorageError(result.error);
   }
-  const selectedDay = RESERVATION_DAYS.find(item => item.id === day);
-  return <main className="tw-reservations" data-reservation-theme={dark ? 'dark' : 'light'}><div className="rv-preview-line"><span>Reservations preview · Sample service · No guest is contacted</span><div className="rv-preview-actions"><button type="button" className="tw-host-test-launch" onClick={onOpenHostTest}><ShieldCheck size={16} />Host Test</button><button type="button" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Reservations theme' : 'Use dark Reservations theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div></div><header className="rv-heading"><div><span><img src="/logo-transparent.png" width="22" height="22" alt="" />Marina Social Club / Reservations</span><h1>Tonight,<br />beautifully handled.</h1><p>One calm view for every arrival, table, guest note, and last-minute change.</p></div><nav><button type="button" onClick={() => setNewOpen(true)}><Plus size={17} />Add reservation</button><button type="button" onClick={() => setShareOpen(value => !value)}><Link2 size={17} />Link and QR</button><button type="button" className="rv-save" onClick={save}><Save size={17} />Save</button></nav></header>{shareOpen && <ReservationShare onClose={() => setShareOpen(false)} />} {storageError && <p className="rv-error" role="alert">{storageError}</p>}<div className="rv-toast" role="status">{notice}</div><DayRibbon day={day} setDay={setDay} data={data} /><section className="rv-pulse"><span><i />{data.settings.enabled ? 'Bookings open' : 'Bookings paused'}</span><div><strong>{summary.covers}</strong><small>covers</small></div><div><strong>{summary.bookings}</strong><small>bookings</small></div><div><strong>{summary.seated}</strong><small>at table</small></div><div data-attention={summary.pending > 0 ? 'true' : 'false'}><strong>{summary.pending + summary.waitlist}</strong><small>need attention</small></div></section><nav className="rv-tabs" aria-label="Reservations workspace">{[['service', CalendarDays, 'Service'], ['floor', Table2, 'Floor'], ['guest', Eye, 'Guest booking'], ['settings', Settings2, 'Settings']].map(([key, Icon, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}><Icon size={17} />{label}</button>)}</nav>{tab === 'service' && <><ServiceTimeline bookings={dayBookings} selectedId={selectedId} onSelect={setSelectedId} /><section className="rv-service"><div className="rv-list"><header><div><span>{selectedDay?.label} · {selectedDay?.day} {selectedDay?.month}</span><h2>Arrival book</h2></div><label><ListFilter size={16} /><select aria-label="Filter reservations" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All reservations</option><option value="pending">Needs reply</option><option value="confirmed">Confirmed</option><option value="seated">At table</option><option value="waitlist">Waitlist</option></select></label></header>{shown.length ? shown.map(booking => <BookingCard key={booking.id} booking={booking} selected={selected?.id === booking.id} onSelect={() => setSelectedId(booking.id)} />) : <p className="rv-empty"><CalendarDays size={22} /><strong>No reservations here</strong><span>Choose another filter or add a booking.</span></p>}</div><BookingDetail booking={selected} tables={data.tables} onStatus={status} onAssign={assign} onCancel={setCancelBooking} /></section></>}{tab === 'floor' && <HostFloor data={data} setData={setData} day={day} selectedId={selectedId} onSelect={setSelectedId} onNotice={setNotice} onAddWalkIn={() => setNewOpen(true)} />} {tab === 'guest' && <GuestBooking data={data} setData={setData} onNotice={setNotice} menu={menu} />} {tab === 'settings' && <ReservationSettings data={data} setData={setData} onSave={save} />}<section className="rv-concierge"><Bot size={24} /><div><span>One host across every channel</span><h2>The Concierge knows the room.</h2><p>It can show the menu, answer availability, collect party details, confirm simple changes, and hand special requests to the team.</p></div><a href="?page=concierge&occasions=editorial">Open AI Concierge<ArrowRight size={16} /></a></section><footer className="rv-foot"><span><MapPin size={14} />Marina Social Club · Waterfront dining</span><span><UtensilsCrossed size={14} />Dine-in and pickup menus stay distinct</span><span><UserRound size={14} />Guest history follows every reservation</span></footer>{newOpen && <NewReservationModal day={day} onClose={() => setNewOpen(false)} onAdd={add} />} {cancelBooking && <ConfirmCancel booking={cancelBooking} onClose={() => setCancelBooking(null)} onConfirm={() => {
+  const selectedDay = days.find(item => item.id === day),
+    shownError = errorMessage || storageError,
+    // The preview keeps its fixed evening strip. On real records the strip spans
+    // the saved opening hours, or failing that the span of the day's own
+    // bookings, so a lunch service is never drawn against an invented window.
+    serviceHours = live ? liveServiceHours(data.settings, dayBookings) : null;
+  return <main className="tw-reservations" data-reservation-theme={dark ? 'dark' : 'light'}><div className="rv-preview-line">{live ? <span /> : <span>Reservations preview · Sample service · No guest is contacted</span>}<div className="rv-preview-actions"><button type="button" className="tw-host-test-launch" onClick={onOpenHostTest}><ShieldCheck size={16} />Host Test</button><button type="button" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light Reservations theme' : 'Use dark Reservations theme'}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></div></div><header className="rv-heading"><div><span><img src="/logo-transparent.png" width="22" height="22" alt="" />{venueName} / Reservations</span><h1>Tonight,<br />beautifully handled.</h1><p>One calm view for every arrival, table, guest note, and last-minute change.</p></div><nav><button type="button" onClick={() => setNewOpen(true)}><Plus size={17} />Add reservation</button>{(!live || shareUrl) && <button type="button" onClick={() => setShareOpen(value => !value)}><Link2 size={17} />Link and QR</button>}<button type="button" className="rv-save" onClick={save}><Save size={17} />Save</button></nav></header>{shareOpen && <ReservationShare onClose={() => setShareOpen(false)} url={shareUrl} venueName={venueName} />} {shownError && <p className="rv-error" role="alert">{shownError}</p>}<div className="rv-toast" role="status">{notice}</div><DayRibbon day={day} setDay={setDay} data={data} days={days} /><section className="rv-pulse">{!live && <span><i />{data.settings.enabled ? 'Bookings open' : 'Bookings paused'}</span>}<div><strong>{summary.covers}</strong><small>covers</small></div><div><strong>{summary.bookings}</strong><small>bookings</small></div><div><strong>{summary.seated}</strong><small>at table</small></div><div data-attention={summary.pending > 0 ? 'true' : 'false'}><strong>{summary.pending + summary.waitlist}</strong><small>need attention</small></div></section><nav className="rv-tabs" aria-label="Reservations workspace">{[['service', CalendarDays, 'Service'], ['floor', Table2, 'Floor'], ...(live ? [] : [['guest', Eye, 'Guest booking']]), ['settings', Settings2, 'Settings']].map(([key, Icon, label]) => <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)}><Icon size={17} />{label}</button>)}</nav>{tab === 'service' && <>{(!live || serviceHours) && <ServiceTimeline bookings={dayBookings} selectedId={selectedId} onSelect={setSelectedId} serviceHours={serviceHours} />}<section className="rv-service"><div className="rv-list"><header><div><span>{selectedDay?.label} · {selectedDay?.day} {selectedDay?.month}</span><h2>Arrival book</h2></div><label><ListFilter size={16} /><select aria-label="Filter reservations" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All reservations</option><option value="pending">Needs reply</option><option value="confirmed">Confirmed</option><option value="seated">At table</option><option value="waitlist">Waitlist</option></select></label></header>{shown.length ? shown.map(booking => <BookingCard key={booking.id} booking={booking} selected={selected?.id === booking.id} onSelect={() => setSelectedId(booking.id)} />) : <p className="rv-empty"><CalendarDays size={22} /><strong>No reservations here</strong><span>Choose another filter or add a booking.</span></p>}</div><BookingDetail booking={selected} tables={data.tables} onStatus={status} onAssign={assign} onCancel={setCancelBooking} live={live} /></section></>}{tab === 'floor' && <HostFloor data={data} setData={setData} day={day} selectedId={selectedId} onSelect={setSelectedId} onNotice={setNotice} onAddWalkIn={() => setNewOpen(true)} live={liveActions} />} {tab === 'guest' && !live && <GuestBooking data={data} setData={setData} onNotice={setNotice} menu={menu} />} {tab === 'settings' && <ReservationSettings data={data} setData={setData} onSave={save} live={live} />}<section className="rv-concierge"><Bot size={24} /><div><span>One host across every channel</span><h2>The Concierge knows the room.</h2><p>It can show the menu, answer availability, collect party details, confirm simple changes, and hand special requests to the team.</p></div><a href="?page=concierge&occasions=editorial">Open AI Concierge<ArrowRight size={16} /></a></section>{!live && <footer className="rv-foot"><span><MapPin size={14} />Marina Social Club · Waterfront dining</span><span><UtensilsCrossed size={14} />Dine-in and pickup menus stay distinct</span><span><UserRound size={14} />Guest history follows every reservation</span></footer>}{newOpen && <NewReservationModal day={day} onClose={() => setNewOpen(false)} onAdd={add} live={live} />} {cancelBooking && <ConfirmCancel booking={cancelBooking} onClose={() => setCancelBooking(null)} live={live} onConfirm={() => {
       status(cancelBooking.id, 'cancelled');
       setCancelBooking(null);
-      setNotice('Reservation cancelled in this preview.');
+      setNotice(live ? 'Reservation cancelled.' : 'Reservation cancelled in this preview.');
     }} />}</main>;
 }
