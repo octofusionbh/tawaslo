@@ -233,7 +233,7 @@ function ScaledProductPreview({children,className='',desktopWidth=1480,mobileWid
 function RealDashboardStage({full=false}){
   return <div className={`mk-real-dashboard-stage${full?' mk-real-dashboard-stage-full':''}`} aria-label="The real Tawaslo dashboard">
     <div className="mk-real-window-bar"><span aria-hidden="true"><img src="/logo192.png" alt=""/></span><strong>Dashboard · Marina Social Club</strong><small>Actual product view</small></div>
-    <div className="mk-real-dashboard-crop" data-tw-theme="dark">
+    <div className="mk-real-dashboard-crop" data-tw-theme="light">
       <ScaledProductPreview className="mk-auto-dashboard" desktopWidth={full?2200:1480} tabletWidth={full?2200:1080} mobileWidth={full?2200:720} fitHeight={full}><DashboardOverview client={MARKETING_DASHBOARD_CLIENT} accounts={MARKETING_DASHBOARD_ACCOUNTS} onNavigate={()=>{}} lang="en" aiCredits={{used:18,remaining:32,limit:50,extra:0,unlimited:false}}/></ScaledProductPreview>
     </div>
   </div>;
