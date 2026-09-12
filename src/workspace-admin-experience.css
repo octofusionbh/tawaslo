@@ -17,3 +17,31 @@
 
 /* Shown when a workspace has no connected accounts yet. */
 .wa-empty{margin:0;padding:20px 2px;color:var(--wa-muted,#6b6f80);font-size:13px;line-height:1.6}
+
+/* Same light palette as the rest of the dashboard — see agency-suite-experience.css. */
+[data-tw-theme="light"] .wa-page{
+  --wa-bg:#f2f0e9;--wa-panel:#fcfbf7;--wa-panel2:#eae7de;--wa-line:#dcd8ce;
+  --wa-text:#171526;--wa-muted:#5f6274;--wa-soft:#767a8c;
+  --wa-violet:#5540db;--wa-coral:#bf3527;--wa-aqua:#087c6d;--wa-gold:#8f5b10;
+  background:
+    radial-gradient(circle at 88% 2%,rgba(85,64,219,.07),transparent 26%),
+    radial-gradient(circle at 8% 46%,rgba(8,124,109,.05),transparent 26%),
+    var(--wa-bg);
+}
+[data-tw-theme="light"] .wa-page .wa-account-grid>article,
+[data-tw-theme="light"] .wa-page .wa-permission-grid article{background:rgba(23,21,38,.035)}
+[data-tw-theme="light"] .wa-page .wa-account-grid>article>i{background:rgba(23,21,38,.06)}
+[data-tw-theme="light"] .wa-page .wa-client-preview>button{background:#171526;color:#fcfbf7}
+/* Same reason as the suite pages: these surfaces are hardcoded gradients. */
+[data-tw-theme="light"] .wa-page .wa-stat{background:linear-gradient(145deg,#fcfbf7,#f4f2ea)}
+[data-tw-theme="light"] .wa-page .wa-panel{background:linear-gradient(145deg,#fdfcf9,#f6f4ed)}
+[data-tw-theme="light"] .wa-page .wa-client-preview{background:linear-gradient(150deg,#eae7de,#f4f2ea)}
+[data-tw-theme="light"] .wa-page .wa-filter-row button[aria-pressed=true]{background:#171526;color:#fcfbf7}
+[data-tw-theme="light"] .wa-page .wa-table-row i,
+[data-tw-theme="light"] .wa-page .wa-client-mark{background:#171526;color:#fcfbf7}
+/* The selected-workspace card was white-on-dark; on paper it needs ink. */
+[data-tw-theme="light"] .wa-page .wa-client-preview>span{color:#5f6274}
+[data-tw-theme="light"] .wa-page .wa-client-preview h2,
+[data-tw-theme="light"] .wa-page .wa-client-preview strong{color:#171526}
+[data-tw-theme="light"] .wa-page .wa-client-preview p,
+[data-tw-theme="light"] .wa-page .wa-client-preview small{color:#5f6274}

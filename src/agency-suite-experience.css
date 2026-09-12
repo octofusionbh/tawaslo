@@ -44,3 +44,36 @@
 @media(max-width:980px){.suite-analytics-filters{align-items:stretch;flex-direction:column}.suite-analytics-filters .suite-switch{width:max-content}.suite-analytics-channels{width:100%;overflow-x:auto}.suite-analytics-channels button{flex:1}.suite-analytics-snapshot{grid-template-columns:1fr 1fr}.suite-analytics-detail-grid{grid-template-columns:1fr}.suite-analytics-detail-grid>article:first-child{grid-column:auto}}
 @media(max-width:600px){.suite-page--analytics .suite-intro{padding-block:28px}.suite-page--analytics .suite-intro h1{font-size:40px}.suite-stat-grid--analytics{grid-template-columns:1fr 1fr}.suite-analytics-snapshot{grid-template-columns:1fr}.suite-analytics-channels{scrollbar-width:none}.suite-analytics-channels button{flex:0 0 auto;padding-inline:12px}.suite-analytics-table>header{align-items:flex-start;flex-direction:column}.suite-page--analytics .suite-chart-wrap{height:220px}.suite-page--analytics .suite-chart{height:183px}}
 @media(max-width:390px){.suite-stat-grid--analytics{grid-template-columns:1fr}.suite-analytics-filters .suite-switch{width:100%}.suite-analytics-filters .suite-switch button{flex:1}}
+
+/* Light is the dashboard's default theme now. These screens were authored dark
+   and are almost entirely token-driven, so flipping the palette at the root
+   carries nearly every rule; the handful of white-alpha surfaces below were
+   invisible on a light page and become soft tints instead. */
+[data-tw-theme="light"] .suite-page{
+  --s-bg:#f2f0e9;--s-panel:#fcfbf7;--s-panel2:#eae7de;--s-line:#dcd8ce;
+  --s-text:#171526;--s-muted:#5f6274;--s-soft:#767a8c;
+  --s-violet:#5540db;--s-coral:#bf3527;--s-aqua:#087c6d;--s-gold:#8f5b10;
+  background:
+    radial-gradient(circle at 88% 2%,rgba(85,64,219,.07),transparent 26%),
+    radial-gradient(circle at 12% 40%,rgba(8,124,109,.05),transparent 26%),
+    var(--s-bg);
+}
+[data-tw-theme="light"] .suite-page .suite-secondary,
+[data-tw-theme="light"] .suite-page .suite-actions .suite-secondary{background:rgba(23,21,38,.04)}
+[data-tw-theme="light"] .suite-page .suite-switch,
+[data-tw-theme="light"] .suite-page .suite-channel-tabs,
+[data-tw-theme="light"] .suite-page .suite-analytics-channels,
+[data-tw-theme="light"] .suite-page .suite-analytics-snapshot article{background:rgba(23,21,38,.035)}
+[data-tw-theme="light"] .suite-page .suite-focus>button{background:#171526;color:#fcfbf7}
+/* Panels and stat tiles carry their own dark gradients rather than the tokens,
+   so the light theme restates them against the same paper surfaces the rest of
+   the dashboard uses. */
+[data-tw-theme="light"] .suite-page .suite-stat{background:linear-gradient(145deg,#fcfbf7,#f4f2ea)}
+[data-tw-theme="light"] .suite-page .suite-panel{background:linear-gradient(145deg,#fdfcf9,#f6f4ed)}
+[data-tw-theme="light"] .suite-page .suite-focus{background:linear-gradient(150deg,#eae7de,#f4f2ea)}
+[data-tw-theme="light"] .suite-page .suite-switch button[aria-pressed=true],
+[data-tw-theme="light"] .suite-page .suite-channel-tabs button[aria-pressed=true],
+[data-tw-theme="light"] .suite-page .suite-analytics-channels button[aria-pressed=true],
+[data-tw-theme="light"] .suite-page .suite-slot-grid>button[aria-pressed=true]{background:#171526;color:#fcfbf7}
+[data-tw-theme="light"] .suite-page .suite-status,
+[data-tw-theme="light"] .suite-page .suite-toast{background:#171526;color:#fcfbf7}

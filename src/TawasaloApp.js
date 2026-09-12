@@ -22374,7 +22374,7 @@ export default function TawasloApp() {
   const previewClient = { id:"preview-marina", name:"Marina Social Club", plan:"Professional", status:"active", free:false, accounts:4, posts:42, reach:"1.24M", health:94, spend:2850 };
   // Editorial previews open in dark mode by default. The user can still switch
   // themes manually for a light-mode review without changing production users.
-  const [dark,      setDark]      = useState(() => { if (workspacePreview) return true; try { return localStorage.getItem('tw_theme') !== 'light'; } catch(e){ return true; } });
+  const [dark,      setDark]      = useState(() => { if (workspacePreview) return true; try { return localStorage.getItem('tw_theme') === 'dark'; } catch(e){ return false; } });
   useEffect(() => { try { localStorage.setItem('tw_theme', dark ? 'dark' : 'light'); } catch(e){} }, [dark]);
   const [lang,      setLang]      = useState("en");
   const [showLanding, setShowLanding] = useState(() => { if (workspacePreview) return false; try { return sessionStorage.getItem('tw_in_app') !== '1'; } catch(e){ return true; } });
