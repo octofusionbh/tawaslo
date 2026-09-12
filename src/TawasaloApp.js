@@ -4171,6 +4171,113 @@ function AgencyDashboard() {
   );
 }
 
+// Redesigned agency-admin screens (clients, social accounts, team), each backed
+// by the same records the old pages used.
+const ACCENTS = ['#ff7a6d', '#4bd9be', '#9b87ff', '#6ca8ff', '#f2b651', '#f58ea2'];
+const initialsOf = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+
+function ClientsLive() {
+  const { clients, setSelClient, setPage } = useApp();
+  const [counts, setCounts] = useState({});
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const ids = clients.map(c => c.id).filter(Boolean);
+      if (!ids.length) { setCounts({}); return; }
+      const [postsRes, accountsRes] = await Promise.all([
+        supabase.from('posts').select('client_id').in('client_id', ids),
+        supabase.from('social_accounts').select('client_id').in('client_id', ids).neq('is_active', false),
+      ]);
+      if (!active) return;
+      const tally = {};
+      (postsRes.data || []).forEach(r => { tally[r.client_id] = tally[r.client_id] || { posts: 0, accounts: 0 }; tally[r.client_id].posts++; });
+      (accountsRes.data || []).forEach(r => { tally[r.client_id] = tally[r.client_id] || { posts: 0, accounts: 0 }; tally[r.client_id].accounts++; });
+      setCounts(tally);
+    })();
+    return () => { active = false; };
+  }, [clients]);
+
+  const liveClients = clients.map((client, index) => ({
+    id: client.id,
+    name: client.name,
+    type: client.industry || client.business_type || 'Workspace',
+    initials: initialsOf(client.name),
+    accent: ACCENTS[index % ACCENTS.length],
+    accounts: counts[client.id]?.accounts || 0,
+    posts: counts[client.id]?.posts || 0,
+    attention: 0,           // no measured signal for this yet, so the tile stays blank
+    status: client.status || 'Active',
+  }));
+
+  const open = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('overview'); };
+  return <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={(client)=>{open(client);setPage('settings');}} onAddClient={()=>setPage('settings')}/>;
+}
+
+const CHANNEL_META = { ig:{channel:'Instagram',Icon:FaInstagram,color:'#f14b8b'}, fb:{channel:'Facebook',Icon:FaFacebook,color:'#498af2'}, li:{channel:'LinkedIn',Icon:FaLinkedin,color:'#5fa8ff'}, tt:{channel:'TikTok',Icon:FaTiktok,color:'#ff6f78'} };
+
+function SocialAccountsLive() {
+  const { selClient, setPage } = useApp();
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let active = true;
+    if (!selClient?.id) { setRows([]); return undefined; }
+    supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false)
+      .then(({ data }) => {
+        if (!active) return;
+        setRows((data || []).map(row => {
+          const meta = CHANNEL_META[row.platform] || { channel: row.platform, Icon: FaInstagram, color: '#8a8fa3' };
+          const healthy = !!row.access_token;
+          return {
+            name: selClient.name,
+            handle: row.username ? '@' + row.username : (row.account_name || meta.channel),
+            channel: meta.channel,
+            status: healthy ? 'Connected' : 'Needs attention',
+            updated: healthy ? (row.updated_at ? 'Updated ' + new Date(row.updated_at).toLocaleDateString([], { day:'numeric', month:'short' }) : 'Connected') : 'Reconnect to refresh',
+            Icon: meta.Icon,
+            color: meta.color,
+          };
+        }));
+      });
+    return () => { active = false; };
+  }, [selClient]);
+  return <SocialAccountsExperience liveAccounts={rows || []} clientName={selClient?.name || ''} onConnect={()=>setPage('socialmanage')} onManageAccount={()=>setPage('socialmanage')}/>;
+}
+
+function TeamLive() {
+  const { userEmail } = useApp();
+  const [members, setMembers] = useState(null);
+  const [ownerId, setOwnerId] = useState(null);
+  const load = useCallback(async (owner) => {
+    const { data } = await getTeam(owner);
+    const rows = (data || []).map(m => ({
+      name: m.name || (m.email || '').split('@')[0],
+      email: m.email,
+      role: m.role || 'Editor',
+      status: m.status === 'pending' ? 'Invited' : 'Active',
+      initials: initialsOf(m.name || m.email),
+    }));
+    setMembers([{ name: 'You', email: userEmail || '', role: 'Owner', status: 'Active', initials: initialsOf(userEmail || 'You') }, ...rows]);
+  }, [userEmail]);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) { setMembers([]); return; }
+      setOwnerId(user.id);
+      load(user.id);
+    })();
+    return () => { active = false; };
+  }, [load]);
+  const pending = (members || []).filter(m => m.status === 'Invited').length;
+  const invite = async (email, role) => {
+    if (!ownerId) return false;
+    const { error } = await inviteTeamMember(ownerId, email, role);
+    if (!error) load(ownerId);
+    return !error;
+  };
+  return <TeamExperience liveMembers={members || []} pendingInvites={pending} onInvite={invite}/>;
+}
+
 // The redesigned media library, running on this workspace's real storage folder.
 // Files are read from and written to the same `media` bucket path the old page used.
 function MediaLibrary({ dark, setDark, mobileWeb, onOpenPublisher, onOpenStudio }) {
@@ -22321,8 +22428,9 @@ export default function TawasloApp() {
     if (page==="pilot") return <AutopilotPage/>;
     if (page==="autopilot") return <CampaignAutopilotPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
-    if (page==="clients") return workspacePreview ? <ClientsExperience/> : <ClientsPage/>;
-    if (page==="social") return workspacePreview ? <SocialAccountsExperience/> : <SocialAccountsPage/>;
+    if (page==="clients") return workspacePreview ? <ClientsExperience/> : <ClientsLive/>;
+    if (page==="socialmanage") return <SocialAccountsPage/>;
+    if (page==="social") return workspacePreview ? <SocialAccountsExperience/> : <SocialAccountsLive/>;
     if (page==="business") return <BusinessProfilePage/>;
     if (page==="linkbio") return workspacePreview && selClient?.id === "preview-marina" ? <LinkBioExperience dark={dark} setDark={setDark}/> : <LinkInBioBuilderPage/>;
     if (page==="menu") return workspacePreview && selClient?.id === "preview-marina" ? <MenuExperience dark={dark} setDark={setDark} onOpenHostTest={()=>setHostTestModule('menu')}/> : <MenuBuilderPage/>;
@@ -22369,7 +22477,7 @@ export default function TawasloApp() {
     if (page==="htlab") return workspacePreview ? (selClient?.id === "preview-marina" ? <AIStudioExperience initialTool="hashtags" dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <AIStudioPage initialTool="hashtags"/>) : <HashtagLabPage/>;
     if (page==="inbox") return workspacePreview && selClient?.id === "preview-marina" ? <InboxExperience/> : <InboxPage/>;
     if (page==="listening") return <TrendingPage/>;
-    if (page==="agencyteam") return workspacePreview ? <TeamExperience/> : <TeamPage/>;
+    if (page==="agencyteam") return workspacePreview ? <TeamExperience/> : <TeamLive/>;
     if (page==="billing") return workspacePreview ? <BillingExperience dark={dark}/> : <BillingPage/>;
     if (page==="agencysets") return workspacePreview ? <SettingsExperience dark={dark} setDark={setDark} onNameChange={setUserName} onAgencyLogoChange={setUserAgencyLogo}/> : <SettingsPage/>;
     const SOON = {

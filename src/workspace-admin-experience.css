@@ -14,3 +14,6 @@
 .wa-stat:before{width:24px;height:3px;margin-bottom:11px}.wa-stat>strong{margin-top:5px;font-size:clamp(25px,2.5vw,35px)}.wa-stat>small{margin-top:5px}
 @media(max-width:760px){.wa-intro{padding:24px 0;gap:18px}.wa-intro h1{font-size:40px;line-height:1}.wa-stats{padding:12px 0}.wa-stat{min-height:104px;padding:16px}}
 @media(max-width:460px){.wa-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-stat{min-height:100px;padding:14px}.wa-stat>span{font-size:8px}.wa-stat>strong{font-size:25px}}
+
+/* Shown when a workspace has no connected accounts yet. */
+.wa-empty{margin:0;padding:20px 2px;color:var(--wa-muted,#6b6f80);font-size:13px;line-height:1.6}
