@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from './supabase';
+import { shrinkImageBlob, extensionForBlob } from './imageShrink';
 import AIStudioExperience from './AIStudioExperience';
 import { canPublishOnWeb } from './workspaceResponsive';
 
@@ -111,8 +112,12 @@ export default function AIStudioLive({ client=null, dark=false, setDark=()=>{}, 
       const type = parts?.[1] || 'image/png';
       const base64 = parts?.[2] || dataUrl.replace(/^data:image\/\w+;base64,/, '');
       const bytes = Uint8Array.from(atob(base64), character => character.charCodeAt(0));
-      const path = `${owner}/ai/${Date.now()}.${type === 'image/jpeg' ? 'jpg' : 'png'}`;
-      const { error } = await supabase.storage.from('media').upload(path, new Blob([bytes], { type }), { contentType:type, upsert:true });
+      // The model hands back a full-resolution PNG, which costs about 4 MB a
+      // time. Re-encode to a 1920px JPEG before it ever reaches storage.
+      const raw = new Blob([bytes], { type });
+      const blob = await shrinkImageBlob(raw, { max: 1920, quality: 0.85 });
+      const path = `${owner}/ai/${Date.now()}.${extensionForBlob(blob, type === 'image/jpeg' ? 'jpg' : 'png')}`;
+      const { error } = await supabase.storage.from('media').upload(path, blob, { contentType: blob.type || type, upsert:true });
       if (error) throw error;
       const { data:url } = supabase.storage.from('media').getPublicUrl(path);
       try { window.sessionStorage.setItem('tw_studio_media', url.publicUrl); } catch (_) { /* handoff is best effort */ }

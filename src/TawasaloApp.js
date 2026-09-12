@@ -66,6 +66,7 @@ import "./dashboard-accessibility.css";
 import "./notification-center.css";
 import { useMobileWeb, useCompactNavigation, mobileWebNow, canPublishOnWeb, mobilePage, stopMobilePublishing } from "./workspaceResponsive";
 import "./workspace-responsive.css";
+import { shrinkImageBlob, extensionForBlob } from "./imageShrink";
 import "./type-scale-mobile.css";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
@@ -144,30 +145,6 @@ const FULL_ACCESS_EMAILS = ["demo@tawaslo.com", "octofusionbh@gmail.com"];
 
 // Storage saver: re-encodes images as JPEG and caps the long edge before upload.
 // PNG is only kept where transparency matters (logos), and is still capped.
-const shrinkImageBlob = (blob, opts) => new Promise((resolve) => {
-  const { max = 1920, quality = 0.85, keepAlpha = false } = opts || {};
-  try {
-    const type = String((blob && blob.type) || '');
-    if (!blob || !type.startsWith('image/') || type === 'image/gif' || type === 'image/svg+xml') return resolve(blob);
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      try { URL.revokeObjectURL(url); } catch (e) {}
-      const big = Math.max(img.width, img.height) || 1;
-      const scale = Math.min(1, max / big);
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      if (!keepAlpha) { ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); }
-      ctx.drawImage(img, 0, 0, w, h);
-      canvas.toBlob((out) => resolve(out && out.size < blob.size ? out : blob), keepAlpha ? 'image/png' : 'image/jpeg', quality);
-    };
-    img.onerror = () => { try { URL.revokeObjectURL(url); } catch (e) {} resolve(blob); };
-    img.src = url;
-  } catch (e) { resolve(blob); }
-});
 function isTrialUser(email) {
   if (!email) return false;
   const e = String(email).toLowerCase();
@@ -4732,9 +4709,12 @@ function MediaPage() {
     const tag = plat === "all" ? "general" : plat;
     setUploading(true);
     for (const file of files) {
-      const ext = file.name.split('.').pop();
+      // Photos went up at full resolution, often as multi-megabyte PNG. Anything
+      // that is an image is re-encoded to a 1920px JPEG first; video is untouched.
+      const blob = file.type && file.type.startsWith('image/') ? await shrinkImageBlob(file, { max: 1920, quality: 0.85 }) : file;
+      const ext = blob === file ? file.name.split('.').pop() : extensionForBlob(blob);
       const path = `${uid}/${clientId}/${tag}__${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
-      try { await supabase.storage.from('media').upload(path, file, { upsert: true }); } catch (e) { /* ignore */ }
+      try { await supabase.storage.from('media').upload(path, blob, { upsert: true, contentType: blob.type || file.type }); } catch (e) { /* ignore */ }
     }
     setUploading(false); load();
   };
