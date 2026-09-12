@@ -13,13 +13,21 @@ const ICONS = { ig: FaInstagram, fb: FaFacebook, li: FaLinkedin, tt: FaTiktok };
 const fmtMonth = date => date.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 const dateLabel = (date, day) => new Date(date.getFullYear(), date.getMonth(), day).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 const storageKey = date => `${CALENDAR_PREVIEW_KEY}:preview-marina:${monthKey(date)}`;
+// `store` is the workspace's real posts wearing the same interface as
+// localStorage, so the whole component reads and writes through one shape
+// whether it is showing the design preview or a live client's month.
+const backingStore = (store) => store || (typeof window !== 'undefined' ? window.localStorage : null);
 const ARTWORK_IMAGES={sunset:plannerGoldenHour,table:plannerSundayBrunch,menu:plannerEveningTable,kitchen:plannerChefKitchen,sea:plannerGoldenHour};
-function loadCalendar(date) {
+function loadCalendar(date, store = null) {
   try {
-    const data = JSON.parse(localStorage.getItem(storageKey(date)));
+    const backing = backingStore(store);
+    const data = JSON.parse(backing.getItem(storageKey(date)));
     if (data?.month === monthKey(date) && Array.isArray(data.posts) && Array.isArray(data.sharedIds) && Array.isArray(data.activity)) return data;
+    // A live workspace with nothing scheduled that month is an empty calendar,
+    // never the sample month. Only the design preview falls back to seeds.
+    if (store) return { month: monthKey(date), posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] };
   } catch (_) { /* A blocked store still allows an in-memory preview. */ }
-  return seedCalendar(date);
+  return store ? { month: monthKey(date), posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] } : seedCalendar(date);
 }
 function Network({ platform, label = false }) {
   const Icon = ICONS[platform] || FaInstagram;
@@ -58,9 +66,16 @@ export function Artwork({ post, slide = 0, compact = false }) {
   </div>;
 }
 
-export default function CalendarExperience({ dark = false, setDark = () => {}, clientView = false }) {
+export default function CalendarExperience({ dark = false, setDark = () => {}, clientView = false, store = null, clientName = '' }) {
+  const live = !!store;
+  const venue = (live && clientName) ? clientName : 'Marina Social Club';
+  // The handle, monogram and bio were the demo restaurant's. On a real client we
+  // derive what we can from their name and show nothing where we have no source,
+  // rather than printing someone else's details on their review page.
+  const handle = live ? venue.toLowerCase().replace(/[^a-z0-9]+/g, '') : 'marinasocialclub';
+  const monogram = venue.split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'TW';
   const [cursor, setCursor] = useState(() => parseCalendarMonth(new URLSearchParams(window.location.search).get('calendarMonth')));
-  const [data, setData] = useState(() => loadCalendar(cursor));
+  const [data, setData] = useState(() => loadCalendar(cursor, store));
   const [storageError, setStorageError] = useState(false);
   const [view, setView] = useState('month');
   const [clientLayout, setClientLayout] = useState(() => {
@@ -103,11 +118,11 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(storageKey(cursor), JSON.stringify(data)); setStorageError(false); }
+    try { backingStore(store).setItem(storageKey(cursor), JSON.stringify(data)); setStorageError(false); }
     catch (_) { setStorageError(true); }
   }, [data, cursor]);
   useEffect(() => {
-    const sync = event => { if (event.key === storageKey(cursor)) setData(loadCalendar(cursor)); };
+    const sync = event => { if (!store && event.key === storageKey(cursor)) setData(loadCalendar(cursor, store)); };
     window.addEventListener('storage', sync);
     return () => window.removeEventListener('storage', sync);
   }, [cursor]);
@@ -142,7 +157,7 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
   const shareUrl = `/?page=calendar&occasions=editorial&calendarView=client&calendarMonth=${monthKey(cursor)}`;
   const agencyUrl = `/?page=calendar&occasions=editorial&calendarMonth=${monthKey(cursor)}`;
   const fullShareUrl = `${window.location.origin}${shareUrl}`;
-  const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(`Marina Social Club · ${month} content review\n${message}\n${fullShareUrl}`)}`;
+  const whatsappShareUrl = `https://wa.me/?text=${encodeURIComponent(`${venue} · ${month} content review\n${message}\n${fullShareUrl}`)}`;
   const ready = data.posts.filter(p => p.status !== 'draft');
 
   function changeMonth(direction) {
@@ -206,9 +221,9 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
     };
 
     return <div ref={rootRef} className="tw-calendar-experience cal-client-page cal-client-review-page" data-calendar-theme={dark ? 'dark' : 'light'}>
-      <div className="cal-client-previewbar"><span>Client preview · Sample content</span><a href={agencyUrl}><ArrowLeft size={14} aria-hidden="true"/>Exit client preview</a></div>
+      <div className="cal-client-previewbar"><span>{live?`${venue} · ${month}`:'Client preview · Sample content'}</span><a href={agencyUrl}><ArrowLeft size={14} aria-hidden="true"/>Exit client preview</a></div>
       <header className="cal-client-masthead">
-        <div className="cal-client-identity"><span aria-hidden="true">MS</span><div><strong>Marina Social Club</strong><small>Private content review</small></div></div>
+        <div className="cal-client-identity"><span aria-hidden="true">{monogram}</span><div><strong>{venue}</strong><small>Private content review</small></div></div>
         <div className="cal-client-powered"><span>Prepared with</span><img src="/logo-transparent.png" alt=""/><strong>Tawaslo</strong><button type="button" aria-label={dark ? 'Use light theme' : 'Use dark theme'} onClick={() => setDark(!dark)}>{dark ? <Sun size={17}/> : <Moon size={17}/>}</button></div>
       </header>
 
@@ -271,16 +286,16 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
             <div className="cal-client-instagram-profile">
               <div className="cal-instagram-avatar" aria-hidden="true"><span>MS</span></div>
               <div className="cal-instagram-profile-main">
-                <div className="cal-instagram-account-row"><h2 id="cal-client-grid-title">marinasocialclub</h2><span>Feed preview</span></div>
+                <div className="cal-instagram-account-row"><h2 id="cal-client-grid-title">{handle}</h2><span>Feed preview</span></div>
                 <div className="cal-instagram-stats" aria-label={`${instagramPosts.length} posts, 12.8 thousand followers, 248 following`}>
                   <span><strong>{instagramPosts.length}</strong><small>posts</small></span>
                   <span><strong>12.8K</strong><small>followers</small></span>
                   <span><strong>248</strong><small>following</small></span>
                 </div>
-                <div className="cal-instagram-bio cal-instagram-bio-desktop"><strong>Marina Social Club</strong><span>Restaurant</span><p>Dining by the water<br/>Lunch, golden hour and everything after.</p><a href="#cal-client-grid">marinasocialclub.com</a></div>
+                <div className="cal-instagram-bio cal-instagram-bio-desktop"><strong>{venue}</strong>{live?null:<span>Restaurant</span>}{live?null:<><p>Dining by the water<br/>Lunch, golden hour and everything after.</p><a href="#cal-client-grid">marinasocialclub.com</a></>}</div>
               </div>
             </div>
-            <div className="cal-instagram-bio cal-instagram-bio-mobile"><strong>Marina Social Club</strong><span>Restaurant</span><p>Dining by the water<br/>Lunch, golden hour and everything after.</p><a href="#cal-client-grid">marinasocialclub.com</a></div>
+            <div className="cal-instagram-bio cal-instagram-bio-mobile"><strong>{venue}</strong>{live?null:<span>Restaurant</span>}{live?null:<><p>Dining by the water<br/>Lunch, golden hour and everything after.</p><a href="#cal-client-grid">marinasocialclub.com</a></>}</div>
             <div className="cal-instagram-highlights" aria-label="Instagram story highlights">
               <span><i className="is-menu">MENU</i><small>Menu</small></span>
               <span><i className="is-view">MSC</i><small>The view</small></span>
@@ -297,7 +312,7 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
         </section>}
 
         <section className="cal-client-finish cal-client-review-finish"><div><span>WHEN YOU ARE READY</span><h2>{readOnly ? expired ? 'This link is no longer active.' : 'Everything is here to view.' : pending.length ? `${pending.length} post${pending.length === 1 ? '' : 's'} still need a decision.` : changes.length ? 'Your feedback is with the agency.' : 'You’re all caught up.'}</h2><p>{readOnly ? 'Contact your agency if you need to respond.' : pending.length ? 'Review them one by one, or approve the remaining versions together.' : changes.length ? 'Revised posts will return to this same private link.' : 'Every shared post has a decision. Thank you.'}</p></div>{!readOnly && pending.length > 0 && <button className="cal-button cal-client-approve-all" onClick={e => { bulkTrigger.current = e.currentTarget; setConfirmAll(true); }}><CheckCheck size={17} aria-hidden="true"/>Approve remaining {pending.length}</button>}</section>
-        <footer className="cal-footer cal-client-review-footer"><span>Private review for Marina Social Club</span><span>Powered by Tawaslo · Nothing publishes from this page</span></footer>
+        <footer className="cal-footer cal-client-review-footer"><span>Private review for {venue}</span><span>Powered by Tawaslo · Nothing publishes from this page</span></footer>
       </main>
       <div className="cal-feedback" role="status">{feedback}</div>
       {gridPreview && createPortal(<div className="tw-calendar-experience cal-instagram-modal-root" data-calendar-theme={dark ? 'dark' : 'light'}>
@@ -310,8 +325,8 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
           }}>
             <button autoFocus type="button" className="cal-instagram-modal-close" aria-label="Close Instagram post" onClick={closeGridPreview}><X size={22} aria-hidden="true"/></button>
             <header className="cal-instagram-mobile-postbar">
-              <span className="cal-instagram-mini-avatar" aria-hidden="true">MS</span>
-              <div><strong>marinasocialclub</strong><small>Marina Social Club</small></div>
+              <span className="cal-instagram-mini-avatar" aria-hidden="true">{monogram}</span>
+              <div><strong>{handle}</strong><small>{venue}</small></div>
               <MoreHorizontal size={20} aria-hidden="true"/>
             </header>
             <div className="cal-instagram-post-media" onPointerDown={event => { gridSwipeStart.current = event.clientX; }} onPointerUp={finishGridSwipe} onPointerCancel={() => { gridSwipeStart.current = null; }}>
@@ -325,9 +340,9 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
               </>}
             </div>
             <article className="cal-instagram-post-panel">
-              <header><span className="cal-instagram-mini-avatar" aria-hidden="true">MS</span><div><strong>marinasocialclub</strong><small>Marina Social Club</small></div><MoreHorizontal size={20} aria-hidden="true"/></header>
+              <header><span className="cal-instagram-mini-avatar" aria-hidden="true">{monogram}</span><div><strong>{handle}</strong><small>{venue}</small></div><MoreHorizontal size={20} aria-hidden="true"/></header>
               <div className="cal-instagram-post-copy">
-                <div><span className="cal-instagram-mini-avatar" aria-hidden="true">MS</span><p><strong id="cal-instagram-post-title">marinasocialclub</strong> {gridPreview.caption}</p></div>
+                <div><span className="cal-instagram-mini-avatar" aria-hidden="true">{monogram}</span><p><strong id="cal-instagram-post-title">{handle}</strong> {gridPreview.caption}</p></div>
                 {gridPreview.notes.map((entry, index) => <div className="cal-instagram-comment" key={`${entry.author}-${index}`}><span aria-hidden="true">{entry.author === 'Client' ? 'CL' : 'TW'}</span><p><strong>{entry.author}</strong> {entry.text}</p></div>)}
                 <time>{dateLabel(cursor, gridPreview.day)} · {gridPreview.time}</time>
               </div>
@@ -345,8 +360,8 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
   }
 
   return <div ref={rootRef} className="tw-calendar-experience cal-agency-page" data-calendar-theme={dark ? 'dark' : 'light'}>
-    <div className="cal-preview-notice"><span>Design preview · Sample content · {storageError ? 'Changes last for this visit only' : 'Changes stay in this browser'}</span>{clientView ? <a href={agencyUrl}><ArrowLeft size={14} aria-hidden="true"/>Agency view</a> : <button type="button" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light calendar theme' : 'Use dark calendar theme'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}</button>}</div>
-    {clientView && <div className="cal-client-brand"><a href={agencyUrl} aria-label="Return to agency preview"><img src="/logo-transparent.png" alt="Tawaslo"/>Tawaslo</a><span>Prepared for Marina Social Club</span><button type="button" aria-label={dark ? 'Use light calendar theme' : 'Use dark calendar theme'} onClick={() => setDark(!dark)}>{dark ? <Sun size={18}/> : <Moon size={18}/>}</button></div>}
+    <div className="cal-preview-notice"><span>{live?`${venue} · Scheduling saves to your workspace`:`Design preview · Sample content · ${storageError ? 'Changes last for this visit only' : 'Changes stay in this browser'}`}</span>{clientView ? <a href={agencyUrl}><ArrowLeft size={14} aria-hidden="true"/>Agency view</a> : <button type="button" onClick={() => setDark(!dark)} aria-label={dark ? 'Use light calendar theme' : 'Use dark calendar theme'}>{dark ? <Sun size={16}/> : <Moon size={16}/>}</button>}</div>
+    {clientView && <div className="cal-client-brand"><a href={agencyUrl} aria-label="Return to agency preview"><img src="/logo-transparent.png" alt="Tawaslo"/>Tawaslo</a><span>Prepared for {venue}</span><button type="button" aria-label={dark ? 'Use light calendar theme' : 'Use dark calendar theme'} onClick={() => setDark(!dark)}>{dark ? <Sun size={18}/> : <Moon size={18}/>}</button></div>}
     <header className="cal-heading">
       <div><p className="cal-eyebrow">{clientView ? 'MARINA SOCIAL CLUB / CLIENT REVIEW' : 'MARINA SOCIAL CLUB / CALENDAR'}</p><h1 ref={heading} tabIndex={-1}>{stage === 'share' ? 'A thoughtful handoff.' : clientView ? 'Your month, ready to review.' : 'The month in view.'}</h1><p className="cal-intro">{stage === 'share' ? 'Choose the content. Add a note. See exactly what your client receives.' : clientView ? 'Check each visual, caption and date. Approve what you love. Tell us what to change.' : 'See the content, follow the feedback, and keep the whole month moving.'}</p></div>
       {!clientView && stage === 'calendar' && <div className="cal-heading-actions"><a className="cal-link" href={shareUrl}><Eye size={16} aria-hidden="true"/>Client view</a><button className="cal-button cal-primary" onClick={startShare}><Send size={16} aria-hidden="true"/>Share for review</button></div>}
@@ -364,9 +379,9 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
           <label className="cal-field">Your note<textarea rows={4} value={message} maxLength={1200} onChange={e => { setMessage(e.target.value); setPrepared(false); }}/></label>
           <div className="cal-fields"><label className="cal-field">Client can<select value={access} onChange={e => { setAccess(e.target.value); setPrepared(false); }}><option value="review">Approve and request changes</option><option value="view">View only</option></select></label><label className="cal-field">Link expires after<select value={expiry} onChange={e => { setExpiry(e.target.value); setPrepared(false); }}><option value="3">3 days</option><option value="7">7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label></div>
           <div className="cal-receipt"><div className="cal-section-title"><span>03 / WHAT THEY RECEIVE</span></div><div className="cal-tabs"><button aria-pressed={channel === 'whatsapp'} onClick={() => setChannel('whatsapp')}><FaWhatsapp aria-hidden="true"/>WhatsApp</button><button aria-pressed={channel === 'email'} onClick={() => setChannel('email')}><Mail size={16} aria-hidden="true"/>Email</button></div>
-            <div className="cal-message-preview">{channel === 'email' && <strong>Subject: Marina Social Club · {month} content review</strong>}<p>Hi, your {month} calendar is ready.</p><p>{message}</p><span>{chosen.length} posts · {access === 'review' ? 'Approval requested' : 'View only'} · Link lasts {expiry} days</span><p className="cal-message-link">Open your content calendar ↗</p></div>
+            <div className="cal-message-preview">{channel === 'email' && <strong>Subject: {venue} · {month} content review</strong>}<p>Hi, your {month} calendar is ready.</p><p>{message}</p><span>{chosen.length} posts · {access === 'review' ? 'Approval requested' : 'View only'} · Link lasts {expiry} days</span><p className="cal-message-link">Open your content calendar ↗</p></div>
           </div>
-          <p className="cal-helper">This is a local rehearsal. No message is sent and no public link is created.</p>
+          <p className="cal-helper">{live?'The link opens the client review page for the posts you picked. Send it yourself \u2014 nothing is sent from here.':'This is a local rehearsal. No message is sent and no public link is created.'}</p>
           {!prepared ? <button className="cal-button cal-primary cal-full" disabled={!chosen.length} onClick={() => { setData(state => createReviewRound(state, chosen, message, access, expiry)); setPrepared(true); setFeedback('Client preview prepared. Nothing was sent.'); }}>Prepare client preview <ArrowRight size={16} aria-hidden="true"/></button> : <div className="cal-prepared"><p><CheckCheck size={18} aria-hidden="true"/>Your preview is ready.</p><a className="cal-button cal-primary cal-full" href={shareUrl}>Open as the client <ArrowRight size={16} aria-hidden="true"/></a><a className="cal-button cal-whatsapp cal-full" href={whatsappShareUrl} target="_blank" rel="noreferrer"><FaWhatsapp aria-hidden="true"/>Share to WhatsApp</a><button className="cal-link" onClick={() => copy(fullShareUrl, 'Local preview link copied. It works only on this computer.')}>Copy local preview link</button><label className="cal-field">Local preview link<input readOnly value={fullShareUrl}/></label></div>}
         </section>
       </div>
@@ -386,13 +401,13 @@ export default function CalendarExperience({ dark = false, setDark = () => {}, c
         <h2>{readOnly ? expired ? 'This review link has expired.' : 'Your month, in one place.' : pending.length ? `${pending.length} posts still need your review.` : changes.length ? 'Your feedback is with the agency.' : 'You’re all caught up.'}</h2>
         <p>{readOnly ? 'Contact your agency if you need to make a decision or request an update.' : pending.length ? 'Open a post to check every detail, or approve all remaining posts together.' : changes.length ? 'Updated posts will return here for another look.' : 'Every shared post has been reviewed. Thank you.'}</p>
       </div>{!readOnly && pending.length > 0 && <button className="cal-button cal-primary" onClick={e => { bulkTrigger.current = e.currentTarget; setConfirmAll(true); }}><CheckCheck size={17} aria-hidden="true"/>Approve remaining ({pending.length})</button>}</div> : <section className="cal-bottom"><div className="cal-review-panel"><div className="cal-panel-heading"><span className="cal-eyebrow">CLIENT REVIEW</span><strong aria-label={`${changes.length} posts need attention`}>{changes.length}</strong></div><h2>{changes.length ? `${changes.length} post${changes.length === 1 ? '' : 's'} need${changes.length === 1 ? 's' : ''} your eye.` : 'Everything is moving.'}</h2><p>{changes.length ? 'Open the feedback, revise the post, then return it to the client.' : 'There is no client feedback waiting for you right now.'}</p>{changes.length ? changes.map(p => <button className="cal-feedback-row" key={p.id} onClick={e => openPost(p, e)}><MessageSquare size={17} aria-hidden="true"/><span><strong>{p.title}</strong><small>{p.notes.filter(n => n.kind === 'changes').slice(-1)[0]?.text}</small></span><ArrowRight size={17} aria-hidden="true"/></button>) : <div className="cal-panel-empty"><CheckCheck size={18} aria-hidden="true"/>Nothing needs revising.</div>}</div><div className="cal-activity-panel"><div className="cal-panel-heading"><span className="cal-eyebrow">RECENT ACTIVITY</span><small>Latest decisions</small></div>{data.activity.length ? <ol className="cal-activity">{data.activity.slice(0, 4).map((event, i) => <li key={i}><span>{event.text}</span><time>{new Date(event.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</time></li>)}</ol> : <p>Client decisions and new review rounds will appear here as you test the flow.</p>}<a className="cal-link" href={shareUrl}>Open the client view <ArrowRight size={16} aria-hidden="true"/></a></div></section>}
-      <footer className="cal-footer"><img src="/logo-transparent.png" alt=""/><span>{clientView ? 'Powered by Tawaslo' : 'Sample creative for Marina Social Club'}</span><span>Preview only. No posts will publish.</span></footer>
+      <footer className="cal-footer"><img src="/logo-transparent.png" alt=""/><span>{clientView ? 'Powered by Tawaslo' : (live ? `${venue} · ${month}` : 'Sample creative for Marina Social Club')}</span><span>{live ? 'Publishing happens in Publisher. Nothing publishes from this page.' : 'Preview only. No posts will publish.'}</span></footer>
     </>}
 
     {selected && createPortal(<div className="tw-calendar-experience cal-modal-root" data-calendar-theme={dark ? 'dark' : 'light'}><div className="cal-dialog-backdrop" onClick={e => { if (e.target === e.currentTarget) closePost(); }}><div className="cal-post-dialog" role="dialog" aria-modal="true" aria-labelledby="cal-post-title" tabIndex={-1} ref={detailRef} onKeyDown={e => {
       if (e.key === 'Escape') { e.stopPropagation(); closePost(); }
       if (e.key === 'Tab') { const controls = [...e.currentTarget.querySelectorAll('button:not(:disabled),a[href],input,textarea,select')].filter(el => el.getClientRects().length); const first = controls[0], last = controls[controls.length - 1]; if (e.shiftKey && (document.activeElement === first || document.activeElement === e.currentTarget)) { e.preventDefault(); last?.focus(); } else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); } }
-    }}><div className="cal-detail-top"><button className="cal-link" onClick={closePost}><ArrowLeft size={17} aria-hidden="true"/>Back to calendar</button><Status status={selected.status}/></div><div className="cal-detail-grid"><div><div className={`cal-post-artwork cal-format-${selected.format.toLowerCase()}`}><Artwork post={selected} slide={slide}/></div>{selected.format === 'Carousel' && <div className="cal-carousel-controls"><button aria-label="Previous slide" disabled={slide === 0} onClick={() => setSlide(slide - 1)}><ChevronLeft size={19}/></button><span>{slide + 1} / 3 slides</span><button aria-label="Next slide" disabled={slide === 2} onClick={() => setSlide(slide + 1)}><ChevronRight size={19}/></button></div>}{selected.format === 'Reel' && <p className="cal-helper">Sample Reel cover. No video attached in this design preview.</p>}</div><section className="cal-detail-copy"><div className="cal-tile-meta"><Network platform={selected.platform} label/> · {selected.format} · Version {selected.version}</div><h2 id="cal-post-title">{selected.title}</h2><p className="cal-proposed-date"><Clock size={15} aria-hidden="true"/>{dateLabel(cursor, selected.day)} · {selected.time} GMT+3</p><h3>Caption</h3><p className="cal-caption">{selected.caption}</p>
+    }}><div className="cal-detail-top"><button className="cal-link" onClick={closePost}><ArrowLeft size={17} aria-hidden="true"/>Back to calendar</button><Status status={selected.status}/></div><div className="cal-detail-grid"><div><div className={`cal-post-artwork cal-format-${selected.format.toLowerCase()}`}><Artwork post={selected} slide={slide}/></div>{selected.format === 'Carousel' && <div className="cal-carousel-controls"><button aria-label="Previous slide" disabled={slide === 0} onClick={() => setSlide(slide - 1)}><ChevronLeft size={19}/></button><span>{slide + 1} / 3 slides</span><button aria-label="Next slide" disabled={slide === 2} onClick={() => setSlide(slide + 1)}><ChevronRight size={19}/></button></div>}{selected.format === 'Reel' && <p className="cal-helper">{live?(selected.image?'The cover attached to this post.':'This Reel has no cover yet. Add one in Publisher or Media.'):'Sample Reel cover. No video attached in this design preview.'}</p>}</div><section className="cal-detail-copy"><div className="cal-tile-meta"><Network platform={selected.platform} label/> · {selected.format} · Version {selected.version}</div><h2 id="cal-post-title">{selected.title}</h2><p className="cal-proposed-date"><Clock size={15} aria-hidden="true"/>{dateLabel(cursor, selected.day)} · {selected.time} GMT+3</p><h3>Caption</h3><p className="cal-caption">{selected.caption}</p>
       {selected.notes.length > 0 && <div className="cal-comments"><h3>Conversation</h3>{selected.notes.map((entry, i) => <div key={i}><strong>{entry.author}</strong><p>{entry.text}</p></div>)}</div>}
       {clientView ? readOnly ? <p className="cal-helper">{expired ? 'This link has expired.' : 'This calendar is view only.'}</p> : canReview(selected) ? <div className="cal-review-actions">{requesting ? <form onSubmit={e => { e.preventDefault(); if (!note.trim()) { setNoteError(true); noteRef.current?.focus(); return; } decide([selected.id], 'changes', note); }}><label className="cal-field">What would you like changed?<textarea ref={noteRef} rows={4} maxLength={2000} value={note} onChange={e => setNote(e.target.value)} aria-invalid={noteError && !note.trim()} aria-describedby="cal-note-help" placeholder="Tell the agency what to adjust…"/></label><p id="cal-note-help" className={noteError && !note.trim() ? 'cal-error' : 'cal-helper'}>{noteError && !note.trim() ? 'Add a note so your agency knows what to change.' : 'Be specific about the visual, caption or proposed date.'}</p><div className="cal-action-row"><button type="button" className="cal-button" onClick={() => setRequesting(false)}>Cancel</button><button className="cal-button cal-primary" type="submit">Request changes</button></div></form> : <div className="cal-action-row"><button className="cal-button" onClick={() => { setRequesting(true); setTimeout(() => noteRef.current?.focus(), 0); }}><MessageSquare size={16} aria-hidden="true"/>Request changes</button><button className="cal-button cal-primary" onClick={() => decide([selected.id], 'approved')}><Check size={17} aria-hidden="true"/>Approve post</button></div>}<p className="cal-helper">Approval does not publish this post.</p></div> : <div className="cal-decision-result"><CheckCheck size={20} aria-hidden="true"/><p>{selected.status === 'approved' ? 'You approved this version.' : 'Your changes have been requested.'}</p>{pending.length > 0 && <button className="cal-link" onClick={e => openPost(pending[0], e)}>Review next post <ArrowRight size={16} aria-hidden="true"/></button>}</div> : selected.status === 'changes' ? <form className="cal-revision-form" onSubmit={e => { e.preventDefault(); setData(state => revisePost(state, selected.id, editCaption)); setFeedback('New version ready in the client preview. No notification was sent.'); }}><label className="cal-field">Revise the caption<textarea value={editCaption} onChange={e => setEditCaption(e.target.value)} rows={5} required/></label><button className="cal-button cal-primary" disabled={!editCaption.trim() || editCaption.trim() === selected.caption.trim()}>Save revision for review <ArrowRight size={16} aria-hidden="true"/></button><p className="cal-helper">Try the client view to approve the updated version.</p></form> : <p className="cal-helper">{selected.status === 'draft' ? 'Drafts stay private and are excluded from client review.' : 'Open Client view to test approving this post or requesting a change.'}</p>}
     </section></div></div></div></div>, document.body)}

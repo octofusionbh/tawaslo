@@ -4337,6 +4337,15 @@ function PlannerLive({ dark, setDark, mobileWeb }) {
   return <PlannerExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} live clientName={clientName}/>;
 }
 
+// Calendar on the workspace's real posts. It shares the planner's store, because
+// both read and write the same month-shaped state, so a change made in one shows
+// in the other without a second cache to keep in step.
+function CalendarLive({ dark, setDark, clientView = false }) {
+  const { store, clientId, clientName } = usePlannerStore();
+  if (!store) return <CalendarRoomPage/>;
+  return <CalendarExperience key={clientId} dark={dark} setDark={setDark} clientView={clientView} store={store} clientName={clientName}/>;
+}
+
 function ApprovalsLive({ dark, setDark, mobileWeb }) {
   const { store, clientId, clientName } = usePlannerStore();
   if (!store) return <ApprovalsPage/>;
@@ -22831,7 +22840,8 @@ export default function TawasloApp() {
     if (page==="plannerclassic") return <CalendarPage/>;
     if (page==="approvals") return workspacePreview && selClient?.id === "preview-marina" ? <ApprovalsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <ApprovalsLive dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
     if (page==="approvalsclassic") return <ApprovalsPage/>;
-    if (page==="calendar") return workspacePreview && selClient?.id === "preview-marina" ? <CalendarExperience dark={dark} setDark={setDark}/> : <CalendarRoomPage/>;
+    if (page==="calendar") return workspacePreview && selClient?.id === "preview-marina" ? <CalendarExperience dark={dark} setDark={setDark}/> : <CalendarLive dark={dark} setDark={setDark}/>;
+    if (page==="calendarclassic") return <CalendarRoomPage/>;
     if (page==="aistudio") return workspacePreview && selClient?.id === "preview-marina" ? <AIStudioExperience
       initialSavedId={insightStudioId}
       onInitialSavedOpened={()=>setInsightStudioId('')}
