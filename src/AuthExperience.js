@@ -234,7 +234,7 @@ export default function AuthExperience({authPage='login',setAuthPage=()=>{},setI
   },[resendWait]);
 
   useEffect(()=>{window.scrollTo({top:0,left:0,behavior:'auto'})},[]);
-  useEffect(()=>{const label={login:'Sign in',register:'Create account',forgot:'Reset password',recovery:'Set new password',created:'Check your email','reset-sent':'Check your inbox',updated:'Password updated'}[displayMode]||'Account';document.title=`${label} | Tawaslo`},[displayMode]);
+  useEffect(()=>{const label={login:'Sign in',register:SIGNUPS_OPEN?'Create account':'Join the waitlist',forgot:'Reset password',recovery:'Set new password',created:'Check your email','reset-sent':'Check your inbox',updated:'Password updated'}[displayMode]||'Account';document.title=`${label} | Tawaslo`},[displayMode]);
   useEffect(()=>{
     if(firstViewRef.current){firstViewRef.current=false;return}
     window.scrollTo({top:0,left:0,behavior:'auto'});
