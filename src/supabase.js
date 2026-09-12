@@ -1,16 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://gtjmpmhsiyqwhykunosc.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0am1wbWhzaXlxd2h5a3Vub3NjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNjAzODAsImV4cCI6MjA5NTczNjM4MH0.atOyop4rZGuNnuc05Ek2XLCd4mc_c4RJJzdKrNZJczY';
+const supabaseUrl = 'https://oarlmvhgvinldkbprnfo.supabase.co';
+const supabaseAnonKey = 'sb_publishable_1835PinpKR_mrrCbEcXi5g_DKzBeOA_';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // AUTH FUNCTIONS
-export const signUp = async (email, password, name) => {
+export const signUp = async (email, password, name, setup) => {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name } }
+    options: {
+      data: { name, ...(setup ? { tawaslo_setup: setup } : {}) },
+      emailRedirectTo: `${window.location.origin}/?auth=confirm`,
+    }
   });
   return { data, error };
 };
@@ -164,27 +167,41 @@ export const createProfile = async (userId, name, email, plan = 'trial', account
 };
 
 // CREATE INITIAL WORKSPACE CLIENT (called after signup)
-export const createInitialClient = async (ownerId, companyName, plan, accountType) => {
+export const createInitialClient = async (ownerId, companyName, plan, accountType, businessType = 'restaurant') => {
   const { data: existingArr } = await supabase
     .from('clients')
     .select('id')
     .eq('owner_id', ownerId)
     .limit(1);
   if (existingArr && existingArr.length > 0) return { data: existingArr[0] };
-  const planLabel = plan === 'starter' ? 'Essential' : plan === 'agency' ? 'Enterprise' : 'Professional';
-  const { data, error } = await supabase
-    .from('clients')
-    .insert([{
-      owner_id: ownerId,
-      name: companyName,
-      plan: planLabel,
-      status: 'active',
-      is_free: false,
-      account_type: accountType,
-    }])
-    .select()
-    .single();
-  return { data, error };
+  const planLabel = plan === 'starter' ? 'Essential' : plan === 'agency' ? 'Enterprise' : plan === 'studio' ? 'Studio' : 'Professional';
+  const allowed = new Set(['restaurant', 'hospitality', 'shop', 'services', 'other']);
+  const industries = [...new Set((Array.isArray(businessType) ? businessType : String(businessType || '').split(','))
+    .map(value => String(value).trim().toLowerCase())
+    .filter(value => allowed.has(value)))];
+  if (!industries.length) industries.push('restaurant');
+  // Keep the legacy single-value field compatible with product views while the
+  // full selection lives in `industries`.
+  const legacyType = { hospitality: 'restaurant', other: 'services' }[industries[0]] || industries[0];
+  const row = {
+    owner_id: ownerId,
+    name: companyName,
+    plan: planLabel,
+    status: 'active',
+    is_free: false,
+    account_type: accountType,
+    business_type: legacyType,
+    industries,
+  };
+  let result = await supabase.from('clients').insert([row]).select().single();
+  // Safe rollout: older environments may not have the new array column yet.
+  // Keep signup working there while preserving a compatible primary type.
+  if (result.error && /industries/i.test(String(result.error.message || result.error))) {
+    const legacyRow = { ...row };
+    delete legacyRow.industries;
+    result = await supabase.from('clients').insert([legacyRow]).select().single();
+  }
+  return result;
 };
 
 // AUTO-CREATE OCTO FUSION FREE CLIENT (called on first login for Octo Fusion email)
@@ -213,7 +230,7 @@ export const ensureOctoFusionClient = async (ownerId) => {
 // AUTH — reset password email
 export const resetPassword = async (email) => {
   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/reset-password`,
+    redirectTo: `${window.location.origin}/?auth=recovery`,
   });
   return { data, error };
 };
@@ -356,6 +373,11 @@ export const getErrorLogs = async (limit = 300) => {
     .limit(limit);
   return { data, error };
 };
+
+export const resendConfirmation = async (email) => supabase.auth.resend({
+  type: 'signup', email,
+  options: { emailRedirectTo: `${window.location.origin}/?auth=confirm` },
+});
 
 export const resolveErrorLog = async (id, resolved = true) => {
   const { data, error } = await supabase

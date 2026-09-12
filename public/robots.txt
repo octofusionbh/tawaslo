@@ -1,10 +1,13 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
 
-# Private share links and auth pages — not for indexing
+# Private, tokenised and authenticated journeys are not search pages.
 Disallow: /a/
 Disallow: /r/
+Disallow: /i/
+Disallow: /portal/
+Disallow: /host/
+Disallow: /k/
 Disallow: /reset-password
 Disallow: /api/
 

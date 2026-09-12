@@ -767,7 +767,7 @@ When (and only when) the guest confirms a reschedule, set "reschedule" to the ne
 }
 
 // ── WhatsApp Cloud API helpers ──
-const WA_SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
+const WA_SUPA = process.env.SUPABASE_URL || 'https://oarlmvhgvinldkbprnfo.supabase.co';
 const WA_SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 function waSb(path, opts = {}) {
   return fetch(`${WA_SUPA}/rest/v1/${path}`, { ...opts, headers: { apikey: WA_SB_KEY, Authorization: `Bearer ${WA_SB_KEY}`, 'Content-Type': 'application/json', ...(opts.headers || {}) } });

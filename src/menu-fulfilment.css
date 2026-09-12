@@ -1,0 +1,3 @@
+.mn-fulfilment-field{position:relative;padding:14px 16px;border:1px solid color-mix(in srgb,var(--mn-accent) 32%,var(--mn-line));border-radius:12px;background:color-mix(in srgb,var(--mn-accent) 5%,var(--mn-surface))}.mn-fulfilment-field>span{position:absolute;right:14px;top:13px;color:var(--mn-accent);font-size:8px;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.mn-fulfilment-field>select{padding-right:110px}.mn-fulfilment-field>small{color:var(--mn-muted);font-size:8px;line-height:1.45}.mn-fulfilment-field:focus-within{border-color:var(--mn-accent)}
+@container(max-width:520px){.mn-fulfilment-field>select{padding-right:0}.mn-fulfilment-field>span{position:static;justify-self:start;order:-1}}
+

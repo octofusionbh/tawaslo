@@ -33,6 +33,44 @@ export default async function handler(req, res) {
     } catch (e) { return res.status(200).json({ error: e.message }); }
   }
 
+  // Per-post insights for a set of media ids (Planner → Published tab). Best-effort:
+  // each media is wrapped so one failure never breaks the batch, and metric sets fall
+  // back gracefully (older API versions / media types reject `views`/`shares`).
+  // Returns { insights: { [mediaId]: { reach, views, saved, likes, comments, shares } } }.
+  if (req.body.action === 'mediaInsights') {
+    const ids = Array.isArray(req.body.mediaIds) ? req.body.mediaIds.filter(Boolean).slice(0, 40) : [];
+    const out = {};
+    await Promise.all(ids.map(async (id) => {
+      const rec = { reach: 0, views: 0, saved: 0, likes: 0, comments: 0, shares: 0, permalink: null, mediaType: null, timestamp: null };
+      try {
+        const mRes = await fetch(`${base}/${id}?fields=like_count,comments_count,media_type,media_product_type,permalink,timestamp&access_token=${accessToken}`);
+        const m = await mRes.json();
+        if (!m.error) { rec.likes = m.like_count || 0; rec.comments = m.comments_count || 0; rec.mediaType = m.media_type || m.media_product_type || null; rec.permalink = m.permalink || null; rec.timestamp = m.timestamp || null; }
+      } catch (e) { /* media node unavailable — keep zeros */ }
+      const tryIns = async (metrics) => {
+        try {
+          const r = await fetch(`${base}/${id}/insights?metric=${metrics}&access_token=${accessToken}`);
+          const j = await r.json();
+          if (j && Array.isArray(j.data)) {
+            for (const it of j.data) {
+              const v = (it.values && it.values[0] && it.values[0].value) || 0;
+              if (it.name === 'reach') rec.reach = v;
+              else if (it.name === 'views' || it.name === 'plays' || it.name === 'video_views') rec.views = Math.max(rec.views, v);
+              else if (it.name === 'saved') rec.saved = v;
+              else if (it.name === 'shares') rec.shares = v;
+            }
+            return !j.error && j.data.length > 0;
+          }
+          return false;
+        } catch (e) { return false; }
+      };
+      const ok = await tryIns('reach,views,saved,shares');
+      if (!ok) { const ok2 = await tryIns('reach,saved'); if (!ok2) await tryIns('reach'); }
+      out[id] = rec;
+    }));
+    return res.status(200).json({ insights: out });
+  }
+
   try {
     // 1. Account info + follower count
     const profileRes = await fetch(

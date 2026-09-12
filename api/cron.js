@@ -10,7 +10,7 @@
 //   SITE_URL      (optional)     — defaults to https://tawaslo.com (used to call /api/meta-publish)
 export const config = { maxDuration: 60 };
 
-const SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
+const SUPA = process.env.SUPABASE_URL || 'https://oarlmvhgvinldkbprnfo.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SITE = process.env.SITE_URL || 'https://tawaslo.com';
 

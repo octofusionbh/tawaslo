@@ -76,7 +76,7 @@ export default async function handler(req, res) {
 
     const adAccounts = adAccountsData.data || [];
     if (adAccounts.length === 0) {
-      return res.status(200).json({ adAccounts: [], campaigns: [], summary: null });
+      return res.status(200).json({ adAccounts: [], campaigns: [], ads: [], summary: null });
     }
 
     // 2. Get campaigns from first active ad account
@@ -116,6 +116,31 @@ export default async function handler(req, res) {
       };
     });
 
+    // Per-ad insights (best-effort — empty if there are none or ads access isn't granted yet)
+    let ads = [];
+    try {
+      const adsRes = await fetch(
+        `${base}/${accountId}/ads?fields=id,name,status,campaign{name},insights{spend,reach,impressions,clicks,cpc}&time_range={'since':'${new Date(since*1000).toISOString().split('T')[0]}','until':'${new Date(until*1000).toISOString().split('T')[0]}'}&limit=100&access_token=${accessToken}`
+      );
+      const adsJson = await adsRes.json();
+      if (!adsJson.error) {
+        ads = (adsJson.data || []).map(a => {
+          const ai = a.insights?.data?.[0] || {};
+          return {
+            id: a.id,
+            name: a.name,
+            status: a.status,
+            campaign: a.campaign?.name || '—',
+            spend: parseFloat(ai.spend || 0),
+            reach: parseInt(ai.reach || 0),
+            impressions: parseInt(ai.impressions || 0),
+            clicks: parseInt(ai.clicks || 0),
+            cpc: parseFloat(ai.cpc || 0),
+          };
+        });
+      }
+    } catch (e) { ads = []; }
+
     const totalSpend = campaigns.reduce((s, c) => s + c.spend, 0);
     const totalReach = campaigns.reduce((s, c) => s + c.reach, 0);
     const totalImpressions = campaigns.reduce((s, c) => s + c.impressions, 0);
@@ -124,6 +149,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       adAccounts: adAccounts.map(a => ({ id: a.id, name: a.name, status: a.account_status, currency: a.currency, amountSpent: a.amount_spent })),
       campaigns,
+      ads,
       summary: {
         totalSpend: totalSpend.toFixed(2),
         totalReach,

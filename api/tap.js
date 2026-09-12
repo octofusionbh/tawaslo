@@ -10,7 +10,7 @@ const PRICES = {
 
 // Supabase (service role) — used only to validate promo codes server-side so a
 // discount can never be faked from the browser. Same env vars as /api/cron.
-const SUPA = process.env.SUPABASE_URL || 'https://gtjmpmhsiyqwhykunosc.supabase.co';
+const SUPA = process.env.SUPABASE_URL || 'https://oarlmvhgvinldkbprnfo.supabase.co';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 function sbq(path, opts = {}) {
   return fetch(`${SUPA}/rest/v1/${path}`, {

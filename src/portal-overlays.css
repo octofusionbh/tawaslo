@@ -1,0 +1,38 @@
+.suite-modal-backdrop {
+  --s-panel: #161825;
+  --s-line: #303349;
+  --s-text: #faf9ff;
+  --s-muted: #a9acbd;
+  --s-violet: #8274ff;
+  color: var(--s-text);
+  font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+}
+
+.suite-modal-backdrop *,
+.wa-modal-backdrop * {
+  box-sizing: border-box;
+}
+
+.suite-modal-backdrop button,
+.suite-modal-backdrop input,
+.wa-modal-backdrop button,
+.wa-modal-backdrop input,
+.wa-modal-backdrop select {
+  font: inherit;
+}
+
+.suite-modal,
+.wa-modal {
+  width: min(530px, calc(100vw - 36px));
+}
+
+.wa-modal-backdrop {
+  --wa-bg: #0c0d14;
+  --wa-panel: #161825;
+  --wa-line: #303349;
+  --wa-text: #faf9ff;
+  --wa-muted: #aaaebe;
+  --wa-soft: #7d8196;
+  color: var(--wa-text);
+  font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+}
