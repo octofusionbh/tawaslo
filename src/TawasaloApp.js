@@ -66,6 +66,7 @@ import "./dashboard-accessibility.css";
 import "./notification-center.css";
 import { useMobileWeb, useCompactNavigation, mobileWebNow, canPublishOnWeb, mobilePage, stopMobilePublishing } from "./workspaceResponsive";
 import "./workspace-responsive.css";
+import "./type-scale-mobile.css";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
