@@ -8,7 +8,9 @@ import ApprovalsExperience from "./ApprovalsExperience";
 import CampaignsExperience from "./CampaignsExperience";
 import CampaignsLive from "./CampaignsLive";
 import AIStudioExperience from "./AIStudioExperience";
+import AIStudioLive from "./AIStudioLive";
 import ReelStudioExperience from "./ReelStudioExperience";
+import ReelStudioLive from "./ReelStudioLive";
 import CompetitorExperience from "./CompetitorExperience";
 import StealThisExperience from "./StealThisExperience";
 import WinClientsExperience from "./WinClientsExperience";
@@ -22775,7 +22777,8 @@ export default function TawasloApp() {
     if (page==="shortlinks") return workspacePreview ? <LinksExperience/> : <ShortLinksLive/>;
     if (page==="suggested") return workspacePreview && selClient?.id === "preview-marina" ? <SuggestedExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} onOpenStudio={()=>setPage('aistudio')}/> : <SuggestedPage/>;
     if (page==="whatsapp") return <WhatsAppPage/>;
-    if (page==="reelstudio") return workspacePreview && selClient?.id === "preview-marina" ? <ReelStudioExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <ReelStudioPage/>;
+    if (page==="reelstudio") return workspacePreview && selClient?.id === "preview-marina" ? <ReelStudioExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')}/> : <ReelStudioLive client={selClient} dark={dark} setDark={setDark} mobileWeb={mobileWeb} onOpenPublisher={()=>setPage('publisher')} aiCredits={aiCreditWalletOf(userEmail,userPlan)}/>;
+    if (page==="reelstudioclassic") return <ReelStudioPage/>;
     if (page==="competitor") return workspacePreview && selClient?.id === "preview-marina" ? <CompetitorExperience dark={dark} setDark={setDark} onOpenStudio={id=>{setInsightStudioId(id);setPage('aistudio');}}/> : <CompetitorSpyPage/>;
     if (page==="stealthis") return workspacePreview && selClient?.id === "preview-marina" ? <StealThisExperience dark={dark} setDark={setDark} onOpenStudio={id=>{setInsightStudioId(id);try{window.history.pushState({twApp:1,twPage:'aistudio',twMode:mode},'',pathForPage('aistudio'));}catch(_){}setPage('aistudio');}} onOpenCompetitors={()=>{try{window.history.pushState({twApp:1,twPage:'competitor',twMode:mode},'',pathForPage('competitor'));}catch(_){}setPage('competitor');}}/> : <CompetitorDigestPage/>;
     if (page==="publisher") return <PublisherPage/>;
@@ -22793,7 +22796,19 @@ export default function TawasloApp() {
       onOpenPublisher={()=>setPage('publisher')}
       onBuyAiCredits={()=>setPage('billing')}
       aiCredits={aiCreditWalletOf(userEmail,userPlan)}
-    /> : <AIStudioPage/>;
+    /> : <AIStudioLive
+      client={selClient}
+      initialSavedId={insightStudioId}
+      onInitialSavedOpened={()=>setInsightStudioId('')}
+      dark={dark}
+      setDark={setDark}
+      mobileWeb={mobileWeb}
+      onOpenPublisher={()=>setPage('publisher')}
+      onBuyAiCredits={()=>setPage('billing')}
+      aiCredits={aiCreditWalletOf(userEmail,userPlan)}
+      onCreditUsed={()=>consumeAiCredit(userEmail, userPlan)}
+    />;
+    if (page==="aistudioclassic") return <AIStudioPage/>;
     if (page==="campaigns") return workspacePreview && selClient?.id === "preview-marina" ? <CampaignsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CampaignsLive client={selClient} dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
     if (page==="campaignsclassic") return <CampaignsPage/>;
     if (page==="streams") return <StreamsPage/>;
