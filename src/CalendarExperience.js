@@ -37,6 +37,13 @@ export function Artwork({ post, slide = 0, compact = false }) {
     sea: ['By the', 'water.', 'MARINA SOCIAL CLUB'],
   };
   const lines = designs[post.art] || designs.sea;
+  // A real post carries its own artwork; the sample set is only used when it does not.
+  if (post.image) return <div className={`cal-art cal-art-photo ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post artwork'}>
+    <img className="cal-art-image" src={post.image} alt="" aria-hidden="true"/>
+  </div>;
+  if (post.image === null) return <div className={`cal-art cal-art-empty ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={post.title || 'Post without artwork'}>
+    <span className="cal-art-brand">{(post.title || 'Post').slice(0, 28)}</span>
+  </div>;
   const image=ARTWORK_IMAGES[post.art]||ARTWORK_IMAGES.sea;
   return <div className={`cal-art cal-art-photo cal-art-${post.art} ${compact ? 'cal-art-small' : ''}`} role="img" aria-label={`Campaign photograph: ${lines[0]} ${lines[1]}`}>
     <img className="cal-art-image" src={image} alt="" aria-hidden="true"/>

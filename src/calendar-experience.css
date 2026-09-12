@@ -682,3 +682,6 @@
 @container workspace (max-width:980px){.cal-agency-page .cal-heading{min-height:0;padding:4px 3px 21px}.cal-agency-page .cal-summary{margin-inline:0}}
 @container workspace (max-width:740px){.cal-agency-page{padding:22px;border-radius:29px 9px 29px 29px}.cal-agency-page .cal-heading{padding:4px 0 21px;border-radius:0}.cal-agency-page .cal-summary{margin:0 0 22px}}
 @media(max-width:480px){.cal-agency-page{padding:18px}.cal-agency-page .cal-heading{padding:3px 0 18px}}
+
+/* A real post with no artwork yet: a plain tile instead of the sample photograph. */
+.cal-art-empty{display:flex;align-items:center;justify-content:center;padding:14px;text-align:center;background:linear-gradient(140deg,#242536,#1a1b27);color:#cfd2e2;font-size:12px;font-weight:700;line-height:1.35}

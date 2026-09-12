@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { APPROVAL_IMAGES } from "./approvalImages";
 import DashboardOverview from "./DashboardOverview";
@@ -4169,6 +4169,90 @@ function AgencyDashboard() {
       </div>
     </div>
   );
+}
+
+// Planner on the workspace's real posts. The planner model only needs a
+// getItem/setItem store, so we give it one backed by the posts table: reads come
+// from a hydrated cache, writes go straight back to Supabase.
+const PLANNER_STATUS_IN = { draft: 'draft', scheduled: 'approved', published: 'approved', archived: 'draft' };
+const PLANNER_STATUS_OUT = { draft: 'draft', approved: 'scheduled', pending: 'scheduled', revised: 'scheduled', changes: 'draft' };
+const two = (n) => String(n).padStart(2, '0');
+
+function plannerPostFromRow(row) {
+  const when = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
+  const caption = String(row.caption || '');
+  const [firstLine, ...rest] = caption.split('\n');
+  const media = Array.isArray(row.media_urls) ? row.media_urls : [];
+  return {
+    id: String(row.id),
+    day: when.getDate(),
+    time: `${two(when.getHours())}:${two(when.getMinutes())}`,
+    platform: ['ig','fb','li','tt'].includes(row.platform) ? row.platform : 'ig',
+    format: media.length > 1 ? 'Carousel' : 'Post',
+    title: (firstLine || 'Untitled post').slice(0, 100),
+    caption: (rest.join('\n') || firstLine || '').slice(0, 2200),
+    art: 'sea',
+    image: media[0] || null,
+    status: PLANNER_STATUS_IN[row.status] || 'draft',
+    version: 1,
+    notes: [],
+  };
+}
+
+function PlannerLive({ dark, setDark, mobileWeb }) {
+  const { selClient } = useApp();
+  const [cache, setCache] = useState(null);   // monthKey -> planner state
+  const clientId = selClient?.id;
+
+  useEffect(() => {
+    let active = true;
+    if (!clientId) { setCache({}); return undefined; }
+    supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls').eq('client_id', clientId).limit(1000)
+      .then(({ data }) => {
+        if (!active) return;
+        const byMonth = {};
+        (data || []).forEach(row => {
+          const when = row.scheduled_at ? new Date(row.scheduled_at) : new Date(row.created_at || Date.now());
+          const key = `${when.getFullYear()}-${two(when.getMonth() + 1)}`;
+          byMonth[key] = byMonth[key] || { month: key, posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] };
+          byMonth[key].posts.push(plannerPostFromRow({ ...row, scheduled_at: when.toISOString() }));
+        });
+        Object.values(byMonth).forEach(state => { state.sharedIds = state.posts.filter(p => p.status !== 'draft').map(p => p.id); });
+        setCache(byMonth);
+      });
+    return () => { active = false; };
+  }, [clientId]);
+
+  const store = useMemo(() => {
+    if (!cache) return null;
+    const memory = { ...cache };
+    const monthOf = (key) => String(key).split(':').pop();
+    return {
+      getItem(key) {
+        const month = monthOf(key);
+        const state = memory[month] || { month, posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] };
+        return JSON.stringify(state);
+      },
+      setItem(key, value) {
+        const month = monthOf(key);
+        let state; try { state = JSON.parse(value); } catch (e) { return; }
+        memory[month] = state;
+        const [year, m] = month.split('-').map(Number);
+        state.posts.forEach(post => {
+          const [hh, mm] = String(post.time || '09:00').split(':').map(Number);
+          const scheduledAt = new Date(year, m - 1, Number(post.day) || 1, hh || 0, mm || 0).toISOString();
+          const caption = `${post.title || ''}\n${post.caption || ''}`.trim();
+          const row = { client_id: clientId, platform: post.platform, caption, scheduled_at: scheduledAt, status: PLANNER_STATUS_OUT[post.status] || 'draft' };
+          const existing = /^[0-9a-f-]{16,}$/i.test(post.id);
+          if (existing) supabase.from('posts').update(row).eq('id', post.id).then(() => {}, () => {});
+          else supabase.from('posts').insert([row]).then(() => {}, () => {});
+        });
+      },
+    };
+  }, [cache, clientId]);
+
+  if (!store) return <CalendarPage/>;
+  return <PlannerExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} live clientName={selClient?.name || ''}/>;
 }
 
 // Billing on the real subscription. Checkout stays with Polar (merchant of
@@ -22586,7 +22670,8 @@ export default function TawasloApp() {
     if (page==="competitor") return workspacePreview && selClient?.id === "preview-marina" ? <CompetitorExperience dark={dark} setDark={setDark} onOpenStudio={id=>{setInsightStudioId(id);setPage('aistudio');}}/> : <CompetitorSpyPage/>;
     if (page==="stealthis") return workspacePreview && selClient?.id === "preview-marina" ? <StealThisExperience dark={dark} setDark={setDark} onOpenStudio={id=>{setInsightStudioId(id);try{window.history.pushState({twApp:1,twPage:'aistudio',twMode:mode},'',pathForPage('aistudio'));}catch(_){}setPage('aistudio');}} onOpenCompetitors={()=>{try{window.history.pushState({twApp:1,twPage:'competitor',twMode:mode},'',pathForPage('competitor'));}catch(_){}setPage('competitor');}}/> : <CompetitorDigestPage/>;
     if (page==="publisher") return <PublisherPage/>;
-    if (page==="planner") return workspacePreview && selClient?.id === "preview-marina" ? <PlannerExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <CalendarPage/>;
+    if (page==="planner") return workspacePreview && selClient?.id === "preview-marina" ? <PlannerExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <PlannerLive dark={dark} setDark={setDark} mobileWeb={mobileWeb}/>;
+    if (page==="plannerclassic") return <CalendarPage/>;
     if (page==="approvals") return workspacePreview && selClient?.id === "preview-marina" ? <ApprovalsExperience dark={dark} setDark={setDark} mobileWeb={mobileWeb}/> : <ApprovalsPage/>;
     if (page==="calendar") return workspacePreview && selClient?.id === "preview-marina" ? <CalendarExperience dark={dark} setDark={setDark}/> : <CalendarRoomPage/>;
     if (page==="aistudio") return workspacePreview && selClient?.id === "preview-marina" ? <AIStudioExperience

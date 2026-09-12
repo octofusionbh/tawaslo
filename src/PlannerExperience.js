@@ -16,9 +16,12 @@ function Network({ platform, full = false }) { const Icon = NETWORK_ICONS[platfo
 function Stage({ post, data }) { const stage = plannerStage(post,data); return <span className={`pl-stage pl-stage-${stage}`}><span aria-hidden="true"/>{stage === 'draft' ? 'Draft' : stage === 'review' && post.status === 'revised' ? 'Updated for review' : PLANNER_STAGES[stage]}</span>; }
 const countPosts = count => `${count} ${count === 1 ? 'post' : 'posts'}`;
 
-export default function PlannerExperience({ dark = false, setDark = () => {}, mobileWeb = false }) {
+export default function PlannerExperience({ dark = false, setDark = () => {}, mobileWeb = false, store = null, live = false, clientName = '' }) {
+  // `store` swaps the browser-storage backing for the workspace's real posts.
+  // The model only needs getItem/setItem, so the calling side can persist
+  // wherever it likes while this screen stays unchanged.
   const [cursor,setCursor] = useState(() => parseCalendarMonth(new URLSearchParams(window.location.search).get('plannerMonth')));
-  const [loaded,setLoaded] = useState(() => readPlannerMonth(cursor));
+  const [loaded,setLoaded] = useState(() => readPlannerMonth(cursor, store));
   const data = loaded.data;
   const [view,setView] = useState('list');
   const [stage,setStage] = useState('all');
@@ -53,7 +56,7 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
   const previewPost = editing && draft ? { ...draft, title: draft.title || 'Your next post' } : selectedPost;
 
   useEffect(() => {
-    const sync = event => { if (event.key === plannerStorageKey(cursor)) setLoaded(readPlannerMonth(cursor)); };
+    const sync = event => { if (event.key === plannerStorageKey(cursor)) setLoaded(readPlannerMonth(cursor, store)); };
     window.addEventListener('storage',sync);
     return () => window.removeEventListener('storage',sync);
   },[cursor]);
@@ -103,14 +106,14 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
   function save(event) {
     event.preventDefault();
     if (!editingAllowed || !canPublishOnWeb()) { setError('Editing is available on desktop web. Your draft has not been changed.');return; }
-    const result = commitPlannerChange(cursor, state => savePlannerPost(state,draft,selectedPost?.id,baseline?.version,baseline?.status));
+    const result = commitPlannerChange(cursor, state => savePlannerPost(state,draft,selectedPost?.id,baseline?.version,baseline?.status), store);
     if (!result.ok) { setError(result.error); return; }
     setLoaded({data:result.data,error:''});setDetail(result.post.id);setDraft(editFields(result.post));setOriginal(editFields(result.post));setEditing(false);setError('');
-    setNotice(result.post.status === 'draft' ? 'Draft saved in this browser. It is private until you share it.' : 'New version saved. Previous approval no longer applies. No notification was sent.');
+    setNotice(result.post.status === 'draft' ? (live ? 'Draft saved. It is private until you share it.' : 'Draft saved in this browser. It is private until you share it.') : 'New version saved. Previous approval no longer applies. No notification was sent.');
   }
   function markReady() {
     if (!editingAllowed || !canPublishOnWeb()) return;
-    const result = commitPlannerChange(cursor,state => readyPlannerPost(state,selectedPost.id,selectedPost.version));
+    const result = commitPlannerChange(cursor, state => readyPlannerPost(state,selectedPost.id,selectedPost.version), store);
     if (!result.ok) { setError(result.error);return; }
     setLoaded({data:result.data,error:''});setNotice('Ready for review. Open the review calendar to choose what the client sees. Nothing was sent.');setError('');
   }
