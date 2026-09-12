@@ -127,3 +127,23 @@
 .tw-billing-experience[data-theme="light"] .bill-ai-balance{background:rgba(23,24,45,.035);border-color:#e2e0ef}
 .tw-billing-experience[data-theme="light"] .bill-ai-tools article{background:rgba(23,24,45,.028);border-color:#e2e0ef}
 .tw-billing-experience[data-theme="light"] .bill-ai-panel{background:linear-gradient(145deg,#ffffff,#f8f7fd);border-color:#e2e0ef;box-shadow:0 14px 40px rgba(23,24,45,.06)}
+
+/* Light theme for the plans redesign.
+   The block above paints the hero, the three plan cards and the small controls
+   with dark gradients and never offered a light counterpart, so light mode kept
+   dark cards under the dark palette above — "Essential" and "Enterprise" were
+   close to unreadable against their own cards. The featured card also re-declares
+   its own tokens, so those are restated here too. Dark mode is untouched. */
+.tw-billing-experience[data-theme="light"] .bill-hero{background:radial-gradient(circle at 82% 18%,rgba(122,108,255,.14),transparent 34%),linear-gradient(135deg,#ffffff,#f4f3fd);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-account-summary{background:rgba(23,24,45,.03);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-area-tabs{background:rgba(23,24,45,.04);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-area-tabs button[aria-pressed=true]{background:#17182d;color:#ffffff}
+.tw-billing-experience[data-theme="light"] .bill-cycle{background:rgba(23,24,45,.03);border-color:#e2e0ef}
+.tw-billing-experience[data-theme="light"] .bill-cycle button[aria-pressed=true]{background:#17182d;color:#ffffff}
+.tw-billing-experience[data-theme="light"] :is(.bill-plan,.bill-plan:first-child,.bill-plan:last-child):not(.bill-plan-featured){background:linear-gradient(145deg,#ffffff,#f8f7fd);border-color:#e2e0ef;box-shadow:0 14px 40px rgba(23,24,45,.06)}
+.tw-billing-experience[data-theme="light"] .bill-plan-limits>div{background:rgba(23,24,45,.028);border-color:#e2e0ef}
+/* The featured card stays the emphasised one — dark on purpose — so it keeps its
+   own light-on-dark tokens rather than being flattened with the other two. */
+.tw-billing-experience[data-theme="light"] .bill-plan-featured{background:radial-gradient(circle at 100% 0,rgba(255,120,108,.22),transparent 32%),linear-gradient(150deg,#22233a,#191a2c);border-color:rgba(255,138,124,.45);color:#fbfaff;--bill-muted:#b9bbd2;--bill-line:#3b3c58;--bill-accent:#ff9a83}
+.tw-billing-experience[data-theme="light"] .bill-plan-featured .bill-plan-limits>div{background:rgba(255,255,255,.05);border-color:#3b3c58}
+.tw-billing-experience[data-theme="light"] .bill-plan-featured .bill-plan-action{background:#f7f4ec;color:#171819;border-color:#f7f4ec}
