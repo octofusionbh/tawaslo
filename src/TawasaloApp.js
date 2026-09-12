@@ -1922,10 +1922,10 @@ function NewAccountModal({ onClose, onCreated }) {
     setErr(""); setBusy(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/admin-create-account', {
+      const res = await fetch('/api/send-welcome-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
-        body: JSON.stringify({ ...form, email }),
+        body: JSON.stringify({ ...form, email, kind: 'admin_create_account' }),
       });
       const body = await res.json().catch(() => ({}));
       setBusy(false);

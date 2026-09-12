@@ -2,6 +2,101 @@
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
+  // -- HQ: create a client account (folded in here to stay under Vercel's 12-function cap) --
+  // Public sign-ups are closed, so Tawaslo HQ creates accounts. This writes the same
+  // `tawaslo_setup` metadata a normal sign-up writes, so the existing setup gate builds
+  // the workspace on first sign-in, then asks Supabase to email a set-password link.
+  // No password is ever handled here.
+  if (req.body && req.body.kind === 'admin_create_account') {
+    const SUPA = process.env.SUPABASE_URL || 'https://oarlmvhgvinldkbprnfo.supabase.co';
+    const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+    const ADMIN_EMAILS = String(process.env.TAWASLO_ADMIN_EMAILS || 'demo@tawaslo.com,octofusionbh@gmail.com')
+      .split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+    const ACCOUNT_TYPES = new Set(['agency', 'corporate', 'freelancer']);
+    const PLANS = new Set(['starter', 'professional', 'agency', 'studio']);
+    const INDUSTRIES = new Set(['restaurant', 'hospitality', 'shop', 'services', 'other']);
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!SERVICE_KEY) return res.status(500).json({ error: 'Server is not configured for account creation.' });
+
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) return res.status(401).json({ error: 'Sign in again and retry.' });
+
+    let caller = null;
+    try {
+      const meRes = await fetch(`${SUPA}/auth/v1/user`, { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${token}` } });
+      if (!meRes.ok) return res.status(401).json({ error: 'Sign in again and retry.' });
+      caller = await meRes.json();
+    } catch (e) {
+      return res.status(502).json({ error: 'Could not verify your session.' });
+    }
+    const callerEmail = String((caller && caller.email) || '').toLowerCase();
+    if (!callerEmail || !ADMIN_EMAILS.includes(callerEmail)) return res.status(403).json({ error: 'Only Tawaslo HQ can create accounts.' });
+
+    const newEmail = String(req.body.email || '').trim().toLowerCase();
+    const fullName = String(req.body.name || '').trim();
+    const companyName = String(req.body.companyName || '').trim();
+    const accountKind = ACCOUNT_TYPES.has(req.body.accountType) ? req.body.accountType : 'agency';
+    const chosenPlan = PLANS.has(req.body.plan) ? req.body.plan : 'professional';
+    const billing = req.body.billing === 'yearly' ? 'yearly' : 'monthly';
+    const industry = INDUSTRIES.has(req.body.industry) ? req.body.industry : 'other';
+
+    if (!EMAIL_RE.test(newEmail)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    if (!fullName || fullName.length > 150) return res.status(400).json({ error: 'Enter the person\u2019s full name.' });
+    if (!companyName || companyName.length > 200) return res.status(400).json({ error: 'Enter the company name.' });
+
+    let expiresAt = null;
+    const rawExpiry = String(req.body.expiresAt || '').trim();
+    if (rawExpiry) {
+      const parsed = new Date(`${rawExpiry}T23:59:59Z`);
+      if (Number.isNaN(parsed.getTime())) return res.status(400).json({ error: 'The expiry date is not a valid date.' });
+      if (parsed.getTime() < Date.now()) return res.status(400).json({ error: 'The expiry date is in the past.' });
+      expiresAt = parsed.toISOString();
+    }
+
+    const setup = {
+      version: 1,
+      name: fullName,
+      companyName,
+      accountType: accountKind,
+      selectedPlan: chosenPlan,
+      billing,
+      industries: [industry],
+      initialClientId: globalThis.crypto.randomUUID(),
+      logo: null,
+      createdAt: new Date().toISOString(),
+    };
+
+    let created = {};
+    try {
+      const createRes = await fetch(`${SUPA}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, email_confirm: true, user_metadata: { full_name: fullName, tawaslo_setup: setup, tawaslo_access_expires: expiresAt } }),
+      });
+      created = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) {
+        const message = String(created.msg || created.message || created.error_description || '');
+        if (/already|exists|registered/i.test(message)) return res.status(409).json({ error: 'An account already uses that email.' });
+        return res.status(502).json({ error: message || 'Could not create the account.' });
+      }
+    } catch (e) {
+      return res.status(502).json({ error: 'Could not reach the account service.' });
+    }
+
+    let passwordEmailSent = false;
+    try {
+      const recoverRes = await fetch(`${SUPA}/auth/v1/recover`, {
+        method: 'POST',
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail }),
+      });
+      passwordEmailSent = recoverRes.ok;
+    } catch (e) { passwordEmailSent = false; }
+
+    return res.status(200).json({ ok: true, userId: created.id || null, emailSent: passwordEmailSent, expiresAt });
+  }
+
   const { name, email, plan, accountType } = req.body;
   if (!email) return res.status(400).json({ error: 'Email is required' });
 
