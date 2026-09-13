@@ -409,8 +409,17 @@ export default async function handler(req, res) {
 
   // Auth — only the cron with the right key may trigger publishing.
   const key = (req.query && req.query.key) || req.headers['x-cron-key'];
-  if (!process.env.CRON_SECRET || key !== process.env.CRON_SECRET) {
-    return res.status(401).json({ error: 'unauthorized' });
+  // Tell the two failures apart. Returning the same message for "no secret on
+  // this deployment" and "wrong key" makes this impossible to debug without
+  // guessing. Neither branch reveals the secret itself.
+  if (!process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'CRON_SECRET is not set on this deployment' });
+  }
+  if (key !== process.env.CRON_SECRET) {
+    return res.status(401).json({
+      error: 'unauthorized',
+      hint: `key ${key ? 'received' : 'missing'}; expected length ${String(process.env.CRON_SECRET).length}${key ? `, got length ${String(key).length}` : ''}`,
+    });
   }
   if (!SERVICE_KEY) {
     return res.status(200).json({ ok: false, error: 'SUPABASE_SERVICE_ROLE_KEY not set in Vercel' });
