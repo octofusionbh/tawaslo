@@ -238,6 +238,13 @@ async function runMonthlyReports(res) {
 }
 
 export default async function handler(req, res) {
+  // Never let this endpoint be cached. It is a trigger, not a document: a cached
+  // reply means the scheduler is pinged every minute and the publisher never
+  // actually runs, which looks exactly like posts silently not going out.
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('CDN-Cache-Control', 'no-store');
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store');
+
   // ── Public client approval endpoint (no cron key needed) ──────────────
   // The login-free client page (tawaslo.com/a/<token>) posts here to load a
   // batch of posts for a token and to record approve / request-changes
