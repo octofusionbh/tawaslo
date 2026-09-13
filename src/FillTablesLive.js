@@ -163,6 +163,7 @@ export default function FillTablesLive({ client, dark = false, onOpenGuests = ()
     dark={dark}
     onOpenGuests={onOpenGuests}
     liveGuests={state.guests}
+    clientName={client?.name || ''}
     liveFloor={state.floor}
     liveSlots={state.slots}
     liveOffers={state.offers}

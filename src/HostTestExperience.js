@@ -154,7 +154,7 @@ function LoyaltyTest({ members, selectedId, onSelect, onVisit, onRedeem }) {
   </div>;
 }
 
-export default function HostTestExperience({ initialModule = 'menu', onExit = () => {} }) {
+export default function HostTestExperience({ initialModule = 'menu', onExit = () => {}, clientName = '' }) {
   const [module, setModule] = useState(MODULES.some(item => item.id === initialModule) ? initialModule : 'menu');
   const [menuItems, setMenuItems] = useState(INITIAL_MENU);
   const [orders, setOrders] = useState(INITIAL_ORDERS);
@@ -252,7 +252,7 @@ export default function HostTestExperience({ initialModule = 'menu', onExit = ()
     <section ref={dialogRef} className="ht-shell" role="dialog" aria-modal="true" aria-labelledby="ht-title" aria-describedby="ht-description">
       <header className="ht-topbar">
         <div className="ht-brand"><img src="/logo-transparent.png" width="32" height="32" alt="" /><span><strong>Tawaslo Host Test</strong><small>Agency rehearsal workspace</small></span></div>
-        <div className="ht-venue"><Store size={16} aria-hidden="true" /><span><small>Testing for</small><strong>Marina Social Club</strong></span><StatusPill tone="locked"><ShieldCheck size={13} aria-hidden="true" />Not live</StatusPill></div>
+        <div className="ht-venue"><Store size={16} aria-hidden="true" /><span><small>Testing for</small><strong>{clientName || 'Marina Social Club'}</strong></span><StatusPill tone="locked"><ShieldCheck size={13} aria-hidden="true" />Not live</StatusPill></div>
         <div className="ht-top-actions"><button type="button" onClick={reset}><RotateCcw size={16} aria-hidden="true" />Reset sample data</button><button ref={exitRef} type="button" className="ht-exit" onClick={onExit}><X size={17} aria-hidden="true" />Exit test</button></div>
       </header>
       <div className="ht-safe-strip"><ShieldCheck size={16} aria-hidden="true" /><strong>Safe rehearsal:</strong><span>nothing here changes the client workspace, contacts customers, or takes payment.</span></div>

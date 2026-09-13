@@ -444,3 +444,11 @@
 
 /* Empty state for the "Next to go live" list when a workspace has nothing scheduled. */
 .ov-empty{margin:0;padding:18px 2px;color:var(--ov-muted,#6b6f80);font-size:13px;line-height:1.6}
+
+/* A real scheduled post shows its own picture, and a post with no picture gets a
+   plain tile with its network mark. The lettered sample posters below are only
+   ever drawn in the design preview. */
+.ov-post-art-photo{padding:0}
+.ov-post-art-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.ov-post-art-plain{align-items:center;justify-content:center;color:var(--ov-muted,#6C6286);background:var(--ov-line,#e7e5f2)!important}
+.ov-post-art-plain:before,.ov-post-art-plain:after{display:none!important}

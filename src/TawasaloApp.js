@@ -3890,7 +3890,7 @@ function AgencyDashboard() {
     Promise.all([
       supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false),
       supabase.from('posts').select('id', { count:'exact', head:true }).eq('client_id', selClient.id),
-      supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5),
+      supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls,image_url,thumb_url').eq('client_id', selClient.id).eq('status','scheduled').order('scheduled_at',{ascending:true}).limit(5),
       supabase.from('posts').select('platform,status').eq('client_id', selClient.id),
     ]).then(([a, c, u, all]) => {
       if (!active) return;
@@ -4009,6 +4009,9 @@ function AgencyDashboard() {
           ? L(`Carousel · ${p.media_urls.length} images`, `منشور متعدد · ${p.media_urls.length} صور`)
           : (Array.isArray(p.media_urls) && p.media_urls.length === 1 ? L("Image post","منشور بصورة") : L("Text post","منشور نصي")),
         format: String(upcoming.indexOf(p) + 1).padStart(2, '0'),
+        // The post's own picture. Null means it genuinely has none, and the
+        // dashboard then draws a plain tile rather than borrowing sample artwork.
+        image: (Array.isArray(p.media_urls) && p.media_urls[0]) || p.thumb_url || p.image_url || null,
       };
     }),
     signals: [],   // no invented insights — this fills in once we have real analytics per network
@@ -4258,7 +4261,7 @@ function InboxLive() {
     } catch (e) { return false; }
   };
 
-  if (!items) return <InboxPage/>;
+  if (!items) return <InboxExperience liveItems={[]} loading clientName={selClient?.name || ''}/>;
   return <InboxExperience liveItems={items} clientName={selClient?.name || ''} onReply={reply} error={error} onReconnect={() => setPage('social')}/>;
 }
 
@@ -4345,10 +4348,20 @@ function usePlannerStore() {
   return { store, clientId, clientName: selClient?.name || '' };
 }
 
+// While a workspace's posts are still loading, show the real screen with nothing
+// in it. Rendering the retired page first made every board visibly change design
+// a second after it opened.
+const LOADING_STORE = {
+  getItem: (key) => JSON.stringify({ month: String(key).split(':').pop(), posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] }),
+  setItem: () => {},
+};
+// The boards read their month once on mount, so the key changes when the real
+// store arrives and the screen remounts against live data.
+const loadKey = (clientId, store) => `${clientId || 'none'}:${store ? 'live' : 'loading'}`;
+
 function PlannerLive({ dark, setDark, mobileWeb }) {
   const { store, clientId, clientName } = usePlannerStore();
-  if (!store) return <CalendarPage/>;
-  return <PlannerExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} live clientName={clientName}/>;
+  return <PlannerExperience key={loadKey(clientId, store)} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store || LOADING_STORE} live clientName={clientName}/>;
 }
 
 // Calendar on the workspace's real posts. It shares the planner's store, because
@@ -4356,14 +4369,12 @@ function PlannerLive({ dark, setDark, mobileWeb }) {
 // in the other without a second cache to keep in step.
 function CalendarLive({ dark, setDark, clientView = false }) {
   const { store, clientId, clientName } = usePlannerStore();
-  if (!store) return <CalendarRoomPage/>;
-  return <CalendarExperience key={clientId} dark={dark} setDark={setDark} clientView={clientView} store={store} clientName={clientName}/>;
+  return <CalendarExperience key={loadKey(clientId, store)} dark={dark} setDark={setDark} clientView={clientView} store={store || LOADING_STORE} clientName={clientName}/>;
 }
 
 function ApprovalsLive({ dark, setDark, mobileWeb }) {
   const { store, clientId, clientName } = usePlannerStore();
-  if (!store) return <ApprovalsPage/>;
-  return <ApprovalsExperience key={clientId} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store} clientName={clientName}/>;
+  return <ApprovalsExperience key={loadKey(clientId, store)} dark={dark} setDark={setDark} mobileWeb={mobileWeb} store={store || LOADING_STORE} clientName={clientName}/>;
 }
 
 // Billing on the real subscription. Checkout stays with Polar (merchant of
@@ -4443,10 +4454,14 @@ function SettingsLive({ dark, setDark, onNameChange, onAgencyLogoChange }) {
 // profile views, so those tiles are dropped rather than filled with estimates.
 function AnalyticsLive() {
   const { selClient } = useApp();
-  const [live, setLive] = useState(null);
+  // Start on an empty live shape, never on null: null made this page render the
+  // full sample dashboard ("Marina Social Club / Analytics") for the second or
+  // two before the real numbers arrived.
+  const blank = () => ({ profile: { audience:'\u2014', reach:'\u2014', impressions:'\u2014', engagement:'\u2014', clicks:'\u2014', views:'\u2014', activity: Array.from({length:14},()=>0) } });
+  const [live, setLive] = useState(blank);
   useEffect(() => {
     let active = true;
-    if (!selClient?.id) { setLive(null); return undefined; }
+    if (!selClient?.id) { setLive(blank()); return undefined; }
     (async () => {
       const { data: rows } = await supabase.from('social_accounts').select('*').eq('client_id', selClient.id).neq('is_active', false);
       const ig = (rows || []).find(a => a.platform === 'ig' && a.account_id && a.access_token);
@@ -4471,7 +4486,6 @@ function AnalyticsLive() {
     })();
     return () => { active = false; };
   }, [selClient]);
-  if (!live) return <AnalyticsExperience/>;
   return <AnalyticsExperience live={live} clientName={selClient?.name || ''}/>;
 }
 
@@ -4507,34 +4521,72 @@ const ACCENTS = ['#ff7a6d', '#4bd9be', '#9b87ff', '#6ca8ff', '#f2b651', '#f58ea2
 const initialsOf = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 function ClientsLive() {
-  const { clients, setClients, setSelClient, setPage, lang } = useApp();
+  const { clients, setClients, selClient, setSelClient, setPage, lang } = useApp();
   const th = useTheme();
   const L = (en, ar) => (lang === 'ar' ? ar : en);
   const [counts, setCounts] = useState({});
-  // "Add client" used to jump to the retired classic page just to reach its
-  // modal. It creates the client here instead, on the redesigned screen.
-  const [adding, setAdding] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const createClient = async () => {
-    const name = newName.trim();
-    if (!name || creating) return;
-    setCreating(true);
+  // Add and Manage both used to jump to the retired classic page just to reach
+  // its modals. Both now happen here, on the redesigned screen.
+  // modal: null | 'add' | the client row being edited
+  const [modal, setModal] = useState(null);
+  const editing = modal && modal !== 'add' ? modal : null;
+  const [form, setForm] = useState({ name: '', type: 'restaurant', logo: '' });
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const openAdd = () => { setForm({ name: '', type: 'restaurant', logo: '' }); setModal('add'); };
+  const openEdit = (client) => {
+    const full = clients.find(c => c.id === client.id);
+    if (!full) return;
+    setForm({ name: full.name || '', type: full.business_type || 'restaurant', logo: full.logo_url || '' });
+    setModal(full);
+  };
+  const putLogo = async (file) => {
+    if (!file || !editing) return;
+    setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        let owner = user.id;
-        try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) owner = ws.owner_id; } catch (e) { /* personal workspace */ }
-        const { data, error } = await supabase.from('clients').insert([{ owner_id: owner, name, plan:'trial', status:'active', is_free:true }]).select();
-        if (!error && data && data[0]) {
-          const nc = { ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 };
-          if (setClients) setClients(prev => [...prev, nc]);
-          setSelClient(nc);
+        const small = await shrinkImageBlob(file, { max: 512, keepAlpha: true });
+        const path = `${user.id}/logos/${editing.id}-${Date.now()}.png`;
+        const { error } = await supabase.storage.from('media').upload(path, small, { upsert: true, contentType: 'image/png' });
+        if (!error) { const { data: url } = supabase.storage.from('media').getPublicUrl(path); setForm(f => ({ ...f, logo: (url && url.publicUrl) || '' })); }
+      }
+    } catch (e) { /* keep the rest of the form */ }
+    setUploading(false);
+  };
+  const save = async () => {
+    const name = form.name.trim();
+    if (!name || busy) return;
+    setBusy(true);
+    try {
+      if (editing) {
+        try { await supabase.from('clients').update({ name }).eq('id', editing.id); } catch (e) { /* name is the only required write */ }
+        // business_type and logo_url are additive columns — write them separately
+        // so a project without them still gets the rename.
+        try { await supabase.from('clients').update({ business_type: form.type || 'restaurant' }).eq('id', editing.id); } catch (e) { /* column may not exist */ }
+        if ((form.logo || '') !== (editing.logo_url || '')) {
+          try { await supabase.from('clients').update({ logo_url: form.logo || null }).eq('id', editing.id); } catch (e) { /* column may not exist */ }
+        }
+        const patch = { name, logo_url: form.logo || null, business_type: form.type || 'restaurant' };
+        if (setClients) setClients(prev => prev.map(c => c.id === editing.id ? { ...c, ...patch } : c));
+        if (selClient?.id === editing.id) setSelClient({ ...selClient, ...patch });
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          let owner = user.id;
+          try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) owner = ws.owner_id; } catch (e) { /* personal workspace */ }
+          const { data, error } = await supabase.from('clients').insert([{ owner_id: owner, name, plan:'trial', status:'active', is_free:true, business_type: form.type || 'restaurant' }]).select();
+          if (!error && data && data[0]) {
+            const nc = { ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 };
+            if (setClients) setClients(prev => [...prev, nc]);
+            setSelClient(nc);
+          }
         }
       }
-    } catch (e) { /* leave the modal open so the name is not lost */ }
-    setCreating(false); setAdding(false); setNewName('');
+    } catch (e) { /* leave the modal open so nothing typed is lost */ }
+    setBusy(false); setModal(null);
   };
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -4566,19 +4618,43 @@ function ClientsLive() {
   }));
 
   const open = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('overview'); };
-  const manage = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('business'); };
+  const field = { width:"100%", background:th.card2, border:`1px solid ${th.border}`, borderRadius:10, padding:"11px 13px", color:th.text, fontSize:13.5, outline:"none", boxSizing:"border-box", fontFamily:"inherit", marginBottom:16 };
+  const label = { fontSize:11, fontWeight:600, color:th.text2, marginBottom:6 };
   return <>
-    <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={manage} onAddClient={()=>setAdding(true)}/>
-    {adding && createPortal((
-      <div data-responsive-overlay="true" onClick={()=>setAdding(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-        <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
-          <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","\u0625\u0636\u0627\u0641\u0629 \u0639\u0645\u064a\u0644")}</h3>
-          <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports. You can switch between them any time.","\u0643\u0644 \u0639\u0645\u064a\u0644 \u0647\u0648 \u0645\u0633\u0627\u062d\u0629 \u0639\u0645\u0644 \u0645\u0633\u062a\u0642\u0644\u0629.")}</p>
-          <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Client name","\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644")}</div>
-          <input value={newName} autoFocus onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","Trio")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+    <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={openEdit} onAddClient={openAdd}/>
+    {modal && createPortal((
+      <div data-responsive-overlay="true" onClick={()=>setModal(null)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow,maxHeight:"88vh",overflowY:"auto"}}>
+          <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{editing?L("Manage client","إدارة العميل"):L("Add a client","إضافة عميل")}</h3>
+          <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{editing?L("Their name, logo and business type. Connected accounts live in Social Accounts.","الاسم والشعار ونوع النشاط."):L("Each client is its own workspace with its own connected accounts, posts and reports.","كل عميل هو مساحة عمل مستقلة.")}</p>
+
+          {editing && <div data-responsive-row="true" style={{display:"flex",alignItems:"center",gap:13,marginBottom:16}}>
+            <ClientMonogram name={form.name||editing.name} logo={form.logo} size={52} radius={14}/>
+            <div style={{minWidth:0,flex:1}}>
+              <label style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600,color:th.text,border:`1px solid ${th.border}`,borderRadius:9,padding:"8px 12px",cursor:uploading?"progress":"pointer"}}>
+                <Upload size={14}/>{uploading?L("Uploading…","جارٍ الرفع…"):L("Upload logo","رفع الشعار")}
+                <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files&&e.target.files[0]; if(f) putLogo(f); e.target.value='';}}/>
+              </label>
+              {form.logo && <button onClick={()=>setForm(f=>({...f,logo:''}))} style={{marginInlineStart:8,fontSize:11.5,color:th.text3,background:"transparent",border:"none",cursor:"pointer"}}>{L("Remove","إزالة")}</button>}
+              <div style={{fontSize:10.5,color:th.text3,marginTop:6}}>PNG, JPG or WebP</div>
+            </div>
+          </div>}
+
+          <div style={label}>{L("Client name","اسم العميل")}</div>
+          <input value={form.name} autoFocus onChange={e=>setForm(f=>({...f,name:e.target.value}))} onKeyDown={e=>e.key==='Enter'&&save()} placeholder={L("e.g. Trio Restaurant & Cafe","Trio")} style={field}/>
+
+          <div style={label}>{L("Business type","نوع النشاط")}</div>
+          <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{...field,cursor:"pointer"}}>
+            <option value="restaurant">{L("Restaurant / Cafe","مطعم / مقهى")}</option>
+            <option value="shop">{L("Shop / Retail","متجر / بيع")}</option>
+            <option value="services">{L("Services / Appointments","خدمات / مواعيد")}</option>
+          </select>
+
+          {editing && <button onClick={()=>{setModal(null);setSelClient(clients.find(c=>c.id===editing.id)||selClient);setPage('social');}} style={{width:"100%",marginBottom:16,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text,fontSize:12.5,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}><Link size={14}/>{L("Connected accounts","الحسابات المرتبطة")}</button>}
+
           <div data-responsive-row="true" style={{display:"flex",gap:8}}>
-            <button onClick={()=>setAdding(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","\u0625\u0644\u063a\u0627\u0621")}</button>
-            <button onClick={createClient} disabled={!newName.trim()||creating} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{creating?L("Creating\u2026","\u062c\u0627\u0631\u064d \u0627\u0644\u0625\u0646\u0634\u0627\u0621\u2026"):L("Create client","\u0625\u0646\u0634\u0627\u0621 \u0639\u0645\u064a\u0644")}</button>
+            <button onClick={()=>setModal(null)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","إلغاء")}</button>
+            <button onClick={save} disabled={!form.name.trim()||busy} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:form.name.trim()?"pointer":"not-allowed",opacity:form.name.trim()?1:0.6}}>{busy?L("Saving…","جارٍ الحفظ…"):editing?L("Save changes","حفظ التغييرات"):L("Create client","إنشاء عميل")}</button>
           </div>
         </div>
       </div>
@@ -23155,7 +23231,7 @@ export default function TawasloApp() {
           </div>
         </div>
       </div>
-      {hostTestModule && <HostTestExperience initialModule={hostTestModule} onExit={()=>setHostTestModule('')}/>} 
+      {hostTestModule && <HostTestExperience initialModule={hostTestModule} clientName={selClient?.name || ''} onExit={()=>setHostTestModule('')}/>} 
     </AppCtx.Provider>
   );
 }

@@ -38,7 +38,7 @@ const PREVIEW_FLOOR = { occupancy:38, openSeats:36, held:22, capacity:58, recove
 
 export default function FillTablesExperience({
   dark=false, onOpenGuests,
-  liveGuests=null, liveFloor=null, liveSlots=null, liveOffers=null, composeMessage=null, onPrepare=null,
+  liveGuests=null, liveFloor=null, liveSlots=null, liveOffers=null, composeMessage=null, onPrepare=null, clientName='',
 }) {
   // Live mode. Seat counts come from dining_tables and today's bookings; everything the fixture
   // models -- seats at risk, proximity signals, expected lift -- is hidden rather than guessed.
@@ -113,7 +113,7 @@ export default function FillTablesExperience({
       </div>
 
       <aside className="fmt-message" aria-labelledby="fmt-message-title">
-        <div className="fmt-phone-top"><FaWhatsapp aria-hidden="true"/><div><strong id="fmt-message-title">Marina Social Club</strong><small>WhatsApp preview</small></div><span>Preview</span></div>
+        <div className="fmt-phone-top"><FaWhatsapp aria-hidden="true"/><div><strong id="fmt-message-title">{live?(clientName||'Your venue'):'Marina Social Club'}</strong><small>WhatsApp preview</small></div><span>Preview</span></div>
         <div className="fmt-chat-date">TONIGHT’S INVITATION</div>
         <div className="fmt-bubble"><p>{message}</p><time>6:12 PM <Check size={12} aria-hidden="true"/><Check size={12} aria-hidden="true"/></time></div>
         <div className="fmt-reply"><MessageCircle size={15} aria-hidden="true"/>A reply can hold a table in Reservations.</div>
