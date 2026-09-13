@@ -51,7 +51,7 @@
    invisible on a light page and become soft tints instead. */
 [data-tw-theme="light"] .suite-page{
   --s-bg:#f2f0e9;--s-panel:#fcfbf7;--s-panel2:#eae7de;--s-line:#dcd8ce;
-  --s-text:#171526;--s-muted:#5f6274;--s-soft:#767a8c;
+  --s-text:#171526;--s-muted:#5f6274;--s-soft:#5d606f;
   --s-violet:#5540db;--s-coral:#bf3527;--s-aqua:#087c6d;--s-gold:#8f5b10;
   background:
     radial-gradient(circle at 88% 2%,rgba(85,64,219,.07),transparent 26%),

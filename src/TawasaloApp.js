@@ -68,6 +68,7 @@ import { useMobileWeb, useCompactNavigation, mobileWebNow, canPublishOnWeb, mobi
 import "./workspace-responsive.css";
 import { shrinkImageBlob, extensionForBlob, makeThumbBlob, thumbPathFor } from "./imageShrink";
 import "./type-scale-mobile.css";
+import "./contrast-light.css";
 import { supabase, signIn, signUp, signOut, createProfile, createInitialClient, resetPassword, updatePassword, ensureOctoFusionClient, getProfile, updateProfile, getClients,
   getPromoCodes, createPromoCode, updatePromoCode, deletePromoCode,
   getGiftCards, createGiftCard, updateGiftCard,
@@ -4268,7 +4269,8 @@ function InboxLive() {
 // Planner on the workspace's real posts. The planner model only needs a
 // getItem/setItem store, so we give it one backed by the posts table: reads come
 // from a hydrated cache, writes go straight back to Supabase.
-const PLANNER_STATUS_IN = { draft: 'draft', scheduled: 'approved', published: 'approved', archived: 'draft' };
+// 'failed' and 'missed' land back in drafts, where the team can fix and reschedule them.
+const PLANNER_STATUS_IN = { draft: 'draft', scheduled: 'approved', published: 'approved', archived: 'draft', failed: 'draft', missed: 'draft' };
 const PLANNER_STATUS_OUT = { draft: 'draft', approved: 'scheduled', pending: 'scheduled', revised: 'scheduled', changes: 'draft' };
 const two = (n) => String(n).padStart(2, '0');
 
@@ -22558,6 +22560,34 @@ export default function TawasloApp() {
     root.setAttribute('data-tw-theme', dark ? 'dark' : 'light');
     return () => root.removeAttribute('data-tw-theme');
   }, [dark, isAuthed, showLanding]);
+
+  // Nudge the publisher while someone has the workspace open.
+  // Scheduled posts only go out when something calls /api/cron, and nothing was
+  // calling it on a timetable — which is why a post scheduled for 11:00 sat
+  // unpublished until the next time the endpoint happened to be hit. This makes
+  // the app itself a caller: once on open, then every five minutes. One tab does
+  // it at a time (a shared timestamp in storage), and the endpoint answers
+  // "nothing due" straight away when there is nothing to publish. It is not a
+  // substitute for a real scheduler for nights and weekends, but it keeps
+  // working hours honest.
+  useEffect(() => {
+    if (!isAuthed || showLanding) return undefined;
+    const KEY = 'tw_pub_tick';
+    const EVERY = 5 * 60 * 1000;
+    let stopped = false;
+    const tick = () => {
+      if (stopped || typeof document === 'undefined' || document.hidden) return;
+      try {
+        const last = Number(localStorage.getItem(KEY) || 0);
+        if (Date.now() - last < EVERY - 5000) return;   // another tab just did it
+        localStorage.setItem(KEY, String(Date.now()));
+      } catch (e) { /* private mode: just ping */ }
+      fetch('/api/cron', { method: 'GET', cache: 'no-store' }).catch(() => {});
+    };
+    tick();
+    const id = window.setInterval(tick, 60 * 1000);
+    return () => { stopped = true; window.clearInterval(id); };
+  }, [isAuthed, showLanding]);
   const [authPage,  setAuthPage]  = useState("login");
   const [recovery,  setRecovery]  = useState(typeof window !== 'undefined' && (window.location.pathname.indexOf('reset-password') !== -1||authIntent==='recovery'));
   const [recoveryVerified,setRecoveryVerified]=useState(false);

@@ -21,7 +21,7 @@
 /* Same light palette as the rest of the dashboard — see agency-suite-experience.css. */
 [data-tw-theme="light"] .wa-page{
   --wa-bg:#f2f0e9;--wa-panel:#fcfbf7;--wa-panel2:#eae7de;--wa-line:#dcd8ce;
-  --wa-text:#171526;--wa-muted:#5f6274;--wa-soft:#767a8c;
+  --wa-text:#171526;--wa-muted:#5f6274;--wa-soft:#5d606f;
   --wa-violet:#5540db;--wa-coral:#bf3527;--wa-aqua:#087c6d;--wa-gold:#8f5b10;
   background:
     radial-gradient(circle at 88% 2%,rgba(85,64,219,.07),transparent 26%),

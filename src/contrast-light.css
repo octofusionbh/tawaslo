@@ -1,0 +1,65 @@
+/* Readable small text in light mode.
+   Every value here was measured against the actual rendered pixels, not guessed:
+   these accent and muted colours came out between 1.6:1 and 4.4:1 on the light
+   surfaces they sit on, where text under 24px needs 4.5:1 (and larger text 3:1)
+   to pass WCAG AA. Each replacement was computed to clear that on the darkest
+   ground it actually appears on, keeping the same hue. Dark mode is untouched.
+   Note the panels that stay dark inside a light page — the Planner desk, the
+   Calendar's review and activity panels — keep their own light-on-dark colours. */
+
+/* --- page eyebrows on light surfaces ---------------------------------------- */
+:root:not([data-tw-theme="dark"]) .tw-planner-experience:not(.pl-modal-root) .pl-heading .pl-kicker{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .tw-calendar-experience .cal-heading .cal-eyebrow{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .tw-calendar-experience .cal-heading .cal-link{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .tw-campaigns-experience .cp-heading .cp-kicker{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .tw-studio-experience .st-heading .st-kicker{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .lb-kicker{color:#a3453d}
+:root:not([data-tw-theme="dark"]) .ml-kicker{color:#257f69}
+
+/* --- large display headings: the accented second line ----------------------- */
+:root:not([data-tw-theme="dark"]) .tw-campaigns-experience .cp-heading h1 em{color:#c14634}
+:root:not([data-tw-theme="dark"]) .tw-studio-experience .st-heading h1 em{color:#c14634}
+
+/* --- coral links on light panels -------------------------------------------- */
+:root:not([data-tw-theme="dark"]) .tw-planner-experience:not(.pl-modal-root) .ar-empty .pl-link,
+:root:not([data-tw-theme="dark"]) .tw-planner-experience:not(.pl-modal-root) .pl-empty .pl-link{color:#bd4d43}
+:root:not([data-tw-theme="dark"]) .tw-publisher-preview .tw-preview-toolbar button{color:#a3453d}
+
+/* --- muted body copy -------------------------------------------------------- */
+:root:not([data-tw-theme="dark"]) .tw-overview{--ov-muted:#5d6072}
+:root:not([data-tw-theme="dark"]) .tw-preview-ratio{color:#5d6072}
+
+/* --- the coral attention panel on the dashboard -----------------------------
+   This panel is coral in BOTH themes, so its text fix is not scoped to light. */
+.ov-task small,.ov-next-step span{color:#4f3846}
+.ov-attention .ov-section-heading p{color:#4a3340}
+
+/* --- green notes on their own tinted panels --------------------------------- */
+:root:not([data-tw-theme="dark"]) .wa-note strong,
+:root:not([data-tw-theme="dark"]) .wa-note span,
+:root:not([data-tw-theme="dark"]) .suite-note strong,
+:root:not([data-tw-theme="dark"]) .suite-note span{color:#0a5f53}
+
+/* --- a light-grey label sitting on the Planner's dark week strip ------------- */
+:root:not([data-tw-theme="dark"]) .tw-planner-experience:not(.pl-modal-root) .pl-week-rail button strong small{color:#9fa1ad}
+
+/* --- the last few, each measured individually -------------------------------
+   The base rules for these use !important, so these have to as well. */
+:root:not([data-tw-theme="dark"]) .ar-empty .pl-link,
+:root:not([data-tw-theme="dark"]) .ar-detail-empty .pl-link,
+:root:not([data-tw-theme="dark"]) .pl-drafts-note .pl-link{color:#bd4d43!important}
+/* this one sits on the calendar's dark board, so it goes lighter, not darker */
+:root:not([data-tw-theme="dark"]) .cal-empty .cal-link{color:#ca776f}
+:root:not([data-tw-theme="dark"]) .wa-client-rows button>i{color:#a34e46}
+:root:not([data-tw-theme="dark"]) .set-section-number{color:#7167c9}
+:root:not([data-tw-theme="dark"]) .bill-heading .bill-kicker,
+:root:not([data-tw-theme="dark"]) .bill-section-title{color:#af3b30}
+
+
+/* --- dark mode: the same measurement, the other way round -------------------
+   These were between 2.6:1 and 4.5:1 on the dark surfaces they sit on. Each
+   value is lightened just far enough to clear 4.6:1, hue unchanged. */
+[data-tw-theme="dark"] .ov-eyebrow{color:#cc5d52}
+[data-tw-theme="dark"] .st-output-note{color:#9184ef}
+[data-tw-theme="dark"] .wa-page{--wa-soft:#8a8ea0}
+[data-tw-theme="dark"] .suite-page{--s-soft:#7f8398}

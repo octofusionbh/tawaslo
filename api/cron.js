@@ -463,21 +463,55 @@ export default async function handler(req, res) {
     //    Approval gate: only publish posts that were never sent for approval
     //    (no token) OR have been approved by the client. Anything still pending
     //    or with changes requested is held back until it's approved.
+    // A post is only published inside a window that starts at its scheduled time
+    // and ends STALE_AFTER_MIN later. Without the lower bound, a post that missed
+    // its slot yesterday goes out the moment the job next runs — landing beside
+    // today's post and looking to the client like the same thing posted twice.
+    const STALE_AFTER_MIN = Number(process.env.PUBLISH_STALE_AFTER_MIN || 360);
+    const staleIso = new Date(Date.now() - STALE_AFTER_MIN * 60000).toISOString();
+
+    // Anything older than the window is retired to 'missed' rather than published
+    // late. It stays visible in the app so the team can reschedule it deliberately.
+    try {
+      const missedRes = await sb(
+        `posts?status=eq.scheduled&scheduled_at=lt.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.eq.approved)`,
+        { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ status: 'missed' }) }
+      );
+      const missed = await missedRes.json().catch(() => []);
+      if (Array.isArray(missed) && missed.length) results.push({ missed: missed.length });
+    } catch (e) { /* the run continues either way */ }
+
     const dueRes = await sb(
-      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&or=(appr_token.is.null,appr_status.eq.approved)&select=*&order=scheduled_at.asc&limit=2`
+      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&scheduled_at=gte.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.eq.approved)&select=*&order=scheduled_at.asc&limit=2`
     );
     const due = await dueRes.json();
     if (!Array.isArray(due) || due.length === 0) {
-      return res.status(200).json({ ok: true, published: 0, message: 'nothing due' });
+      return res.status(200).json({ ok: true, published: 0, message: 'nothing due', results });
     }
 
     for (const post of due) {
       try {
-        // Claim the post (scheduled → publishing) so overlapping runs can't double-publish it.
-        await sb(`posts?id=eq.${post.id}&status=eq.scheduled`, {
+        // A post that already carries a platform id has been published before.
+        if (post.external_id) {
+          await sb(`posts?id=eq.${post.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'published' }) });
+          results.push({ id: post.id, ok: false, skipped: 'already has a published id' });
+          continue;
+        }
+
+        // Claim the post (scheduled → publishing) so overlapping runs can't
+        // double-publish it. The claim only matches while the row is still
+        // 'scheduled', so exactly one run can win it — but that only helps if we
+        // CHECK we won. Without this check both runs carried on and both posted.
+        const claimRes = await sb(`posts?id=eq.${post.id}&status=eq.scheduled`, {
           method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
           body: JSON.stringify({ status: 'publishing' }),
         });
+        const claimed = await claimRes.json().catch(() => []);
+        if (!Array.isArray(claimed) || claimed.length === 0) {
+          results.push({ id: post.id, ok: false, skipped: 'another run is already publishing this' });
+          continue;
+        }
 
         // Look up the connected account's token for this post.
         const accRes = await sb(
