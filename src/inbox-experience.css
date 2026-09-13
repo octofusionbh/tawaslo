@@ -139,3 +139,28 @@
 
 /* Inbox with nothing to show: one centred panel instead of the two-column stage. */
 .ib-workspace-empty{display:flex;height:auto;min-height:300px;max-height:none;align-items:center;justify-content:center}
+
+/* Light theme, round two. `.ib-stage` sets `color:#fff` for the whole
+   conversation column, and the pressed channel pill paints `--ib-panel`
+   with white text — both were written for the dark panel. With the panel
+   now white in light mode, that text was white on white. These restate
+   every colour the stage bakes in. Dark mode is untouched. */
+:root:not([data-tw-theme="dark"]) .ib-stage{color:var(--ib-text)}
+:root:not([data-tw-theme="dark"]) .ib-channels button[aria-pressed="true"]{border-color:var(--ib-violet);background:var(--ib-violet-soft);color:var(--ib-violet)}
+:root:not([data-tw-theme="dark"]) .ib-stage-head{border-color:var(--ib-line);background:linear-gradient(110deg,rgba(101,80,244,.07),transparent 47%)}
+:root:not([data-tw-theme="dark"]) .ib-stage-head>span:nth-child(2)>small{color:#6b6e83}
+:root:not([data-tw-theme="dark"]) .ib-priority{border-color:rgba(15,143,118,.3);background:rgba(15,143,118,.08);color:#0f8f76}
+:root:not([data-tw-theme="dark"]) .ib-resolve{border-color:var(--ib-line);background:#f4f4fd;color:var(--ib-text)}
+:root:not([data-tw-theme="dark"]) .ib-context-line{border-bottom-color:var(--ib-line)}
+:root:not([data-tw-theme="dark"]) .ib-context-line span{color:#6b6e83}
+:root:not([data-tw-theme="dark"]) .ib-context-line button{color:#0f8f76}
+:root:not([data-tw-theme="dark"]) .ib-day{color:#8a8da2}
+:root:not([data-tw-theme="dark"]) .ib-day:before,:root:not([data-tw-theme="dark"]) .ib-day:after{background:var(--ib-line)}
+:root:not([data-tw-theme="dark"]) .ib-mood{background:rgba(23,24,45,.06)}
+:root:not([data-tw-theme="dark"]) .ib-mood-positive,:root:not([data-tw-theme="dark"]) .ib-mood-lead{color:#0f8f76}
+:root:not([data-tw-theme="dark"]) .ib-mood-question{color:#9a6708}
+:root:not([data-tw-theme="dark"]) .ib-suggestion{border-color:rgba(101,80,244,.2);background:#fbfbff}
+:root:not([data-tw-theme="dark"]) .ib-suggestion p{color:var(--ib-text)}
+:root:not([data-tw-theme="dark"]) .ib-suggestion button{background:#0f8f76;color:#fff}
+:root:not([data-tw-theme="dark"]) .ib-regenerate{color:#5c6075}
+:root:not([data-tw-theme="dark"]) .ib-ai-note{border-top-color:var(--ib-line);color:#6b6e83}

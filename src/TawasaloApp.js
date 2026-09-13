@@ -1553,9 +1553,12 @@ function ContextBar() {
 
   // The sidebar is the single source of truth for client context. This bar only
   // carries the platform/account choices that are relevant to the current tool.
-  const NO_VIEW_BAR = ["command","clients","agencyteam","billing","agencysets","invoicing",
-    "loyalty","menu","reservations","reviews","guests","filltables","whatsapp","linkbio","business","shortlinks","prospect","suggested","inbox","media"];
-  if (NO_VIEW_BAR.includes(page)) return null;
+  // Every redesigned board carries its own channel selector inside the page, so
+  // this pinned bar was a second, duplicate set of the same choices sitting above
+  // it. Nothing outside Publisher reads `selPlatform`, and Publisher needs the bar
+  // for its publishing-account picker — so that is the only page that still shows it.
+  const VIEW_BAR_PAGES = ["publisher"];
+  if (!VIEW_BAR_PAGES.includes(page)) return null;
 
   return (
     <div className="tw-context-bar" style={{display:"flex",alignItems:"center",gap:11,padding:"10px 22px",borderBottom:`1px solid ${th.border}`,background:th.surface,flexWrap:"wrap",direction:isAR?"rtl":"ltr"}}>
@@ -4504,8 +4507,34 @@ const ACCENTS = ['#ff7a6d', '#4bd9be', '#9b87ff', '#6ca8ff', '#f2b651', '#f58ea2
 const initialsOf = (name) => String(name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 
 function ClientsLive() {
-  const { clients, setSelClient, setPage } = useApp();
+  const { clients, setClients, setSelClient, setPage, lang } = useApp();
+  const th = useTheme();
+  const L = (en, ar) => (lang === 'ar' ? ar : en);
   const [counts, setCounts] = useState({});
+  // "Add client" used to jump to the retired classic page just to reach its
+  // modal. It creates the client here instead, on the redesigned screen.
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const createClient = async () => {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        let owner = user.id;
+        try { const { data: ws } = await getMyWorkspace(user.id); if (ws && ws.owner_id) owner = ws.owner_id; } catch (e) { /* personal workspace */ }
+        const { data, error } = await supabase.from('clients').insert([{ owner_id: owner, name, plan:'trial', status:'active', is_free:true }]).select();
+        if (!error && data && data[0]) {
+          const nc = { ...data[0], free:true, accounts:0, posts:0, reach:0, health:100, spend:0 };
+          if (setClients) setClients(prev => [...prev, nc]);
+          setSelClient(nc);
+        }
+      }
+    } catch (e) { /* leave the modal open so the name is not lost */ }
+    setCreating(false); setAdding(false); setNewName('');
+  };
   useEffect(() => {
     let active = true;
     (async () => {
@@ -4537,8 +4566,24 @@ function ClientsLive() {
   }));
 
   const open = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('overview'); };
-  const manage = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('clientsclassic'); };
-  return <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={manage} onAddClient={()=>setPage('clientsclassic')}/>;
+  const manage = (client) => { const full = clients.find(c => c.id === client.id); if (full) setSelClient(full); setPage('business'); };
+  return <>
+    <ClientsExperience liveClients={liveClients} onOpenClient={open} onManageClient={manage} onAddClient={()=>setAdding(true)}/>
+    {adding && createPortal((
+      <div data-responsive-overlay="true" onClick={()=>setAdding(false)} style={{position:"fixed",inset:0,background:"rgba(4,6,12,0.72)",backdropFilter:"blur(4px)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:420,background:th.card,border:`1px solid ${th.border}`,borderRadius:18,padding:24,boxShadow:th.shadow}}>
+          <h3 style={{margin:"0 0 6px",fontSize:18,fontWeight:800,color:th.text}}>{L("Add a client","\u0625\u0636\u0627\u0641\u0629 \u0639\u0645\u064a\u0644")}</h3>
+          <p style={{margin:"0 0 16px",fontSize:12.5,color:th.text2,lineHeight:1.6}}>{L("Each client is its own workspace with its own connected accounts, posts and reports. You can switch between them any time.","\u0643\u0644 \u0639\u0645\u064a\u0644 \u0647\u0648 \u0645\u0633\u0627\u062d\u0629 \u0639\u0645\u0644 \u0645\u0633\u062a\u0642\u0644\u0629.")}</p>
+          <div style={{fontSize:11,fontWeight:600,color:th.text2,marginBottom:6}}>{L("Client name","\u0627\u0633\u0645 \u0627\u0644\u0639\u0645\u064a\u0644")}</div>
+          <input value={newName} autoFocus onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&createClient()} placeholder={L("e.g. Trio Restaurant & Cafe","Trio")} style={{width:"100%",background:th.card2,border:`1px solid ${th.border}`,borderRadius:10,padding:"11px 13px",color:th.text,fontSize:13.5,outline:"none",boxSizing:"border-box",fontFamily:"inherit",marginBottom:18}}/>
+          <div data-responsive-row="true" style={{display:"flex",gap:8}}>
+            <button onClick={()=>setAdding(false)} style={{flex:1,padding:"11px",borderRadius:11,background:"transparent",border:`1px solid ${th.border}`,color:th.text2,fontSize:13,fontWeight:600,cursor:"pointer"}}>{L("Cancel","\u0625\u0644\u063a\u0627\u0621")}</button>
+            <button onClick={createClient} disabled={!newName.trim()||creating} style={{flex:2,padding:"12px",borderRadius:11,background:th.gradient,border:"none",color:"#fff",fontSize:13,fontWeight:700,cursor:newName.trim()?"pointer":"not-allowed",opacity:newName.trim()?1:0.6}}>{creating?L("Creating\u2026","\u062c\u0627\u0631\u064d \u0627\u0644\u0625\u0646\u0634\u0627\u0621\u2026"):L("Create client","\u0625\u0646\u0634\u0627\u0621 \u0639\u0645\u064a\u0644")}</button>
+          </div>
+        </div>
+      </div>
+    ), document.body)}
+  </>;
 }
 
 const CHANNEL_META = { ig:{channel:'Instagram',Icon:FaInstagram,color:'#f14b8b'}, fb:{channel:'Facebook',Icon:FaFacebook,color:'#498af2'}, li:{channel:'LinkedIn',Icon:FaLinkedin,color:'#5fa8ff'}, tt:{channel:'TikTok',Icon:FaTiktok,color:'#ff6f78'} };
@@ -22810,7 +22855,6 @@ export default function TawasloApp() {
     if (page==="autopilot") return <CampaignAutopilotPage/>;
     if (page==="dashboard" || page==="overview") return <AgencyDashboard/>;
     if (page==="clients") return workspacePreview ? <ClientsExperience/> : <ClientsLive/>;
-    if (page==="clientsclassic") return <ClientsPage/>;
     if (page==="socialmanage") return <SocialAccountsPage/>;
     if (page==="social") return workspacePreview ? <SocialAccountsExperience/> : <SocialAccountsLive/>;
     if (page==="business") return <BusinessProfilePage/>;

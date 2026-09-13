@@ -80,20 +80,27 @@ export default async function handler(req, res) {
       // Facebook-login tokens can manage multiple IG accounts → address the specific accountId.
       const node = base.includes('graph.instagram.com') ? 'me' : accountId;
       const mediaRes = await fetch(
-        `${base}/${node}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=10&access_token=${accessToken}`
+        `${base}/${node}/media?fields=id,caption,media_type,timestamp,like_count,comments_count&limit=25&access_token=${accessToken}`
       );
       const mediaData = await mediaRes.json();
       if (mediaData.error) return res.status(400).json({ error: mediaData.error.message, debug: { accountId, base, mediaError: mediaData.error } });
 
       const comments = [];
       const mediaList = (mediaData.data || []);
-      let scanned = 0, commentError = null;
-      for (const media of mediaList.slice(0, 5)) {
-        scanned++;
-        const commentsRes = await fetch(
-          `${base}/${media.id}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp}&limit=20&access_token=${accessToken}`
-        );
-        const commentsData = await commentsRes.json();
+      // Scan a real slice of the recent feed, not just the last handful — a post
+      // from three weeks ago still gets comments. The requests run together so
+      // widening the window does not make the inbox slow to open.
+      const toScan = mediaList.slice(0, 15);
+      let commentError = null;
+      const scans = await Promise.all(toScan.map(async (media) => {
+        try {
+          const commentsRes = await fetch(
+            `${base}/${media.id}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp}&limit=25&access_token=${accessToken}`
+          );
+          return { media, data: await commentsRes.json() };
+        } catch (e) { return { media, data: { error: { message: e.message } } }; }
+      }));
+      for (const { media, data: commentsData } of scans) {
         if (commentsData.error && !commentError) commentError = commentsData.error.message;
         if (commentsData.data) {
           for (const comment of commentsData.data) {
@@ -112,6 +119,7 @@ export default async function handler(req, res) {
           }
         }
       }
+      const scanned = toScan.length;
 
       // Always include a diagnostic so an empty inbox can explain itself.
       return res.status(200).json({ data: comments, debug: { posts: mediaList.length, scanned, found: comments.length, error: commentError } });
@@ -120,22 +128,43 @@ export default async function handler(req, res) {
       // Fetch Instagram DMs — requires instagram_manage_messages permission
       const dmNode = base.includes('graph.instagram.com') ? 'me' : accountId;
       const convsRes = await fetch(
-        `${base}/${dmNode}/conversations?fields=id,participants,messages{id,message,from,created_time}&platform=instagram&access_token=${accessToken}`
+        `${base}/${dmNode}/conversations?fields=id,participants{id,username,name},messages{id,message,from,created_time}&platform=instagram&access_token=${accessToken}`
       );
       const convsData = await convsRes.json();
       if (convsData.error) return res.status(400).json({ error: convsData.error.message });
+
+      // Who this business account is, so it can be told apart from the person
+      // writing in. A conversation's participants come back as both sides, and
+      // the account's own id differs between Instagram-login and Facebook-login
+      // tokens, so match on id AND username rather than on the stored id alone.
+      let selfId = accountId, selfName = '';
+      try {
+        const meRes = await fetch(`${base}/me?fields=id,user_id,username&access_token=${accessToken}`);
+        const me = await meRes.json();
+        if (!me.error) { selfId = me.user_id || me.id || accountId; selfName = me.username || ''; }
+      } catch (e) { /* fall back to the stored account id */ }
+      const isSelf = (pp) => !pp ? false
+        : String(pp.id) === String(selfId) || String(pp.id) === String(accountId)
+          || (!!selfName && String(pp.username || pp.name || '').toLowerCase() === String(selfName).toLowerCase());
 
       const messages = [];
       for (const conv of (convsData.data || [])) {
         const latestMsg = conv.messages?.data?.[0];
         if (latestMsg) {
           // The person to reply to is the conversation participant who is NOT this business account.
-          const others = (conv.participants?.data || []).filter(pp => pp.id && pp.id !== accountId);
-          const replyToId = (others[0] && others[0].id) || latestMsg.from?.id || null;
+          const others = (conv.participants?.data || []).filter(pp => pp.id && !isSelf(pp));
+          const other = others[0] || null;
+          const replyToId = (other && other.id) || (isSelf(latestMsg.from) ? null : latestMsg.from?.id) || null;
+          // Show the other person, never the last sender: whenever the business
+          // replied last, the last sender is the business itself.
+          const fromName = (other && (other.username || other.name))
+            || (!isSelf(latestMsg.from) && (latestMsg.from?.username || latestMsg.from?.name))
+            || 'Instagram user';
           messages.push({
             id: conv.id,
-            from: latestMsg.from?.name || (others[0] && others[0].username) || 'Instagram User',
+            from: fromName,
             fromId: replyToId,
+            outgoing: isSelf(latestMsg.from),
             text: latestMsg.message,
             time: latestMsg.created_time,
             platform: 'ig',

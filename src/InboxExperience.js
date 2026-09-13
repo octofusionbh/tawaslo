@@ -137,7 +137,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
         <header className="ib-stage-head">
           <span className="ib-avatar ib-avatar-lg" style={{'--ib-avatar':selected.tone}}>{selected.name.slice(0,1)}</span>
           <span><strong>{selected.name}</strong><small><ChannelIcon platform={selected.platform}/>{selected.handle} · {TYPE_LABEL[selected.type]}</small></span>
-          <span className="ib-priority">{selected.priority}</span>
+          {selected.priority?<span className="ib-priority">{selected.priority}</span>:null}
           <button type="button" className="ib-resolve" onClick={()=>setNotice('Conversation marked handled in this preview.')}><Check size={16}/>Mark handled</button>
         </header>
 
@@ -146,7 +146,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
             <div className="ib-thread">
               <div className="ib-context-line"><span><ChannelIcon platform={selected.platform}/>{selected.post}</span><button type="button">Open original<ArrowRight size={14}/></button></div>
               <div className="ib-day"><span>Today</span></div>
-              <article className="ib-message"><p>{selected.text}</p><footer><span>{selected.time} ago</span><span className={`ib-mood ib-mood-${selected.mood.toLowerCase()}`}>{selected.mood}</span></footer></article>
+              <article className="ib-message"><p>{selected.text}</p><footer><span>{selected.time} ago</span>{selected.mood?<span className={`ib-mood ib-mood-${String(selected.mood).toLowerCase()}`}>{selected.mood}</span>:null}</footer></article>
               {sent.find(reply=>reply.id===selected.id)&&<article className="ib-message ib-message-team"><p>{sent.find(reply=>reply.id===selected.id).text}</p><footer><span>Just now</span><span><CheckCheck size={14}/>Preview reply</span></footer></article>}
             </div>
 
@@ -161,7 +161,7 @@ export default function InboxExperience({ liveItems = null, clientName = '', onR
             <header><span><MessageCircle size={16}/>AI reply</span><small>Optional · Uses brand voice</small></header>
             <div className="ib-tones">{['Warm','Professional','Apologetic'].map(option=><button type="button" key={option} aria-pressed={tone===option} onClick={()=>setTone(option)}>{option}</button>)}</div>
             {suggestions.length?<><div className="ib-suggestion"><p>{suggestions[suggestionPage%suggestions.length]}</p><button type="button" onClick={()=>setDraft(suggestions[suggestionPage%suggestions.length])}>Use this reply<CornerUpLeft size={14}/></button></div>
-            <button type="button" className="ib-regenerate" onClick={()=>setSuggestionPage(page=>(page+1)%suggestions.length)}><RefreshCw size={14}/>Show another option</button></>:<div className="ib-suggestion"><p>Write your reply below \u2014 suggested replies are coming to live conversations.</p></div>}
+            <button type="button" className="ib-regenerate" onClick={()=>setSuggestionPage(page=>(page+1)%suggestions.length)}><RefreshCw size={14}/>Show another option</button></>:<div className="ib-suggestion"><p>Write your reply below — suggested replies are coming to live conversations.</p></div>}
             <div className="ib-ai-note"><Clock3 size={14}/><span>You review every AI reply before it is sent.</span></div>
           </aside>
         </div>
