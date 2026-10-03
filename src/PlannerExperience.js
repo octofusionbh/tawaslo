@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, ChevronLeft, ChevronRight, Clock, Edit3, Eye, LayoutGrid, List, MessageSquare, Moon, Plus, Search, Sun, X } from 'lucide-react';
+import { Archive, ArrowRight, Check, ChevronLeft, ChevronRight, Clock, Edit3, Eye, LayoutGrid, List, MessageSquare, Moon, Plus, Search, Sun, Trash2, X } from 'lucide-react';
 import { FaInstagram, FaFacebook, FaLinkedin, FaTiktok } from 'react-icons/fa';
 import { Artwork } from './CalendarExperience';
 import { CALENDAR_NETWORKS, monthKey, parseCalendarMonth } from './calendarPreviewModel';
-import { PLANNER_ARTWORK, PLANNER_FORMATS, PLANNER_STAGES, commitPlannerChange, plannerStage, plannerStorageKey, plannerWeeks, readPlannerMonth, readyPlannerPost, savePlannerPost } from './plannerPreviewModel';
+import { PLANNER_ARTWORK, PLANNER_FORMATS, PLANNER_STAGES, commitPlannerChange, plannerStage, plannerStorageKey, plannerWeeks, readPlannerMonth, readyPlannerPost, removePlannerPost, savePlannerPost } from './plannerPreviewModel';
 import { canPublishOnWeb } from './workspaceResponsive';
 import './planner-experience.css';
 
@@ -36,6 +36,8 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
   const [baseline,setBaseline] = useState(null);
   const [error,setError] = useState('');
   const [discard,setDiscard] = useState(false);
+  const [removing,setRemoving] = useState('');      // '' | 'archive' | 'delete' — which removal is waiting to be confirmed
+  const [working,setWorking] = useState(false);
   const [slide,setSlide] = useState(0);
   const dialogRef = useRef(null);
   const triggerRef = useRef(null);
@@ -85,7 +87,7 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
   }
   function openPost(post,event) {
     setNotice('');
-    triggerRef.current=event.currentTarget;setDetail(post.id);setEditing(false);setDraft(editFields(post));setOriginal(editFields(post));setError('');setDiscard(false);setSlide(0);
+    triggerRef.current=event.currentTarget;setDetail(post.id);setEditing(false);setDraft(editFields(post));setOriginal(editFields(post));setError('');setDiscard(false);setSlide(0);setRemoving('');
   }
   function addDraft(event) {
     if (!editingAllowed || !canPublishOnWeb()) return;
@@ -95,7 +97,7 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
   }
   function closeDetail(force = false) {
     if (dirty && !force) { setDiscard(true); return; }
-    setDetail(null);setEditing(false);setDraft(null);setOriginal(null);setDiscard(false);setError('');
+    setDetail(null);setEditing(false);setDraft(null);setOriginal(null);setDiscard(false);setError('');setRemoving('');
     requestAnimationFrame(() => (triggerRef.current?.isConnected ? triggerRef.current : headingRef.current)?.focus({preventScroll:true}));
   }
   function beginEdit() {
@@ -116,6 +118,24 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
     const result = commitPlannerChange(cursor, state => readyPlannerPost(state,selectedPost.id,selectedPost.version), store);
     if (!result.ok) { setError(result.error);return; }
     setLoaded({data:result.data,error:''});setNotice('Ready for review. Open the review calendar to choose what the client sees. Nothing was sent.');setError('');
+  }
+  // Delete removes the post from the workspace for good. Archive keeps the record
+  // but takes it out of the plan, so nothing scheduled can still go out. Neither
+  // touches anything already live on the social account.
+  async function removePost(mode) {
+    if (!editingAllowed || !canPublishOnWeb() || !selectedPost || working) return;
+    const id = selectedPost.id;
+    setError('');setWorking(true);
+    if (store?.removePost) {
+      const outcome = await Promise.resolve(store.removePost(id,mode)).catch(() => ({ error:'Could not reach the workspace. Nothing was changed.' }));
+      if (outcome && outcome.error) { setError(outcome.error);setWorking(false);setRemoving('');return; }
+    }
+    const result = commitPlannerChange(cursor, state => removePlannerPost(state,id,selectedPost.version), store);
+    setWorking(false);setRemoving('');
+    if (!result.ok) { setError(result.error);return; }
+    setLoaded({data:result.data,error:''});
+    setNotice(mode==='archive'?'Post archived. It is out of the plan and will not be published.':'Post deleted. Anything already published stays on the account.');
+    closeDetail(true);
   }
   function field(key,value) {
     setDraft(current => ({ ...current,[key]:value,...(key==='platform' && !PLANNER_FORMATS[value].includes(current.format) ? {format:PLANNER_FORMATS[value][0]} : {}) }));setError('');
@@ -156,6 +176,7 @@ export default function PlannerExperience({ dark = false, setDark = () => {}, mo
           {selectedPost && selectedPost.status!=='draft' && <p className="pl-revision-note">Saving creates a new version. If this post was already shared, the client will need to review it again. No notification is sent.</p>}{error && <p className="pl-error" role="alert">{error}</p>}<button className="pl-button pl-primary pl-save" type="submit" data-publishing-action="true" disabled={!dirty}><Check size={16} aria-hidden="true"/>{selectedPost && selectedPost.status!=='draft'?'Save new version':'Save draft'}</button></form> : <>
           {selectedPost && <><div className="pl-detail-status"><Stage post={selectedPost} data={data}/><span><Clock size={14} aria-hidden="true"/>{postDate(cursor,selectedPost.day)} · {selectedPost.time} GMT+3</span></div><h3>Caption</h3><p className="pl-full-caption">{selectedPost.caption}</p>{selectedPost.notes.length>0 && <div className="pl-conversation"><h3>Conversation</h3>{selectedPost.notes.map((note,index)=><div key={index}><strong>{note.author}</strong><p>{note.text}</p></div>)}</div>}{error && <p className="pl-error" role="alert">{error}</p>}
           {editingAllowed && <div className="pl-detail-actions"><button className="pl-button" type="button" data-publishing-action="true" onClick={beginEdit}><Edit3 size={16} aria-hidden="true"/>Edit content</button>{selectedPost.status==='draft' && <button className="pl-button pl-primary" type="button" data-publishing-action="true" onClick={markReady}>Mark ready for review <ArrowRight size={16} aria-hidden="true"/></button>}</div>}
+          {editingAllowed && (removing ? <div className="pl-discard" role="alertdialog" aria-label={removing==='archive'?'Confirm archive':'Confirm delete'}><strong>{removing==='archive'?'Archive this post?':'Delete this post?'}</strong><span>{removing==='archive'?'It leaves the plan and will not be published. You keep the record.':(selectedPost.dbStatus==='published'?'It is removed from Tawaslo for good. The post already live on the account is not touched.':'It is removed from the plan and the workspace for good. This cannot be undone.')}</span><div><button type="button" className="pl-button" disabled={working} onClick={()=>setRemoving('')}>Keep post</button><button type="button" className="pl-button" data-publishing-action="true" disabled={working} onClick={()=>removePost(removing)}>{working?'Working…':(removing==='archive'?'Archive post':'Delete post')}</button></div></div> : <div className="pl-detail-actions pl-detail-remove">{selectedPost.dbStatus!=='published' && <button className="pl-button" type="button" data-publishing-action="true" onClick={()=>setRemoving('archive')}><Archive size={16} aria-hidden="true"/>Archive</button>}<button className="pl-button" type="button" data-publishing-action="true" onClick={()=>setRemoving('delete')}><Trash2 size={16} aria-hidden="true"/>Delete post</button></div>)}
           {plannerStage(selectedPost,data)==='ready' && <div className="pl-ready-message"><Check size={18} aria-hidden="true"/><div><strong>Ready, and still private.</strong><p>Choose this post when preparing the client calendar.</p><a className="pl-link" href={calendarUrl}>Continue to review calendar <ArrowRight size={16} aria-hidden="true"/></a></div></div>}</>}
           {mobileWeb && <p className="pl-mobile-note">Editing is available on desktop web. {dirty?'Your unsaved edits are kept while this detail view stays open.':''}</p>}
         </>}

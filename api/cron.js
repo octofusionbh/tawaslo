@@ -476,7 +476,12 @@ export default async function handler(req, res) {
 
   try {
     // 1) Find up to 2 due posts (keeps each run under the 10s limit; cron runs often).
-    //    Approval gate: only publish posts that were never sent for approval
+    //    Approval gate: a post publishes when it was never sent for approval, when
+    //    the client approved it, or when the client simply never answered by the
+    //    scheduled time — silence counts as approval. Only a client who asked for
+    //    changes holds a post back; it waits in the calendar until it is fixed and
+    //    shared again.
+    //    (was: only publish posts that were never sent for approval
     //    (no token) OR have been approved by the client. Anything still pending
     //    or with changes requested is held back until it's approved.
     // A post is only published inside a window that starts at its scheduled time
@@ -490,7 +495,7 @@ export default async function handler(req, res) {
     // late. It stays visible in the app so the team can reschedule it deliberately.
     try {
       const missedRes = await sb(
-        `posts?status=eq.scheduled&scheduled_at=lt.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.eq.approved)`,
+        `posts?status=eq.scheduled&scheduled_at=lt.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.is.null,appr_status.eq.approved,appr_status.eq.pending)`,
         { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ status: 'missed' }) }
       );
       const missed = await missedRes.json().catch(() => []);
@@ -498,7 +503,7 @@ export default async function handler(req, res) {
     } catch (e) { /* the run continues either way */ }
 
     const dueRes = await sb(
-      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&scheduled_at=gte.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.eq.approved)&select=*&order=scheduled_at.asc&limit=2`
+      `posts?status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}&scheduled_at=gte.${encodeURIComponent(staleIso)}&or=(appr_token.is.null,appr_status.is.null,appr_status.eq.approved,appr_status.eq.pending)&select=*&order=scheduled_at.asc&limit=2`
     );
     const due = await dueRes.json();
     if (!Array.isArray(due) || due.length === 0) {
@@ -563,6 +568,9 @@ export default async function handler(req, res) {
             altText: (post.alt_texts && post.alt_texts[0]) || null,
             videoUrl: isVideo ? media : null,
             igFormat: igFmt,
+            // Carry the Reel cover chosen in the composer. Without it Instagram
+            // falls back to the video's first frame.
+            coverUrl: post.cover_url || null,
             firstComment: post.first_comment || null,
           }),
         });

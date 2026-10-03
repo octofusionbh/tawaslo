@@ -156,6 +156,13 @@
 .cal-prepared .cal-field{font-size:10px}
 .cal-prepared .cal-whatsapp{margin-top:8px;color:#fff;border-color:#258b58;background:#258b58;text-decoration:none}
 .cal-error{font-size:12px;color:var(--cal-accent);margin-bottom:14px!important}
+.cal-remove-row{display:flex;flex-wrap:wrap;gap:18px;margin-top:20px;padding-top:16px;border-top:1px solid var(--cal-line)}
+.cal-remove-row .cal-link{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--cal-muted)}
+.cal-remove-row .cal-link:hover{color:var(--cal-ink)}
+.cal-remove-confirm{margin-top:20px;padding:16px;border:1px solid var(--cal-line);background:var(--cal-soft);font-size:12px}
+.cal-remove-confirm strong{display:block;margin-bottom:6px}
+.cal-remove-confirm p{margin:0 0 12px}
+.cal-remove-confirm .cal-action-row{display:flex;gap:10px;flex-wrap:wrap}
 .cal-dialog-backdrop,.cal-confirm-backdrop{position:fixed;inset:0;background:var(--cal-scrim);z-index:10000;display:flex;align-items:flex-start;justify-content:center;padding:32px;overflow-y:auto;overscroll-behavior:contain}
 .cal-post-dialog{width:min(960px,100%);margin:auto;background:var(--cal-bg);padding:24px 32px 32px;color:var(--cal-ink);outline:none;box-shadow:0 20px 60px #0003}
 .cal-detail-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--cal-line);margin-bottom:26px}

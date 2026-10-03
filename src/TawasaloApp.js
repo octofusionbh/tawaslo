@@ -4290,6 +4290,7 @@ function plannerPostFromRow(row) {
     art: 'sea',
     image: media[0] || row.image_url || null,
     status: PLANNER_STATUS_IN[row.status] || 'draft',
+    dbStatus: row.status || 'draft',   // the real stored status, not the board's label
     version: 1,
     notes: [],
   };
@@ -4297,13 +4298,18 @@ function plannerPostFromRow(row) {
 
 function usePlannerStore() {
   const { selClient } = useApp();
-  const [cache, setCache] = useState(null);   // monthKey -> planner state
+  // The cache carries the client it was loaded for. Without that, switching client
+  // left the previous client's posts in memory under the new client's id — which
+  // both showed them on the wrong calendar and, on the next save, wrote them to
+  // the wrong client for good.
+  const [cache, setCache] = useState(null);   // { clientId, months: { monthKey -> state } }
   const clientId = selClient?.id;
 
   useEffect(() => {
     let active = true;
-    if (!clientId) { setCache({}); return undefined; }
-    supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls,image_url').eq('client_id', clientId).limit(1000)
+    setCache(null);                            // drop the old client's posts immediately
+    if (!clientId) { setCache({ clientId: null, months: {} }); return undefined; }
+    supabase.from('posts').select('id,platform,caption,scheduled_at,status,media_urls,image_url').eq('client_id', clientId).neq('status', 'archived').limit(1000)
       .then(({ data }) => {
         if (!active) return;
         const byMonth = {};
@@ -4314,34 +4320,67 @@ function usePlannerStore() {
           byMonth[key].posts.push(plannerPostFromRow({ ...row, scheduled_at: when.toISOString() }));
         });
         Object.values(byMonth).forEach(state => { state.sharedIds = state.posts.filter(p => p.status !== 'draft').map(p => p.id); });
-        setCache(byMonth);
+        setCache({ clientId, months: byMonth });
       });
     return () => { active = false; };
   }, [clientId]);
 
   const store = useMemo(() => {
-    if (!cache) return null;
-    const memory = { ...cache };
+    // Only serve a store once the posts in hand are this client's. Anything else
+    // is treated as still loading, so the board shows empty rather than someone
+    // else's month.
+    if (!cache || cache.clientId !== clientId) return null;
+    const memory = { ...cache.months };
     const monthOf = (key) => String(key).split(':').pop();
+    const sameFields = (a, b) => a && b
+      && a.title === b.title && a.caption === b.caption && a.day === b.day
+      && a.time === b.time && a.status === b.status && a.platform === b.platform;
     return {
       getItem(key) {
         const month = monthOf(key);
         const state = memory[month] || { month, posts: [], sharedIds: [], message: '', access: 'review', expiresAt: null, activity: [] };
         return JSON.stringify(state);
       },
+      // Taking a post out of the workspace. Archive keeps the row but lifts it out
+      // of the plan, so the scheduler can never pick it up again; delete removes it
+      // for good. Neither touches a post that is already live on the account.
+      async removePost(id, mode) {
+        if (!/^[0-9a-f-]{16,}$/i.test(id)) return { ok: true };   // never reached the database
+        const month = Object.keys(memory).find(key => ((memory[key] || {}).posts || []).some(p => p.id === id));
+        const was = month ? memory[month].posts.find(p => p.id === id) : null;
+        if (!was) return { ok: false, error: 'This post is not in the month loaded here. Reload the page and try again.' };
+        if (mode === 'archive' && was.dbStatus === 'published') return { ok: false, error: 'A published post cannot be archived. Delete it to take it out of Tawaslo.' };
+        const { error } = mode === 'archive'
+          ? await supabase.from('posts').update({ status: 'archived' }).eq('id', id)
+          : await supabase.from('posts').delete().eq('id', id);
+        if (error) return { ok: false, error: mode === 'archive' ? 'Could not archive this post. Nothing was changed.' : 'Could not delete this post. Nothing was changed.' };
+        memory[month] = { ...memory[month], posts: memory[month].posts.filter(p => p.id !== id), sharedIds: (memory[month].sharedIds || []).filter(sharedId => sharedId !== id) };
+        return { ok: true };
+      },
       setItem(key, value) {
         const month = monthOf(key);
         let state; try { state = JSON.parse(value); } catch (e) { return; }
+        const before = {};
+        ((memory[month] || {}).posts || []).forEach(p => { before[p.id] = p; });
         memory[month] = state;
         const [year, m] = month.split('-').map(Number);
         state.posts.forEach(post => {
           const [hh, mm] = String(post.time || '09:00').split(':').map(Number);
           const scheduledAt = new Date(year, m - 1, Number(post.day) || 1, hh || 0, mm || 0).toISOString();
           const caption = `${post.title || ''}\n${post.caption || ''}`.trim();
-          const row = { client_id: clientId, platform: post.platform, caption, scheduled_at: scheduledAt, status: PLANNER_STATUS_OUT[post.status] || 'draft' };
+          const status = PLANNER_STATUS_OUT[post.status] || 'draft';
           const existing = /^[0-9a-f-]{16,}$/i.test(post.id);
-          if (existing) supabase.from('posts').update(row).eq('id', post.id).then(() => {}, () => {});
-          else supabase.from('posts').insert([row]).then(() => {}, () => {});
+          if (existing) {
+            const was = before[post.id];
+            if (!was) return;                       // not one of this client's loaded posts — never touch it
+            if (was.dbStatus === 'published') return; // a live post is not rewritten by a board save
+            if (sameFields(was, post)) return;      // nothing actually changed
+            // client_id is deliberately absent: a post belongs to the client it
+            // was created under, and no edit here may move it to another one.
+            supabase.from('posts').update({ platform: post.platform, caption, scheduled_at: scheduledAt, status }).eq('id', post.id).then(() => {}, () => {});
+          } else {
+            supabase.from('posts').insert([{ client_id: clientId, platform: post.platform, caption, scheduled_at: scheduledAt, status }]).then(() => {}, () => {});
+          }
         });
       },
     };
@@ -4748,7 +4787,9 @@ function TeamLive() {
 // Files are read from and written to the same `media` bucket path the old page used.
 function MediaLibrary({ dark, setDark, mobileWeb, onOpenPublisher, onOpenStudio }) {
   const { selClient } = useApp();
-  const [assets, setAssets] = useState(null);
+  // Starts empty, never null: the library falls back to its sample set when it is
+  // given nothing, which put the design preview's demo photos in a real workspace.
+  const [assets, setAssets] = useState([]);
   const [uid, setUid] = useState(null);
   const clientId = selClient?.id ? String(selClient.id) : 'general';
 
@@ -6164,8 +6205,25 @@ function VideoCoverModal({ videoUrl, onPick, onClose }) {
     let cancelled = false;
     const v = document.createElement('video');
     v.crossOrigin = 'anonymous'; v.muted = true; v.preload = 'metadata'; v.src = videoUrl;
+    // 'seeked' fires when the video has moved to the time, NOT when that frame has
+    // been painted. Drawing straight away captures whatever was in the pipeline —
+    // usually black. Wait for the frame itself where the browser can tell us
+    // (requestVideoFrameCallback), and fall back to a double rAF elsewhere.
+    const frameReady = () => new Promise((resolve) => {
+      if (typeof v.requestVideoFrameCallback === 'function') { v.requestVideoFrameCallback(() => resolve()); setTimeout(resolve, 400); }
+      else requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 60)));
+    });
     const capture = (t) => new Promise((resolve, reject) => {
-      const onSeeked = () => { v.removeEventListener('seeked', onSeeked); try { const c = document.createElement('canvas'); c.width = v.videoWidth || 720; c.height = v.videoHeight || 1280; c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); resolve(c.toDataURL('image/jpeg', 0.82)); } catch (e) { reject(e); } };
+      const onSeeked = async () => {
+        v.removeEventListener('seeked', onSeeked);
+        try {
+          await frameReady();
+          const c = document.createElement('canvas');
+          c.width = v.videoWidth || 720; c.height = v.videoHeight || 1280;
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          resolve(c.toDataURL('image/jpeg', 0.82));
+        } catch (e) { reject(e); }
+      };
       v.addEventListener('seeked', onSeeked); v.currentTime = t;
     });
     v.onloadeddata = async () => {
@@ -8278,6 +8336,9 @@ function PublisherPage() {
   const [dragOver, setDragOver] = useState(false);
   const [igFormat, setIgFormat] = useState("feed");
   const [scheduleType, setScheduleType] = useState("now");
+  // Approval is a choice made on a scheduled post, not a mode of its own. Most
+  // clients give full freedom to publish, so this stays off unless it is asked for.
+  const [askApproval, setAskApproval] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [apprShare, setApprShare] = useState(false);
@@ -8678,7 +8739,7 @@ function PublisherPage() {
           : L("X posting is an Enterprise feature. Upgrade to publish to X.","النشر على X ميزة للباقة المتقدمة. رقِّ باقتك للنشر على X.") });
         continue;
       }
-      if ((scheduleType === "schedule" || scheduleType === "approval") && scheduleDate && scheduleTime) {
+      if (scheduleType === "schedule" && scheduleDate && scheduleTime) {
         const baseDate = new Date(`${scheduleDate}T${scheduleTime}`);
         const reps = repeatType === "once" ? 1 : repeatCount;
         let ok = true, lastErr = null;
@@ -8689,6 +8750,9 @@ function PublisherPage() {
           else if (repeatType === "monthly") d.setMonth(d.getMonth() + n);
           const srow = { client_id: realClientId, platform: acc.platform, account_id: acc.account_id, caption: effCaption, image_url: imgs[0] || video?.url || null, thumb_url: images[0]?.thumbUrl || null, status: 'scheduled', scheduled_at: d.toISOString() };
           if (acc.platform === 'ig') srow.post_type = igFormat === 'story' ? 'Story' : igFormat === 'reel' ? 'Reel' : (imgs.length > 1 ? 'Carousel' : 'Single');
+          // The Reel cover was picked in the composer but never stored, so a
+          // scheduled Reel always published with Instagram's own first frame.
+          if (video?.cover) srow.cover_url = video.cover;
           if (postLabel) srow.label = postLabel;
           if (firstComment) srow.first_comment = firstComment;
           if (imgs.length > 1) srow.image_urls = imgs;
@@ -9065,14 +9129,22 @@ function PublisherPage() {
           </div>)}
           <div  style={card}>
             <div style={lbl}>When to post</div>
-            <div data-responsive-row="true" style={{ display:"flex", gap:6, marginBottom:(scheduleType==="schedule"||scheduleType==="approval")?12:0 }}>
-              {[["now",L("Publish now","انشر الآن"),Send],["schedule",L("Schedule","جدولة"),Calendar],["approval",L("Approval","موافقة"),Shield]].map(([k,t,Ic])=>(
+            <div data-responsive-row="true" style={{ display:"flex", gap:6, marginBottom:scheduleType==="schedule"?12:0 }}>
+              {[["now",L("Publish now","انشر الآن"),Send],["schedule",L("Schedule","جدولة"),Calendar]].map(([k,t,Ic])=>(
                 <button key={k} onClick={()=>setScheduleType(k)} style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", gap:5, padding:"9px 4px", borderRadius:10, border:`1.5px solid ${scheduleType===k?th.accent:th.border}`, background:scheduleType===k?th.accentSoft:th.card2, color:scheduleType===k?th.accentText:th.text2, fontSize:11, fontWeight:scheduleType===k?600:400, cursor:"pointer", whiteSpace:"nowrap" }}><Ic size={13}/>{t}</button>
               ))}
             </div>
-            {(scheduleType==="schedule" || scheduleType==="approval") && (
+            {scheduleType==="schedule" && (
               <div data-responsive-scroll="true" tabIndex={0} role="region" aria-label="Scrollable data" >
-                {scheduleType==="approval" && <div data-responsive-row="true" style={{ display:"flex", gap:8, alignItems:"flex-start", background:th.accentSoft, border:`1px solid ${th.accent}44`, borderRadius:10, padding:"9px 11px", marginBottom:12 }}><Shield size={14} color={th.accentText} style={{ flexShrink:0, marginTop:1 }}/><span style={{ fontSize:11, color:th.text2, lineHeight:1.5 }}>{L("Held until your client approves. Set when it should publish once they sign off.","محجوز حتى موافقة العميل. حدّد وقت النشر بعد الموافقة.")}</span></div>}
+                <label data-responsive-row="true" style={{ display:"flex", gap:9, alignItems:"flex-start", background:askApproval?th.accentSoft:th.card2, border:`1px solid ${askApproval?th.accent+"44":th.border}`, borderRadius:10, padding:"10px 11px", marginBottom:12, cursor:"pointer" }}>
+                  <input type="checkbox" checked={askApproval} onChange={e=>setAskApproval(e.target.checked)} style={{ marginTop:2, accentColor:th.accentFill, width:15, height:15, cursor:"pointer" }}/>
+                  <span style={{ minWidth:0 }}>
+                    <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:11.5, fontWeight:600, color:th.text }}><Shield size={13} color={askApproval?th.accentText:th.text2}/>{L("Ask the client to approve first","اطلب موافقة العميل أولاً")}</span>
+                    <span style={{ display:"block", fontSize:10.5, color:th.text2, lineHeight:1.5, marginTop:3 }}>{askApproval
+                      ? L("They get a private link. If they ask for changes it is held for you to fix. If they don't reply by the scheduled time, it publishes.","يصلهم رابط خاص. إذا طلبوا تعديلاً يُحجز لك لإصلاحه. وإذا لم يردّوا قبل الموعد، يُنشر.")
+                      : L("It publishes at the scheduled time without going to the client.","يُنشر في موعده دون الرجوع إلى العميل.")}</span>
+                  </span>
+                </label>
                 <div data-responsive-row="true" style={{ display:"flex", gap:10, marginBottom:13 }}>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Date</div><input type="date" value={scheduleDate} onChange={e=>setScheduleDate(e.target.value)} style={{ ...inp }}/></div>
                   <div style={{ flex:1 }}><div style={{ fontSize:10.5, color:th.text2, marginBottom:5 }}>Time</div><input type="time" value={scheduleTime} onChange={e=>setScheduleTime(e.target.value)} style={{ ...inp }}/></div>
@@ -9173,7 +9245,7 @@ function PublisherPage() {
           )}
           <div data-responsive-row="true" style={{ display:"flex", gap:10 }}>
             <button onClick={saveDraft} disabled={!caption.trim()} style={{ flex:1, padding:"12px", borderRadius:12, background:th.card2, border:`1px solid ${th.border}`, color:th.text, fontSize:13, cursor:"pointer", opacity:caption.trim()?1:0.5, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}><Bookmark size={14}/>{editingDraftId?L("Update draft","تحديث المسودة"):L("Save draft","حفظ كمسودة")}</button>
-            <button data-publishing-action="true" onClick={()=>handlePost(scheduleType==="approval"?"client":scheduleType==="schedule"?"me":undefined)} disabled={posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||((scheduleType==="schedule"||scheduleType==="approval")&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="approval"?<><Shield size={15}/>{L("Send for approval","إرسال للموافقة")}</>:scheduleType==="schedule"?<><Clock size={15}/>{L("Schedule","جدولة")}</>:<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
+            <button data-publishing-action="true" onClick={()=>handlePost(scheduleType==="schedule"?(askApproval?"client":"me"):undefined)} disabled={posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||(scheduleType==="schedule"&&(!scheduleDate||!scheduleTime))} style={{ flex:1.6, padding:"12px", borderRadius:12, background:th.gradient, border:"none", color:"#fff", fontSize:13, fontWeight:600, cursor:"pointer", opacity:(posting||(!caption.trim()&&images.length===0&&!video)||selectedAccounts.length===0||(scheduleType==="schedule"&&(!scheduleDate||!scheduleTime)))?0.5:1, display:"flex", alignItems:"center", justifyContent:"center", gap:7 }}>{posting?L("Working…","جارٍ العمل…"):scheduleType==="schedule"?(askApproval?<><Shield size={15}/>{L("Schedule & ask approval","جدولة وطلب موافقة")}</>:<><Clock size={15}/>{L("Schedule","جدولة")}</>):<><Send size={15}/>{L("Publish now","انشر الآن")}</>}</button>
           </div>
           <SendApprovalModal open={apprShare} onClose={()=>setApprShare(false)} th={th} L={L} link={apprLink2} subtitle={L("Scheduled ","تمت جدولة ")+apprCount2+L(apprCount2===1?" post. Send it for sign off.":" posts. Send them for sign off."," منشور. أرسلها للموافقة.")}/>
         </div>
@@ -9589,7 +9661,11 @@ function SocialAccountsPage() {
     // via its own button. Set REACT_APP_META_IG=1 to re-add the IG scopes once approved.
     const baseScope = ["pages_show_list", "pages_read_engagement", "pages_manage_posts", "business_management", "public_profile"];
     const igScope = ["instagram_basic", "instagram_content_publish", "instagram_manage_insights"];
-    const scope = (process.env.REACT_APP_META_IG === '1' ? [...baseScope, ...igScope] : baseScope).join(",");
+    // Ads permissions are added only once Meta approves them. Asking for an
+    // unapproved scope makes Meta reject the whole popup as "Invalid Scopes",
+    // so REACT_APP_META_ADS=1 is set in Vercel on the day the review passes.
+    const adsScope = ["ads_management", "ads_read"];
+    const scope = [...baseScope, ...(process.env.REACT_APP_META_IG === '1' ? igScope : []), ...(process.env.REACT_APP_META_ADS === '1' ? adsScope : [])].join(",");
     const authUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&response_type=code&state=${realClientId}`;
     const popup = window.open(authUrl, "meta_oauth", "width=600,height=700,scrollbars=yes");
     setConnecting(true);
@@ -23131,8 +23207,25 @@ export default function TawasloApp() {
     setShowLanding(show);
   };
 
-  // Don't render anything until we've checked the session
-  if (!authReady) return <AccountSetupGate loadingOnly/>;
+  // A Supabase session is kept under an "sb-<project>-auth-token" key. Its mere
+  // presence means a session is worth waiting for; it is never trusted as proof
+  // of one — isAuthed still comes from Supabase verifying it below.
+  const hasStoredSession = () => {
+    try { return Object.keys(localStorage).some(k => /^sb-.*-auth-token$/.test(k)); } catch (e) { return false; }
+  };
+  // Mid sign-in, confirmation or password reset the session arrives in the URL.
+  const hasAuthParams = () => {
+    try {
+      const q = window.location.search || '';
+      const h = window.location.hash || '';
+      return /[?&](code|token_hash|type)=/.test(q) || /access_token=|type=recovery/.test(h);
+    } catch (e) { return false; }
+  };
+
+  // Wait for the session check only when there is a session to check. A first
+  // time visitor landing on tawaslo.com has none, so showing them "Loading your
+  // workspace" before the public page is both wrong and alarming.
+  if (!authReady && (hasStoredSession() || hasAuthParams())) return <AccountSetupGate loadingOnly/>;
 
   // Password reset link → show the set-new-password screen
   if (recovery) {

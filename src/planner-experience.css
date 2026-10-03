@@ -171,6 +171,9 @@
 .pl-conversation strong {font-size:11px;color:var(--pl-accent);}
 .pl-conversation p {color:var(--pl-muted);margin-top:5px;overflow-wrap:anywhere;white-space:pre-wrap;}
 .pl-detail-actions {display:flex;flex-wrap:wrap;gap:12px;margin-top:26px;}
+.pl-detail-remove {margin-top:18px;padding-top:18px;border-top:1px solid var(--pl-line);}
+.pl-detail-remove .pl-button {font-size:12px;opacity:.78;}
+.pl-detail-remove .pl-button:hover {opacity:1;}
 .pl-detail-safety {margin-top:24px!important;padding-top:16px;border-top:1px solid var(--pl-line);color:var(--pl-muted);font-size:10px;line-height:1.8;}
 .pl-field {display:flex;flex-direction:column;gap:7px;margin-bottom:18px;font-size:11px;font-weight:600;color:var(--pl-muted);min-width:0;}
 .pl-field :is(input,textarea,select) {width:100%;max-width:100%;min-width:0;min-height:46px;border:1px solid var(--pl-control);border-radius:3px;background:var(--pl-input);color:var(--pl-ink);padding:10px 12px;font-size:14px;font-weight:400;}

@@ -61,6 +61,14 @@ export function readyPlannerPost(state, id, expectedVersion) {
   const ready = { ...post, status: 'pending', version: post.version + 1 };
   return { ok: true, post: ready, data: { ...state, posts: state.posts.map(p => p.id === id ? ready : p), sharedIds: state.sharedIds.filter(sharedId => sharedId !== id), activity: [{ text: `${post.title} marked ready for review`, at: Date.now() }, ...state.activity].slice(0, 20) } };
 }
+// Taking a post out of the plan. The board only drops it here; the live workspace
+// store is what removes or archives the row, and it is asked first so a failure
+// there leaves the post on the board instead of hiding something still scheduled.
+export function removePlannerPost(state, id, expectedVersion) {
+  const post = state.posts.find(p => p.id === id);
+  if (!post || (expectedVersion && post.version !== expectedVersion)) return { ok: false, conflict: true, error: 'This post changed in another view. Close and reopen it to continue.' };
+  return { ok: true, post, data: { ...state, posts: state.posts.filter(p => p.id !== id), sharedIds: state.sharedIds.filter(sharedId => sharedId !== id), activity: [{ text: `${post.title} removed from the plan`, at: Date.now() }, ...state.activity].slice(0, 20) } };
+}
 export function commitPlannerChange(date, operation, store) {
   const loaded = readPlannerMonth(date, store);
   if (loaded.error) return { ok: false, error: loaded.error };
