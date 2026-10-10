@@ -9,9 +9,9 @@ export default async function handler(req, res) {
     const pre = s.startsWith('tt') ? 'tt' : s.startsWith('tw') ? 'tw' : s.startsWith('gb') ? 'gb' : s.startsWith('yt') ? 'yt' : 'li';
     const codeParam = `${pre}_code`;
     const errParam = `${pre}_error`;
-    if (error) return res.redirect(`https://www.tawaslo.com/social?${errParam}=${encodeURIComponent(error_description || error)}`);
-    if (!code) return res.redirect(`https://www.tawaslo.com/social?${errParam}=${encodeURIComponent('No code received')}`);
-    return res.redirect(`https://www.tawaslo.com/social?${codeParam}=${encodeURIComponent(code)}`);
+    if (error) return res.redirect(`https://www.tawaslo.com/socialmanage?${errParam}=${encodeURIComponent(error_description || error)}`);
+    if (!code) return res.redirect(`https://www.tawaslo.com/socialmanage?${errParam}=${encodeURIComponent('No code received')}`);
+    return res.redirect(`https://www.tawaslo.com/socialmanage?${codeParam}=${encodeURIComponent(code)}`);
   }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 

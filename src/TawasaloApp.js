@@ -4277,7 +4277,9 @@ const two = (n) => String(n).padStart(2, '0');
 function plannerPostFromRow(row) {
   const when = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
   const caption = String(row.caption || '');
-  const [firstLine, ...rest] = caption.split('\n');
+  // The caption is the post. The title is only a short label for the board,
+  // taken from its first line — it is never stored or edited separately.
+  const firstLine = caption.trim().split('\n')[0] || '';
   const media = Array.isArray(row.media_urls) ? row.media_urls : [];
   return {
     id: String(row.id),
@@ -4286,7 +4288,7 @@ function plannerPostFromRow(row) {
     platform: ['ig','fb','li','tt'].includes(row.platform) ? row.platform : 'ig',
     format: media.length > 1 ? 'Carousel' : 'Post',
     title: (firstLine || 'Untitled post').slice(0, 100),
-    caption: (rest.join('\n') || firstLine || '').slice(0, 2200),
+    caption: caption.slice(0, 2200),
     art: 'sea',
     image: media[0] || row.image_url || null,
     status: PLANNER_STATUS_IN[row.status] || 'draft',
@@ -4367,7 +4369,7 @@ function usePlannerStore() {
         state.posts.forEach(post => {
           const [hh, mm] = String(post.time || '09:00').split(':').map(Number);
           const scheduledAt = new Date(year, m - 1, Number(post.day) || 1, hh || 0, mm || 0).toISOString();
-          const caption = `${post.title || ''}\n${post.caption || ''}`.trim();
+          const caption = String(post.caption || '').trim();   // one box: what you type is the caption
           const status = PLANNER_STATUS_OUT[post.status] || 'draft';
           const existing = /^[0-9a-f-]{16,}$/i.test(post.id);
           if (existing) {
@@ -8633,17 +8635,52 @@ function PublisherPage() {
     } catch (e) { return imageUrl; }
   };
 
+  // The best times used to be one fixed table for everyone. They are now measured
+  // from this client's own Instagram posts; the fixed table is only the fallback
+  // while an account is new or not connected.
+  const [bestData, setBestData] = useState(null);   // { slots:[{day,hour,average,posts}], sampleSize }
+  const accountsRef = useRef(accounts);
+  accountsRef.current = accounts;
+  // Keyed on the account itself, not the accounts array: that array is replaced each
+  // time a profile photo refreshes, and depending on it re-asked Instagram every time.
+  const igAccountKey = (accounts || []).filter(a => a.platform === 'ig' || a.platform === 'instagram').map(a => a.account_id).join(',');
+  useEffect(() => {
+    let active = true;
+    setBestData(null);
+    const ig = (accountsRef.current || []).find(a => (a.platform === 'ig' || a.platform === 'instagram') && a.account_id && a.access_token);
+    if (!ig) return undefined;
+    fetch('/api/instagram-analytics', { method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ action:'bestTimes', accountId: ig.account_id, accessToken: ig.access_token, tzOffset: new Date().getTimezoneOffset() }) })
+      .then(r => r.json())
+      .then(d => { if (active && d && Array.isArray(d.slots)) setBestData(d); })
+      .catch(() => {});
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [igAccountKey]);
+
   // ── Best time to post — recommended upcoming slots per platform ───────
   // "Best time" only applies to chronological/feed platforms (IG, FB, LinkedIn, X).
   // TikTok & YouTube distribute by algorithm, so post time barely matters there.
   const CHRONO_PLATS = ["ig", "fb", "li", "tw"];
   const schedPlat = selPlats.find(p => CHRONO_PLATS.includes(p)) || selPlats[0] || 'ig';
   const bestTimeApplies = selPlats.some(p => CHRONO_PLATS.includes(p));
+  // Enough of this account's own posts to learn from? Eight is the point where one
+  // lucky post stops deciding the answer.
+  const learnedSlots = (schedPlat === 'ig' && bestData && bestData.sampleSize >= 8 && (bestData.slots || []).length) ? bestData.slots : null;
   const bestTimeSlots = () => {
-    const plat = schedPlat;
-    const HRS = { ig:[11,13,19], fb:[9,13,15], li:[8,12,17], tw:[9,12,18] };
-    const hours = HRS[plat] || [11,18];
     const now = new Date(); const out = [];
+    if (learnedSlots) {
+      learnedSlots.forEach(slot => {
+        if (out.length >= 3) return;
+        const s = new Date(now); s.setHours(slot.hour, 0, 0, 0);
+        s.setDate(s.getDate() + ((slot.day - s.getDay() + 7) % 7));
+        if (s <= now) s.setDate(s.getDate() + 7);
+        if (!out.some(x => x.getTime() === s.getTime())) out.push(s);
+      });
+      if (out.length) return out.sort((a, b) => a - b);
+    }
+    const HRS = { ig:[11,13,19], fb:[9,13,15], li:[8,12,17], tw:[9,12,18] };
+    const hours = HRS[schedPlat] || [11,18];
     for (let d = 0; d < 7 && out.length < 3; d++) {
       const day = new Date(now); day.setDate(now.getDate() + d);
       for (const h of hours) { const s = new Date(day); s.setHours(h, 0, 0, 0); if (s > now) { out.push(s); if (out.length >= 3) break; } }
@@ -9151,7 +9188,7 @@ function PublisherPage() {
                 </div>
                 {bestTimeApplies ? (
                   <div style={{ marginBottom:13 }}>
-                    <div data-responsive-row="true" style={{ fontSize:10.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Clock size={11} color={th.accentText}/>{L("Best times to post","أفضل أوقات النشر")}<span style={{ color:th.text3 }}>· {(PLAT[schedPlat]||{name:"Instagram"}).name}</span></div>
+                    <div data-responsive-row="true" style={{ fontSize:10.5, color:th.text2, marginBottom:6, display:"flex", alignItems:"center", gap:5 }}><Clock size={11} color={th.accentText}/>{L("Best times to post","أفضل أوقات النشر")}<span style={{ color:th.text3 }}>· {(PLAT[schedPlat]||{name:"Instagram"}).name}{learnedSlots ? L(` · from your last ${bestData.sampleSize} posts`, ` · من آخر ${bestData.sampleSize} منشور`) : L(" · typical times","· أوقات عامة")}</span></div>
                     <div data-responsive-row="true" style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {bestTimeSlots().map((s,i)=>{ const k = slotKey(s); const active = scheduleDate===k.date && scheduleTime===k.time;
                         return <button key={i} onClick={()=>pickSlot(s)} style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 11px", borderRadius:999, border:`1.5px solid ${active?th.accent:th.border}`, background:active?th.accentSoft:th.card2, color:active?th.accentText:th.text2, fontSize:11, fontWeight:active?600:400, cursor:"pointer" }}>{s.toLocaleDateString(isAR?"ar-u-nu-latn":[], { weekday:"short" })} <span className="tw-num">{k.time}</span></button>;
@@ -9493,6 +9530,10 @@ function SocialAccountsPage() {
     loadAccounts(realClientId);
   }, [realClientId]);
 
+  // An OAuth code works once. These effects re-run whenever the workspace resolves,
+  // so each platform's code is claimed here exactly once.
+  const oauthHandled = useRef({});
+
   // Handle Instagram OAuth callback redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -9500,9 +9541,10 @@ function SocialAccountsPage() {
     const igError = params.get('ig_error');
     if (igError) {
       setError(friendlyConnectError(igError));
-      window.history.replaceState({}, '', '/social');
-    } else if (igCode) {
-      window.history.replaceState({}, '', '/social'); handleInstagramCallback(igCode);
+      window.history.replaceState({}, '', '/socialmanage');
+    } else if (igCode && !oauthHandled.current.ig) {
+      oauthHandled.current.ig = true;
+      window.history.replaceState({}, '', '/socialmanage'); handleInstagramCallback(igCode);
     }
   }, [realClientId]);
 
@@ -9511,8 +9553,8 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const liCode = params.get('li_code');
     const liError = params.get('li_error');
-    if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/social'); }
-    else if (liCode) { window.history.replaceState({}, '', '/social'); handleLinkedinCallback(liCode); }
+    if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/socialmanage'); }
+    else if (liCode && !oauthHandled.current.li) { oauthHandled.current.li = true; window.history.replaceState({}, '', '/socialmanage'); handleLinkedinCallback(liCode); }
   }, [realClientId]);
 
   // Handle TikTok OAuth callback redirect
@@ -9520,8 +9562,8 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const ttCode = params.get('tt_code');
     const ttError = params.get('tt_error');
-    if (ttError) { setError(friendlyConnectError(ttError)); window.history.replaceState({}, '', '/social'); }
-    else if (ttCode) { window.history.replaceState({}, '', '/social'); handleTiktokCallback(ttCode); }
+    if (ttError) { setError(friendlyConnectError(ttError)); window.history.replaceState({}, '', '/socialmanage'); }
+    else if (ttCode && !oauthHandled.current.tt) { oauthHandled.current.tt = true; window.history.replaceState({}, '', '/socialmanage'); handleTiktokCallback(ttCode); }
   }, [realClientId]);
 
   // Handle X (Twitter) OAuth callback redirect — held until go-live
@@ -9529,8 +9571,8 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const twCode = params.get('tw_code');
     const twError = params.get('tw_error');
-    if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/social'); }
-    else if (twCode) { window.history.replaceState({}, '', '/social'); handleXCallback(twCode); }
+    if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/socialmanage'); }
+    else if (twCode && !oauthHandled.current.tw) { oauthHandled.current.tw = true; window.history.replaceState({}, '', '/socialmanage'); handleXCallback(twCode); }
   }, [realClientId]);
 
   // Handle YouTube (Google) OAuth callback redirect
@@ -9538,8 +9580,8 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const ytCode = params.get('yt_code');
     const ytError = params.get('yt_error');
-    if (ytError) { setError(friendlyConnectError(ytError)); window.history.replaceState({}, '', '/social'); }
-    else if (ytCode) { window.history.replaceState({}, '', '/social'); handleYoutubeCallback(ytCode); }
+    if (ytError) { setError(friendlyConnectError(ytError)); window.history.replaceState({}, '', '/socialmanage'); }
+    else if (ytCode && !oauthHandled.current.yt) { oauthHandled.current.yt = true; window.history.replaceState({}, '', '/socialmanage'); handleYoutubeCallback(ytCode); }
   }, [realClientId]);
 
   // Handle Google Business Profile OAuth callback redirect
@@ -9547,8 +9589,8 @@ function SocialAccountsPage() {
     const params = new URLSearchParams(window.location.search);
     const gbCode = params.get('gb_code');
     const gbError = params.get('gb_error');
-    if (gbError) { setError(friendlyConnectError(gbError)); window.history.replaceState({}, '', '/social'); }
-    else if (gbCode) { window.history.replaceState({}, '', '/social'); handleGbpCallback(gbCode); }
+    if (gbError) { setError(friendlyConnectError(gbError)); window.history.replaceState({}, '', '/socialmanage'); }
+    else if (gbCode && !oauthHandled.current.gb) { oauthHandled.current.gb = true; window.history.replaceState({}, '', '/socialmanage'); handleGbpCallback(gbCode); }
   }, [realClientId]);
 
   const loadAccounts = async (clientId) => {
@@ -9649,7 +9691,7 @@ function SocialAccountsPage() {
     }
     setConnecting(false);
     // Clean URL
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectMeta = () => {
@@ -9767,7 +9809,7 @@ function SocialAccountsPage() {
       else setError(L('No LinkedIn profile or Pages found to connect.','لم يتم العثور على ملف أو صفحات لينكدإن للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectLinkedin = () => {
@@ -9811,7 +9853,7 @@ function SocialAccountsPage() {
       else setError(L('No TikTok account found to connect.','لم يتم العثور على حساب تيك توك للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectTiktok = () => {
@@ -9853,7 +9895,7 @@ function SocialAccountsPage() {
       else setError(L('No X account found to connect.','لم يتم العثور على حساب X للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectX = async () => {
@@ -9897,7 +9939,7 @@ function SocialAccountsPage() {
       else setError(L('No YouTube channel found to connect.','لم يتم العثور على قناة يوتيوب للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectYoutube = () => {
@@ -9937,7 +9979,7 @@ function SocialAccountsPage() {
       else setError(L('No Google Business account found to connect.','لم يتم العثور على حساب Google Business للربط.'));
     } catch (err) { setError(friendlyConnectError(err.message)); }
     setConnecting(false);
-    window.history.replaceState({}, '', '/social');
+    window.history.replaceState({}, '', '/socialmanage');
   };
 
   const connectGoogleBusiness = () => {

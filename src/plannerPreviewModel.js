@@ -28,9 +28,10 @@ export function readPlannerMonth(date, store) {
     return { data: seedCalendar(date), error: 'The saved sample could not be read. Editing is paused to keep it safe.' };
   } catch (_) { return { data: seedCalendar(date), error: 'Browser storage is unavailable. You can browse the sample, but changes cannot be saved.' }; }
 }
+// A post is just its caption. The title is only a short label the board shows,
+// taken from the caption's first line, so there is one box to write in.
+export const plannerTitleFromCaption = caption => (String(caption || '').trim().split('\n')[0] || 'Untitled post').slice(0, 100);
 export function validatePlannerPost(input, month) {
-  if (!input.title?.trim()) return 'Add a title so your team can recognize this post.';
-  if (input.title.trim().length > 100) return 'Keep the title to 100 characters or fewer.';
   if (!input.caption?.trim()) return 'Add a caption before saving the draft.';
   if (input.caption.trim().length > 2200) return 'Keep this preview caption to 2,200 characters or fewer.';
   if (!Object.hasOwn(PLANNER_FORMATS, input.platform) || !PLANNER_FORMATS[input.platform].includes(input.format)) return 'Choose a format available for this channel.';
@@ -45,7 +46,7 @@ export function savePlannerPost(state, input, id, expectedVersion, expectedStatu
   if (error) return { ok: false, error };
   const old = id ? state.posts.find(p => p.id === id) : null;
   if (id && (!old || old.version !== expectedVersion || (expectedStatus && old.status !== expectedStatus))) return { ok: false, conflict: true, error: 'This post changed in another view. Close and reopen it to edit the latest version.' };
-  const fields = { title: input.title.trim(), caption: input.caption.trim(), day: Number(input.day), time: input.time, platform: input.platform, format: input.format, art: input.art };
+  const fields = { title: plannerTitleFromCaption(input.caption), caption: input.caption.trim(), day: Number(input.day), time: input.time, platform: input.platform, format: input.format, art: input.art };
   if (old && Object.keys(fields).every(key => fields[key] === old[key])) return { ok: true, data: state, post: old, unchanged: true };
   const post = old ? { ...old, ...fields, version: old.version + 1, status: old.status === 'draft' ? 'draft' : 'revised', notes: old.status === 'draft' ? old.notes : [...old.notes, { author: 'Agency', text: 'Content or proposed date updated in Planner. Please review this new version.', kind: 'revised' }] } : {
     ...fields, id: `planner-${state.month}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, status: 'draft', version: 1, notes: [],

@@ -33,6 +33,36 @@ export default async function handler(req, res) {
     } catch (e) { return res.status(200).json({ error: e.message }); }
   }
 
+  // Best times to post, measured from THIS account's own posts rather than a generic
+  // table. We read the last 50 posts' timestamps and engagement, score each weekday+hour
+  // bucket by average engagement, and return the strongest buckets. tzOffset is the
+  // viewer's getTimezoneOffset() so the hours come back in their local time.
+  if (req.body.action === 'bestTimes') {
+    const tzOffset = Number(req.body.tzOffset || 0);
+    try {
+      const node = base.includes('graph.instagram.com') ? 'me' : accountId;
+      const r = await fetch(`${base}/${node}/media?fields=timestamp,like_count,comments_count&limit=50&access_token=${accessToken}`);
+      const j = await r.json();
+      if (j.error) return res.status(200).json({ slots: [], sampleSize: 0, reason: j.error.message });
+      const posts = Array.isArray(j.data) ? j.data : [];
+      const buckets = {};
+      posts.forEach((post) => {
+        if (!post.timestamp) return;
+        const when = new Date(new Date(post.timestamp).getTime() - tzOffset * 60000);
+        const key = `${when.getUTCDay()}-${when.getUTCHours()}`;
+        const score = (post.like_count || 0) + (post.comments_count || 0) * 3;
+        buckets[key] = buckets[key] || { day: when.getUTCDay(), hour: when.getUTCHours(), total: 0, count: 0 };
+        buckets[key].total += score;
+        buckets[key].count += 1;
+      });
+      const ranked = Object.values(buckets)
+        .map((b) => ({ day: b.day, hour: b.hour, average: Math.round(b.total / b.count), posts: b.count }))
+        .sort((a, b) => b.average - a.average)
+        .slice(0, 6);
+      return res.status(200).json({ slots: ranked, sampleSize: posts.length });
+    } catch (e) { return res.status(200).json({ slots: [], sampleSize: 0, reason: e.message }); }
+  }
+
   // Per-post insights for a set of media ids (Planner → Published tab). Best-effort:
   // each media is wrapped so one failure never breaks the batch, and metric sets fall
   // back gracefully (older API versions / media types reject `views`/`shares`).
