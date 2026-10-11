@@ -4274,6 +4274,37 @@ const PLANNER_STATUS_IN = { draft: 'draft', scheduled: 'approved', published: 'a
 const PLANNER_STATUS_OUT = { draft: 'draft', approved: 'scheduled', pending: 'scheduled', revised: 'scheduled', changes: 'draft' };
 const two = (n) => String(n).padStart(2, '0');
 
+// Saving a connected account. The upsert needs a unique index on
+// (client_id, account_id); if that index is missing — a table copied between
+// Supabase projects does not bring its constraints — Postgres rejects every
+// upsert with 42P10 and no account can ever be connected. So we fall back to
+// finding the row ourselves and updating or inserting it.
+async function saveSocialAccount(row) {
+  const { error } = await supabase.from('social_accounts').upsert(row, { onConflict: 'client_id,account_id' });
+  if (!error) return { error: null };
+  try {
+    const { data: found } = await supabase.from('social_accounts').select('id')
+      .eq('client_id', row.client_id).eq('account_id', row.account_id).limit(1);
+    if (found && found[0]) {
+      const { error: updErr } = await supabase.from('social_accounts').update(row).eq('id', found[0].id);
+      return { error: updErr || null };
+    }
+    const { error: insErr } = await supabase.from('social_accounts').insert([row]);
+    return { error: insErr || null };
+  } catch (e) { return { error }; }
+}
+
+// A connect that fails leaves the client with a calm message, which is right for
+// them and useless for us. The real reason goes to the error log instead.
+function logConnectFailure(platform, message) {
+  try {
+    supabase.from('error_logs').insert([{ kind: 'manual', message: `connect:${platform} ${String(message || '').slice(0, 400)}`,
+      page: typeof window !== 'undefined' ? window.location.pathname : null,
+      url: typeof window !== 'undefined' ? window.location.href : null,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null }]).then(() => {}, () => {});
+  } catch (e) { /* logging must never break a connect */ }
+}
+
 function plannerPostFromRow(row) {
   const when = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
   const caption = String(row.caption || '');
@@ -9672,7 +9703,7 @@ function SocialAccountsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const acc = data.account;
-      const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+      const { error: upsertErr } = await saveSocialAccount({
         client_id: clientId,
         platform: acc.platform,
         account_id: acc.account_id,
@@ -9682,11 +9713,12 @@ function SocialAccountsPage() {
         picture: acc.picture || null,
         followers_count: acc.followers_count || 0,
         is_active: true,
-      }, { onConflict: 'client_id,account_id' });
+      });
       if (upsertErr) throw new Error(upsertErr.message);
       setSuccess(L(`Instagram @${acc.username} connected!`, `تم ربط إنستغرام @${acc.username}!`));
       loadAccounts(clientId);
     } catch (err) {
+      logConnectFailure('ig', err.message);
       setError(friendlyConnectError(err.message));
     }
     setConnecting(false);
@@ -9743,7 +9775,7 @@ function SocialAccountsPage() {
           // Save each account to Supabase
           let saveErrors = [];
           for (const acc of data.accounts) {
-            const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+            const { error: upsertErr } = await saveSocialAccount({
               client_id: clientId,
               platform: acc.platform,
               account_id: acc.account_id,
@@ -9753,7 +9785,7 @@ function SocialAccountsPage() {
               picture: acc.picture || null,
               followers_count: acc.followers_count || 0,
               is_active: true,
-            }, { onConflict: 'client_id,account_id' });
+            });
             if (upsertErr) saveErrors.push(upsertErr.message);
           }
 
@@ -9783,11 +9815,11 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('li_redirect_client');
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
-    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+    const { error: upsertErr } = await saveSocialAccount({
       client_id: clientId, platform: 'li', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
-    }, { onConflict: 'client_id,account_id' });
+    });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(L(`LinkedIn ${acc.kind === 'organization' ? 'Page' : 'profile'} "${acc.account_name}" connected!`, `تم ربط ${acc.kind === 'organization' ? 'صفحة' : 'ملف'} لينكدإن "${acc.account_name}"!`));
     setLiOptions(null);
@@ -9832,11 +9864,11 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('tt_redirect_client');
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
-    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+    const { error: upsertErr } = await saveSocialAccount({
       client_id: clientId, platform: 'tt', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
-    }, { onConflict: 'client_id,account_id' });
+    });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(L(`TikTok "${acc.account_name}" connected!`, `تم ربط تيك توك "${acc.account_name}"!`));
     loadAccounts(clientId);
@@ -9873,11 +9905,11 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('tw_redirect_client');
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
-    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+    const { error: upsertErr } = await saveSocialAccount({
       client_id: clientId, platform: 'tw', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
-    }, { onConflict: 'client_id,account_id' });
+    });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(L(`X @${acc.username} connected!`, `تم ربط X @${acc.username}!`));
     loadAccounts(clientId);
@@ -9917,12 +9949,12 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('yt_redirect_client');
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
-    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+    const { error: upsertErr } = await saveSocialAccount({
       client_id: clientId, platform: 'yt', account_id: acc.account_id, account_name: acc.account_name,
       refresh_token: acc.refresh_token || null,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
-    }, { onConflict: 'client_id,account_id' });
+    });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(L(`YouTube "${acc.account_name}" connected!`, `تم ربط يوتيوب "${acc.account_name}"!`));
     loadAccounts(clientId);
@@ -9958,11 +9990,11 @@ function SocialAccountsPage() {
     sessionStorage.removeItem('gb_redirect_client');
     const clientId = await resolveClientId(storedId);
     if (!clientId) { setError(L('Could not find your workspace to save the account. Refresh and try again.','تعذّر إيجاد مساحة عملك لحفظ الحساب. حدّث الصفحة وحاول مجدداً.')); return; }
-    const { error: upsertErr } = await supabase.from('social_accounts').upsert({
+    const { error: upsertErr } = await saveSocialAccount({
       client_id: clientId, platform: 'gb', account_id: acc.account_id, account_name: acc.account_name,
       username: acc.username || null, access_token: acc.access_token, picture: acc.picture || null,
       followers_count: acc.followers_count || 0, is_active: true,
-    }, { onConflict: 'client_id,account_id' });
+    });
     if (upsertErr) { setError(friendlyConnectError(upsertErr.message)); return; }
     setSuccess(L(`Google Business "${acc.account_name}" connected!`, `تم ربط Google Business "${acc.account_name}"!`));
     loadAccounts(clientId);
