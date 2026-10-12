@@ -4305,6 +4305,34 @@ function logConnectFailure(platform, message) {
   } catch (e) { /* logging must never break a connect */ }
 }
 
+// An OAuth return arrives as ?ig_code= (or li_/tt_/tw_/yt_/gb_) on the URL. The app
+// rewrites the address to a clean path as soon as the workspace finishes loading,
+// and that happens BEFORE the Social Accounts screen mounts to read it — so the code
+// was being wiped every time: the client signed in, granted permission, came back,
+// and nothing was connected, with no error to show for it. We read the codes here,
+// at module load, which runs before any of that.
+const OAUTH_RETURN = (() => {
+  const out = {};
+  try {
+    const params = new URLSearchParams(window.location.search);
+    ['ig', 'li', 'tt', 'tw', 'yt', 'gb'].forEach(key => {
+      const code = params.get(`${key}_code`);
+      const failure = params.get(`${key}_error`);
+      if (code) out[`${key}_code`] = code;
+      if (failure) out[`${key}_error`] = failure;
+    });
+  } catch (e) { /* no window, or a URL we cannot parse */ }
+  return out;
+})();
+// Read once and forget, so a later render cannot run the same code a second time.
+const takeOauthReturn = (key) => {
+  const code = OAUTH_RETURN[`${key}_code`] || null;
+  const failure = OAUTH_RETURN[`${key}_error`] || null;
+  delete OAUTH_RETURN[`${key}_code`];
+  delete OAUTH_RETURN[`${key}_error`];
+  return { code, failure };
+};
+
 function plannerPostFromRow(row) {
   const when = row.scheduled_at ? new Date(row.scheduled_at) : new Date();
   const caption = String(row.caption || '');
@@ -9567,61 +9595,68 @@ function SocialAccountsPage() {
 
   // Handle Instagram OAuth callback redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const igCode = params.get('ig_code');
-    const igError = params.get('ig_error');
-    if (igError) {
-      setError(friendlyConnectError(igError));
-      window.history.replaceState({}, '', '/socialmanage');
-    } else if (igCode && !oauthHandled.current.ig) {
-      oauthHandled.current.ig = true;
-      window.history.replaceState({}, '', '/socialmanage'); handleInstagramCallback(igCode);
-    }
+    if (oauthHandled.current.ig) return;
+    const { code: igCode, failure: igError } = takeOauthReturn('ig');
+    if (!igCode && !igError) return;
+    oauthHandled.current.ig = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (igError) setError(friendlyConnectError(igError));
+    else handleInstagramCallback(igCode);
   }, [realClientId]);
 
   // Handle LinkedIn OAuth callback redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const liCode = params.get('li_code');
-    const liError = params.get('li_error');
-    if (liError) { setError(friendlyConnectError(liError)); window.history.replaceState({}, '', '/socialmanage'); }
-    else if (liCode && !oauthHandled.current.li) { oauthHandled.current.li = true; window.history.replaceState({}, '', '/socialmanage'); handleLinkedinCallback(liCode); }
+    if (oauthHandled.current.li) return;
+    const { code, failure } = takeOauthReturn('li');
+    if (!code && !failure) return;
+    oauthHandled.current.li = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (failure) setError(friendlyConnectError(failure));
+    else handleLinkedinCallback(code);
   }, [realClientId]);
 
   // Handle TikTok OAuth callback redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const ttCode = params.get('tt_code');
-    const ttError = params.get('tt_error');
-    if (ttError) { setError(friendlyConnectError(ttError)); window.history.replaceState({}, '', '/socialmanage'); }
-    else if (ttCode && !oauthHandled.current.tt) { oauthHandled.current.tt = true; window.history.replaceState({}, '', '/socialmanage'); handleTiktokCallback(ttCode); }
+    if (oauthHandled.current.tt) return;
+    const { code, failure } = takeOauthReturn('tt');
+    if (!code && !failure) return;
+    oauthHandled.current.tt = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (failure) setError(friendlyConnectError(failure));
+    else handleTiktokCallback(code);
   }, [realClientId]);
 
   // Handle X (Twitter) OAuth callback redirect — held until go-live
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const twCode = params.get('tw_code');
-    const twError = params.get('tw_error');
-    if (twError) { setError(friendlyConnectError(twError)); window.history.replaceState({}, '', '/socialmanage'); }
-    else if (twCode && !oauthHandled.current.tw) { oauthHandled.current.tw = true; window.history.replaceState({}, '', '/socialmanage'); handleXCallback(twCode); }
+    if (oauthHandled.current.tw) return;
+    const { code, failure } = takeOauthReturn('tw');
+    if (!code && !failure) return;
+    oauthHandled.current.tw = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (failure) setError(friendlyConnectError(failure));
+    else handleXCallback(code);
   }, [realClientId]);
 
   // Handle YouTube (Google) OAuth callback redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const ytCode = params.get('yt_code');
-    const ytError = params.get('yt_error');
-    if (ytError) { setError(friendlyConnectError(ytError)); window.history.replaceState({}, '', '/socialmanage'); }
-    else if (ytCode && !oauthHandled.current.yt) { oauthHandled.current.yt = true; window.history.replaceState({}, '', '/socialmanage'); handleYoutubeCallback(ytCode); }
+    if (oauthHandled.current.yt) return;
+    const { code, failure } = takeOauthReturn('yt');
+    if (!code && !failure) return;
+    oauthHandled.current.yt = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (failure) setError(friendlyConnectError(failure));
+    else handleYoutubeCallback(code);
   }, [realClientId]);
 
   // Handle Google Business Profile OAuth callback redirect
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const gbCode = params.get('gb_code');
-    const gbError = params.get('gb_error');
-    if (gbError) { setError(friendlyConnectError(gbError)); window.history.replaceState({}, '', '/socialmanage'); }
-    else if (gbCode && !oauthHandled.current.gb) { oauthHandled.current.gb = true; window.history.replaceState({}, '', '/socialmanage'); handleGbpCallback(gbCode); }
+    if (oauthHandled.current.gb) return;
+    const { code, failure } = takeOauthReturn('gb');
+    if (!code && !failure) return;
+    oauthHandled.current.gb = true;
+    window.history.replaceState({}, '', '/socialmanage');
+    if (failure) setError(friendlyConnectError(failure));
+    else handleGbpCallback(code);
   }, [realClientId]);
 
   const loadAccounts = async (clientId) => {
